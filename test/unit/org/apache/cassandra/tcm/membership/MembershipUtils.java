@@ -20,6 +20,8 @@ package org.apache.cassandra.tcm.membership;
 
 import java.net.UnknownHostException;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
@@ -34,6 +36,15 @@ public class MembershipUtils
     public static InetAddressAndPort randomEndpoint(Random random)
     {
         return endpoint(random.nextInt(254) + 1);
+    }
+
+    public static Set<InetAddressAndPort> uniqueEndpoints(Random random, int count)
+    {
+        return random.ints(1, 255)
+                     .distinct()
+                     .limit(count)
+                     .mapToObj(MembershipUtils::endpoint)
+                     .collect(Collectors.toSet());
     }
 
     public static InetAddressAndPort endpoint(int i)

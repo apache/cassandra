@@ -21,13 +21,13 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.nio.file.Files;
 
-import org.apache.cassandra.io.util.File;
-import org.junit.Test;
-
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
+import org.junit.Test;
+
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -41,7 +41,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
         assertEquals(1, tool.getExitCode());
-        assertNoUnexpectedThreadsStarted(null, false);
+        assertNoUnexpectedThreadsStarted(false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -79,7 +79,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
                                                        "--is-repaired",
                                                        findOneSSTable("legacy_sstables", "legacy_ma_simple"));
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, false);
+        assertNoUnexpectedThreadsStarted(false, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -95,7 +95,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
                                                  "--is-unrepaired",
                                                  findOneSSTable("legacy_sstables", "legacy_ma_simple"));
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, false);
+        assertNoUnexpectedThreadsStarted(false, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -113,7 +113,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
         String file = tmpFile.absolutePath();
         ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class, "--really-set", "--is-repaired", "-f", file);
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, false);
+        assertNoUnexpectedThreadsStarted(false, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

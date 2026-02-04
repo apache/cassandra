@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.cql3.validation.miscellaneous;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
@@ -371,6 +372,79 @@ public class CommentAndSecurityLabelTest extends CQLTester
         assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.COLUMN, columnRef, ""));
         assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.TYPE, typeRef, ""));
         assertInvalidMessage("Cannot set security label to empty string", buildSecurityLabelStatement(ObjectType.FIELD, fieldRef, ""));
+    }
+
+    @Test
+    public void testCommentAndSecurityLabelNotAllowedInCreateKeyspace()
+    {
+        // Test that comment property is rejected in CREATE KEYSPACE WITH clause
+        String createKsWithComment = "CREATE KEYSPACE ks_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND comment = 'test comment'";
+        assertInvalidMessage("Unknown property 'comment'", createKsWithComment);
+
+        // Test that security_label property is rejected in CREATE KEYSPACE WITH clause
+        String createKsWithLabel = "CREATE KEYSPACE ks_test2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND security_label = 'TEST_LABEL'";
+        assertInvalidMessage("Unknown property 'security_label'", createKsWithLabel);
+    }
+
+    @Test
+    public void testCommentAndSecurityLabelNotAllowedInAlterKeyspace()
+    {
+        createKeyspaceWithName("ks_alter_test");
+
+        // Test that comment property is rejected in ALTER KEYSPACE WITH clause
+        String alterKsWithComment = "ALTER KEYSPACE ks_alter_test WITH comment = 'test comment'";
+        assertInvalidMessage("Unknown property 'comment'", alterKsWithComment);
+
+        // Test that security_label property is rejected in ALTER KEYSPACE WITH clause
+        String alterKsWithLabel = "ALTER KEYSPACE ks_alter_test WITH security_label = 'TEST_LABEL'";
+        assertInvalidMessage("Unknown property 'security_label'", alterKsWithLabel);
+    }
+
+    @Test
+    public void testSecurityLabelNotAllowedInCreateTable()
+    {
+        createKeyspaceWithName("ks_table_test");
+
+        // Test that security_label property is rejected in CREATE TABLE WITH clause
+        String createTableWithLabel = "CREATE TABLE ks_table_test.t1 (id int PRIMARY KEY, name text) WITH security_label = 'TEST_LABEL'";
+        assertInvalidMessage("Unknown property 'security_label'", createTableWithLabel);
+
+        // Verify that comment IS allowed in CREATE TABLE for backward compatibility
+        String createTableWithComment = "CREATE TABLE ks_table_test.t2 (id int PRIMARY KEY, name text) WITH comment = 'test comment'";
+        execute(createTableWithComment);
+        assertComment(ObjectType.TABLE, "ks_table_test", "ks_table_test.t2", "test comment");
+    }
+
+    @Test
+    public void testSecurityLabelNotAllowedInAlterTable()
+    {
+        createKeyspaceWithName("ks_alter_table_test");
+        createTableWithName("ks_alter_table_test", "t1");
+
+        // Test that security_label property is rejected in ALTER TABLE WITH clause
+        String alterTableWithLabel = "ALTER TABLE ks_alter_table_test.t1 WITH security_label = 'TEST_LABEL'";
+        assertInvalidMessage("Unknown property 'security_label'", alterTableWithLabel);
+
+        // Verify that comment IS allowed in ALTER TABLE for backward compatibility
+        String alterTableWithComment = "ALTER TABLE ks_alter_table_test.t1 WITH comment = 'test comment'";
+        execute(alterTableWithComment);
+        assertComment(ObjectType.TABLE, "ks_alter_table_test", "ks_alter_table_test.t1", "test comment");
+    }
+
+    @Test
+    public void testSecurityLabelNotAllowedInCreateTableLike()
+    {
+        createKeyspaceWithName("ks_like_test");
+        createTableWithName("ks_like_test", "source_table");
+
+        // Test that security_label property is rejected in CREATE TABLE ... LIKE ... WITH clause
+        String createTableLikeWithLabel = "CREATE TABLE ks_like_test.target_table LIKE ks_like_test.source_table WITH security_label = 'TEST_LABEL'";
+        assertInvalidMessage("Unknown property 'security_label'", createTableLikeWithLabel);
+
+        // Verify that comment IS allowed in CREATE TABLE ... LIKE for backward compatibility
+        String createTableLikeWithComment = "CREATE TABLE ks_like_test.target_table2 LIKE ks_like_test.source_table WITH comment = 'test comment'";
+        execute(createTableLikeWithComment);
+        assertComment(ObjectType.TABLE, "ks_like_test", "ks_like_test.target_table2", "test comment");
     }
 
     // Helper methods for setting comments and security labels

@@ -21,6 +21,7 @@ package org.apache.cassandra.metrics;
 import java.util.function.Supplier;
 
 import com.codahale.metrics.Snapshot;
+
 import org.apache.cassandra.metrics.LogLinearHistogram.LogLinearSnapshot;
 
 import static org.apache.cassandra.metrics.CassandraReservoir.BucketStrategy.log_linear;
@@ -28,9 +29,11 @@ import static org.apache.cassandra.metrics.CassandraReservoir.BucketStrategy.log
 public class OnDemandHistogram extends OverrideHistogram
 {
     final Supplier<LogLinearSnapshot> snapshot;
-    protected OnDemandHistogram(Supplier<LogLinearSnapshot> snapshot)
+    final boolean isCumulative;
+    protected OnDemandHistogram(Supplier<LogLinearSnapshot> snapshot, boolean isCumulative)
     {
         this.snapshot = snapshot;
+        this.isCumulative = isCumulative;
     }
 
     @Override
@@ -55,5 +58,11 @@ public class OnDemandHistogram extends OverrideHistogram
     public long[] bucketStarts(int length)
     {
         return LogLinearHistogram.bucketsWithLength(length);
+    }
+
+    @Override
+    public boolean isCumulative()
+    {
+        return isCumulative;
     }
 }

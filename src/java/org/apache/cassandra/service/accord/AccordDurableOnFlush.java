@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import org.agrona.collections.Int2ObjectHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +29,7 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
-import org.agrona.collections.Int2ObjectHashMap;
+
 import org.apache.cassandra.schema.TableMetadata;
 
 class AccordDurableOnFlush implements Consumer<TableMetadata>
@@ -58,7 +59,7 @@ class AccordDurableOnFlush implements Consumer<TableMetadata>
             notify = commandStores;
             commandStores = null;
         }
-        CommandStores commandStores = AccordService.instance().node().commandStores();
+        CommandStores commandStores = AccordService.unsafeInstance().node().commandStores();
         for (Map.Entry<Integer, RedundantBefore> e : notify.entrySet())
         {
             RedundantBefore durable = e.getValue();

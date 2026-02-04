@@ -24,13 +24,12 @@ import java.util.Arrays;
 import com.google.common.base.CharMatcher;
 
 import org.apache.commons.lang3.tuple.Pair;
-
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -55,7 +54,7 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
             assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Options:"));
             assertEquals(1, tool.getExitCode());
         }
-        assertNoUnexpectedThreadsStarted(null, false);
+        assertNoUnexpectedThreadsStarted(false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -219,7 +218,7 @@ public class SSTableMetadataViewerTest extends OfflineToolUtils
 
     private void assertGoodEnvPostTest()
     {
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, false);
+        assertNoUnexpectedThreadsStarted(false, OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

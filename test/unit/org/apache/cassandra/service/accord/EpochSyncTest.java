@@ -44,18 +44,21 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.description.Description;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.Utils;
 import accord.api.MessageSink;
-import accord.impl.TestAgent;
-import accord.impl.mock.MockCluster;
-import accord.local.ShardDistributor;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.TestAgent;
+import accord.impl.mock.MockCluster;
 import accord.local.Node;
+import accord.local.ShardDistributor;
 import accord.local.TimeService;
 import accord.primitives.Ranges;
 import accord.topology.EpochReady;
@@ -70,6 +73,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import accord.utils.async.Cancellable;
+
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -109,8 +113,6 @@ import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.description.Description;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
@@ -392,7 +394,7 @@ public class EpochSyncTest
                                   .isFalse();
 
                         // validate topology manager
-                        Ranges ranges = tm.active().getKnown(epoch).global().ranges().mergeTouching();
+                        Ranges ranges = tm.active().getKnown(epoch).all().ranges().mergeTouching();
                         Ranges actual = tm.unsafeQuorumReady(epoch).mergeTouching();
                         Assertions.assertThat(actual)
                                   .describedAs("node%s does not have all expected sync ranges for epoch %d; missing %s", id, epoch, ranges.without(actual))
@@ -404,7 +406,7 @@ public class EpochSyncTest
                             continue;
 
                         Assertions.assertThat(tm.active().hasEpoch(epoch)).describedAs("node%s does not have epoch %d", id, epoch).isTrue();
-                        Topology topology = tm.active().getKnown(epoch).global();
+                        Topology topology = tm.active().getKnown(epoch).all();
                         Ranges ranges = topology.ranges().mergeTouching();
                         Ranges actual = tm.unsafeQuorumReady(epoch).mergeTouching();
                         // TopologyManager defines syncComplete for an epoch as (epoch - 1).syncComplete.  This means that an epoch has reached quorum, but will still miss ranges as previous epochs have not

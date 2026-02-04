@@ -21,6 +21,7 @@
 package org.apache.cassandra.db.transform;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import org.apache.cassandra.db.rows.BaseRowIterator;
 
 // A Transformation that can stop an iterator earlier than its natural exhaustion

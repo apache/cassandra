@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
+
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -76,7 +78,6 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
-import org.assertj.core.api.Assertions;
 
 import static java.util.Collections.emptySet;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
@@ -265,6 +266,10 @@ public class RepairJobTest
 
         long singleTreeSize = ObjectSizes.measureDeep(mockTrees.get(addr1));
 
+        assertEquals(0, session.syncingCount());
+        for (var mt : mockTrees.values())
+            assertThat(mt.isReleased()).isFalse();
+
         // Use addr4 instead of one of the provided trees to force everything to be remote sync tasks as
         // LocalSyncTasks try to reach over the network.
         List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(SharedContext.Global.instance, sessionJobDesc, mockTreeResponses,
@@ -274,30 +279,41 @@ public class RepairJobTest
                                                                      session.pullRepair,
                                                                      session.previewKind);
 
+        // All trees in our mockTrees should be released after SyncTask creation
+        for (var mt : mockTrees.values())
+            assertThat(mt.isReleased()).isTrue();
+        assertThat(session.syncingCount()).isEqualTo(0);
+
         // SyncTasks themselves should not contain significant memory
         SyncTaskListAssert.assertThat(syncTasks).hasSizeLessThan(0.2 * singleTreeSize);
 
-        // Remember the size of the session before we've executed any tasks
-        long sizeBeforeExecution = ObjectSizes.measureDeep(session);
+        // We can't directly check the memory size in the session post JDK21; jamm has trouble walking the internal
+        // object graph of a ConcurrentHashMap's implementation post JDK21 and has bugs with the @Contended case (which
+        // indicates we should consider moving away from it... jamm, that is. Which we've discussed as a project).
+        // Instead, we treat the presence or removal of SyncTasks as indicative of the memory usage since the reference
+        // to the MerkleTrees lives on there after creation.
 
         // block syncComplete execution until test has verified session still retains the trees
         CompletableFuture<?> future = new CompletableFuture<>();
         session.registerSyncCompleteCallback(future::get);
-        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
 
-        // Immediately following execution the internal execution queue should still retain the trees
-        long sizeDuringExecution = ObjectSizes.measureDeep(session);
-        assertThat(sizeDuringExecution).isGreaterThan(sizeBeforeExecution + (syncTasks.size() * singleTreeSize));
+        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
+        // Immediately following execution the SyncTasks should still be live and thus taking memory
+        assertThat(session.syncingCount()).isNotEqualTo(0);
+
         // unblock syncComplete callback, session should remove trees
         future.complete(null);
 
         // The session retains memory in the contained executor until the threads expire, so we wait for the threads
         // that ran the Tree -> SyncTask conversions to die and release the memory
         long millisUntilFreed;
+
+        // Confirm that it's the thread timeout mechanism that's causing the SyncTasks to retire
+        assertThat(session.syncingCount()).isNotEqualTo(0);
         for (millisUntilFreed = 0; millisUntilFreed < TEST_TIMEOUT_S * 1000; millisUntilFreed += THREAD_TIMEOUT_MILLIS)
         {
             TimeUnit.MILLISECONDS.sleep(THREAD_TIMEOUT_MILLIS);
-            if (ObjectSizes.measureDeep(session) < (sizeDuringExecution - (syncTasks.size() * singleTreeSize)))
+            if (session.syncingCount() == 0)
                 break;
         }
 

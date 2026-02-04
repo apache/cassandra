@@ -27,21 +27,29 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SocketOptions;
 import com.google.common.collect.ImmutableList;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.ThrowableAssert;
+import org.quicktheories.generators.SourceDSL;
 import org.slf4j.Logger;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SocketOptions;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TestDatabaseDescriptor;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CQLFormatter;
@@ -83,8 +91,6 @@ import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.ignoreCommand;
 import static accord.utils.Property.multistep;
@@ -104,6 +110,11 @@ public class StatefulASTBase extends TestBaseImpl
      * will be the output (eg. {@code 4 + 4 } is replaced with {@code 8}).
      */
     protected static boolean CQL_DEBUG_APPLY_OPERATOR = false;
+
+    /**
+     * Allows for overriding the CQL format logic, default is none (single line), but can create custom ones to help with the history
+     */
+    protected static Supplier<CQLFormatter> CQL_FORMATTER = () -> CQLFormatter.None.instance;
 
     protected static final Gen<Gen<Boolean>> BOOL_DISTRIBUTION = Gens.bools().mixedDistribution();
     protected static final Gen<Gen<Conditional.Where.Inequality>> LESS_THAN_DISTRO = Gens.mixedDistribution(Stream.of(Conditional.Where.Inequality.values())
@@ -196,7 +207,7 @@ public class StatefulASTBase extends TestBaseImpl
     protected static <S extends BaseState> Property.Command<S, Void, ?> compactTable(RandomSource rs, S state)
     {
         return new Property.SimpleCommand<>("nodetool compact " + state.metadata.keyspace + ' ' + state.metadata.name, s2 -> {
-            state.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
+            s2.cluster.forEach(i -> i.nodetoolResult("compact", s2.metadata.keyspace, s2.metadata.name).asserts().success());
             s2.compact();
         });
     }
@@ -361,13 +372,6 @@ public class StatefulASTBase extends TestBaseImpl
         }
         else
         {
-            // it's possible that the range was flipped, which is known bug with BETWEEN, so
-            // make sure the range is not flipped until that bug is fixed
-            if (IGNORED_ISSUES.contains(KnownIssue.BETWEEN_START_LARGER_THAN_END))
-            {
-                min = Literal.of(key.token.getLongValue());
-                max = Literal.of(Long.MIN_VALUE);
-            }
             select = Select.builder(state.metadata)
                            .between(tokenCall, min, max)
                            .build();
@@ -439,7 +443,7 @@ public class StatefulASTBase extends TestBaseImpl
             createTable(metadata);
 
             String sstableFormatName = this.sstableFormatName = Generators.toGen(CassandraGenerators.sstableFormatNames()).next(rs);
-            cluster.forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setSelectedSSTableFormat(sstableFormatName)));
+            cluster.forEach(i -> i.runOnInstance(() -> TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat(sstableFormatName)));
         }
 
         public boolean hasPartitions()
@@ -473,6 +477,12 @@ public class StatefulASTBase extends TestBaseImpl
         protected <S extends BaseState> Property.Command<S, Void, ?> command(RandomSource rs, Select select)
         {
             return command(rs, select, null);
+        }
+
+        protected boolean allowListElementAccessForUpdateSet()
+        {
+            // this requires a read at the same CL, but the model is global level and not per-node level, so can't handle
+            return mutationCl() != ConsistencyLevel.NODE_LOCAL;
         }
 
         protected boolean allowRepair()
@@ -586,18 +596,24 @@ public class StatefulASTBase extends TestBaseImpl
         {
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
-            if (mutation.isCas())
-            {
+            @Nullable
+            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = model.shouldReject(mutation);
+            if (shouldRaiseThrowable != null)
+                postfix += ", should reject";
+            else if (mutation.isCas())
                 postfix += ", would apply " + model.shouldApply(mutation);
-                // CAS doesn't allow timestamps
-                mutation = mutation.withoutTimestamp();
-            }
+
             if (annotate == null) annotate = postfix;
             else                  annotate += ", " + postfix;
-            Mutation finalMutation = mutation;
             return new Property.SimpleCommand<>(humanReadable(mutation, annotate), s -> {
-                var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), finalMutation);
-                s.model.updateAndValidate(result, finalMutation);
+                if (shouldRaiseThrowable != null)
+                {
+                    shouldRaiseThrowable.accept(() -> s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation));
+                    s.mutation();
+                    return;
+                }
+                var result = s.executeQuery(inst, Integer.MAX_VALUE, s.mutationCl(), mutation);
+                s.model.updateAndValidate(result, mutation);
                 s.mutation();
             });
         }
@@ -611,7 +627,11 @@ public class StatefulASTBase extends TestBaseImpl
         {
             var inst = selectInstance(rs);
             String postfix = "on " + inst;
-            if (model.isConditional(txn))
+            @Nullable
+            Consumer<ThrowableAssert.ThrowingCallable> shouldRaiseThrowable = model.shouldReject(txn);
+            if (shouldRaiseThrowable != null)
+                postfix += ", should reject";
+            else if (model.isConditional(txn))
                 postfix += ", would apply " + model.shouldApply(txn);
             if (annotate == null) annotate = postfix;
             else annotate += ", " + postfix;
@@ -619,7 +639,14 @@ public class StatefulASTBase extends TestBaseImpl
             return new Property.SimpleCommand<>(humanReadable(txn, annotate), s -> {
                 boolean hasMutation = txn.ifBlock.isPresent() || !txn.mutations.isEmpty();
                 ConsistencyLevel cl = hasMutation ? s.mutationCl() : s.selectCl();
-                s.model.updateAndValidate(s.executeQuery(inst, Integer.MAX_VALUE, cl, txn), txn);
+                if (shouldRaiseThrowable != null)
+                {
+                    shouldRaiseThrowable.accept(() -> s.executeQuery(inst, Integer.MAX_VALUE, cl, txn));
+                }
+                else
+                {
+                    s.model.updateAndValidate(s.executeQuery(inst, Integer.MAX_VALUE, cl, txn), txn);
+                }
                 if (hasMutation)
                     s.mutation();
             });
@@ -706,7 +733,7 @@ public class StatefulASTBase extends TestBaseImpl
         {
             // With UTF-8 some chars can cause printing issues leading to error messages that don't reproduce the original issue.
             // To avoid this problem, always escape the CQL so nothing gets lost
-            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(CQLFormatter.None.instance));
+            String cql = StringUtils.escapeControlChars(stmt.visit(debug).toCQL(CQL_FORMATTER.get()));
             if (annotate != null)
                 cql += " -- " + annotate;
             return cql;

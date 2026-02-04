@@ -44,6 +44,7 @@ public interface SSTableMultiWriter extends Transactional
     String getFilename();
     long getBytesWritten();
     long getOnDiskBytesWritten();
+    long getTotalRows();
     TableId getTableId();
 
     static void abortOrDie(SSTableMultiWriter writer)

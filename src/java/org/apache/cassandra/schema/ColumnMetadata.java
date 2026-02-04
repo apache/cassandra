@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
+
 import org.github.jamm.Unmetered;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -134,6 +135,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      * into a single long value so that this can be done efficiently
      */
     private final long comparisonOrder;
+
+    private final boolean isCounterColumn;
 
     /**
      * Masking function used to dynamically mask the contents of this column.
@@ -288,6 +291,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell<?>)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
+        this.isCounterColumn = isCounterColumn(type);
         this.mask = mask;
         this.columnConstraints = columnConstraints;
         this.columnConstraints.setColumnName(name);
@@ -729,6 +733,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      * Check if column is counter type.
      */
     public boolean isCounterColumn()
+    {
+        return isCounterColumn;
+    }
+
+    private static boolean isCounterColumn(AbstractType<?> type)
     {
         if (type instanceof CollectionType) // Possible with, for example, supercolumns
             return ((CollectionType) type).valueComparator().isCounter();

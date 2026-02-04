@@ -39,13 +39,16 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
+
+import net.openhft.chronicle.core.util.SerializablePredicate;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.messages.NoWaitRequest;
-import net.openhft.chronicle.core.util.SerializablePredicate;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
@@ -94,6 +97,11 @@ import static org.assertj.core.api.Assertions.fail;
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 public class TestBaseImpl extends DistributedTestBase
 {
+    static
+    {
+        System.setProperty("accord.debug", "true"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(TestBaseImpl.class);
 
     public static final Object[][] EMPTY_ROWS = new Object[0][];

@@ -22,12 +22,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
-import ch.qos.logback.core.AppenderBase;
 import org.apache.cassandra.db.virtual.AbstractLoggerVirtualTable;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
+import ch.qos.logback.core.AppenderBase;
 
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 

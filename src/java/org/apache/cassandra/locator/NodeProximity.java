@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.locator;
 
-import org.apache.cassandra.utils.Sortable;
-
 import java.util.Comparator;
+
+import org.apache.cassandra.utils.Sortable;
 
 public interface NodeProximity
 {

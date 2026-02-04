@@ -21,9 +21,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 
+import org.agrona.collections.Long2ObjectHashMap;
+
 import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
-import org.agrona.collections.Long2ObjectHashMap;
+
 import org.apache.cassandra.utils.concurrent.Refs;
 
 /**
@@ -31,7 +33,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * <p/>
  * TODO (performance, expected): an interval/range structure for StaticSegment lookup based on min/max key bounds
  */
-class Segments<K, V>
+public class Segments<K, V>
 {
     private final Long2ObjectHashMap<Segment<K, V>> segments;
     private SortedArrayList<Segment<K, V>> sorted;
@@ -100,6 +102,17 @@ class Segments<K, V>
     Iterable<Segment<K, V>> all()
     {
         return this.segments.values();
+    }
+
+    public int count(Predicate<? super Segment<K, V>> predicate)
+    {
+        int count = 0;
+        for (Segment<K, V> segment : segments.values())
+        {
+            if (predicate.test(segment))
+                ++count;
+        }
+        return count;
     }
 
     /**

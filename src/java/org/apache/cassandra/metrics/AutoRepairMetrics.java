@@ -20,9 +20,10 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
-import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.service.AutoRepairService;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

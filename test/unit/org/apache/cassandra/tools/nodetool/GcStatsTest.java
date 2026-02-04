@@ -21,6 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.GCInspector;
@@ -28,13 +29,12 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.tools.nodetool.stats.GcStatsHolder;
 import org.apache.cassandra.utils.JsonUtils;
-import org.yaml.snakeyaml.Yaml;
 
 import static java.lang.Double.parseDouble;
 import static java.util.Arrays.asList;
+import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.ALLOCATED_DIRECT_MEMORY;
 import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.MAX_DIRECT_MEMORY;
 import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.RESERVED_DIRECT_MEMORY;
-import static org.apache.cassandra.tools.nodetool.stats.GcStatsHolder.ALLOCATED_DIRECT_MEMORY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 

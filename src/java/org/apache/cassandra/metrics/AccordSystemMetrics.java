@@ -21,14 +21,18 @@ package org.apache.cassandra.metrics;
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Gauge;
+
+import accord.api.SystemEventListener;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
 import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
-import com.codahale.metrics.Counting;
-import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.metrics.LogLinearHistogram.LogLinearSnapshot;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -44,7 +48,7 @@ import static org.apache.cassandra.metrics.AccordMetricUtils.fromDurabilityServi
 import static org.apache.cassandra.metrics.AccordMetricUtils.fromTopologyManager;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-public class AccordSystemMetrics
+public class AccordSystemMetrics implements SystemEventListener
 {
     public final static AccordSystemMetrics metrics = new AccordSystemMetrics();
     private static final long REFRESH_RATE = TimeUnit.SECONDS.toNanos(30);
@@ -52,6 +56,10 @@ public class AccordSystemMetrics
     public static final String ACCORD_SYSTEM = "AccordSystem";
     public static final String MIN_EPOCH = "MinEpoch";
     public static final String MAX_EPOCH = "MaxEpoch";
+    public static final String MAX_PENDING_EPOCH = "MaxPendingEpoch";
+    public static final String ERRORS = "Errors";
+    public static final String EPOCH_WAITS = "EpochWaits";
+    public static final String EPOCH_TIMEOUTS = "EpochTimeouts";
     public static final String PROGRESS_LOG_ACTIVE = "ProgressLogActive";
     public static final String PROGRESS_LOG_SIZE = "ProgressLogSize";
     public static final String PROGRESS_LOG_AGE = "ProgressLogAge";
@@ -66,6 +74,10 @@ public class AccordSystemMetrics
 
     public final Gauge<Long> minEpoch;
     public final Gauge<Long> maxEpoch;
+    public final Gauge<Long> maxPendingEpoch;
+    public final Counter errors;
+    public final Counter epochWaits;
+    public final Counter epochTimeouts;
     public final Gauge<Long> progressLogActive;
     public final Gauge<Long> durabilityQueueActive;
     public final Gauge<Long> durabilityQueuePending;
@@ -142,17 +154,33 @@ public class AccordSystemMetrics
         DefaultNameFactory factory = new DefaultNameFactory(ACCORD_SYSTEM);
         minEpoch = Metrics.gauge(factory.createMetricName(MIN_EPOCH), fromTopologyManager(TopologyManager::minEpoch));
         maxEpoch = Metrics.gauge(factory.createMetricName(MAX_EPOCH), fromTopologyManager(TopologyManager::epoch));
+        maxPendingEpoch = Metrics.gauge(factory.createMetricName(MAX_PENDING_EPOCH), fromTopologyManager(TopologyManager::pendingEpoch));
+        errors = Metrics.counter(factory.createMetricName(ERRORS));
+        epochTimeouts = Metrics.counter(factory.createMetricName(EPOCH_TIMEOUTS));
+        epochWaits = Metrics.counter(factory.createMetricName(EPOCH_WAITS));
         durabilityQueueActive = Metrics.gauge(factory.createMetricName(DURABILITY_QUEUE_ACTIVE), fromDurabilityService(durability -> (long)durability.queue().activeCount()));
         durabilityQueuePending = Metrics.gauge(factory.createMetricName(DURABILITY_QUEUE_PENDING), fromDurabilityService(durability -> (long)durability.queue().pendingCount()));
         progressLogActive = Metrics.gauge(factory.createMetricName(PROGRESS_LOG_ACTIVE), fromDurabilityService(durability -> (long)durability.queue().activeCount()));
-        progressLogSize = Metrics.onDemandHistogram(factory.createMetricName(PROGRESS_LOG_SIZE), () -> maybeRefreshHistograms().progressLogSize);
-        progressLogAge = Metrics.onDemandHistogram(factory.createMetricName(PROGRESS_LOG_AGE), () -> maybeRefreshHistograms().progressLogAge);
-        syncPointAgreedLag = Metrics.onDemandHistogram(factory.createMetricName(SYNCPOINT_AGREED_LAG), () -> maybeRefreshHistograms().syncPointAgreedLag);
-        locallyAppliedLag = Metrics.onDemandHistogram(factory.createMetricName(LOCALLY_APPLIED_LAG), () -> maybeRefreshHistograms().locallyAppliedLag);
-        locallyDurableLag = Metrics.onDemandHistogram(factory.createMetricName(LOCALLY_DURABLE_LAG), () -> maybeRefreshHistograms().locallyDurableLag);
-        quorumAppliedLag = Metrics.onDemandHistogram(factory.createMetricName(QUORUM_APPLIED_LAG), () -> maybeRefreshHistograms().quorumAppliedLag);
-        shardAppliedLag = Metrics.onDemandHistogram(factory.createMetricName(SHARD_APPLIED_LAG), () -> maybeRefreshHistograms().shardAppliedLag);
-        gcLag = Metrics.onDemandHistogram(factory.createMetricName(GC_LAG), () -> maybeRefreshHistograms().gcLag);
+        progressLogSize = Metrics.onDemandHistogram(factory.createMetricName(PROGRESS_LOG_SIZE), () -> maybeRefreshHistograms().progressLogSize, false);
+        progressLogAge = Metrics.onDemandHistogram(factory.createMetricName(PROGRESS_LOG_AGE), () -> maybeRefreshHistograms().progressLogAge, false);
+        syncPointAgreedLag = Metrics.onDemandHistogram(factory.createMetricName(SYNCPOINT_AGREED_LAG), () -> maybeRefreshHistograms().syncPointAgreedLag, false);
+        locallyAppliedLag = Metrics.onDemandHistogram(factory.createMetricName(LOCALLY_APPLIED_LAG), () -> maybeRefreshHistograms().locallyAppliedLag, false);
+        locallyDurableLag = Metrics.onDemandHistogram(factory.createMetricName(LOCALLY_DURABLE_LAG), () -> maybeRefreshHistograms().locallyDurableLag, false);
+        quorumAppliedLag = Metrics.onDemandHistogram(factory.createMetricName(QUORUM_APPLIED_LAG), () -> maybeRefreshHistograms().quorumAppliedLag, false);
+        shardAppliedLag = Metrics.onDemandHistogram(factory.createMetricName(SHARD_APPLIED_LAG), () -> maybeRefreshHistograms().shardAppliedLag, false);
+        gcLag = Metrics.onDemandHistogram(factory.createMetricName(GC_LAG), () -> maybeRefreshHistograms().gcLag, false);
+    }
+
+    @Override
+    public void onWaitingForEpoch(long epoch)
+    {
+        epochWaits.inc();
+    }
+
+    @Override
+    public void onTimeoutForEpoch(long epoch, int count)
+    {
+        epochTimeouts.inc(count);
     }
 
     private synchronized Snapshot maybeRefreshHistograms()
@@ -190,6 +218,8 @@ public class AccordSystemMetrics
             for (int i = 0 ; i < redundantBefore.size() ; ++i)
             {
                 RedundantBefore.Bounds bounds = redundantBefore.valueAt(i);
+                if (bounds == null)
+                    continue;
                 builder.locallyAppliedLag.increment(ageSeconds(nowSeconds, bounds.maxBound(LOCALLY_APPLIED)));
                 builder.locallyDurableLag.increment(ageSeconds(nowSeconds, bounds.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE)));
                 builder.quorumAppliedLag.increment(ageSeconds(nowSeconds, bounds.maxBound(QUORUM_APPLIED)));

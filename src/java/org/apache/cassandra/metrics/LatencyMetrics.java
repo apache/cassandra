@@ -21,12 +21,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.Lists;
-
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
+import com.google.common.collect.Lists;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -169,12 +166,11 @@ public class LatencyMetrics
         Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 
-    public class LatencyMetricsTimer extends Timer
+    public class LatencyMetricsTimer extends ThreadLocalTimer implements org.apache.cassandra.metrics.Timer
     {
-
         long releasedLatencyCount = 0;
 
-        public LatencyMetricsTimer(Reservoir reservoir) 
+        public LatencyMetricsTimer(CassandraReservoir reservoir)
         {
             super(reservoir);
         }
@@ -249,7 +245,7 @@ public class LatencyMetrics
         }
     }
 
-    class LatencyMetricsCounter extends Counter 
+    class LatencyMetricsCounter extends ThreadLocalCounter
     {
         @Override
         public long getCount()

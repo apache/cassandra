@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

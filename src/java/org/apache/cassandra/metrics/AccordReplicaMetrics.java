@@ -21,12 +21,14 @@ package org.apache.cassandra.metrics;
 import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Counting;
+
 import accord.api.ReplicaEventListener;
 import accord.local.Command;
 import accord.local.SafeCommandStore;
 import accord.primitives.PartialDeps;
 import accord.primitives.TxnId;
-import com.codahale.metrics.Counting;
+
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.DecayingHistogramsShard;
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.ShardedDecayingHistogram;

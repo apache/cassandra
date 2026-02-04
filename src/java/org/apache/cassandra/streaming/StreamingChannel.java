@@ -22,9 +22,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.function.IntFunction;
 
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.utils.Shared;
+
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;

@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.test.accord;
 
 import com.google.common.base.Throwables;
 
+import org.assertj.core.api.Assertions;
+
 import accord.api.RoutingKey;
 import accord.local.CommandStores;
 import accord.local.LoadKeys;
@@ -30,6 +32,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -43,7 +46,6 @@ import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.assertj.core.api.Assertions;
 
 import static accord.local.LoadKeysFor.READ_WRITE;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;

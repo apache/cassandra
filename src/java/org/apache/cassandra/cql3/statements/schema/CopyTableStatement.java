@@ -234,6 +234,9 @@ public final class CopyTableStatement extends AlterSchemaStatement
     public void validate(ClientState state)
     {
         super.validate(state);
+        // validate attributes to avoid silently accepting following statements
+        // create table ... like ... with security_label='xxx';
+        attrs.validate();
 
         // If a memtable configuration is specified, validate it against config
         if (attrs.hasOption(TableParams.Option.MEMTABLE))

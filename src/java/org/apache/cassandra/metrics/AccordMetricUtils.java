@@ -20,9 +20,11 @@ package org.apache.cassandra.metrics;
 
 import java.util.function.Function;
 
+import com.codahale.metrics.Gauge;
+
 import accord.local.durability.DurabilityService;
 import accord.topology.TopologyManager;
-import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 

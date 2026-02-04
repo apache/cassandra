@@ -20,26 +20,33 @@ package org.apache.cassandra.repair.autorepair;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.Assert;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -52,6 +59,8 @@ public class AutoRepairTest extends CQLTester
     {
         setAutoRepairEnabled(true);
         requireNetwork();
+        AutoRepairUtils.setup();
+        StorageService.instance.doAutoRepairSetup();
     }
 
     @Before
@@ -160,5 +169,71 @@ public class AutoRepairTest extends CQLTester
                 Assert.assertFalse(AutoRepairUtils.shouldConsiderKeyspace(ks));
             }
         }
+    }
+
+    @Test
+    public void testTooSoonToRunRepairAllowsResumeOfInProgressRepair()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert with start_ts > finish_ts to simulate in-progress repair (crashed before completion)
+        AutoRepairUtils.insertNewRepairHistory(repairType, myId, now, now - 1000);
+
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
+        // Even though finish_ts was very recent, should return false because repair is in progress
+        assertFalse(AutoRepair.instance.tooSoonToRunRepair(repairType, repairState, config, myId));
+    }
+
+    @Test
+    public void testTooSoonToRunRepairReturnsTrueWhenRepairCompletedRecently()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert with finish_ts > start_ts to simulate completed repair
+        AutoRepairUtils.insertNewRepairHistory(repairType, myId, now - 1000, now);
+
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
+        // Should return true because repair completed recently and min_repair_interval hasn't passed
+        assertTrue(AutoRepair.instance.tooSoonToRunRepair(repairType, repairState, config, myId));
+    }
+
+    @Test
+    public void testTooSoonToRunRepairAllowsResumeWhenStartEqualsFinish()
+    {
+        RepairType repairType = RepairType.FULL;
+        UUID myId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
+        long now = System.currentTimeMillis();
+
+        // Truncate history table to start fresh
+        QueryProcessor.executeInternal(String.format(
+            "TRUNCATE %s.%s",
+            SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY));
+
+        // Insert with start_ts == finish_ts (edge case: repair never started progressing)
+        AutoRepairUtils.insertNewRepairHistory(repairType, myId, now, now);
+
+        AutoRepairConfig config = DatabaseDescriptor.getAutoRepairConfig();
+        AutoRepairState repairState = RepairType.getAutoRepairState(repairType, config);
+
+        // Should return false because repair is incomplete (start >= finish edge case)
+        assertFalse(AutoRepair.instance.tooSoonToRunRepair(repairType, repairState, config, myId));
     }
 }

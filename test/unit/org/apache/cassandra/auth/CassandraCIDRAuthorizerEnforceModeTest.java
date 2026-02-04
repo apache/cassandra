@@ -27,6 +27,8 @@ import java.util.Map;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -45,7 +47,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.auth.AuthKeyspace.CIDR_GROUPS;

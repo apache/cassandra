@@ -55,7 +55,8 @@ OPTIONS
             Path to the JMX password file
 
         --roll-cycle <roll_cycle>
-            How often to roll the log file (MINUTELY, HOURLY, DAILY).
+            How often to roll the log file (FAST_MINUTELY, FAST_HOURLY,
+            FAST_DAILY).
 
         -u <username>, --username <username>
             Remote jmx agent username

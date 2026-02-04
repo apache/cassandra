@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.junit.Test;
+import org.quicktheories.generators.SourceDSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,8 +44,8 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.FunctionCall;
 import org.apache.cassandra.cql3.ast.Mutation;
@@ -67,7 +68,6 @@ import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.ImmutableUniqueList;
-import org.quicktheories.generators.SourceDSL;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
@@ -133,13 +133,6 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         ByteBuffer left = state.pkGen.next(rs);
         ByteBuffer right = state.betweenEqGen.next(rs) ? left : state.pkGen.next(rs);
         int rc = PK_TYPE.compare(left, right);
-        if (rc > 0 && IGNORED_ISSUES.contains(KnownIssue.BETWEEN_START_LARGER_THAN_END))
-        {
-            ByteBuffer tmp = left;
-            left = right;
-            right = tmp;
-            rc = PK_TYPE.compare(left, right);
-        }
         Select select = Select.builder()
                               .table(state.tableRef)
                               .between(PK, state.pkValue(rs, left), state.pkValue(rs, right))
@@ -204,16 +197,6 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
         LongToken start = Murmur3Partitioner.instance.getToken(left);
         LongToken end = Murmur3Partitioner.instance.getToken(right);
         int rc = start.compareTo(end);
-        if (rc > 0 && IGNORED_ISSUES.contains(KnownIssue.BETWEEN_START_LARGER_THAN_END))
-        {
-            ByteBuffer tmp = left;
-            left = right;
-            right = tmp;
-            LongToken tmp2 = start;
-            start = end;
-            end = tmp2;
-            rc = start.compareTo(end);
-        }
         Select select = Select.builder()
                               .table(state.tableRef)
                               .between(FunctionCall.tokenByColumns(PK),
@@ -386,6 +369,7 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             this.mutationGen = toGen(new ASTGenerators.MutationGenBuilder(metadata)
                                      .withTxnSafe()
                                      .withPartitions(SourceDSL.arbitrary().pick(uniquePartitions))
+                                     .withListElementAccessForUpdateSet(allowListElementAccessForUpdateSet())
                                      .withIgnoreIssues(IGNORED_ISSUES)
                                      .build());
         }
@@ -404,10 +388,10 @@ public class SingleNodeTokenConflictTest extends StatefulASTBase
             for (ByteBuffer bb : values)
             {
                 var token = Murmur3Partitioner.instance.getToken(bb);
-                if (token.token > Long.MIN_VALUE + 1)
-                    neighbors.add(keyForToken(token.token - 1));
-                if (token.token < Long.MAX_VALUE)
-                    neighbors.add(keyForToken(token.token + 1));
+                if (token.getLongValue() > Long.MIN_VALUE + 1)
+                    neighbors.add(keyForToken(token.getLongValue() - 1));
+                if (token.getLongValue() < Long.MAX_VALUE)
+                    neighbors.add(keyForToken(token.getLongValue() + 1));
             }
             return neighbors.build();
         }

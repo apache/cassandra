@@ -21,11 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Optional;
 
+import org.github.jamm.Unmetered;
+
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.github.jamm.Unmetered;
 
 @Unmetered
 public interface Function extends AssignmentTestable

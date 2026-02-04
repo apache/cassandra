@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -27,7 +28,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.AssertionUtils;
-import org.assertj.core.api.Assertions;
 
 public class AccordFeatureFlagTest extends TestBaseImpl
 {

@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import org.apache.cassandra.cql3.UntypedResultSet;
-
 import org.junit.Test;
+
+import org.apache.cassandra.cql3.UntypedResultSet;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE;
 import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsInt;

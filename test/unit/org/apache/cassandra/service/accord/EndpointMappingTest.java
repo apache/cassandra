@@ -18,14 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.quicktheories.generators.SourceDSL;
 
 import accord.local.Node;
-import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
-import static org.quicktheories.QuickTheory.qt;
 
-import org.quicktheories.generators.SourceDSL;
+import org.apache.cassandra.utils.CassandraGenerators;
+
+import static org.quicktheories.QuickTheory.qt;
 
 
 public class EndpointMappingTest

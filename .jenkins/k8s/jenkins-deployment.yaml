@@ -58,6 +58,7 @@ controller:
     - pipeline-rest-api
     - test-stability
     - copyartifact
+    - jmh-report
   node-selector:
     cassandra.jenkins.controller: true
   scriptApproval:
@@ -294,7 +295,7 @@ agent:
               mountPath: /certs
     agent-dind-large: |
       - name: agent-dind-large
-        label: agent-dind cassandra-amd64-large
+        label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
         nodeSelector: 'cassandra.jenkins.agent.large=true'
         activeDeadlineSeconds: '0'
         idleMinutes: 1

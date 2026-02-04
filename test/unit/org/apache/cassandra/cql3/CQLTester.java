@@ -53,6 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
 import javax.annotation.Nullable;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
@@ -62,31 +63,6 @@ import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
 
-import com.google.common.base.Objects;
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-
-import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TestName;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import accord.utils.DefaultRandom;
-import accord.utils.Gen;
-import accord.utils.Property;
-import accord.utils.RandomSource;
 import com.codahale.metrics.Gauge;
 import com.datastax.driver.core.CloseFuture;
 import com.datastax.driver.core.Cluster;
@@ -104,6 +80,32 @@ import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.UserType;
 import com.datastax.driver.core.exceptions.UnauthorizedException;
 import com.datastax.shaded.netty.channel.EventLoopGroup;
+import com.google.common.base.Objects;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.TestName;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.utils.DefaultRandom;
+import accord.utils.Gen;
+import accord.utils.Property;
+import accord.utils.RandomSource;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
@@ -205,12 +207,6 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.utils.CassandraGenerators.regularKeyspace;
-import static org.apache.cassandra.utils.CassandraGenerators.regularTable;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
@@ -225,13 +221,25 @@ import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TABLE;
 import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TYPE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
+import static org.apache.cassandra.utils.CassandraGenerators.regularKeyspace;
+import static org.apache.cassandra.utils.CassandraGenerators.regularTable;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Base class for CQL tests.
  */
 public abstract class CQLTester
 {
+
+    static
+    {
+        System.setProperty("accord.debug", "true"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+    }
+
     /**
      * The super user
      */
@@ -2245,6 +2253,9 @@ public abstract class CQLTester
         Assert.assertEquals(String.format("expected %d rows but received %d", expectedCount, actualRowCount), expectedCount, actualRowCount);
     }
 
+    public static void assertRows(UntypedResultSet result, Object[]... rows) {
+        assertRows(result, List.of(rows));
+    }
     public abstract static class CellValidator
     {
         public abstract ByteBuffer expected();
@@ -2372,21 +2383,21 @@ public abstract class CQLTester
         };
     }
 
-    public static void assertRows(UntypedResultSet result, Object[]... rows)
+    public static void assertRows(UntypedResultSet result, List<Object[]> rows)
     {
         if (result == null)
         {
-            if (rows.length > 0)
-                Assert.fail(String.format("No rows returned by query but %d expected", rows.length));
+            if (rows.size() > 0)
+                Assert.fail(String.format("No rows returned by query but %d expected", rows.size()));
             return;
         }
 
         List<ColumnSpecification> meta = result.metadata();
         Iterator<UntypedResultSet.Row> iter = result.iterator();
         int i = 0;
-        while (iter.hasNext() && i < rows.length)
+        while (iter.hasNext() && i < rows.size())
         {
-            Object[] expected = rows[i];
+            Object[] expected = rows.get(i);
             UntypedResultSet.Row actual = iter.next();
 
             Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d", i), expected == null ? 1 : expected.length, meta.size());
@@ -2439,10 +2450,11 @@ public abstract class CQLTester
                 }
                 logger.info("Extra row num {}: {}", i, str);
             }
-            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.\nExpected: %s\nActual: %s", rows.length, i, toString(rows), result.toStringUnsafe()));
+            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.", rows.size(), i));
+            Assert.fail(String.format("Got more rows than expected. Expected %d but got %d.\nExpected: %s\nActual: %s", rows.size(), i, toString(rows), result.toStringUnsafe()));
         }
 
-        Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
+        Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.size()>i ? "less" : "more", rows.size(), i), i == rows.size());
     }
 
     private static String toString(Object o)
@@ -2686,13 +2698,13 @@ public abstract class CQLTester
         return rows;
     }
 
-    protected void assertEmpty(UntypedResultSet result) throws Throwable
+    protected void assertEmpty(UntypedResultSet result)
     {
         if (result != null && !result.isEmpty())
             throw new AssertionError(String.format("Expected empty result but got %d rows: %s \n", result.size(), makeRowStrings(result)));
     }
 
-    protected void assertInvalid(String query, Object... values) throws Throwable
+    protected void assertInvalid(String query, Object... values)
     {
         assertInvalidMessage(null, query, values);
     }
@@ -2766,7 +2778,7 @@ public abstract class CQLTester
                : replaceValues(query, values);
     }
 
-    protected void assertValidSyntax(String query) throws Throwable
+    protected void assertValidSyntax(String query)
     {
         try
         {
@@ -2779,12 +2791,12 @@ public abstract class CQLTester
         }
     }
 
-    protected void assertInvalidSyntax(String query, Object... values) throws Throwable
+    protected void assertInvalidSyntax(String query, Object... values)
     {
         assertInvalidSyntaxMessage(null, query, values);
     }
 
-    protected void assertInvalidSyntaxMessage(String errorMessage, String query, Object... values) throws Throwable
+    protected void assertInvalidSyntaxMessage(String errorMessage, String query, Object... values)
     {
         try
         {

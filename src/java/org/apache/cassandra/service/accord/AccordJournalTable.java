@@ -24,11 +24,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+
 import javax.annotation.CheckForNull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +39,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.UncheckedInterruptedException;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -76,6 +79,7 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.RecordConsumer;
 import org.apache.cassandra.journal.Segment;
+import org.apache.cassandra.journal.Segments;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns;
@@ -347,44 +351,87 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
     public void readAll(K key, RecordConsumer<K> reader)
     {
-        try (TableKeyIterator table = readAllFromTable(key))
+        try (OpOrder.Group readOrder = cfs.readOrdering.start())
         {
-            boolean hasTableData = table.advance();
-            long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
-            // First, read all journal entries newer than anything flushed into sstables
-            journal.readAll(key, (segment, position, key1, buffer, userVersion) -> {
-                if (segment > minSegment)
-                    reader.accept(segment, position, key1, buffer, userVersion);
-            });
-
-            // Then, read SSTables
-            while (hasTableData)
+            // SELECT segments first, to avoid missing segments due to races compacting segment->sstable
+            Segments<K, V> segments = journal.segments();
+            try (TableKeyIterator table = readAllFromTable(key, readOrder))
             {
-                reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
-                hasTableData = table.advance();
+                boolean hasTableData = table.advance();
+                long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
+                // First, read all journal entries newer than anything flushed into sstables
+                Journal.readAll(key, (segment, position, key1, buffer, userVersion) -> {
+                    if (segment > minSegment)
+                        reader.accept(segment, position, key1, buffer, userVersion);
+                }, readOrder, segments);
+
+                // Then, read SSTables
+                while (hasTableData)
+                {
+                    reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
+                    hasTableData = table.advance();
+                }
             }
         }
     }
-    
+
+    public void readLast(K key, Reader reader)
+    {
+        readLast(key, new RecordConsumerAdapter<>(reader));
+    }
+
+    public void readLast(K key, RecordConsumer<K> reader)
+    {
+        try (OpOrder.Group readOrder = cfs.readOrdering.start())
+        {
+            Segments<K, V> segments = journal.segments();
+            try (TableKeyIterator table = readAllFromTable(key, readOrder))
+            {
+                boolean hasTableData = table.advance();
+                long minSegment = hasTableData ? table.segment : Long.MIN_VALUE;
+
+                class JournalReader implements RecordConsumer<K>
+                {
+                    boolean read;
+                    @Override
+                    public void accept(long segment, int position, K key, ByteBuffer buffer, int userVersion)
+                    {
+                        if (segment > minSegment)
+                        {
+                            reader.accept(segment, position, key, buffer, userVersion);
+                            read = true;
+                        }
+                    }
+                }
+
+                // First, read all journal entries newer than anything flushed into sstables
+                JournalReader journalReader = new JournalReader();
+                Journal.readLast(key, journalReader, readOrder, segments);
+
+                // Then, read SSTables, if we haven't found a record already
+                if (hasTableData && !journalReader.read)
+                    reader.accept(table.segment, table.offset, key, table.value, table.userVersion);
+            }
+        }
+    }
+
     // TODO (expected): why are recordColumn and versionColumn instance fields, so that this cannot be a static class?
     class TableKeyIterator implements Closeable, RecordConsumer<K>
     {
         final K key;
         final List<UnfilteredRowIterator> unmerged;
         final UnfilteredRowIterator merged;
-        final OpOrder.Group readOrder;
 
         long segment;
         int offset;
         ByteBuffer value;
         int userVersion;
 
-        TableKeyIterator(K key, List<UnfilteredRowIterator> unmerged, UnfilteredRowIterator merged, OpOrder.Group readOrder)
+        TableKeyIterator(K key, List<UnfilteredRowIterator> unmerged, UnfilteredRowIterator merged)
         {
             this.key = key;
             this.unmerged = unmerged;
             this.merged = merged;
-            this.readOrder = readOrder;
         }
 
         @Override
@@ -419,16 +466,14 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
         @Override
         public void close()
         {
-            readOrder.close();
             if (merged != null)
                 merged.close();
         }
     }
 
-    private TableKeyIterator readAllFromTable(K key)
+    private TableKeyIterator readAllFromTable(K key, OpOrder.Group readOrder)
     {
         DecoratedKey pk = JournalColumns.decorate(key);
-        OpOrder.Group readOrder = cfs.readOrdering.start();
         List<UnfilteredRowIterator> iters = new ArrayList<>(3);
         try
         {
@@ -443,11 +488,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
                     iters.add(iter);
             }
 
-            return new TableKeyIterator(key, iters, iters.isEmpty() ? null : UnfilteredRowIterators.merge(iters), readOrder);
+            return new TableKeyIterator(key, iters, iters.isEmpty() ? null : UnfilteredRowIterators.merge(iters));
         }
         catch (Throwable t)
         {
-            readOrder.close();
             for (UnfilteredRowIterator iter : iters)
             {
                 try { iter.close(); }
@@ -460,7 +504,10 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
     @SuppressWarnings("resource") // Auto-closeable iterator will release related resources
     public CloseableIterator<Journal.KeyRefs<K>> keyIterator(@Nullable K min, @Nullable K max, boolean includeActive)
     {
-        return new JournalAndTableKeyIterator(min, max, includeActive);
+        try (OpOrder.Group readOrder = cfs.readOrdering.start())
+        {
+            return new JournalAndTableKeyIterator(min, max, includeActive);
+        }
     }
 
     private class TableIterator extends AbstractIterator<K> implements CloseableIterator<K>
@@ -515,13 +562,19 @@ public class AccordJournalTable<K extends JournalKey, V> implements RangeSearche
 
     private class JournalAndTableKeyIterator extends AbstractIterator<Journal.KeyRefs<K>> implements CloseableIterator<Journal.KeyRefs<K>>
     {
-        final TableIterator tableIterator;
         final Journal<K, V>.SegmentKeyIterator journalIterator;
+        final TableIterator tableIterator;
 
         private JournalAndTableKeyIterator(K min, K max, boolean includeActive)
         {
-            this.tableIterator = new TableIterator(min, max);
+            // We must initialise journal reader first, else we may race with segment->table compaction and miss some data
+            // that is, the following sequence could happen:
+            //  - Select sstables to read
+            //  - Segments compacted; segments removed and sstables added
+            //  - Segment iterator created
+            // TODO (expected): segments should be sstables on creation
             this.journalIterator = journal.segmentKeyIterator(min, max, includeActive ?  ignore -> true : Segment::isStatic);
+            this.tableIterator = new TableIterator(min, max);
         }
 
         K prevFromTable = null;

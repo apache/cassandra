@@ -25,10 +25,11 @@ import java.util.Optional;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
-import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.service.ClientState;
+
+import io.netty.handler.ssl.SslHandler;
 
 import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.UNAUTHENTICATED;
 

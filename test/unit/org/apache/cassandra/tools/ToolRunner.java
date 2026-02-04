@@ -41,18 +41,20 @@ import java.util.stream.Stream;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
+
+import org.assertj.core.util.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.core.OutputStreamAppender;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
-import ch.qos.logback.classic.spi.ILoggingEvent;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.util.Lists;
+
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.OutputStreamAppender;
 
 import static com.github.jknack.handlebars.internal.lang3.ArrayUtils.isEmpty;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,6 +66,7 @@ public class ToolRunner
     protected static final Logger logger = LoggerFactory.getLogger(ToolRunner.class);
 
     public static final ImmutableList<String> DEFAULT_CLEANERS = ImmutableList.of("(?im)^picked up.*\\R",
+                                                                                  "(?im)^.*package jdk.internal.util.jar not in java.base*\\R",
                                                                                   "(?im)^.*Not generating a deterministic id for table.*\\R",
                                                                                   "(?im)^.*`USE <keyspace>` with prepared statements is.*\\R");
 

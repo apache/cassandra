@@ -21,12 +21,12 @@ package org.apache.cassandra.simulator.paxos;
 import java.util.Collections;
 import java.util.List;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.LogResult;
-import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
 
 public class AbstractPairOfSequencesPaxosSimulationTest
 {

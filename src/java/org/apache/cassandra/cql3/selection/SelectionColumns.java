@@ -24,8 +24,8 @@ import java.util.List;
 
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Represents a mapping between the actual columns used to satisfy a Selection

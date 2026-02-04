@@ -26,23 +26,22 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.distributed.api.TokenSupplier;
-import org.apache.cassandra.metrics.AutoRepairMetrics;
-import org.apache.cassandra.metrics.AutoRepairMetricsManager;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
-
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.AutoRepairMetrics;
+import org.apache.cassandra.metrics.AutoRepairMetricsManager;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 

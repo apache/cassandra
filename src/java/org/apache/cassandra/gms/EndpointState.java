@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import com.google.common.base.Function;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -324,7 +328,7 @@ public class EndpointState
     public String toString()
     {
         View view = ref.get();
-        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + view.applicationState;
+        return "EndpointState: HeartBeatState = " + view.hbState + ", AppStateMap = " + view.applicationState + ", isAlive = " + isAlive;
     }
 
     public boolean isSupersededBy(EndpointState that)

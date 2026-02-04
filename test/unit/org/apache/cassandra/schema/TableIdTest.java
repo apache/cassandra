@@ -18,16 +18,17 @@ package org.apache.cassandra.schema;
  * limitations under the License.
  */
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.LazyToString;
 import accord.utils.ReflectionUtils;
+
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

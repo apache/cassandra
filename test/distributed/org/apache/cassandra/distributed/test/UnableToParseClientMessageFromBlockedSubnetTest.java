@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,7 +44,6 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ErrorMessage;
-import org.assertj.core.api.Assertions;
 
 @RunWith(Parameterized.class)
 public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImpl

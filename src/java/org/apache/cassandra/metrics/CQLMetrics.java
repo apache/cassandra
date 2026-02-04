@@ -20,6 +20,7 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.RatioGauge;
+
 import org.apache.cassandra.cql3.QueryProcessor;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

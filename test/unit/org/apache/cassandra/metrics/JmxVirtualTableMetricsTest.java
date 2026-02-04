@@ -24,15 +24,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
 import javax.management.JMX;
 import javax.management.ObjectName;
+
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.virtual.CollectionVirtualTableAdapter;
 
@@ -68,7 +70,7 @@ public class JmxVirtualTableMetricsTest extends CQLTester
         metricToNameMap.put(MetricType.METER, registry.meter("meter"));
         metricToNameMap.put(MetricType.COUNTER, registry.counter("counter"));
         metricToNameMap.put(MetricType.HISTOGRAM, registry.histogram("histogram", () -> new ClearableHistogram(new DecayingEstimatedHistogramReservoir(true))));
-        metricToNameMap.put(MetricType.TIMER, registry.timer("timer"));
+        metricToNameMap.put(MetricType.TIMER, registry.timer("timer", () -> new SnapshottingTimer(new DecayingEstimatedHistogramReservoir())));
         metricToNameMap.put(MetricType.GAUGE, registry.gauge("gauge", () -> gaugeValue::get));
 
         CassandraMetricsRegistry.metricGroups.forEach(group -> {

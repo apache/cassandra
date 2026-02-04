@@ -22,10 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Interface for training compression dictionaries from sample data.
@@ -42,11 +42,12 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
      * Starts the trainer for collecting samples.
      *
      * @param manualTraining true if this is manual training, false for automatic
+     * @param trainingConfig training configuration to use
      * @return true if the trainer is started; otherwise false. The trainer is started
      *         in any of those conditions: 1. trainer closed; 2. not requested for
      *         either manual or auto training; 3. failed to start
      */
-    boolean start(boolean manualTraining);
+    boolean start(boolean manualTraining, CompressionDictionaryTrainingConfig trainingConfig);
 
     /**
      * @return true if the trainer is ready to take a new sample; otherwise, false
@@ -87,8 +88,10 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
 
     /**
      * Clears all collected samples and resets trainer state.
+     *
+     * @param trainingConfig configuration to use upon resetting
      */
-    void reset();
+    void reset(CompressionDictionaryTrainingConfig trainingConfig);
 
     /**
      * Gets the current training state including status, progress, and failure details.
@@ -122,10 +125,10 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     /**
      * Updates the sampling rate for this trainer.
      *
-     * @param newSamplingRate the new sampling rate. For exmaple, 1 = sample every time (100%),
-     *                        2 = expect sample 1/2 of data (50%), n = expect sample 1/n of data
+     * @param newSamplingRate the new sampling rate. For exmaple, 0.01 - sample 1% of data,
+     *                        1 = sample every time (100%), 0.5 - sample 50% of data.
      */
-    void updateSamplingRate(int newSamplingRate);
+    void updateSamplingRate(float newSamplingRate);
 
     /**
      * Factory method to create appropriate trainer based on compression parameters.
@@ -133,14 +136,12 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
      * @param keyspaceName the keyspace name for logging
      * @param tableName the table name for logging
      * @param params the compression parameters
-     * @param config the training configuration
      * @return a dictionary trainer for the specified compression algorithm
      * @throws IllegalArgumentException if no dictionary trainer is available for the compression algorithm
      */
     static ICompressionDictionaryTrainer create(String keyspaceName,
                                                 String tableName,
-                                                CompressionParams params,
-                                                CompressionDictionaryTrainingConfig config)
+                                                CompressionParams params)
     {
         ICompressor compressor = params.getSstableCompressor();
         if (!(compressor instanceof IDictionaryCompressor))
@@ -149,7 +150,7 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
         }
 
         IDictionaryCompressor dictionaryCompressor = (IDictionaryCompressor) compressor;
-        return dictionaryCompressor.acceptableDictionaryKind().createTrainer(keyspaceName, tableName, config, compressor);
+        return dictionaryCompressor.acceptableDictionaryKind().createTrainer(keyspaceName, tableName, compressor);
     }
 
     enum TrainingStatus

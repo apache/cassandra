@@ -21,17 +21,20 @@ package org.apache.cassandra.db.compression;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import javax.annotation.Nullable;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
+import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
+import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Manages caching and current dictionary state for compression dictionaries.
@@ -62,17 +65,19 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
                              .removalListener((DictId dictId,
                                                CompressionDictionary dictionary,
                                                RemovalCause cause) -> {
-                                 // Close dictionary when evicted from cache to free native resources
-                                 // SelfRefCounted ensures dictionary won't be actually closed if still referenced by compressors
+                                 // Release the cache's reference to the dictionary when evicted
+                                 // The dictionary will only be truly cleaned up when all references are released
                                  if (dictionary != null)
                                  {
                                      try
                                      {
+                                         // The dictionary's selfRef should never be null when evicting from cache
+                                         // but using close() to have better resiliency
                                          dictionary.close();
                                      }
                                      catch (Exception e)
                                      {
-                                         logger.warn("Failed to close compression dictionary {}", dictId, e);
+                                         logger.warn("Failed to release compression dictionary {}", dictId, e);
                                      }
                                  }
                              })
@@ -102,7 +107,14 @@ public class CompressionDictionaryCache implements ICompressionDictionaryCache
 
         // Only update cache if not already in the cache
         DictId newDictId = compressionDictionary.dictId();
-        cache.get(newDictId, id -> compressionDictionary);
+        cache.get(newDictId, id -> {
+            Ref<?> ref = compressionDictionary.initRefLazily();
+            if (ref == null)
+            {
+                throw new IllegalStateException("Failed to acquire reference to compression dictionary");
+            }
+            return compressionDictionary;
+        });
 
         // Update current dictionary if we don't have one or the new one has a higher ID (newer)
         DictId currentId = currentDictId.get();

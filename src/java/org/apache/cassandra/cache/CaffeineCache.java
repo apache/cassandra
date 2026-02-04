@@ -17,15 +17,16 @@
  */
 package org.apache.cassandra.cache;
 
-import static com.google.common.base.Preconditions.checkState;
-
 import java.util.Iterator;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Policy.Eviction;
 import com.github.benmanes.caffeine.cache.Weigher;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * An adapter from a Caffeine cache to the ICache interface. This provides an on-heap cache using

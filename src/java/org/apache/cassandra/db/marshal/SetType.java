@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -255,12 +256,23 @@ public class SetType<T> extends CollectionType<Set<T>>
     @Override
     public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
     {
-        SortedSet<ByteBuffer> sorted = new TreeSet<>(elements);
-        for (ByteBuffer buffer: buffers)
+        return filterSortAndValidateElements(buffers, ByteBufferAccessor.instance, elements.comparatorSet.buffer);
+    }
+
+    @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        return filterSortAndValidateElements(buffers, ByteArrayAccessor.instance, elements.comparatorSet.array);
+    }
+
+    private <V> List<V> filterSortAndValidateElements(List<V> buffers, ValueAccessor<V> valueAccessor, Comparator<V> comparator)
+    {
+        SortedSet<V> sorted = new TreeSet<>(comparator);
+        for (V buffer: buffers)
         {
             if (buffer == null)
                 throw new MarshalException("null is not supported inside collections");
-            elements.validate(buffer);
+            elements.validate(buffer, valueAccessor);
             sorted.add(buffer);
         }
         return new ArrayList<>(sorted);

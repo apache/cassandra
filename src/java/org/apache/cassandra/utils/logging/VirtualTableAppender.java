@@ -22,9 +22,10 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.audit.FileAuditLogger;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 /**
  * Appends Cassandra logs to virtual table system_views.system_logs

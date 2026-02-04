@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import org.junit.Test;
-
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import org.junit.Test;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;

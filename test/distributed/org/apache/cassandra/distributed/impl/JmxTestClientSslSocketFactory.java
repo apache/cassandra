@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.impl;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.Socket;
+
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;

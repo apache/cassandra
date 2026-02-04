@@ -23,11 +23,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.UserFunctions;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 

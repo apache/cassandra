@@ -26,8 +26,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.cql3.CQLTester;
+
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

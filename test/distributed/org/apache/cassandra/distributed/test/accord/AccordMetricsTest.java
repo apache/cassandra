@@ -26,6 +26,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -35,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.ProtocolModifiers;
 import accord.primitives.TxnId.FastPath;
 import accord.primitives.TxnId.FastPaths;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -55,8 +58,6 @@ import org.apache.cassandra.service.accord.exceptions.AccordReadPreemptedExcepti
 import org.apache.cassandra.service.accord.exceptions.AccordWritePreemptedException;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AssertionUtils;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Offset;
 
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;

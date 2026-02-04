@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.functions;
 
 import org.junit.Test;
+
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.util.List.of;

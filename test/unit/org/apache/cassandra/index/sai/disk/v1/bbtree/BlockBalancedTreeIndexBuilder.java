@@ -28,9 +28,10 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import com.carrotsearch.hppc.LongArrayList;
+
 import org.junit.Assert;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.Int32Type;

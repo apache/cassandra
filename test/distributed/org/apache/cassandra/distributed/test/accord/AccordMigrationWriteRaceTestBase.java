@@ -35,6 +35,9 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
+
+import org.assertj.core.api.Assertions;
+import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -51,6 +54,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Routable.Domain;
 import accord.primitives.Route;
 import accord.utils.TinyEnumSet;
+
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -104,8 +108,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
-import org.assertj.core.api.Assertions;
-import org.eclipse.jetty.util.ConcurrentHashSet;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.Util.expectException;

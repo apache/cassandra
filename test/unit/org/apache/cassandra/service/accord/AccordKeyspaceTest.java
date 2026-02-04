@@ -30,7 +30,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import accord.api.RoutingKey;
 import accord.local.Command;
@@ -50,6 +54,7 @@ import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -66,14 +71,11 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
-import org.mockito.stubbing.Answer;
 
 import static accord.local.Command.Committed.committed;
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
-import static org.apache.cassandra.config.DatabaseDescriptor.setSelectedSSTableFormat;
+import static org.apache.cassandra.config.TestDatabaseDescriptor.setUnsafeSelectedSSTableFormat;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.setMemtable;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -145,7 +147,7 @@ public class AccordKeyspaceTest extends CQLTester.InMemory
         qt().check(rs -> {
             AccordKeyspace.unsafeClear();
             // control SSTable format
-            setSelectedSSTableFormat(sstableFormats.get(rs.pick(sstableFormatNames)));
+            setUnsafeSelectedSSTableFormat(sstableFormats.get(rs.pick(sstableFormatNames)));
             // control memtable format
             setMemtable(ACCORD_KEYSPACE_NAME, "commands_for_key", rs.pick(memtableFormats));
 

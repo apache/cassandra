@@ -19,13 +19,14 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Command(name = "enablefullquerylog", description = "Enable full query logging, defaults for the options are configured in cassandra.yaml")
 public class EnableFullQueryLog extends AbstractCommand
 {
-    @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file (MINUTELY, HOURLY, DAILY).")
+    @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file (FAST_MINUTELY, FAST_HOURLY, FAST_DAILY).")
     private String rollCycle = null;
 
     @Option(paramLabel = "blocking", names = { "--blocking" }, description = "If the queue is full whether to block producers or drop samples [true|false].")

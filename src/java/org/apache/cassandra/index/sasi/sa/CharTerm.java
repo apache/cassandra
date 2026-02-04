@@ -20,10 +20,10 @@ package org.apache.cassandra.index.sasi.sa;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 
-import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
-import org.apache.cassandra.db.marshal.AbstractType;
-
 import com.google.common.base.Charsets;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 
 public class CharTerm extends Term<CharBuffer>
 {

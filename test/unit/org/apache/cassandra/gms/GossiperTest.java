@@ -33,12 +33,16 @@ import java.util.function.Consumer;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.net.InetAddresses;
+
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
@@ -47,14 +51,12 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.core.Gen;
-import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
@@ -122,6 +124,8 @@ public class GossiperTest
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
         Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
+        for (InetAddressAndPort host : hosts)
+            ClusterMetadataTestHelper.register(host);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -169,6 +173,8 @@ public class GossiperTest
 
         SimpleStateChangeListener stateChangeListener = null;
         Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
+        for (InetAddressAndPort host : hosts)
+            ClusterMetadataTestHelper.register(host);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -329,6 +335,9 @@ public class GossiperTest
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
         Util.initGossipTokens(partitioner, endpointTokens, hosts, hostIds, 2);
+        for (InetAddressAndPort host : hosts)
+            ClusterMetadataTestHelper.register(host);
+
         SimpleStateChangeListener stateChangeListener = null;
         try
         {

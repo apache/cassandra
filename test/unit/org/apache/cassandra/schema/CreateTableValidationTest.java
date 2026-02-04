@@ -18,13 +18,13 @@
  */
 package org.apache.cassandra.schema;
 
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.utils.BloomCalculations;
-
-import org.junit.Test;
 
 import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
 import static org.apache.cassandra.schema.SchemaConstants.NAME_LENGTH;

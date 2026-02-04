@@ -64,28 +64,38 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
 import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestSyn;
+import org.apache.cassandra.harry.dsl.TestRunner;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.harry.model.TokenPlacementModel.Node;
 import org.apache.cassandra.harry.model.TokenPlacementModel.NodeFactory;
 import org.apache.cassandra.harry.util.ByteUtils;
-import org.apache.cassandra.harry.dsl.TestRunner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
-import org.apache.cassandra.tcm.*;
-import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.log.LocalLog;
-import org.apache.cassandra.tcm.log.LogState;
-import org.apache.cassandra.tcm.log.LogStorage;
-import org.apache.cassandra.tcm.transformations.cms.Initialize;
-import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.Discovery;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.FetchCMSLog;
+import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.Processor;
+import org.apache.cassandra.tcm.Retry;
+import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.log.Entry;
+import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.AssertUtil;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.FBUtilities;
@@ -1005,9 +1015,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             SinglePartitionReadCommand sprc = (SinglePartitionReadCommand) command;
 
             Murmur3Partitioner.LongToken requestToken = (Murmur3Partitioner.LongToken) sprc.partitionKey().getToken();
-            assert node.cluster.state.get().isReadReplicaFor(requestToken.token, node.matcher) :
+            assert node.cluster.state.get().isReadReplicaFor(requestToken.getLongValue(), node.matcher) :
             String.format("Node %s is not a read replica for %s. Replicas: %s",
-                          node, requestToken.token, node.cluster.state.get().readReplicasFor(requestToken.token));
+                          node, requestToken.getLongValue(), node.cluster.state.get().readReplicasFor(requestToken.getLongValue()));
         }
 
         @Override
@@ -1048,7 +1058,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
             Murmur3Partitioner.LongToken leftToken = (Murmur3Partitioner.LongToken) prrc.dataRange().keyRange().left.getToken();
             Murmur3Partitioner.LongToken rightToken = (Murmur3Partitioner.LongToken) prrc.dataRange().keyRange().right.getToken();
-            assert node.cluster.state.get().isReadReplicaFor(leftToken.token, rightToken.token, node.matcher);
+            assert node.cluster.state.get().isReadReplicaFor(leftToken.getLongValue(), rightToken.getLongValue(), node.matcher);
         }
 
         @Override
@@ -1085,8 +1095,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         {
             Mutation command = request.payload;
             Murmur3Partitioner.LongToken requestToken = (Murmur3Partitioner.LongToken) command.key().getToken();
-            assert node.cluster.state.get().isWriteTargetFor(requestToken.token, node.matcher) : String.format("Node %s is not a write target for %s. Write placements: %s",
-                                                                                                               node.node.idx(), requestToken, node.cluster.state.get().writePlacementsFor(requestToken.token));
+            assert node.cluster.state.get().isWriteTargetFor(requestToken.getLongValue(), node.matcher) : String.format("Node %s is not a write target for %s. Write placements: %s",
+                                                                                                               node.node.idx(), requestToken, node.cluster.state.get().writePlacementsFor(requestToken.getLongValue()));
         }
 
         public Message<NoPayload> respondTo(Message<Mutation> request)
@@ -1145,7 +1155,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
     public static long token(Object... pk)
     {
-        return ((Murmur3Partitioner.LongToken) DatabaseDescriptor.getPartitioner().decorateKey(toBytes(pk)).getToken()).token;
+        return ((Murmur3Partitioner.LongToken) DatabaseDescriptor.getPartitioner().decorateKey(toBytes(pk)).getToken()).getLongValue();
     }
 
     public static ByteBuffer toBytes(Object... pk)

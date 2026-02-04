@@ -29,9 +29,20 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
-import accord.topology.EpochReady;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
+
+import org.agrona.collections.Int2ObjectHashMap;
+import org.agrona.collections.Long2ObjectHashMap;
+import org.agrona.collections.ObjectHashSet;
+import org.assertj.core.api.Assertions;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.CommandStores;
@@ -52,16 +63,13 @@ import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.EpochReady;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Property.Command;
 import accord.utils.Property.UnitCommand;
 import accord.utils.RandomSource;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
-import org.agrona.collections.Int2ObjectHashMap;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.ObjectHashSet;
+
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ForwardingExecutorFactory;
 import org.apache.cassandra.concurrent.ForwardingExecutorPlus;
@@ -94,11 +102,6 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.RTree;
 import org.apache.cassandra.utils.RangeTree;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
-import org.assertj.core.api.Assertions;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 
 import static accord.local.RedundantStatus.SomeStatus.NONE;
 import static accord.utils.Property.commands;
@@ -178,8 +181,8 @@ public class RouteIndexTest extends CQLTester
         TokenRange range = selectExistingRange(rs, ranges);
 
         // have a key, so find a key within the range
-        long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).token;
-        long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).token;
+        long start = range.start().isMin() ? Long.MIN_VALUE : ((LongToken) range.start().token()).getLongValue();
+        long end = range.end().isMax() ? Long.MAX_VALUE : ((LongToken) range.end().token()).getLongValue();
         long token = 1 + rs.nextLong(start, end);
         @Nullable DecidedRX decidedRX = state.nextDecidedRX(rs);
         return new KeySearch(storeId, new TokenKey(tableId, new LongToken(token)), state.nextTxnRange(rs), decidedRX);
@@ -518,7 +521,7 @@ public class RouteIndexTest extends CQLTester
         AccordService startAccord()
         {
             ClusterMetadata metadata = ClusterMetadata.current();
-            AccordService.MetadataChangeListener.instance.resetForTesting(metadata);
+            AccordService.MetadataChangeListener.instance.unsafeResetForTesting(metadata);
             NodeId tcmNodeId = metadata.myNodeId();
             AccordService.unsafeSetNewAccordService(null);
             AccordService.localStartup(tcmNodeId);

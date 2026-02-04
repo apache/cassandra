@@ -38,17 +38,18 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -926,7 +927,16 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Returns a {@link KeyReader} over all keys in the sstable.
      */
-    public abstract KeyReader keyReader() throws IOException;
+    public final KeyReader keyReader() throws IOException {
+        return keyReader(false);
+    }
+
+    /**
+     * Returns a {@link KeyReader} over all keys in the sstable.
+     *
+     * @param detailed should the iterator also provide details per partition entry(e.g. row entry details)
+     */
+    public abstract KeyReader keyReader(boolean detailed) throws IOException;
 
     /**
      * Returns a {@link KeyReader} over all keys in the sstable after a given key.

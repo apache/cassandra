@@ -20,11 +20,12 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.function.Consumer;
 
+import com.codahale.metrics.Meter;
 import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;

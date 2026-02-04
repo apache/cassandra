@@ -21,12 +21,14 @@ import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
@@ -101,6 +103,22 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         return indexes;
     }
 
+    private long[] indexes(byte[] key, int offset, int length)
+    {
+        // we use the same array both for storing the hash result, and for storing the indexes we return,
+        // so that we do not need to allocate two arrays.
+        long[] indexes = reusableIndexes.get();
+        return indexes(key, offset, length, indexes);
+    }
+
+    private long[] indexes(byte[] key, int offset, int length, long[] indexes)
+    {
+        MurmurHash.hash3_x64_128(key, offset, length, 0, indexes);
+
+        setIndexes(indexes[1], indexes[0], hashCount, bitset.capacity(), indexes);
+        return indexes;
+    }
+
     @Inline
     private void setIndexes(long base, long inc, int count, long max, long[] results)
     {
@@ -115,6 +133,24 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
     public void add(FilterKey key)
     {
         long[] indexes = indexes(key);
+        for (int i = 0; i < hashCount; i++)
+        {
+            bitset.set(indexes[i]);
+        }
+    }
+
+    public void add(byte[] key, int offset, int length)
+    {
+        long[] indexes = indexes(key, offset, length);
+        for (int i = 0; i < hashCount; i++)
+        {
+            bitset.set(indexes[i]);
+        }
+    }
+
+    public void add(byte[] key, int offset, int length, long[] indexes)
+    {
+        indexes(key, offset, length, indexes);
         for (int i = 0; i < hashCount; i++)
         {
             bitset.set(indexes[i]);

@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.auth;
 
-import org.junit.Test;
-
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 
 import static org.apache.cassandra.auth.MutualTlsUtil.toHumanReadableCertificateExpiration;
 

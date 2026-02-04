@@ -20,12 +20,13 @@ package org.apache.cassandra.concurrent;
 
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Executors; // checkstyle: permit this import
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import accord.utils.async.AsyncChain;
+
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;

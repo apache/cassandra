@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.repair.autorepair;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Collections;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;

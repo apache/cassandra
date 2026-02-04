@@ -21,6 +21,7 @@ package org.apache.cassandra.db.rows;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Test;
 

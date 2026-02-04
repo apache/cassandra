@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.stream.Collectors;
 

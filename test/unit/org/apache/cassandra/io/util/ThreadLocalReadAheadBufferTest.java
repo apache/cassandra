@@ -30,7 +30,8 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
+import org.quicktheories.WithQuickTheories;
+import org.quicktheories.core.Gen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,8 +39,6 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.Pair;
-import org.quicktheories.WithQuickTheories;
-import org.quicktheories.core.Gen;
 
 import static java.lang.Math.max;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;

@@ -22,18 +22,21 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.assertj.core.api.Assertions;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -45,7 +48,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.disk.usage.DiskUsageState;
-import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -194,6 +196,83 @@ public class GuardrailDiskUsageTest extends GuardrailTester
 
         // Finally, if both nodes go back to SPACIOUS, all queries will succeed again
         DiskStateInjection.setState(getCluster(), 1, DiskUsageState.SPACIOUS);
+        DiskStateInjection.setState(getCluster(), 2, DiskUsageState.SPACIOUS);
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+    }
+
+    @Test
+    public void testDiskUsageNodetoolDisableWhenDiskIsFullShouldEnableWrites()
+    {
+        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        String insert = format("INSERT INTO %s(k, v) VALUES (?, 0)");
+
+        // With both nodes in SPACIOUS state, we can write without warnings nor failures
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+
+        // If the STUFFED node becomes FULL, the writes targeting that node will fail, while the writes targeting
+        // the node that remains SPACIOUS will keep succeeding without warnings
+        DiskStateInjection.setState(getCluster(), 2, DiskUsageState.FULL);
+        int numFailures = 0;
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            try
+            {
+                ResultSet rs = driverSession.execute(insert, i);
+                Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+            }
+            catch (InvalidQueryException e)
+            {
+                Assertions.assertThat(e).hasMessageContaining(FAIL_MESSAGE);
+                numFailures++;
+            }
+        }
+        Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
+
+        // After disabling the guardrail, we should be able to write again.
+        cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(-1, -1));
+        int stateDissemenationTimeoutSec = 2 * 60; // 2 minutes.
+        Util.spinUntilTrue(
+            () -> cluster.get(1).callOnInstance(() -> !DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
+            stateDissemenationTimeoutSec
+        );
+
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+
+        // Re-enabling the guardrail should again cause writes to fail
+        cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(98, 99));
+        Util.spinUntilTrue(
+            () -> cluster.get(1).callOnInstance(() -> DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
+            stateDissemenationTimeoutSec
+        );
+        numFailures = 0;
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            try
+            {
+                ResultSet rs = driverSession.execute(insert, i);
+                Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+            }
+            catch (InvalidQueryException e)
+            {
+                Assertions.assertThat(e).hasMessageContaining(FAIL_MESSAGE);
+                numFailures++;
+            }
+        }
+        Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
+
+        // Finally, if both nodes go back to SPACIOUS, all queries will succeed again
         DiskStateInjection.setState(getCluster(), 2, DiskUsageState.SPACIOUS);
         for (int i = 0; i < NUM_ROWS; i++)
         {

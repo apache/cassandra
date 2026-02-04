@@ -27,8 +27,6 @@ import java.util.EnumSet;
  */
 public enum KnownIssue
 {
-    BETWEEN_START_LARGER_THAN_END("https://issues.apache.org/jira/browse/CASSANDRA-20154",
-                                  "BETWEEN is matching values when start > end, which should never return anything"),
     SAI_INET_MIXED("https://issues.apache.org/jira/browse/CASSANDRA-19492",
                    "SAI converts ipv4 to ipv6 to simplify the index, this causes issues with range search as it starts to mix the values, which isn't always desirable or intuative"),
     CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",

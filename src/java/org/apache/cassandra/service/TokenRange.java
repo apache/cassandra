@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;

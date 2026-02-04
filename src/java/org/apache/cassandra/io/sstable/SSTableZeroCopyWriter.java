@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -159,6 +160,12 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
 
     @Override
     public long getOnDiskBytesWritten()
+    {
+        return 0;
+    }
+
+    @Override
+    public long getTotalRows()
     {
         return 0;
     }

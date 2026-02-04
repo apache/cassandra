@@ -23,11 +23,13 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.schema.TableMetadata;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 /**
  * This table is inherently limited on number of rows it can hold.

@@ -18,7 +18,15 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -30,7 +38,10 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.statements.SchemaDescriptionsUtil;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.MultiElements;
@@ -44,6 +55,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
@@ -645,6 +657,17 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
     {
+        return filterSortAndValidateElements(buffers, ByteBufferUtil.UNSET_BYTE_BUFFER, ByteBufferAccessor.instance);
+    }
+
+    @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        return filterSortAndValidateElements(buffers, ByteArrayUtil.UNSET_BYTE_ARRAY, ByteArrayAccessor.instance);
+    }
+
+    private <T> List<T> filterSortAndValidateElements(List<T> buffers, T unsetValue, ValueAccessor<T> valueAccessor)
+    {
         if (buffers.size() > size())
             throw new MarshalException(String.format("UDT value contained too many fields (expected %s, got %s)", size(), buffers.size()));
 
@@ -652,12 +675,12 @@ public class UserType extends TupleType implements SchemaElement
         {
             // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
             // value by 'not setting' the new value. Reject the query.
-            ByteBuffer buffer = buffers.get(i);
+            T buffer = buffers.get(i);
             if (buffer == null)
                 continue;
-            if (!isMultiCell() && buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            if (!isMultiCell() && buffer == unsetValue)
                 throw new MarshalException(String.format("Invalid unset value for field '%s' of user defined type %s", fieldNameAsString(i), getNameAsString()));
-            type(i).validate(buffer);
+            type(i).validate(buffer, valueAccessor);
         }
 
         return buffers;

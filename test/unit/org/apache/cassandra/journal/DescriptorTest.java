@@ -24,15 +24,17 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Condition;
 import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
+
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.Files;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Condition;
 
 import static accord.utils.Property.qt;
 import static org.assertj.core.api.Assertions.assertThat;

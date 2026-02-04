@@ -18,6 +18,7 @@
 package org.apache.cassandra.service.snapshot;
 
 import java.util.Set;
+
 import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.CompositeType;
 import javax.management.openmbean.OpenDataException;

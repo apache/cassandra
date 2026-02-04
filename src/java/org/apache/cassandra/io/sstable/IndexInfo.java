@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -85,6 +86,17 @@ public class IndexInfo
     public static IndexInfo.Serializer serializer(Version version, SerializationHeader header)
     {
         return new IndexInfo.Serializer(version, header.clusteringTypes());
+    }
+
+    public String toString(TableMetadata metadata)
+    {
+        return "IndexInfo{" +
+               "offset=" + offset +
+               ", width=" + width +
+               ", firstName=" + firstName.toString(metadata) +
+               ", lastName=" + lastName.toString(metadata) +
+               ", endOpenMarker=" + endOpenMarker +
+               '}';
     }
 
     public static class Serializer implements ISerializer<IndexInfo>

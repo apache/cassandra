@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,14 +80,19 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     // TODO dataWriter is not needed to be directly accessible - we can access everything we need for the dataWriter
     //   from a partition writer
-    protected final SequentialWriter dataWriter;
-    protected final I indexWriter;
-    protected final P partitionWriter;
+    public final SequentialWriter dataWriter;
+    public final I indexWriter;
+    public final P partitionWriter;
     private final FileHandle.Builder dataFileBuilder = new FileHandle.Builder(descriptor.fileFor(Components.DATA));
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
     private long lastEarlyOpenLength;
     private final Supplier<Double> crcCheckChanceSupplier;
+
+    private final boolean isPartitionSizeGuardEnabled;
+    private final boolean isPartitionTombstonesGuardEnabled;
+    private final boolean areCollectionGuardsDisabled;
+
 
     public SortedTableWriter(Builder<P, I, ?, ?> builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
@@ -118,6 +124,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
             handleConstructionFailure(ex);
             throw ex;
         }
+        isPartitionSizeGuardEnabled = Guardrails.partitionSize.enabled();
+        isPartitionTombstonesGuardEnabled = Guardrails.partitionTombstones.enabled();
+        areCollectionGuardsDisabled = !Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled();
     }
 
     /**
@@ -145,8 +154,20 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
             if (header.hasStatic())
                 addStaticRow(partition.partitionKey(), partition.staticRow());
 
-            while (partition.hasNext())
-                addUnfiltered(partition.partitionKey(), partition.next());
+            int i = 0;
+            boolean hasNext = false;
+            while (hasNext || partition.hasNext())
+            {
+                Unfiltered current = partition.next();
+                hasNext = partition.hasNext();
+                boolean isRowFirstOrLast;
+                if (i == 0)
+                    isRowFirstOrLast = true;
+                else
+                    isRowFirstOrLast = !hasNext;
+                addUnfiltered(partition.partitionKey(), current, isRowFirstOrLast);
+                i++;
+            }
 
             indexEntry = endPartition(partition.partitionKey(), partition.partitionLevelDeletion());
 
@@ -197,30 +218,32 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         onStaticRow(row);
     }
 
-    private void addUnfiltered(DecoratedKey key, Unfiltered unfiltered) throws IOException
+    private void addUnfiltered(DecoratedKey key, Unfiltered unfiltered, boolean isRowFirstOrLast) throws IOException
     {
         if (unfiltered.isRow())
-            addRow(key, (Row) unfiltered);
+            addRow(key, (Row) unfiltered, isRowFirstOrLast);
         else
-            addRangeTomstoneMarker((RangeTombstoneMarker) unfiltered);
+            addRangeTomstoneMarker((RangeTombstoneMarker) unfiltered, isRowFirstOrLast);
     }
 
-    private void addRow(DecoratedKey key, Row row) throws IOException
+    private void addRow(DecoratedKey key, Row row, boolean isRowFirstOrLast) throws IOException
     {
         guardCollectionSize(key, row);
 
         partitionWriter.addUnfiltered(row);
-        metadataCollector.updateClusteringValues(row.clustering());
+        if (isRowFirstOrLast)
+            metadataCollector.updateClusteringValues(row.clustering());
         Rows.collectStats(row, metadataCollector);
 
         onRow(row);
     }
 
-    private void addRangeTomstoneMarker(RangeTombstoneMarker marker) throws IOException
+    private void addRangeTomstoneMarker(RangeTombstoneMarker marker, boolean isRowFirstOrLast) throws IOException
     {
         partitionWriter.addUnfiltered(marker);
 
-        metadataCollector.updateClusteringValuesByBoundOrBoundary(marker.clustering());
+        if (isRowFirstOrLast)
+            metadataCollector.updateClusteringValuesByBoundOrBoundary(marker.clustering());
         if (marker.isBoundary())
         {
             RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker) marker;
@@ -237,13 +260,17 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     private AbstractRowIndexEntry endPartition(DecoratedKey key, DeletionTime partitionLevelDeletion) throws IOException
     {
+        // partitionLength not inclusive of last byte for BIG/default impl, but something different for BTI (and maybe other impls)
         long finishResult = partitionWriter.finish();
 
         long endPosition = dataWriter.position();
-        long rowSize = endPosition - partitionWriter.getInitialPosition();
-        guardPartitionThreshold(Guardrails.partitionSize, key, rowSize);
-        guardPartitionThreshold(Guardrails.partitionTombstones, key, metadataCollector.totalTombstones);
-        metadataCollector.addPartitionSizeInBytes(rowSize);
+        long partitionSize = endPosition - partitionWriter.getPartitionStartPosition();
+        // inclusive of last byte
+        if (isPartitionSizeGuardEnabled)
+            guardPartitionThreshold(Guardrails.partitionSize, key, partitionSize);
+        if (isPartitionTombstonesGuardEnabled)
+            guardPartitionThreshold(Guardrails.partitionTombstones, key, metadataCollector.totalTombstones);
+        metadataCollector.addPartitionSizeInBytes(partitionSize);
         metadataCollector.addKey(key.getKey());
         metadataCollector.addCellPerPartitionCount();
 
@@ -252,7 +279,8 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         if (first == null)
             first = lastWrittenKey;
 
-        logger.trace("wrote {} at {}", key, endPosition);
+        if (logger.isTraceEnabled())
+            logger.trace("wrote {} at {}", key, endPosition);
 
         return createRowIndexEntry(key, partitionLevelDeletion, finishResult);
     }
@@ -260,7 +288,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     protected void onStartPartition(DecoratedKey key)
     {
         if (hasObservers())
-            notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), partitionWriter.getInitialPosition()));
+            notifyObservers(o -> o.startPartition(key, partitionWriter.getPartitionStartPosition(), partitionWriter.getPartitionStartPosition()));
     }
 
     protected void onStaticRow(Row row)
@@ -331,7 +359,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     }
 
     @Override
-    public long getFilePointer()
+    public final long getFilePointer()
     {
         return dataWriter.position();
     }
@@ -399,6 +427,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
 
     private void guardCollectionSize(DecoratedKey partitionKey, Row row)
     {
+        if (areCollectionGuardsDisabled)
+            return;
+
         if (!Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled())
             return;
 
@@ -435,13 +466,13 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
         }
     }
 
-    protected static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
+    public static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
     {
         protected final Descriptor descriptor;
         protected final TableMetadataRef metadata;
         protected final Set<Component> components;
 
-        protected final IFilter bf;
+        public final IFilter bf;
 
         protected AbstractIndexWriter(Builder<?, ?, ?, ?> b)
         {

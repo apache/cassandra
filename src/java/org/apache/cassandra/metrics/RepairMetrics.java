@@ -22,10 +22,10 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.RepairMessage;
 

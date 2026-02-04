@@ -20,9 +20,11 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 import accord.utils.BitUtils;
 import accord.utils.Invariants;
-import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;

@@ -31,6 +31,7 @@ import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
@@ -61,9 +62,6 @@ public class UpdateParameters
 
     // Holds data for operations that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
-
-    private Row.Builder staticBuilder;
-    private Row.Builder regularBuilder;
 
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
@@ -108,20 +106,8 @@ public class UpdateParameters
                     throw new InvalidRequestException("Invalid empty or null value for column " + metadata.clusteringColumns().get(0).name);
             }
         }
-
-        if (clustering == Clustering.STATIC_CLUSTERING)
-        {
-            if (staticBuilder == null)
-                staticBuilder = BTreeRow.pooledUnsortedBuilder();
-            builder = staticBuilder;
-        }
-        else
-        {
-            if (regularBuilder == null)
-                regularBuilder = BTreeRow.pooledUnsortedBuilder();
-            builder = regularBuilder;
-        }
-
+        assert builder == null : "newRow called without building the previous row";
+        builder = BTreeRow.pooledUnsortedBuilder();
         builder.newRow(clustering);
     }
 
@@ -180,22 +166,43 @@ public class UpdateParameters
         return addCell(column, null, value);
     }
 
+    public Cell<?> addCell(ColumnMetadata column, byte[] value) throws InvalidRequestException
+    {
+        return addCell(column, null, value);
+    }
+
     public Cell<?> addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
-        // General column value size
-        Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-
-        // Check specific sizes per column type
-        validateColumnSize(column, value);
-
-        if (path != null && column.type.isMultiCell())
-            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
+        validateCell(column, path, value.remaining());
 
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
         return cell;
+    }
+
+    public Cell<?> addCell(ColumnMetadata column, CellPath path, byte[] value) throws InvalidRequestException
+    {
+        validateCell(column, path, value.length);
+
+        Cell<?> cell = ttl == LivenessInfo.NO_TTL
+                       ? ArrayCell.live(column, timestamp, value, path)
+                       : ArrayCell.expiring(column, timestamp, ttl, nowInSec, value, path);
+        builder.addCell(cell);
+        return cell;
+    }
+
+    private void validateCell(ColumnMetadata column, CellPath path, int valueSize)
+    {
+        // General column value size
+        Guardrails.columnValueSize.guard(valueSize, column.name.toString(), false, clientState);
+
+        // Check specific sizes per column type
+        validateColumnSize(column, valueSize);
+
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
     }
 
     public void addRow(Row row)
@@ -221,20 +228,20 @@ public class UpdateParameters
         });
     }
 
-    private void validateColumnSize(ColumnMetadata column, ByteBuffer value)
+    private void validateColumnSize(ColumnMetadata column, int valueSize)
     {
         CQL3Type cql3Type = column.type.asCQL3Type();
         if (cql3Type.equals(CQL3Type.Native.ASCII)) // Ascii size specific guardrail
         {
-            Guardrails.columnAsciiValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+            Guardrails.columnAsciiValueSize.guard(valueSize, column.name.toString(), false, clientState);
         }
         else if (cql3Type.equals(CQL3Type.Native.BLOB)) // Blob size specific guardrail
         {
-            Guardrails.columnBlobValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+            Guardrails.columnBlobValueSize.guard(valueSize, column.name.toString(), false, clientState);
         }
         else if (cql3Type.equals(CQL3Type.Native.TEXT)) // text and varchar size specific guardrails
         {
-            Guardrails.columnTextAndVarcharValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+            Guardrails.columnTextAndVarcharValueSize.guard(valueSize, column.name.toString(), false, clientState);
         }
     }
 

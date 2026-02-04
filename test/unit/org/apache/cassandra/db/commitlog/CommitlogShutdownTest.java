@@ -26,6 +26,9 @@ import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,8 +46,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 /**
  * Since this test depends on byteman rules being setup during initialization, you shouldn't add tests to this class
@@ -61,7 +62,7 @@ public class CommitlogShutdownTest
     @BMRule(name = "Make removing commitlog segments slow",
     targetClass = "CommitLogSegment",
     targetMethod = "discard",
-    action = "Thread.sleep(50)")
+    action = "Thread.sleep(250L)") // We need to add the unit to Thread.sleep calls in ByteBuddy now
     public void testShutdownWithPendingTasks() throws Exception
     {
         new Random().nextBytes(entropy);
@@ -76,8 +77,7 @@ public class CommitlogShutdownTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance));
 
-                                    CompactionManager.instance.disableAutoCompaction();
-
+        CompactionManager.instance.disableAutoCompaction();
         ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
 
         final Mutation m = new RowUpdateBuilder(cfs1.metadata.get(), 0, "k")

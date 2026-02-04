@@ -19,6 +19,7 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
 
 import com.carrotsearch.hppc.IntObjectHashMap;

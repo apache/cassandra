@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -57,6 +58,17 @@ public class ArrayCell extends AbstractCell<byte[]>
         this.localDeletionTimeUnsignedInteger = localDeletionTimeUnsignedInteger;
         this.value = value;
         this.path = path;
+    }
+
+    public static ArrayCell live(ColumnMetadata column, long timestamp, byte[] value, CellPath path)
+    {
+        return new ArrayCell(column, timestamp, NO_TTL, NO_DELETION_TIME, value, path);
+    }
+
+    public static ArrayCell expiring(ColumnMetadata column, long timestamp, int ttl, long nowInSec, byte[] value, CellPath path)
+    {
+        assert ttl != NO_TTL;
+        return new ArrayCell(column, timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl), value, path);
     }
 
     public long timestamp()

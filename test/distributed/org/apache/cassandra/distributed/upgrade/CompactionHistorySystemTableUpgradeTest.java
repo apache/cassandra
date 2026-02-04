@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.compaction.OperationType;
@@ -65,14 +66,17 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             cluster.stream().forEach(node -> node.nodetool("disableautocompaction"));
             ToolRunner.ToolResult toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
             toolHistory.assertOnCleanExit();
-            // upgraded system.compaction_history data verify
-            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of());
+
+            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(), "{}");
 
             // force compact
             cluster.stream().forEach(node -> node.nodetool("compact"));
             toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
             toolHistory.assertOnCleanExit();
-            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type));
+
+            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb",
+                                          ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type),
+                                          OperationType.MAJOR_COMPACTION.type);
         })
         .run();
     }

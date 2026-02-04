@@ -40,6 +40,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -47,21 +48,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
+import accord.topology.SelectShards;
 import accord.topology.Topologies;
 import accord.topology.TopologyException;
+
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Reference;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Statement;
+import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
-import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -75,6 +77,7 @@ import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
@@ -84,7 +87,6 @@ import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;
@@ -711,7 +713,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 Unseekables<?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toParticipants();
                 long epoch = AccordService.instance().topology().epoch();
                 Topologies topology;
-                try { topology = AccordService.instance().topology().active().withUnsyncedEpochs(routables, epoch, epoch); }
+                try { topology = AccordService.instance().topology().active().withUnsyncedEpochs(routables, epoch, epoch, SelectShards.ALL); }
                 catch (TopologyException e) { throw new RuntimeException(e); }
                 // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);
@@ -3413,6 +3415,22 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 var qr = node.executeWithResult("SELECT v FROM " + qualifiedAccordTableName + " WHERE k=?", QUORUM, i);
                 QueryResultUtil.assertThat(qr).isEmpty();
             }
+        });
+    }
+
+    @Test
+    public void userSeesInvalidRejection() throws Exception
+    {
+        var expectedType = AssertionUtils.isInstanceof(InvalidRequestException.class);
+        test("CREATE TABLE " + qualifiedAccordTableName + "(k int PRIMARY KEY, l list<int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String cql = "UPDATE " + qualifiedAccordTableName + " SET l[0] = 42 WHERE k=42";
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(cql, QUORUM))
+                      .is(expectedType)
+                      .hasMessage("Attempted to set an element on a list which is null");
+
+            Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(wrapInTxn(cql), QUORUM))
+                      .is(expectedType)
+                      .hasMessage("Attempted to set an element on a list which is null");
         });
     }
 }

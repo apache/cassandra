@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -189,7 +190,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
         {
             // Skip system as we've already cleaned it
-            if (keyspace.name.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
+            if (keyspace.name.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) || keyspace.name.equals(SchemaConstants.ACCORD_KEYSPACE_NAME))
                 continue;
 
             for (TableMetadata cfm : keyspace.tables)

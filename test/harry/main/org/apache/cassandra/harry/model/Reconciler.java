@@ -23,8 +23,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.cassandra.harry.gen.ValueGenerators;
-import org.apache.cassandra.harry.op.Visit;
 import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Visit;
 
 import static org.apache.cassandra.harry.op.Operations.Operation;
 

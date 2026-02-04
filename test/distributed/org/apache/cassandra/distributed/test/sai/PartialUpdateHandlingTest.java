@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.google.common.collect.Lists;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -42,13 +43,13 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.plan.Expression;
 
-import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.index.sai.plan.Expression.IndexOperator.EQ;
 import static org.apache.cassandra.index.sai.plan.Expression.IndexOperator.RANGE;
+import static org.junit.Assert.assertEquals;
 
 /**
  * SAI queries, like all filtering queries, must correctly resolve divergent views of row data across replicas. In

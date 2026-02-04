@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.RangeSet;
@@ -43,7 +44,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
-import java.util.Optional;
 
 /**
  * A simple predicate on a columns expression (e.g. columnA = X).
@@ -343,8 +343,7 @@ public final class SimpleRestriction implements SingleRestriction
                 List<ByteBuffer> buffers = bindAndGet(options);
                 if (operator.kind() != Operator.Kind.BINARY)
                 {
-                    // For BETWEEN we support like in SQL reversed bounds
-                    if (operator.kind() == Operator.Kind.TERNARY)
+                    if (operator == Operator.IN && !column.type.isCounter())
                         buffers.sort(column.type);
                     filter.add(column, operator, multiInputOperatorValues(column, buffers));
                 }

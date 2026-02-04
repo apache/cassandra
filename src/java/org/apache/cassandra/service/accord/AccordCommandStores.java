@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import accord.api.Agent;
 import accord.api.DataStore;
@@ -31,8 +32,10 @@ import accord.local.NodeCommandStoreService;
 import accord.local.SequentialAsyncExecutor;
 import accord.local.ShardDistributor;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.AccordSpec.QueueShardModel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
@@ -43,8 +46,9 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueSubmi
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.AccordExecutor.constant;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class AccordCommandStores extends CommandStores implements CacheSize
+public class AccordCommandStores extends CommandStores implements CacheSize, Shutdownable
 {
     private final AccordExecutor[] executors;
     private final int mask;
@@ -207,24 +211,36 @@ public class AccordCommandStores extends CommandStores implements CacheSize
     }
 
     @Override
+    public boolean isTerminated()
+    {
+        return Stream.of(executors).allMatch(AccordExecutor::isTerminated);
+    }
+
+    @Override
     public synchronized void shutdown()
     {
         super.shutdown();
         for (AccordExecutor executor : executors)
-        {
             executor.shutdown();
-        }
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        shutdown();
+        return null;
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        long deadline = nanoTime() + units.toNanos(timeout);
         for (AccordExecutor executor : executors)
         {
-            try
-            {
-                executor.awaitTermination(1, TimeUnit.MINUTES);
-            }
-            catch (InterruptedException e)
-            {
-                throw new RuntimeException(e);
-            }
+            long wait = Math.max(1, deadline - nanoTime());
+            if (!executor.awaitTermination(wait, TimeUnit.NANOSECONDS))
+                return false;
         }
-        //TODO (expected): shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
+        return true;
     }
 }

@@ -38,6 +38,7 @@ public class AssertionUtils
         return Assertions.anyOf(it);
     }
 
+    @SafeVarargs
     public static Condition<Throwable> anyOfThrowable(Class<? extends Throwable>... klasses)
     {
         return anyOf(Stream.of(klasses).map(AssertionUtils::isThrowable));
@@ -147,6 +148,7 @@ public class AssertionUtils
         return hasCause(isThrowable(klass));
     }
 
+    @SafeVarargs
     public static Condition<Throwable> hasCauseAnyOf(Class<? extends Throwable>... matchers)
     {
         return hasCause(anyOfThrowable(matchers));

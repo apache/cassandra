@@ -155,6 +155,12 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     }
 
     @Override
+    public long getTotalRows()
+    {
+        return currentWriter != null ? currentWriter.getTotalRows() : 0L;
+    }
+
+    @Override
     public long getOnDiskBytesWritten()
     {
         return currentWriter != null ? currentWriter.getOnDiskBytesWritten() : 0L;

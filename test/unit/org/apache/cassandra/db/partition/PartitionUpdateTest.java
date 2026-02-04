@@ -17,15 +17,15 @@
  */
 package org.apache.cassandra.db.partition;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Test;
-
-import org.junit.Assert;
 
 public class PartitionUpdateTest extends CQLTester
 {

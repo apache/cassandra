@@ -20,11 +20,12 @@ package org.apache.cassandra.metrics;
 
 import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Snapshot;
+
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
 
 import static org.junit.Assert.assertEquals;

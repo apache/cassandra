@@ -23,6 +23,7 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -50,8 +51,8 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
 import static org.apache.cassandra.repair.consistent.LocalSessionInfo.STATE;
 import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
-import static org.awaitility.Awaitility.await;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class IncrementalRepairCleanupAfterNodeAddingTest extends TestBaseImpl

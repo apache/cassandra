@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.test.accord.journal;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.api.Journal;
@@ -46,6 +47,7 @@ import accord.primitives.Writes;
 import accord.topology.TopologyException;
 import accord.utils.ImmutableBitSet;
 import accord.utils.LargeBitSet;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -63,7 +65,6 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;

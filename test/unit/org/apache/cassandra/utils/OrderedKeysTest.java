@@ -28,13 +28,14 @@ import java.util.TreeSet;
 
 import org.junit.Assert;
 import org.junit.Test;
-
-import accord.utils.Invariants;
-import org.apache.cassandra.service.accord.OrderedKeys;
 import org.quicktheories.WithQuickTheories;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
+
+import accord.utils.Invariants;
+
+import org.apache.cassandra.service.accord.OrderedKeys;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

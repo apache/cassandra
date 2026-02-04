@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.*;
+import java.util.Arrays;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundOrBoundary;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
@@ -159,7 +161,7 @@ public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
                 return DeletionTime.LIVE;
 
             DeletionTime biggestDeletionTime = openMarkers[biggestOpenMarker];
-            // it's only open in the merged iterator if it doesn't supersedes the partition level deletion
+            // it's only open in the merged iterator if it doesn't supersede the partition level deletion
             return !biggestDeletionTime.supersedes(partitionDeletion) ? DeletionTime.LIVE : biggestDeletionTime;
         }
 
@@ -172,7 +174,7 @@ public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
                     continue;
 
                 // Note that we can have boundaries that are both open and close, but in that case all we care about
-                // is what it the open deletion after the marker, so we favor the opening part in this case.
+                // is what is the open deletion after the marker, so we favor the opening part in this case.
                 if (marker.isOpen(reversed))
                     openMarkers[i] = marker.openDeletionTime(reversed);
                 else
@@ -192,7 +194,7 @@ public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
         {
             DeletionTime openMarker = currentOpenDeletionTimeInMerged();
             // We only have an open marker in the merged stream if it's not shadowed by the partition deletion (which can be LIVE itself), so
-            // if have an open marker, we know it's the "active" deletion for the merged stream.
+            // if we have an open marker, we know it's the "active" deletion for the merged stream.
             return openMarker.isLive() ? partitionDeletion : openMarker;
         }
     }

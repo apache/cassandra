@@ -26,21 +26,22 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.concurrent.CompletionException;
+
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * A factory for loading encryption keys from {@link KeyProvider} instances.

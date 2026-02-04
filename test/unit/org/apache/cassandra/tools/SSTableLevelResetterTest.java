@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.tools;
 
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -36,7 +36,7 @@ public class SSTableLevelResetterTest extends OfflineToolUtils
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
         assertEquals(1, tool.getExitCode());
-        assertNoUnexpectedThreadsStarted(null, false);
+        assertNoUnexpectedThreadsStarted(false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

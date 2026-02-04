@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "listpendinghints", description = "Print all pending hints that this node has")

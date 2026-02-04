@@ -25,16 +25,18 @@ import java.nio.file.Path;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Session;
+
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.table.SingleTableStore;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.Session;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.queue.impl.table.SingleTableStore;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.service.EmbeddedCassandraService;

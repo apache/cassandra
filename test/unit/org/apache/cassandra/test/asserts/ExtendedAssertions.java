@@ -22,6 +22,7 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
+
 import org.assertj.core.api.AbstractObjectAssert;
 
 public class ExtendedAssertions

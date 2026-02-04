@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.BytesType;

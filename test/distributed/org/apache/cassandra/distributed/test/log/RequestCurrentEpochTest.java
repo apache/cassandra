@@ -28,8 +28,8 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 
 import static org.junit.Assert.assertEquals;

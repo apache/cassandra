@@ -24,16 +24,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
-import org.apache.cassandra.distributed.util.Auth;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.ListAssert;
 import org.junit.After;
 import org.junit.Before;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.ListAssert;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;

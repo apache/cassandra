@@ -18,10 +18,10 @@
 package org.apache.cassandra.db.virtual;
 
 import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.marshal.UserType;
 
 /**
  * Virtual table that exposes all comments on schema elements.

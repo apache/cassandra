@@ -51,12 +51,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Borrows idea from
@@ -230,6 +232,7 @@ public class VIntCoding
     {
         return getUnsignedVInt(input, readerIndex, input.limit());
     }
+
     public static long getUnsignedVInt(ByteBuffer input, int readerIndex, int readerLimit)
     {
         if (readerIndex < 0)

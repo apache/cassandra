@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 
@@ -232,6 +233,16 @@ public class NoSpamLogger
     public static NoSpamLogger wrap(Logger wrapped, long minInterval, TimeUnit timeUnit)
     {
         return new NoSpamLogger(wrapped, minInterval, timeUnit);
+    }
+
+    public boolean debug(long nowNanos, String s, Object... objects)
+    {
+        return NoSpamLogger.this.log( Level.DEBUG, s, nowNanos, objects);
+    }
+
+    public boolean debug(String s, Object... objects)
+    {
+        return NoSpamLogger.this.debug(CLOCK.nanoTime(), s, objects);
     }
 
     public boolean info(long nowNanos, String s, Object... objects)

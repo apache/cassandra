@@ -45,6 +45,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
@@ -65,6 +66,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2330,6 +2332,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return partitionKeySetIgnoreGcGrace.contains(dk);
     }
 
+    public boolean shouldIgnoreGcGraceForAnyKey()
+    {
+        return !partitionKeySetIgnoreGcGrace.isEmpty();
+    }
+
     public static Iterable<ColumnFamilyStore> all()
     {
         List<Iterable<ColumnFamilyStore>> stores = new ArrayList<>(Schema.instance.getKeyspaces().size());
@@ -3012,6 +3019,42 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
     public long[] getPerLevelSizeBytes()
     {
         return compactionStrategyManager.getPerLevelSizeBytes();
+    }
+
+    @Override
+    public double[] getPerLevelAvgTokenSpace()
+    {
+        return compactionStrategyManager.getPerLevelAvgTokenSpace();
+    }
+
+    @Override
+    public double[] getPerLevelMaxDensityThreshold()
+    {
+        return compactionStrategyManager.getPerLevelMaxDensityThreshold();
+    }
+
+    @Override
+    public double[] getPerLevelAvgSize()
+    {
+        return compactionStrategyManager.getPerLevelAvgSize();
+    }
+
+    @Override
+    public double[] getPerLevelAvgDensity()
+    {
+        return compactionStrategyManager.getPerLevelAvgDensity();
+    }
+
+    @Override
+    public double[] getPerLevelAvgDensityMaxDensityThresholdRatio()
+    {
+        return compactionStrategyManager.getPerLevelAvgDensityMaxDensityThresholdRatio();
+    }
+
+    @Override
+    public double[] getPerLevelMaxDensityMaxDensityThresholdRatio()
+    {
+        return compactionStrategyManager.getPerLevelMaxDensityMaxDensityThresholdRatio();
     }
 
     @Override

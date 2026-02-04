@@ -35,5 +35,7 @@ public class UpgradeMigrationListener implements ChangeListener.Async
 
         logger.info("Detected upgrade from gossip mode, updating my host id in gossip to {}", next.myNodeId());
         Gossiper.instance.mergeNodeToGossip(next.myNodeId(), next);
+        if (Gossiper.instance.getQuarantineDisabled())
+            Gossiper.instance.clearQuarantinedEndpoints();
     }
 }

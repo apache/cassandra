@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
@@ -348,7 +349,7 @@ public class BytesPartitionState
             sb.append(partition);
             sb.append(", clustering=");
             if (clustering == null) sb.append("null");
-            else                    appendValues(sb, factory.clusteringColumns, clustering);
+            else                    appendValues(sb, clustering == Clustering.STATIC_CLUSTERING ? List.of() : factory.clusteringColumns, clustering);
             sb.append(')');
             return sb.toString();
         }

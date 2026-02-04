@@ -21,13 +21,14 @@ package org.apache.cassandra.tcm.transformations;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,16 +37,18 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 
-import static org.apache.cassandra.tcm.membership.MembershipUtils.nodeAddresses;
+import static org.apache.cassandra.tcm.membership.MembershipUtils.uniqueEndpoints;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -116,9 +119,10 @@ public class PrepareJoinTest
         other = new NodeId(1);
         joining = new NodeId(2);
         Location location = new Location("dc", "rack");
-        Directory directory = new Directory().unsafeWithNodeForTesting(other, nodeAddresses(random), location, NodeVersion.CURRENT)
+        Iterator<InetAddressAndPort> endpoints = uniqueEndpoints(random, 2).iterator();
+        Directory directory = new Directory().unsafeWithNodeForTesting(other, new NodeAddresses(endpoints.next()), location, NodeVersion.CURRENT)
                                              .withNodeState(other, NodeState.JOINED)
-                                             .unsafeWithNodeForTesting(joining, nodeAddresses(random), location, NodeVersion.CURRENT)
+                                             .unsafeWithNodeForTesting(joining, new NodeAddresses(endpoints.next()), location, NodeVersion.CURRENT)
                                              .withNodeState(joining, NodeState.REGISTERED);
         Set<Token> ownedTokens = OwnershipUtils.randomTokens(16, partitioner, random);
         return ClusterMetadataTestHelper.minimalForTesting(partitioner)

@@ -25,6 +25,7 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import accord.Utils;
 import accord.api.MessageSink;
@@ -41,6 +42,7 @@ import accord.topology.Topology;
 import accord.topology.TopologyManager;
 import accord.utils.SortedArrays;
 import accord.utils.async.AsyncResults;
+
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.schema.Schema;
@@ -49,7 +51,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.mockito.Mockito;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
@@ -124,7 +125,7 @@ public class AccordVirtualTablesTest extends CQLTester
 
         // range is no longer "added" so doesn't show up as synced!
         long e2 = 2;
-        ActiveEpoch a2 = active(topology(e2, T1), EpochReady.done(e2), a1.global());
+        ActiveEpoch a2 = active(topology(e2, T1), EpochReady.done(e2), a1.all());
         tm.unsafeSetActive(ActiveEpochs.unsafeNew(tm, new ActiveEpoch[] { a2, a1 }, -1));
         assertRows(execute("SELECT * FROM " + VIRTUAL_VIEWS + "." + AccordVirtualTables.TABLE_EPOCHS),
                    row(e1, T1_META.keyspace, T1_META.name, FULL_RANGE, List.of(), List.of(), List.of(), FULL_RANGE));

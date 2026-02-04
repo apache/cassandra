@@ -36,14 +36,18 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
+
+import org.mockito.Mockito;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.Invariants;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
@@ -89,7 +93,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
-import org.mockito.Mockito;
 
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 

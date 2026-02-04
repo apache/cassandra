@@ -25,10 +25,11 @@ import java.nio.IntBuffer;
 
 import com.google.common.primitives.Ints;
 
-import io.github.jbellis.jvector.disk.ReaderSupplier;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
+
+import io.github.jbellis.jvector.disk.ReaderSupplier;
 
 public class RandomAccessReaderAdapter extends RandomAccessReader implements io.github.jbellis.jvector.disk.RandomAccessReader
 {

@@ -19,9 +19,14 @@ package org.apache.cassandra.db.rows;
 
 import java.util.Objects;
 
+import org.apache.cassandra.db.AbstractArrayClusteringPrefix;
+import org.apache.cassandra.db.ArrayClusteringBound;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 

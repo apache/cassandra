@@ -21,15 +21,16 @@ package org.apache.cassandra.db.virtual;
 import java.net.InetAddress;
 import java.util.Collections;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.MutualTlsAuthenticator;
@@ -37,7 +38,6 @@ import org.apache.cassandra.auth.SpiffeCertificateValidator;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.transport.TlsTestUtils;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.waitForExistingRoles;
 import static org.assertj.core.api.Assertions.assertThat;

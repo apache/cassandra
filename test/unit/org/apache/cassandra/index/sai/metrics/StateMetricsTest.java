@@ -19,11 +19,11 @@ package org.apache.cassandra.index.sai.metrics;
 
 import javax.management.InstanceNotFoundException;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
-import com.datastax.driver.core.ResultSet;
 
 import static org.apache.cassandra.index.sai.metrics.TableStateMetrics.TABLE_STATE_METRIC_TYPE;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

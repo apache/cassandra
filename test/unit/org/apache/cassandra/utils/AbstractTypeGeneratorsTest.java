@@ -20,13 +20,14 @@ package org.apache.cassandra.utils;
 
 import java.util.ArrayList;
 
-import org.junit.Test;
-
-import accord.utils.LazyToString;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
+
+import accord.utils.LazyToString;
+
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import static org.quicktheories.QuickTheory.qt;
 

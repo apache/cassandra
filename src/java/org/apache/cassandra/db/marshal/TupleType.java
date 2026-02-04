@@ -29,7 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.MultiElements;
 import org.apache.cassandra.cql3.terms.Term;
@@ -38,8 +38,12 @@ import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.serializers.*;
+import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TupleSerializer;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -389,18 +393,29 @@ public class TupleType extends MultiElementType<ByteBuffer>
     @Override
     public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
     {
+        return filterSortAndValidateElements(buffers, ByteBufferUtil.UNSET_BYTE_BUFFER, ByteBufferAccessor.instance);
+    }
+
+    @Override
+    public List<byte[]> filterSortAndValidateElementsFromArrays(List<byte[]> buffers)
+    {
+        return filterSortAndValidateElements(buffers, ByteArrayUtil.UNSET_BYTE_ARRAY, ByteArrayAccessor.instance);
+    }
+
+    private <T> List<T> filterSortAndValidateElements(List<T> buffers, T unsetValue, ValueAccessor<T> valueAccessor)
+    {
         if (buffers.size() > size())
             throw new MarshalException(String.format("Tuple value contains too many fields (expected %s, got %s)", size(), buffers.size()));
 
         for (int i = 0; i < buffers.size(); i++)
         {
             // Since A tuple value is always written in its entirety Cassandra can't preserve a pre-existing value by 'not setting' the new value. Reject the query.
-            ByteBuffer buffer = buffers.get(i);
+            T buffer = buffers.get(i);
             if (buffer == null)
                 continue;
-            if (buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+            if (buffer == unsetValue)
                 throw new InvalidRequestException(String.format("Invalid unset value for tuple field number %d", i));
-            type(i).validate(buffer);
+            type(i).validate(buffer, valueAccessor);
         }
 
         return buffers;

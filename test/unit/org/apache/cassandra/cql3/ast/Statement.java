@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import accord.utils.Invariants;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public interface Statement extends Element

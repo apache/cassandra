@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +28,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -143,10 +143,14 @@ public class QueryEvents
         }
     }
 
+    /**
+     * Note: we use {@code byte[][]} for values of batch statement elements instead of {@code List<ByteBuffer>} here
+     * to reduce memory allocation when we decode and process a batch statement
+     */
     public void notifyBatchSuccess(BatchStatement.Type batchType,
                                    List<? extends CQLStatement> statements,
                                    List<String> queries,
-                                   List<List<ByteBuffer>> values,
+                                   List<byte[][]> values,
                                    QueryOptions options,
                                    QueryState state,
                                    long queryTime,
@@ -164,10 +168,14 @@ public class QueryEvents
         }
     }
 
+    /**
+     * Note: we use {@code byte[][]} for values of batch statement elements instead of {@code List<ByteBuffer>} here
+     * to reduce memory allocation when we decode and process a batch statement
+     */
     public void notifyBatchFailure(List<QueryHandler.Prepared> prepared,
                                    BatchStatement.Type batchType,
                                    List<Object> queryOrIdList,
-                                   List<List<ByteBuffer>> values,
+                                   List<byte[][]> values,
                                    QueryOptions options,
                                    QueryState state,
                                    Exception cause)
@@ -288,7 +296,7 @@ public class QueryEvents
         default void batchSuccess(BatchStatement.Type batchType,
                                   List<? extends CQLStatement> statements,
                                   List<String> queries,
-                                  List<List<ByteBuffer>> values,
+                                  List<byte[][]> values,
                                   QueryOptions options,
                                   QueryState state,
                                   long queryTime,
@@ -296,7 +304,7 @@ public class QueryEvents
         default void batchFailure(BatchStatement.Type batchType,
                                   List<? extends CQLStatement> statements,
                                   List<String> queries,
-                                  List<List<ByteBuffer>> values,
+                                  List<byte[][]> values,
                                   QueryOptions options,
                                   QueryState state,
                                   Exception cause) {}

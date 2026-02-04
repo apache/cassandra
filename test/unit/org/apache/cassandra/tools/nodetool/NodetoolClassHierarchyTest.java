@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.lang.reflect.Field;
+
 import javax.inject.Inject;
 
 import org.junit.Test;
@@ -27,6 +28,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.INodeProbeFactory;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
+
 import picocli.CommandLine;
 
 public class NodetoolClassHierarchyTest extends CQLTester

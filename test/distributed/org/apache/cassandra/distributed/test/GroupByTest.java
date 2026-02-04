@@ -21,13 +21,14 @@ package org.apache.cassandra.distributed.test;
 import java.util.Date;
 import java.util.Iterator;
 
-import com.google.common.collect.Iterators;
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
+import com.google.common.collect.Iterators;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;

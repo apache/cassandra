@@ -500,7 +500,7 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
             {
                 // We use a same reasoning as in handlePreSliceData regarding the strictness of the inequality below.
                 // We want to exclude deserialized unfiltered equal to end, because 1) we won't miss any rows since those
-                // woudn't be equal to a slice bound and 2) a end bound can be equal to a start bound
+                // wouldn't be equal to a slice bound and 2) a end bound can be equal to a start bound
                 // (EXCL_END(x) == INCL_START(x) for instance) and in that case we don't want to return start bound because
                 // it's fundamentally excluded. And if the bound is a  end (for a range tombstone), it means it's exactly
                 // our slice end, but in that  case we will properly close the range tombstone anyway as part of our "close

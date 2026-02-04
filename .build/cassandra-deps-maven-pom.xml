@@ -45,7 +45,7 @@
       <artifactId>snappy-java</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.lz4</groupId>
+      <groupId>at.yawk.lz4</groupId>
       <artifactId>lz4-java</artifactId>
     </dependency>
     <dependency>
@@ -160,6 +160,10 @@
     <dependency>
       <groupId>com.github.jbellis</groupId>
       <artifactId>jamm</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.profiler</groupId>
+      <artifactId>async-profiler</artifactId>
     </dependency>
     <dependency>
       <groupId>io.netty</groupId>

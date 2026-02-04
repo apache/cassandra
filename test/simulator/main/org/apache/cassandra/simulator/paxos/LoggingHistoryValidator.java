@@ -19,6 +19,7 @@
 package org.apache.cassandra.simulator.paxos;
 
 import java.util.Arrays;
+
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;

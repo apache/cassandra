@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
+
 import javax.annotation.Nullable;
 
 /**
@@ -872,6 +873,17 @@ public interface GuardrailsMBean
      */
     @Nullable
     String getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @return Return whether a single node replicating a given keyspace being full should block writes for the
+     * entire keyspace. Returns true if this behavior is set, false otherwise.
+     */
+    boolean getDataDiskUsageKeyspaceWideProtectionEnabled();
+
+    /**
+     * @param enabled Enables or disables blocking writes for a keyspace if a node replicating that keyspace is full.
+     */
+    void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled);
 
     /**
      * @param size The max disk size of the data directories when calculating disk usage thresholds, as a string

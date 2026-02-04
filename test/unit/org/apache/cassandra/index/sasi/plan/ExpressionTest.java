@@ -19,11 +19,12 @@ package org.apache.cassandra.index.sasi.plan;
 
 import java.nio.ByteBuffer;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ExpressionTest
 {

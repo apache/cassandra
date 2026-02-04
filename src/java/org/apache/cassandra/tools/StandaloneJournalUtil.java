@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import accord.local.RedundantBefore;
-import accord.primitives.Timestamp;
-import accord.primitives.TxnId;
-
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -34,7 +30,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import accord.local.RedundantBefore;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.utils.Invariants;
+
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;

@@ -24,6 +24,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.Operation;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -35,8 +39,10 @@ import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -58,25 +64,29 @@ import static org.apache.cassandra.service.accord.AccordSerializers.columnMetada
 public class TxnReferenceOperation
 {
     private static final Map<Class<? extends Operation>, Kind> operationKindMap = initOperationKindMap();
-    
-    private static Map<Class<? extends Operation>, Kind> initOperationKindMap()
+
+    @VisibleForTesting
+    static Map<Class<? extends Operation>, Kind> initOperationKindMap()
     {
         Map<Class<? extends Operation>, Kind> temp = new HashMap<>();
-        temp.put(Sets.Adder.class, Kind.SetAdder);
         temp.put(Constants.Adder.class, Kind.ConstantAdder);
-        temp.put(Lists.Appender.class, Kind.ListAppender);
-        temp.put(Sets.Discarder.class, Kind.SetDiscarder);
-        temp.put(Lists.Discarder.class, Kind.ListDiscarder);
-        temp.put(Lists.Prepender.class, Kind.ListPrepender);
-        temp.put(Maps.Putter.class, Kind.MapPutter);
-        temp.put(Lists.Setter.class, Kind.ListSetter);
-        temp.put(Sets.Setter.class, Kind.SetSetter);
-        temp.put(Maps.Setter.class, Kind.MapSetter);
-        temp.put(UserTypes.Setter.class, Kind.UserTypeSetter);
         temp.put(Constants.Setter.class, Kind.ConstantSetter);
         temp.put(Constants.Substracter.class, Kind.ConstantSubtracter);
-        temp.put(Maps.SetterByKey.class, Kind.MapSetterByKey);
+        temp.put(Lists.Appender.class, Kind.ListAppender);
+        temp.put(Lists.Discarder.class, Kind.ListDiscarder);
+        temp.put(Lists.DiscarderByIndex.class, Kind.ListDiscarderByIndex);
+        temp.put(Lists.Prepender.class, Kind.ListPrepender);
+        temp.put(Lists.Setter.class, Kind.ListSetter);
         temp.put(Lists.SetterByIndex.class, Kind.ListSetterByIndex);
+        temp.put(Maps.DiscarderByKey.class, Kind.MapDiscarderByKey);
+        temp.put(Maps.Putter.class, Kind.MapPutter);
+        temp.put(Maps.Setter.class, Kind.MapSetter);
+        temp.put(Maps.SetterByKey.class, Kind.MapSetterByKey);
+        temp.put(Sets.Adder.class, Kind.SetAdder);
+        temp.put(Sets.Discarder.class, Kind.SetDiscarder);
+        temp.put(Sets.ElementDiscarder.class, Kind.SetElementDiscarder);
+        temp.put(Sets.Setter.class, Kind.SetSetter);
+        temp.put(UserTypes.Setter.class, Kind.UserTypeSetter);
         temp.put(UserTypes.SetterByField.class, Kind.UserTypeSetterByField);
         return temp;
     }
@@ -103,7 +113,10 @@ public class TxnReferenceOperation
         ConstantSubtracter((byte) 13, (column, keyOrIndex, field, value) -> new Constants.Substracter(column, value)),
         MapSetterByKey((byte) 14, (column, keyOrIndex, field, value) -> new Maps.SetterByKey(column, keyOrIndex, value)),
         ListSetterByIndex((byte) 15, (column, keyOrIndex, field, value) -> new Lists.SetterByIndex(column, keyOrIndex, value)),
-        UserTypeSetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value));
+        UserTypeSetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value)),
+        ListDiscarderByIndex((byte) 17, (column, keyOrIndex, field, value) -> new Lists.DiscarderByIndex(column, value)),
+        MapDiscarderByKey((byte) 18, (column, keyOrIndex, field, value) -> new Maps.DiscarderByKey(column, value)),
+        SetElementDiscarder((byte) 19, (column, keyOrIndex, field, value) -> new Sets.ElementDiscarder(column, value));
 
         private final byte id;
         private final ToOperation toOperation;
@@ -154,18 +167,20 @@ public class TxnReferenceOperation
 
     private final Kind kind;
     private final ColumnMetadata receiver;
-    private final TableMetadata table;
-    private final ByteBuffer key;
-    private final ByteBuffer field;
+    public final TableMetadata table;
+    private final @Nullable ByteBuffer keyOrIndex;
+    private final @Nullable ByteBuffer field;
     private final TxnReferenceValue value;
+    private final @Nullable AbstractType<?> keyOrIndexType;
     private final AbstractType<?> valueType;
 
-    public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table, ByteBuffer key, ByteBuffer field, TxnReferenceValue value)
+    public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table,
+                                 @Nullable ByteBuffer keyOrIndex, @Nullable ByteBuffer field, TxnReferenceValue value)
     {
         this.kind = kind;
         this.receiver = receiver;
         this.table = table;
-        this.key = key;
+        this.keyOrIndex = keyOrIndex;
         this.field = field;
 
         // We don't expect operators on clustering keys, but unwrap just in case.
@@ -175,20 +190,36 @@ public class TxnReferenceOperation
         {
             // The value for a map subtraction is actually a set (see Operation.Substraction)
             this.valueType = SetType.getInstance(((MapType<?, ?>) receiverType).getKeysType(), true);
+            this.keyOrIndexType = null;
+        }
+        else if (kind == Kind.MapDiscarderByKey || kind == Kind.SetElementDiscarder)
+        {
+            CollectionType<?> ct = (CollectionType<?>) receiverType;
+            this.keyOrIndexType = null;
+            this.valueType = ct.nameComparator();
         }
         else if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
         {
-            this.valueType = ((CollectionType<?>) receiverType).valueComparator();
+            CollectionType<?> ct = (CollectionType<?>) receiverType;
+            this.keyOrIndexType = ct.nameComparator();
+            this.valueType = ct.valueComparator();
+        }
+        else if (kind == Kind.ListDiscarderByIndex)
+        {
+            this.valueType = Int32Type.instance;
+            this.keyOrIndexType = null;
         }
         else if (kind == Kind.UserTypeSetterByField)
         {
             UserType userType = (UserType) receiverType;
             CellPath fieldPath = userType.cellPathForField(new FieldIdentifier(field));
             this.valueType = userType.fieldType(fieldPath);
+            this.keyOrIndexType = null;
         }
         else
         {
             this.valueType = receiverType;
+            this.keyOrIndexType = null;
         }
 
         this.value = value;
@@ -202,27 +233,35 @@ public class TxnReferenceOperation
         TxnReferenceOperation that = (TxnReferenceOperation) o;
         return Objects.equals(receiver, that.receiver) 
                && kind == that.kind
-               && Objects.equals(key, that.key)
+               && Objects.equals(keyOrIndex, that.keyOrIndex)
                && Objects.equals(field, that.field)
                && Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(receiver, kind, keyOrIndex, field, value);
+    }
+
+
+    @Override
+    public String toString()
+    {
+        return "TxnReferenceOperation{" +
+               "kind=" + kind +
+               ", receiver=" + receiver +
+               ", table=" + table +
+               ", key=" + keyOrIndex +
+               ", field=" + field +
+               ", value=" + value +
+               '}';
     }
 
     public void collect(TableMetadatas.Collector collector)
     {
         collector.add(table);
         value.collect(collector);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(receiver, kind, key, field, value);
-    }
-
-    @Override
-    public String toString()
-    {
-        return receiver + " = " + value;
     }
 
     public ColumnMetadata receiver()
@@ -236,11 +275,12 @@ public class TxnReferenceOperation
         operation.execute(key, up);
     }
 
-    private Operation toOperation(TxnData data)
+    @VisibleForTesting
+    Operation toOperation(TxnData data)
     {
         FieldIdentifier fieldIdentifier = field == null ? null : new FieldIdentifier(field);
         Term valueTerm = toTerm(data, valueType);
-        Term keyorIndexTerm = key == null ? null : toTerm(key, valueType);
+        Term keyorIndexTerm = keyOrIndex == null ? null : toTerm(keyOrIndex, keyOrIndexType);
         return kind.toOperation(receiver, keyorIndexTerm, fieldIdentifier, valueTerm);
     }
 
@@ -274,9 +314,9 @@ public class TxnReferenceOperation
             columnMetadataSerializer.serialize(operation.receiver, operation.table, out);
             TxnReferenceValue.serializer.serialize(operation.value, tables, out);
 
-            out.writeBoolean(operation.key != null);
-            if (operation.key != null)
-                ByteBufferUtil.writeWithVIntLength(operation.key, out);
+            out.writeBoolean(operation.keyOrIndex != null);
+            if (operation.keyOrIndex != null)
+                ByteBufferUtil.writeWithVIntLength(operation.keyOrIndex, out);
 
             out.writeBoolean(operation.field != null);
             if (operation.field != null)
@@ -303,9 +343,11 @@ public class TxnReferenceOperation
             size += columnMetadataSerializer.serializedSize(operation.receiver, operation.table);
             size += TxnReferenceValue.serializer.serializedSize(operation.value, tables);
 
-            if (operation.key != null)
-                size += ByteBufferUtil.serializedSizeWithVIntLength(operation.key);
+            size += TypeSizes.sizeof(operation.keyOrIndex != null);
+            if (operation.keyOrIndex != null)
+                size += ByteBufferUtil.serializedSizeWithVIntLength(operation.keyOrIndex);
 
+            size += TypeSizes.sizeof(operation.field != null);
             if (operation.field != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.field);
 

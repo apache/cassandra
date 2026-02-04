@@ -35,23 +35,30 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.ThrowableAssert;
 
 import accord.utils.Invariants;
+
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.CasCondition;
-import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
+import org.apache.cassandra.cql3.ast.CollectionAccess;
 import org.apache.cassandra.cql3.ast.Conditional;
+import org.apache.cassandra.cql3.ast.Conditional.Where.Inequality;
 import org.apache.cassandra.cql3.ast.Element;
 import org.apache.cassandra.cql3.ast.Expression;
 import org.apache.cassandra.cql3.ast.ExpressionEvaluator;
@@ -71,14 +78,19 @@ import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.harry.model.BytesPartitionState.PrimaryKey;
 import org.apache.cassandra.harry.util.StringUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ImmutableUniqueList;
 import org.apache.cassandra.utils.Pair;
@@ -269,6 +281,8 @@ public class ASTSingleTableModel
             numMutations++; // bump here to make sure the last mutation doesn't have the same ts as the mutations here
         long nowTs = numMutations;
         for (var m : mutations)
+            Invariants.require(shouldReject(m) == null, "Mutation should have been rejected");
+        for (var m : mutations)
         {
             if (m.timestampOrDefault(NO_TIMESTAMP) == NO_TIMESTAMP)
                 m = m.withTimestamp(nowTs);
@@ -315,6 +329,7 @@ public class ASTSingleTableModel
     public void update(Mutation mutation)
     {
         if (!shouldApply(mutation)) return;
+        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         updateInternal(mutation);
     }
 
@@ -326,6 +341,7 @@ public class ASTSingleTableModel
                 validateCasNotApplied(actual, mutation);
             return;
         }
+        Invariants.require(shouldReject(mutation) == null, "Mutation should have been rejected");
         if (mutation.isCas() && validateCass.validate())
             validate(CAS_APPLIED_COLUMNS, actual, CAS_SUCCESS_RESULT);
         updateInternal(mutation);
@@ -553,12 +569,11 @@ public class ASTSingleTableModel
             partition = factory.create(pd);
             partitions.put(partition.ref(), partition);
         }
-        Map<Symbol, Expression> values = insert.values;
+        Map<ReferenceExpression, Expression> values = insert.values;
         if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns, values.keySet()).isEmpty())
         {
-            maybeUpdateColumns(Sets.intersection(factory.staticColumns, values.keySet()),
-                               partition.staticRow(),
-                               nowTs, values,
+            maybeUpdateColumns(partition.staticRow(),
+                               nowTs, filter(values, factory.staticColumns),
                                partition::setStaticColumns);
         }
         // table has clustering but non are in the write, so only pk/static can be updated
@@ -566,9 +581,8 @@ public class ASTSingleTableModel
             return;
         BytesPartitionState finalPartition = partition;
         var cd = key(insert.values, factory.clusteringColumns);
-        maybeUpdateColumns(Sets.intersection(factory.regularColumns, values.keySet()),
-                           partition.get(cd),
-                           nowTs, values,
+        maybeUpdateColumns(partition.get(cd),
+                           nowTs, filter(values, factory.regularColumns),
                            (ts, write) -> finalPartition.setColumns(cd, ts, write, true));
     }
 
@@ -586,12 +600,11 @@ public class ASTSingleTableModel
                 partition = factory.create(pd);
                 partitions.put(partition.ref(), partition);
             }
-            Map<Symbol, Expression> set = update.set;
-            if (!factory.staticColumns.isEmpty() && !Sets.intersection(factory.staticColumns, set.keySet()).isEmpty())
+            Map<ReferenceExpression, Expression> set = update.set;
+            if (!factory.staticColumns.isEmpty() && !filter(set, factory.staticColumns).isEmpty())
             {
-                maybeUpdateColumns(Sets.intersection(factory.staticColumns, set.keySet()),
-                                   partition.staticRow(),
-                                   nowTs, set,
+                maybeUpdateColumns(partition.staticRow(),
+                                   nowTs, filter(set, factory.staticColumns),
                                    partition::setStaticColumns);
             }
             // table has clustering but non are in the write, so only pk/static can be updated
@@ -600,9 +613,8 @@ public class ASTSingleTableModel
             BytesPartitionState finalPartition = partition;
             for (Clustering<ByteBuffer> cd : clustering(remaining))
             {
-                maybeUpdateColumns(Sets.intersection(factory.regularColumns, set.keySet()),
-                                   partition.get(cd),
-                                   nowTs, set,
+                maybeUpdateColumns(partition.get(cd),
+                                   nowTs, filter(set, factory.regularColumns),
                                    (ts, write) -> finalPartition.setColumns(cd, ts, write, false));
             }
         }
@@ -665,24 +677,35 @@ public class ASTSingleTableModel
         }
     }
 
-    private static void maybeUpdateColumns(Set<Symbol> columns,
-                                           @Nullable BytesPartitionState.Row row,
-                                           long nowTs, Map<Symbol, Expression> set,
+    private static Map<ReferenceExpression, Expression> filter(Map<ReferenceExpression, Expression> map, Set<Symbol> columns)
+    {
+        Map<ReferenceExpression, Expression> update = new HashMap<>();
+        for (var e : map.entrySet())
+        {
+            if (columns.contains(e.getKey().column()))
+                update.put(e.getKey(), e.getValue());
+        }
+        return update;
+    }
+
+    private static void maybeUpdateColumns(@Nullable BytesPartitionState.Row row,
+                                           long nowTs, Map<ReferenceExpression, Expression> set,
                                            ColumnUpdate update)
     {
-        if (columns.isEmpty())
+        if (set.isEmpty())
         {
             update.update(nowTs, Collections.emptyMap());
             return;
         }
         // static columns to add in.  If we are doing something like += to a row that doesn't exist, we still update statics...
         Map<Symbol, ByteBuffer> write = new HashMap<>();
-        for (Symbol col : columns)
+        for (var e : set.entrySet())
         {
-            ByteBuffer current = row == null ? null : row.get(col);
-            EvalResult result = eval(col, current, set.get(col));
+            var col = e.getKey();
+            ByteBuffer current = row == null ? null : row.get(col.column());
+            EvalResult result = eval(col, current, e.getValue());
             if (result.kind == EvalResult.Kind.SKIP) continue;
-            write.put(col, result.value);
+            write.put(col.column(), result.value);
         }
         if (!write.isEmpty())
             update.update(nowTs, write);
@@ -753,9 +776,122 @@ public class ASTSingleTableModel
         return process(Who.cas, updatedCondition, lets);
     }
 
+    public Consumer<ThrowableAssert.ThrowingCallable> shouldReject(Txn txn)
+    {
+        if (!shouldApply(txn)) return null;
+        List<Mutation> mutations = null;
+        if (txn.ifBlock.isPresent()) mutations = txn.ifBlock.get().mutations;
+        else if (!txn.mutations.isEmpty()) mutations = txn.mutations;
+
+        if (mutations == null) return null;
+        Set<Consumer<Throwable>> checks = new HashSet<>();
+        for (var m : mutations)
+        {
+            var failures = shouldReject0(m);
+            if (failures != null)
+                checks.addAll(failures);
+        }
+        return toShouldRejectConsumer(checks);
+    }
+
+    public Consumer<ThrowableAssert.ThrowingCallable> shouldReject(Mutation mutation)
+    {
+        return toShouldRejectConsumer(shouldReject0(mutation));
+    }
+
+    private static Consumer<ThrowableAssert.ThrowingCallable> toShouldRejectConsumer(@Nullable Set<Consumer<Throwable>> checks)
+    {
+        return checks == null || checks.isEmpty() ? null
+                                                  : t -> Assertions.assertThatThrownBy(t)
+                                                                   .satisfiesAnyOf(checks.toArray(Consumer[]::new));
+    }
+
+    private Set<Consumer<Throwable>> shouldReject0(Mutation mutation)
+    {
+        if (!shouldApply(mutation)) return null;
+        Set<Consumer<Throwable>> checks = null;
+        if (mutation.kind == Mutation.Kind.UPDATE)
+        {
+            Consumer<Throwable> notFound = t ->
+                                           Assertions.assertThat(t)
+                                                     .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
+                                                                                       InvalidRequestException.class)) // result from jvm-dtest execute api
+                                                     .hasMessage("Attempted to set an element on a list which is null");
+            Mutation.Update update = mutation.asUpdate();
+            for (var e : update.set.entrySet())
+            {
+                if (e.getKey() instanceof CollectionAccess)
+                {
+                    CollectionAccess access = (CollectionAccess) e.getKey();
+                    if (access.column().type().getClass() == ListType.class)
+                    {
+                        // if the column doesn't have data reject
+                        for (BytesPartitionState.Ref ref : referencePartitions(mutation))
+                        {
+                            BytesPartitionState partition = partitions.get(ref);
+                            if (partition == null)
+                            {
+                                if (checks == null) checks = new HashSet<>();
+                                checks.add(notFound);
+                                continue;
+                            }
+                            List<BytesPartitionState.Row> rows;
+                            if (factory.staticColumns.contains(access.column()))
+                            {
+                                rows = List.of(partition.staticRow());
+                            }
+                            else
+                            {
+                                rows = cds(mutation).stream().map(partition::get).collect(Collectors.toList());
+                            }
+                            if (rows.isEmpty())
+                            {
+                                if (checks == null) checks = new HashSet<>();
+                                checks.add(notFound);
+                                continue;
+                            }
+                            for (var row : rows)
+                            {
+                                if (row == null)
+                                {
+                                    if (checks == null) checks = new HashSet<>();
+                                    checks.add(notFound);
+                                    continue;
+                                }
+                                if (row.get(access.column()) == null)
+                                {
+                                    if (checks == null) checks = new HashSet<>();
+                                    checks.add(notFound);
+                                    continue;
+                                }
+                                int offset = Int32Type.instance.compose(access.element.valueEncoded());
+                                ByteBuffer columnValue = row.get(access.column());
+                                var values = ((ListType<?>) access.column().type()).unpack(columnValue);
+                                if (offset < 0 || offset >= values.size())
+                                {
+                                    if (checks == null) checks = new HashSet<>();
+                                    checks.add(t -> Assertions.assertThat(t)
+                                                              .is(AssertionUtils.anyOfThrowable(com.datastax.driver.core.exceptions.InvalidQueryException.class, // result from java driver
+                                                                                                InvalidRequestException.class)) // result from jvm-dtest execute api
+                                                              .hasMessage(String.format("List index %s out of bound, list has size %s", offset, values.size())));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return checks;
+    }
+
     public BytesPartitionState.Ref referencePartition(Mutation mutation)
     {
         return factory.createRef(pd(mutation));
+    }
+
+    public List<BytesPartitionState.Ref> referencePartitions(Mutation mutation)
+    {
+        return pds(mutation).stream().map(factory::createRef).collect(Collectors.toList());
     }
 
     private enum Who { cas, accord }
@@ -952,18 +1088,18 @@ public class ASTSingleTableModel
         return Pair.create(partitionKeys, other);
     }
 
-    private static ImmutableUniqueList<Clustering<ByteBuffer>> keys(Collection<Symbol> columns, Map<Symbol, List<ByteBuffer>> columnValues)
+    private static ImmutableUniqueList<Clustering<ByteBuffer>> keys(Collection<Symbol> columns, Map<? extends ReferenceExpression, List<ByteBuffer>> columnValues)
     {
         return keys(columns, columnValues, Function.identity());
     }
 
-    private static ImmutableUniqueList<Clustering<ByteBuffer>> keys(Map<Symbol, List<? extends Expression>> values, Collection<Symbol> columns)
+    private static ImmutableUniqueList<Clustering<ByteBuffer>> keys(Map<? extends ReferenceExpression, List<? extends Expression>> values, Collection<Symbol> columns)
     {
         return keys(columns, values, ASTSingleTableModel::eval);
     }
 
     private static <T> ImmutableUniqueList<Clustering<ByteBuffer>> keys(Collection<Symbol> columns,
-                                                                        Map<Symbol, ? extends List<? extends T>> columnValues,
+                                                                        Map<? extends ReferenceExpression, ? extends List<? extends T>> columnValues,
                                                                         Function<T, ByteBuffer> eval)
     {
         if (columns.isEmpty()) return ImmutableUniqueList.empty();
@@ -1037,16 +1173,51 @@ public class ASTSingleTableModel
         return pks.get(0);
     }
 
-    @Nullable
-    private Clustering<ByteBuffer> cdOrNull(Mutation mutation)
+    private List<Clustering<ByteBuffer>> pds(Mutation mutation)
     {
-        if (factory.clusteringColumns.isEmpty()) return Clustering.EMPTY;
+        switch (mutation.kind)
+        {
+            case INSERT:
+                return pds((Mutation.Insert) mutation);
+            case UPDATE:
+                return pds((Mutation.Update) mutation);
+            case DELETE:
+                return pds((Mutation.Delete) mutation);
+            default:
+                throw new UnsupportedOperationException(mutation.kind.name());
+        }
+    }
+
+    private List<Clustering<ByteBuffer>> pds(Mutation.Insert mutation)
+    {
+        return List.of(key(mutation.values, factory.partitionColumns));
+    }
+
+    private List<Clustering<ByteBuffer>> pds(Mutation.Update mutation)
+    {
+        return pds(mutation.where.simplify());
+    }
+
+    private List<Clustering<ByteBuffer>> pds(Mutation.Delete mutation)
+    {
+        return pds(mutation.where.simplify());
+    }
+
+    private List<Clustering<ByteBuffer>> pds(List<Conditional> conditionals)
+    {
+        return splitOnPartition(conditionals).left;
+    }
+
+    @Nullable
+    private List<Clustering<ByteBuffer>> cds(Mutation mutation)
+    {
+        if (factory.clusteringColumns.isEmpty()) return List.of(Clustering.EMPTY);
         if (mutation.kind == Mutation.Kind.INSERT)
         {
             var insert = (Mutation.Insert) mutation;
             return !insert.values.keySet().containsAll(factory.clusteringColumns)
-                   ? null
-                   : key(insert.values, factory.clusteringColumns);
+                    ? null
+                    : List.of(key(insert.values, factory.clusteringColumns));
         }
         Conditional where;
         switch (mutation.kind)
@@ -1056,13 +1227,20 @@ public class ASTSingleTableModel
                 break;
             case DELETE:
                 where = ((Mutation.Delete) mutation).where;
-            break;
+                break;
             default:
                 throw new UnsupportedOperationException("Unexpected mutation: " + mutation.kind);
         }
         var partitions = splitOnPartition(where.simplify());
         if (partitions.right.isEmpty()) return null;
-        var matches = clustering(partitions.right);
+        return clustering(partitions.right);
+    }
+
+    @Nullable
+    private Clustering<ByteBuffer> cdOrNull(Mutation mutation)
+    {
+        var matches = cds(mutation);
+        if (matches == null) return null;
         Preconditions.checkArgument(matches.size() == 1);
         return matches.get(0);
     }
@@ -1403,7 +1581,7 @@ public class ASTSingleTableModel
         ImmutableUniqueList<Symbol> selectOrder = factory.selectionOrder;
         ImmutableUniqueList<Symbol> targetOrder = columns(select);
         if (select.where.isEmpty())
-            return SelectResult.ordered(targetOrder, filter(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit)), selectOrder, targetOrder));
+            return SelectResult.ordered(targetOrder, filter(getRowsAsByteBuffer(applyLimits(all(), select.perPartitionLimit, select.limit, select.orderBy)), selectOrder, targetOrder));
         LookupContext ctx = context(select);
         List<PrimaryKey> primaryKeys;
         if (ctx.unmatchable)
@@ -1429,13 +1607,17 @@ public class ASTSingleTableModel
             // partial tested (handles many columns, tests are single column)
             primaryKeys = search(ctx);
         }
-        primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit);
+        primaryKeys = applyLimits(primaryKeys, select.perPartitionLimit, select.limit, select.orderBy);
         //TODO (correctness): now that we have the rows we need to handle the selections/aggregation/limit/group-by/etc.
         return new SelectResult(targetOrder, filter(getRowsAsByteBuffer(primaryKeys), selectOrder, targetOrder), ctx.unordered);
     }
 
-    private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys, Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt)
+    private List<PrimaryKey> applyLimits(List<PrimaryKey> primaryKeys,
+                                         Optional<Value> perPartitionLimitOpt, Optional<Value> limitOpt,
+                                         Optional<Select.OrderBy> orderBy)
     {
+        if (orderBy.isPresent() && shouldReverse(orderBy.get()))
+            primaryKeys = Lists.reverse(primaryKeys);
         if (perPartitionLimitOpt.isPresent())
         {
             int limit = Int32Type.instance.compose(eval(perPartitionLimitOpt.get()));
@@ -1461,6 +1643,18 @@ public class ASTSingleTableModel
                 primaryKeys = primaryKeys.subList(0, limit);
         }
         return primaryKeys;
+    }
+
+    private boolean shouldReverse(Select.OrderBy orderBy)
+    {
+        for (var block : orderBy.ordered)
+        {
+            Symbol col = (Symbol) block.expression; //TODO (coverage): do we support anything other than symbol?
+            col = factory.clusteringColumns.get(col); // switch to table symbol so we know if its reversed or not
+            if (col.reversed != (block.ordering == Select.OrderBy.Ordering.DESC))
+                return true;
+        }
+        return false;
     }
 
     private List<PrimaryKey> all()
@@ -1654,7 +1848,7 @@ public class ASTSingleTableModel
 
     private List<PrimaryKey> filter(LookupContext ctx, BytesPartitionState partition)
     {
-        Map<Symbol, List<? extends Expression>> values = ctx.eq;
+        Map<ReferenceExpression, List<? extends Expression>> values = ctx.eq;
         List<PrimaryKey> rows = new ArrayList<>(partition.size());
         if (!factory.clusteringColumns.isEmpty() && values.keySet().containsAll(factory.clusteringColumns))
         {
@@ -1699,10 +1893,11 @@ public class ASTSingleTableModel
         return matches;
     }
 
-    private Clustering<ByteBuffer> key(Map<Symbol, Expression> values, ImmutableUniqueList<Symbol> columns)
+    private Clustering<ByteBuffer> key(Map<? extends ReferenceExpression, Expression> input, ImmutableUniqueList<Symbol> columns)
     {
         if (columns.isEmpty()) return Clustering.EMPTY;
         // same as keys, but only one possible value can happen
+        Map<Symbol, Expression> values = input.entrySet().stream().filter(e -> e.getKey() instanceof Symbol).map(e -> (Map.Entry<Symbol, Expression>) e).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         List<Clustering<ByteBuffer>> keys = keys(Maps.transformValues(values, Collections::singletonList), columns);
         Preconditions.checkState(keys.size() == 1, "Expected 1 key, but found %s", keys.size());
         return keys.get(0);
@@ -1729,8 +1924,35 @@ public class ASTSingleTableModel
         }
     }
 
-    private static EvalResult eval(Symbol col, @Nullable ByteBuffer current, Expression e)
+    private static EvalResult eval(ReferenceExpression col, @Nullable ByteBuffer current, Expression e)
     {
+        if (col instanceof Reference)
+            throw new IllegalArgumentException("References are not supported yet; foo.bar.baz style eval is not yet handled; given " + col.toCQL());
+        if (col instanceof CollectionAccess)
+        {
+            CollectionAccess access = (CollectionAccess) col;
+            CollectionType<?> ct = (CollectionType<?>) access.column().type();
+            switch (ct.kind)
+            {
+                case LIST:
+                {
+                    int offset = Int32Type.instance.compose(eval(access.element));
+                    var values = ct.unpack(current);
+                    values.set(offset, eval(e));
+                    return EvalResult.accept(ct.pack(values));
+                }
+                case MAP:
+                {
+                    @SuppressWarnings("unchecked") MapType<Object, Object> mt = (MapType<Object, Object>) ct;
+                    Object key = mt.nameComparator().compose(eval(access.element));
+                    Map<Object, Object> values = current == null ? new HashMap<>() : mt.compose(current);
+                    values.put(key, mt.valueComparator().compose(eval(e)));
+                    return EvalResult.accept(mt.decompose(values));
+                }
+                case SET:
+                    throw new UnsupportedOperationException("Set collection access not supported");
+            }
+        }
         if (!(e instanceof AssignmentOperator)) return EvalResult.accept(eval(e));
         current = col.type().sanitize(current);
         // multi cell collections have the property that they do update even if the current value is null
@@ -1880,8 +2102,8 @@ public class ASTSingleTableModel
 
     private class LookupContext
     {
-        private final Map<Symbol, List<? extends Expression>> eq = new HashMap<>();
-        private final Map<Symbol, List<ColumnCondition>> ltOrGt = new HashMap<>();
+        private final Map<ReferenceExpression, List<? extends Expression>> eq = new HashMap<>();
+        private final Map<ReferenceExpression, List<ColumnCondition>> ltOrGt = new HashMap<>();
         @Nullable
         private Token token = null;
         @Nullable

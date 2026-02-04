@@ -25,9 +25,11 @@ import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
-import org.apache.cassandra.io.util.DataOutputBuffer;
+
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

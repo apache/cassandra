@@ -45,7 +45,7 @@
         The use of both CASSANDRA_USE_JDK11 and use-jdk11 is deprecated.
     -->
     <property name="java.default" value="11" />
-    <property name="java.supported" value="11,17" />
+    <property name="java.supported" value="11,17,21" />
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -173,7 +173,7 @@
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
-    <property name="asm.version" value="9.4"/>
+    <property name="asm.version" value="9.5"/>
     <property name="allocation-instrumenter.version" value="3.1.0"/>
 
     <condition property="is.source.artifact">
@@ -323,12 +323,80 @@
         <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
-
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+
+        <!-- Needed for in-jvm dtests straddling 6.0+ -->
+        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm17_args_concat" refid="_jvm17_arg_items" pathsep=" "/>
     <condition property="java-jvmargs" value="${_jvm17_args_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
+    </condition>
+
+    <resources id="_jvm21_arg_items">
+        <string>-Djdk.attach.allowAttachSelf=true</string>
+
+        <string>-XX:+UseZGC</string>
+        <string>-XX:+ZGenerational</string>
+
+        <!-- Temporary workaround for jamm having incorrect default CompressedOops for JDK21 -->
+        <!-- Without this, memory layout and sizing calculations will be incorrect as jamm assumes compressedOops -->
+        <string>-XX:-UseCompressedOops</string>
+
+        <!-- <string>-XX:+UseLargePages</string> -->
+
+        <!-- Max size ZGC will _attempt_ to stay below -->
+        <!-- <string>-XX:+SoftMaxHeapSize=12G</string> -->
+
+        <!-- Disable returning memory to the OS -->
+        <!-- <string>-XX:-ZUncommit</string> -->
+
+        <!-- Time memory should have been unused before eligible for uncommit in seconds -->
+        <!-- <string>-XX:ZUncommitDelay=300</string> -->
+
+        <!-- Pay the tax up front to pretouch memory to smooth out latency later -->
+        <!-- <string>-XX:+AlwaysPreTouch</string> -->
+
+        <!-- Need to explicitly allow security manager on JDK21; deprecated for removal -->
+        <string>-Djava.security.manager=allow</string>
+
+        <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
+        <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</string>
+        <string>--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED</string>
+
+        <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-opens jdk.management/com.sun.management=ALL-UNNAMED</string>
+    </resources>
+    <pathconvert property="_jvm21_args_concat" refid="_jvm21_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm21_args_concat}" else="">
+        <equals arg1="${ant.java.version}" arg2="21"/>
     </condition>
 
     <!--
@@ -344,20 +412,47 @@
       buffer construction (see CASSANDRA-16493)
     -->
     <resources id="_jvm11_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-XX:-CMSClassUnloadingEnabled</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
         <string>-XX:MaxMetaspaceSize=2G</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
+
     <resources id="_jvm17_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+        <!-- Open things up so we don't run into any jamm rejections that'd then go unsafe and crash out on in-jvm dtests -->
+        <string>--add-opens=java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-exports=java.base/jdk.internal.vm.annotation=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
+
+    <resources id="_jvm21_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
+        <string>-Dnet.bytebuddy.experimental=true</string>
+        <string>-Djava.security.manager=allow</string>
+        <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+
+        <!-- Open things up so we don't run into any jamm rejections that'd then go unsafe and crash out  on in-jvm dtests-->
+        <string>--add-opens=java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-exports=java.base/jdk.internal.vm.annotation=ALL-UNNAMED</string>
+
+        <!-- Revert to pre-JEP-416 Core Reflection implementation (without method handles) -->
+        <!-- without this, FieldUtils cannot overwrite static final fields, breaking some tests -->
+        <!-- removed in 22 (JDK-8309635) so will need a proper fix for 25 -->
+        <string>-Djdk.reflect.useDirectMethodHandle=false</string>
+    </resources>
+    <pathconvert property="_jvm21_test_arg_items_concat" refid="_jvm21_test_arg_items" pathsep=" "/>
+
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}">
-            <equals arg1="${ant.java.version}" arg2="11"/>
+        <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
     <condition property="_std-test-jvmargs" value="${_jvm17_test_arg_items_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
+    </condition>
+    <condition property="_std-test-jvmargs" value="${_jvm21_test_arg_items_concat}">
+        <equals arg1="${ant.java.version}" arg2="21"/>
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
@@ -484,9 +579,13 @@
 
     <target name="gen-cql3-grammar" depends="check-gen-cql3-grammar" unless="cql3current">
       <echo>Building Grammar ${build.src.antlr}/Cql.g  ...</echo>
+      <!-- antlr will crash on the first run on JDK21 and subsequently succeed if we don't fork it and execute in a separate JVM... -->
       <java classname="org.antlr.Tool"
             classpathref="cql3-grammar.classpath"
-            failonerror="true">
+            failonerror="true"
+            fork="true"
+            outputproperty="antlr.output"
+            errorproperty="antlr.error">
          <arg value="-Xconversiontimeout" />
          <arg value="10000" />
          <arg value="${build.src.antlr}/Cql.g" />
@@ -1004,6 +1103,7 @@
           <!-- Accord build -->
           <exclude name="${accord.dir}/*/build/**" />
           <exclude name="${accord.dir}/**/.gradle/**" />
+          <exclude name=".git-blame-ignore-revs" />
         </tarfileset>
 
         <!-- python driver -->
@@ -1052,6 +1152,7 @@
           <include name="**"/>
           <exclude name="bin/*" />
           <exclude name="tools/bin/*"/>
+          <exclude name=".git-blame-ignore-revs" />
         </tarfileset>
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
@@ -1235,6 +1336,8 @@
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
+        <!-- Pull this up for genZGC / JDK21 -->
+        <jvmarg value="-Xms512M"/>
         <jvmarg value="${jvm_xss}"/>
         <!-- When we do classloader manipulation SoftReferences can cause memory leaks
              that can OOM our test runs. The next two settings informs our GC
@@ -1414,6 +1517,7 @@
         <jvmarg value="-Dcassandra.config=file:///${scm_none_yaml}"/>
         <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dcassandra.cursor_compaction_enabled=false" />
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1488,6 +1592,7 @@
       <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
       <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-burntest.xml"/>
+      <jvmarg value="-Dnet.bytebuddy.experimental=true"/>
     </testmacro>
   </target>
 
@@ -1792,6 +1897,13 @@
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-system-keyspace-directory"/>
   </target>
+  <target name="testclasslist-simulator" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+      <path id="all-test-classes-path">
+          <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+      </path>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-simulator"/>
+  </target>
 
   <!-- Build a self-contained jar for e.g. remote execution; not currently used for running burn tests with this build script -->
   <target name="burn-test-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
@@ -1857,31 +1969,49 @@
     </testmacro>
   </target>
 
-    <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
+  <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
+  <resources id="_simulator_jvmargs_items">
+    <string>-Djdk.attach.allowAttachSelf=true</string>
+    <string>-Dlogback.configurationFile=test/conf/logback-simulator.xml</string>
+    <string>-Dcassandra.ring_delay_ms=10000</string>
+    <string>-Dcassandra.tolerate_sstable_size=true</string>
+    <string>-Dcassandra.skip_sync=true</string>
+    <string>-Dcassandra.debugrefcount=false</string>
+    <string>-Dcassandra.test.simulator.determinismcheck=strict</string>
+    <string>-Dcassandra.test.simulator.print_asm=${simulator.asm.print}</string>
+      <!-- Support Simulator Tests -->
+    <string>-javaagent:${test.lib}/jars/simulator-asm.jar</string>
+    <string>-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar</string>
+    <string>-XX:ActiveProcessorCount=4</string>
+    <string>-XX:-TieredCompilation</string>
+    <string>-XX:-BackgroundCompilation</string>
+    <string>-XX:CICompilerCount=1</string>
+    <string>-XX:Tier4CompileThreshold=1000</string>
+    <string>-XX:ReservedCodeCacheSize=256M</string>
+    <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+    <string>-Xmx8G</string>
+    <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
+    <string>-XX:MaxDirectMemorySize=8G</string>
+  </resources>
+  <pathconvert property="_simulator.jvmargs_concat" refid="_simulator_jvmargs_items" pathsep=" "/>
+
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
     <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
-      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
-      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
-      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-      <jvmarg value="-Dcassandra.skip_sync=true" />
-      <jvmarg value="-Dcassandra.debugrefcount=false"/>
-      <jvmarg value="-Dcassandra.test.simulator.determinismcheck=strict"/>
-      <jvmarg value="-Dcassandra.test.simulator.print_asm=${simulator.asm.print}" />
-      <!-- Support Simulator Tests -->
-      <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
-      <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
-      <jvmarg line="-XX:ActiveProcessorCount=4"/>
-      <jvmarg line="-XX:-TieredCompilation"/>
-      <jvmarg line="-XX:-BackgroundCompilation"/>
-      <jvmarg line="-XX:CICompilerCount=1"/>
-      <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
-      <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
-      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
-      <jvmarg line="-Xmx8G"/>
-      <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
-      <jvmarg line="-XX:MaxDirectMemorySize=8G"/>
+      <jvmarg line="${_simulator.jvmargs_concat}"/>
     </testmacro>
   </target>
+
+  <macrodef name="testlist-simulator">
+    <attribute name="test.file.list" />
+    <sequential>
+      <testmacrohelper inputdir="${test.simulator-test.src}" timeout="${test.timeout}"
+                       forkmode="perTest" showoutput="true"
+                       exclude="**/*.java" filelist="@{test.file.list}"
+                       maxmemory="8g">
+        <jvmarg line="${_simulator.jvmargs_concat}"/>
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
 
   <!-- To run them you'll need to:
          - `ant dtest-jar` on each version involved, including your current feature branch
@@ -1953,14 +2083,6 @@
       </concat>
   </target>
 
-  <target name="microbench" depends="jar">
-    <antcall target="-microbench" inheritrefs="true"/>
-  </target>
-
-  <target name="microbench-with-profiler" depends="jar">
-    <antcall target="-microbench-with-profiler" inheritrefs="true"/>
-  </target>
-
   <!-- run arbitrary mains in tests, for example to run the long running memory tests with lots of memory pressure
       ant run-main -Dmainclass=org.apache.cassandra.utils.memory.LongBufferPoolTest -Dvmargs="-Xmx30m -XX:-UseGCOverheadLimit"
   -->
@@ -2009,7 +2131,11 @@
 
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,_createVersionPropFile" description="Generate IDEA files">
-    <delete dir=".idea"/>
+    <delete>
+      <fileset dir=".idea">
+        <exclude name="codeStyles/**"/>
+      </fileset>
+    </delete>
     <delete file="${eclipse.project.name}.iml"/>
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>

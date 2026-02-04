@@ -24,11 +24,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.distributed.api.QueryResults;

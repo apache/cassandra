@@ -23,14 +23,16 @@ import java.util.Objects;
 import java.util.Random;
 
 import com.google.common.net.InternetDomainName;
-import org.junit.Test;
 
-import accord.utils.Property;
-import org.apache.cassandra.db.marshal.AsciiType;
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.JavaRandom;
+
+import accord.utils.Property;
+
+import org.apache.cassandra.db.marshal.AsciiType;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.stringComparator;
 import static org.quicktheories.QuickTheory.qt;

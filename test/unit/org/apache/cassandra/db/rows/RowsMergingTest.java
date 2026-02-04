@@ -19,12 +19,13 @@ package org.apache.cassandra.db.rows;
 
 import java.util.Arrays;
 
-import org.apache.cassandra.cql3.CQLTester;
+import com.google.common.base.Joiner;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.google.common.base.Joiner;
+import org.apache.cassandra.cql3.CQLTester;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
 

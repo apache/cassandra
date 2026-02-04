@@ -25,13 +25,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.Test;
-
 import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.junit.Test;
+
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -71,7 +73,7 @@ public class GossipDeadlockTest extends TestBaseImpl
             ExecutorPlus e = ExecutorFactory.Global.executorFactory().pooled("BounceMove", 2);
             long startToken = cluster.get(2).callOnInstance(() -> {
                 NodeId nodeId = ClusterMetadata.current().myNodeId();
-                return ((Murmur3Partitioner.LongToken)ClusterMetadata.current().tokenMap.tokens(nodeId).get(0)).token;
+                return ((Murmur3Partitioner.LongToken)ClusterMetadata.current().tokenMap.tokens(nodeId).get(0)).getLongValue();
             });
             AtomicBoolean stop = new AtomicBoolean(false);
             Future<Integer> moves = e.submit(() -> {

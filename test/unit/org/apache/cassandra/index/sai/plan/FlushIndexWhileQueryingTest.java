@@ -22,12 +22,12 @@ import java.util.concurrent.ForkJoinPool;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.IndexSearchResultIterator;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Test to cover edge cases related to memtable flush during query execution.

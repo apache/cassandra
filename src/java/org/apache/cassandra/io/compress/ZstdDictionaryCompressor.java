@@ -25,19 +25,21 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.annotation.Nullable;
+
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.luben.zstd.Zstd;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
+import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.utils.concurrent.Ref;
 
-import javax.annotation.Nullable;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateTrainingParameter;
 
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
@@ -66,7 +68,7 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
 
     /**
      * Create a ZstdDictionaryCompressor with the given options
-     * Invoked by {@link org.apache.cassandra.schema.CompressionParams#createCompressor} via reflection
+     * Invoked by {@link org.apache.cassandra.schema.CompressionParams#createCompressor(ParameterizedClass)} via reflection
      *
      * @param options compression options
      * @return ZstdDictionaryCompressor
@@ -75,6 +77,12 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     {
         int level = getOrDefaultCompressionLevel(options);
         validateCompressionLevel(level);
+        validateTrainingParameter(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                  options.getOrDefault(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                                       DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE));
+        validateTrainingParameter(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                  options.getOrDefault(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                                       DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE));
         return getOrCreate(level, null);
     }
 
@@ -93,11 +101,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
 
         return instancePerDict.get(dictionary, dict -> {
             // Get a reference to the dictionary when creating new compressor
-            Ref<ZstdCompressionDictionary> ref = dict != null ? dict.tryRef() : null;
-            if (ref == null && dict != null)
+            Ref<ZstdCompressionDictionary> ref = dict.tryRef();
+            if (ref == null)
             {
-                // Dictionary is being closed, cannot create compressor
-                throw new IllegalStateException("Dictionary is being closed");
+                throw new IllegalStateException("Dictionary is released");
             }
             return new ZstdDictionaryCompressor(level, dictionary, ref);
         });
@@ -110,7 +117,9 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
 
     private ZstdDictionaryCompressor(int level, ZstdCompressionDictionary dictionary, Ref<ZstdCompressionDictionary> dictionaryRef)
     {
-        super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME));
+        super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME,
+                            TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                            TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME));
         this.dictionary = dictionary;
         this.dictionaryRef = dictionaryRef;
     }
@@ -212,5 +221,6 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     public static void invalidateCache()
     {
         instancePerDict.invalidateAll();
+        instancePerDict.cleanUp();
     }
 }

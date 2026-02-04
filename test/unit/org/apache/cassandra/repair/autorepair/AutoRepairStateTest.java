@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -81,9 +82,9 @@ public class AutoRepairStateTest extends CQLTester
     public void testGetLastRepairTime()
     {
         AutoRepairState state = RepairType.getAutoRepairState(repairType, new AutoRepairConfig());
-        state.lastRepairTimeInMs = 1;
+        state.lastRepairFinishTimeInMs = 1;
 
-        assertEquals(1, state.getLastRepairTime());
+        assertEquals(1, state.getLastRepairFinishTime());
     }
 
     @Test
@@ -110,9 +111,9 @@ public class AutoRepairStateTest extends CQLTester
     {
         AutoRepairState state = RepairType.getAutoRepairState(repairType, new AutoRepairConfig());
 
-        state.setLastRepairTime(1);
+        state.setLastRepairFinishTime(1);
 
-        assertEquals(1, state.lastRepairTimeInMs);
+        assertEquals(1, state.lastRepairFinishTimeInMs);
     }
 
     @Test

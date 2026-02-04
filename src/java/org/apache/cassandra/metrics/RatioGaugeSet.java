@@ -23,6 +23,7 @@ import java.util.function.ToDoubleFunction;
 
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.RatioGauge;
+
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;

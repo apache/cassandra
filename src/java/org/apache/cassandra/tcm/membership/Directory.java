@@ -19,14 +19,19 @@
 package org.apache.cassandra.tcm.membership;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -35,16 +40,16 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 import accord.utils.btree.BTreeSet;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.btree.BTreeBiMap;
@@ -385,9 +390,9 @@ public class Directory implements MetadataValue<Directory>
      * those cases use allJoinedEndpoints.
      * @return
      */
-    public ImmutableList<InetAddressAndPort> allAddresses()
+    public Set<InetAddressAndPort> allAddresses()
     {
-        return ImmutableList.copyOf(peers.values());
+        return peers.values();
     }
 
     public NavigableSet<NodeId> peerIds()

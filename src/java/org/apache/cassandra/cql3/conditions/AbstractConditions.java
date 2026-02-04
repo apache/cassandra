@@ -19,8 +19,8 @@ package org.apache.cassandra.cql3.conditions;
 
 import java.util.List;
 
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Base class for <code>Conditions</code> classes.

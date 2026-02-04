@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.junit.Test;
 import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;

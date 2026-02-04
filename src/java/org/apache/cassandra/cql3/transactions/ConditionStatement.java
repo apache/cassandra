@@ -22,8 +22,8 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 

@@ -18,29 +18,37 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 
-import io.netty.buffer.ByteBuf;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.terms.Term;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+
+import io.netty.buffer.ByteBuf;
+
+import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
 
 /**
  * Options for a query.
@@ -49,6 +57,7 @@ public abstract class QueryOptions
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
                                                                        Collections.emptyList(),
+                                                                       ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS,
                                                                        false,
                                                                        SpecificOptions.DEFAULT,
                                                                        ProtocolVersion.CURRENT);
@@ -62,22 +71,22 @@ public abstract class QueryOptions
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
     public static QueryOptions forInternalCallsWithNowInSec(long nowInSec, ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT.withNowInSec(nowInSec), ProtocolVersion.CURRENT);
+        return new DefaultQueryOptions(consistency, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT.withNowInSec(nowInSec), ProtocolVersion.CURRENT);
     }
 
     public static QueryOptions forInternalCalls(List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
+        return new DefaultQueryOptions(ConsistencyLevel.ONE, values, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
     }
 
     public static QueryOptions forProtocolVersion(ProtocolVersion protocolVersion)
     {
-        return new DefaultQueryOptions(null, null, true, null, protocolVersion);
+        return new DefaultQueryOptions(null, null, ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS, true, null, protocolVersion);
     }
 
     public static QueryOptions create(ConsistencyLevel consistency,
@@ -105,6 +114,7 @@ public abstract class QueryOptions
     {
         return new DefaultQueryOptions(consistency,
                                        values,
+                                       ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS,
                                        skipMetadata,
                                        new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
                                        version);
@@ -127,6 +137,34 @@ public abstract class QueryOptions
 
     public abstract ConsistencyLevel getConsistency();
     public abstract List<ByteBuffer> getValues();
+
+    public abstract int getValuesSize();
+
+    public ByteBuffer getValue(int index)
+    {
+        return getValues().get(index);
+    }
+
+    /**
+     * to check if it is possible to get values as byte[] instead of ByteBuffer
+     * the logic is added as a memory allocation optimization
+     * to avoid creating of HeapByteBuffer wrappers for some typical requests
+     * getValues method is still in use and must be supported even if true is returned
+     */
+    public boolean isByteArrayValuesGetSupported()
+    {
+        return false;
+    }
+
+    /**
+     * an allocation-optimized version of getValues() method
+     */
+    public byte[][] getByteArrayValues()
+    {
+        throw new IllegalStateException("getByteArrayValues() method is not implemented, " +
+                                        "isByteArrayValuesGetSupported() must be always checked before invoking this method");
+    }
+
     public abstract boolean skipMetadata();
 
     /**
@@ -338,7 +376,9 @@ public abstract class QueryOptions
     static class DefaultQueryOptions extends QueryOptions
     {
         private final ConsistencyLevel consistency;
-        private final List<ByteBuffer> values;
+        private List<ByteBuffer> values; // initialized on demand
+        private final byte[][] valuesAsByteArray;
+        private final boolean isByteArrayGetSupported;
         private final boolean skipMetadata;
 
         private final SpecificOptions options;
@@ -346,10 +386,14 @@ public abstract class QueryOptions
         private final transient ProtocolVersion protocolVersion;
         private final transient ReadThresholds readThresholds = ReadThresholds.create();
 
-        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, SpecificOptions options, ProtocolVersion protocolVersion)
+        DefaultQueryOptions(ConsistencyLevel consistency, List<ByteBuffer> values,
+                            byte[][] valuesAsByteArray, boolean skipMetadata,
+                            SpecificOptions options, ProtocolVersion protocolVersion)
         {
             this.consistency = consistency;
             this.values = values;
+            isByteArrayGetSupported = (values == null);
+            this.valuesAsByteArray = valuesAsByteArray;
             this.skipMetadata = skipMetadata;
             this.options = options;
             this.protocolVersion = protocolVersion;
@@ -362,7 +406,36 @@ public abstract class QueryOptions
 
         public List<ByteBuffer> getValues()
         {
+            if (values == null)
+            {
+                values = new ArrayList<>(valuesAsByteArray.length);
+                for (byte[] byteArrayValue : valuesAsByteArray)
+                    values.add(convertToByteBufferValue(byteArrayValue));
+            }
             return values;
+        }
+
+        public int getValuesSize()
+        {
+            return isByteArrayValuesGetSupported() ? valuesAsByteArray.length : values.size();
+        }
+
+        public ByteBuffer getValue(int index)
+        {
+            if (values != null)
+                return values.get(index);
+
+            return convertToByteBufferValue(valuesAsByteArray[index]);
+        }
+
+        public boolean isByteArrayValuesGetSupported()
+        {
+            return isByteArrayGetSupported;
+        }
+
+        public byte[][] getByteArrayValues()
+        {
+            return valuesAsByteArray;
         }
 
         public boolean skipMetadata()
@@ -404,6 +477,26 @@ public abstract class QueryOptions
         public ConsistencyLevel getConsistency()
         {
             return wrapped.getConsistency();
+        }
+
+        public int getValuesSize()
+        {
+            return wrapped.getValuesSize();
+        }
+
+        public ByteBuffer getValue(int index)
+        {
+            return this.wrapped.getValue(index);
+        }
+
+        public boolean isByteArrayValuesGetSupported()
+        {
+            return wrapped.isByteArrayValuesGetSupported();
+        }
+
+        public byte[][] getByteArrayValues()
+        {
+            return wrapped.getByteArrayValues();
         }
 
         public boolean skipMetadata()
@@ -625,19 +718,19 @@ public abstract class QueryOptions
                         ? (int)body.readUnsignedInt()
                         : (int)body.readUnsignedByte();
 
-            List<ByteBuffer> values = Collections.<ByteBuffer>emptyList();
+            byte[][] values = ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS;
             List<String> names = null;
             if (Flag.contains(flags, Flag.VALUES))
             {
                 if (Flag.contains(flags, Flag.NAMES_FOR_VALUES))
                 {
-                    Pair<List<String>, List<ByteBuffer>> namesAndValues = CBUtil.readNameAndValueList(body, version);
+                    Pair<List<String>, byte[][]> namesAndValues = CBUtil.readNameAndValueListAsByteArrays(body, version);
                     names = namesAndValues.left;
                     values = namesAndValues.right;
                 }
                 else
                 {
-                    values = CBUtil.readValueList(body, version);
+                    values = CBUtil.readValueListAsByteArrays(body, version);
                 }
             }
 
@@ -665,7 +758,7 @@ public abstract class QueryOptions
                 options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
             }
 
-            DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
+            DefaultQueryOptions opts = new DefaultQueryOptions(consistency, null, values, skipMetadata, options, version);
             return names == null ? opts : new OptionsWithNames(opts, names);
         }
 

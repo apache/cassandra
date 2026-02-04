@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,8 +66,7 @@ public class LegacyStateListener implements ChangeListener.Async
             next.tokenMap.lastModified().equals(prev.tokenMap.lastModified()))
             return;
 
-        Set<InetAddressAndPort> removedAddr = Sets.difference(new HashSet<>(prev.directory.allAddresses()),
-                                                              new HashSet<>(next.directory.allAddresses()));
+        Set<InetAddressAndPort> removedAddr = Sets.difference(prev.directory.allAddresses(), next.directory.allAddresses());
 
         Set<NodeId> changed = new HashSet<>();
         for (NodeId node : next.directory.peerIds())

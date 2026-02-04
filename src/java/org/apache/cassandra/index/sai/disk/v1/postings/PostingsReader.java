@@ -19,9 +19,15 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 
 
 import java.io.IOException;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
@@ -30,10 +36,6 @@ import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.packed.DirectReader;
 
 
 /**

@@ -25,10 +25,11 @@ import java.util.List;
 import java.util.NavigableMap;
 
 import accord.utils.Invariants;
+
 import org.apache.cassandra.harry.execution.DataTracker;
-import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.execution.ResultSetRow;
 import org.apache.cassandra.harry.gen.ValueGenerators;
+import org.apache.cassandra.harry.op.Operations;
 
 import static org.apache.cassandra.harry.MagicConstants.LTS_UNKNOWN;
 import static org.apache.cassandra.harry.MagicConstants.NIL_DESCR;

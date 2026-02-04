@@ -23,28 +23,29 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 
-import accord.topology.TopologyManager;
-import org.apache.cassandra.service.accord.AccordFastPath;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.local.Node;
 import accord.topology.Topology;
+import accord.topology.TopologyManager;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class AccordSimpleFastPathTest extends TestBaseImpl
 {
@@ -110,7 +111,7 @@ public class AccordSimpleFastPathTest extends TestBaseImpl
 
                 long epoch = cm.epoch.getEpoch();
                 TopologyManager tm = AccordService.instance().topology();
-                Topology topology = tm.active().getKnown(epoch).global();
+                Topology topology = tm.active().getKnown(epoch).all();
                 Assert.assertFalse(topology.shards().isEmpty());
                 topology.shards().forEach(shard -> Assert.assertEquals(idSet(1, 2, 3), shard.nodes.without(shard.notInFastPath)));
                 return cm.epoch.getEpoch();

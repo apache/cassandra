@@ -34,7 +34,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
@@ -55,7 +55,6 @@ import static org.apache.cassandra.service.FileSystemOwnershipCheck.TOKEN;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.UNSUPPORTED_VERSION;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.VERSION;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.VOLUME_COUNT;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -66,7 +65,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     protected File tempDir;
     protected String token;
 
-    protected StartupChecksOptions options = new StartupChecksOptions();
+    protected StartupChecksConfiguration options;
 
     static WithProperties properties;
 
@@ -99,7 +98,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     }
 
     private static void executeAndFail(FileSystemOwnershipCheck checker,
-                                       StartupChecksOptions options,
+                                       StartupChecksConfiguration options,
                                        String messageTemplate,
                                        Object...messageArgs)
     {
@@ -206,7 +205,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void skipCheckDisabledIfSystemPropertyIsEmpty() throws Exception
     {
         // no exceptions thrown from the supplier because the check is skipped
-        options.disable(check_filesystem_ownership);
+        options.disable("check_filesystem_ownership");
         System.clearProperty(FILE_SYSTEM_CHECK_ENABLE.getKey());
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
@@ -215,7 +214,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void skipCheckDisabledIfSystemPropertyIsFalseButOptionsEnabled() throws Exception
     {
         // no exceptions thrown from the supplier because the check is skipped
-        options.enable(check_filesystem_ownership);
+        options.enable("check_filesystem_ownership");
         FILE_SYSTEM_CHECK_ENABLE.setBoolean(false);
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
@@ -230,7 +229,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     @Test
     public void checkEnabledButClusterPropertyIsUnset()
     {
-        Assume.assumeFalse(options.getConfig(check_filesystem_ownership).containsKey("ownership_token"));
+        Assume.assumeFalse(options.getConfig("check_filesystem_ownership").containsKey("ownership_token"));
         FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
         AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(tempDir), options, MISSING_PROPERTY, FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }

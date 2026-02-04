@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.iterators;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;

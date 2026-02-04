@@ -148,12 +148,12 @@ Enable automatic training in `cassandra.yaml`:
 [source,yaml]
 ----
 compression_dictionary_training_auto_train_enabled: true
-compression_dictionary_training_sampling_rate: 100  # 1% of writes
+compression_dictionary_training_sampling_rate: 0.01  # 1% of writes
 ----
 
 When enabled, Cassandra automatically samples write operations and
 trains dictionaries in the background based on the configured sampling
-rate (range: 1-10000, where 100 = 1% of writes).
+rate (range: 0.01-1, where 0.01 = 1% of writes).
 
 === Dictionary Storage and Distribution
 
@@ -298,17 +298,11 @@ next access.
 
 === Training Configuration
 
-* `compression_dictionary_training_max_dictionary_size` (default: `65536`):
-Maximum size of trained dictionaries in bytes. Larger dictionaries can
-capture more patterns but increase memory overhead.
-* `compression_dictionary_training_max_total_sample_size` (default:
-`10485760`): Maximum total size of sample data to collect for training,
-approximately 10MB.
 * `compression_dictionary_training_auto_train_enabled` (default: `false`):
 Enable automatic background dictionary training. When enabled, Cassandra
 samples writes and trains dictionaries automatically.
-* `compression_dictionary_training_sampling_rate` (default: `100`):
-Sampling rate for automatic training, range 1-10000 where 100 = 1% of
+* `compression_dictionary_training_sampling_rate` (default: `0.01`):
+Sampling rate for automatic training, range 0.01-1 where 0.01 = 1% of
 writes. Lower values reduce training overhead but may miss data patterns.
 
 Example configuration:
@@ -323,10 +317,33 @@ compression_dictionary_cache_expire: 3600
 
 # Automatic training
 compression_dictionary_training_auto_train_enabled: false
-compression_dictionary_training_sampling_rate: 100
-compression_dictionary_training_max_dictionary_size: 65536
-compression_dictionary_training_max_total_sample_size: 10485760
+compression_dictionary_training_sampling_rate: 0.01
 ----
+
+=== CQL training parameters:
+
+These parameters are meant to be configured via CQL for each respective table if defaults are not appropriate.
+
+* `training_max_total_sample_size` (default: `10MiB`): Maximum total size of sample data to collect for training, approximately 10MB. This parameter is configured in the 
+table's compression options for `ZstdDictionaryCompressor`.
+* `training_max_dictionary_size` (default: `64KiB`): Maximum size of trained dictionaries in bytes. Larger dictionaries can  capture more patterns but increase memory overhead. This is a parameter of `ZstdDictionaryCompressor` of a table, in `compression` section.
+
+Example:
+
+[source,cql]
+----
+ALTER TABLE keyspace.table
+   WITH compression = {
+       'class': 'ZstdDictionaryCompressor',
+       'compression_level': '3',
+       'training_max_total_sample_size': '20MiB',
+       'training_max_dictionary_size': '128KiB'
+   };
+----
+
+It is possible to override these training parameters by `nodetool compressiondictionary train` command as
+explained in the section futher down below. If `train` subcommand do not override them, CQL parameters are
+taken into account.
 
 == Other options
 
@@ -416,6 +433,11 @@ There are these four commands for now related to compression dictionaries:
 * export - a user can export a compression dictionary of a keyspace and a table, either the last one or
 by a specific id, to a file.
 * import - a user can import a compression dictionary, exported by above command, from a file to a cluster.
+
+For `train` subcommand, it is possible to specify:
+
+* `--max-dict-size` - overrides `training_max_dictionary_size` in CQL `compression` configuration.
+* `--max-total-sample-size` - overrides `training_max_total_sample_size` in CQL `compression` configuration.
 
 Importing a dictionary to a table from a file should happen only against one node at a time as
 dictionary will be eventually stored in `system_distributed.compression_dictionaries` table and reused

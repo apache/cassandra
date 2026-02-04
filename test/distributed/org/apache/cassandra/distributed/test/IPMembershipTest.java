@@ -25,6 +25,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -37,7 +39,6 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.locator.NoOpProximity;
 import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.tools.ToolRunner;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getDirectories;

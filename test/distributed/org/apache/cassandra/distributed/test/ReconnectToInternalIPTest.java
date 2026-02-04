@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,7 +43,6 @@ import org.apache.cassandra.locator.InitialLocationProvider;
 import org.apache.cassandra.locator.NetworkTopologyProximity;
 import org.apache.cassandra.locator.SnitchProperties;
 import org.apache.cassandra.tcm.membership.Location;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.locator.Ec2LocationProvider.ZONE_NAME_QUERY;
 import static org.apache.cassandra.locator.Ec2MultiRegionAddressConfig.PRIVATE_IP_QUERY;

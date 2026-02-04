@@ -24,9 +24,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Throwables;
+
+import org.assertj.core.api.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +40,7 @@ import accord.utils.Property.Command;
 import accord.utils.Property.PreCheckResult;
 import accord.utils.Property.SimpleCommand;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
@@ -54,7 +58,6 @@ import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AssertionUtils;
-import org.assertj.core.api.Condition;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 

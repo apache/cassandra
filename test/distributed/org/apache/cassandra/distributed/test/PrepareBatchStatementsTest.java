@@ -21,15 +21,16 @@ package org.apache.cassandra.distributed.test;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+
+import org.assertj.core.util.Lists;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
-import org.assertj.core.util.Lists;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;

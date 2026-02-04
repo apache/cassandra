@@ -18,6 +18,7 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.cache.CacheSize;
 
 import static org.apache.cassandra.metrics.CacheMetrics.TYPE_NAME;

@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
 import com.codahale.metrics.Snapshot;
+
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
 import org.apache.cassandra.metrics.LogLinearHistogram.LogLinearSnapshot;
 import org.apache.cassandra.utils.Clock;
@@ -73,6 +74,12 @@ public class ShardedDecayingHistograms
         public LogLinearDecayingHistogram forShard(DecayingHistogramsShard shard)
         {
             return shard.histograms.get(histogramIndex);
+        }
+
+        @Override
+        public boolean isCumulative()
+        {
+            return false;
         }
     }
 

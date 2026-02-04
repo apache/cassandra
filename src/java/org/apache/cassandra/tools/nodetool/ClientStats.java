@@ -31,6 +31,7 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.transport.ConnectedClient;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

@@ -1,0 +1,141 @@
+= Async-profiler
+
+Since https://issues.apache.org/jira/browse/CASSANDRA-20854[CASSANDRA-20854], it is possible to use
+https://github.com/async-profiler/async-profiler[async-profiler] to profile your nodes. Async-profiler is
+shipped with Cassandra, so you do not need to do anything else but start to use it by enabling a property.
+Async-profiler functionality is disabled by default. It can be turned on by setting Cassandra's `cassandra.async_profiler.enabled` property to `true`.
+
+There is a command in `nodetool` called `profile` with these sub-commands:
+
+== start
+
+Basic usage:
+----
+$ nodetool profile start
+----
+
+This will start profiling, by default for 60 seconds. If you want, for example, profile memory allocations for
+5 minutes and save results into a file memory-allocation-5m.html you would do:
+
+----
+$ nodetool profile start -e alloc -d 5m -o memory-allocation-5m.html
+----
+
+There are these events possible to profile:
+
+'cpu', 'alloc', 'lock', 'wall', 'nativemem', 'cache_misses', delimited by comma, defaults to 'cpu'.
+
+There are these output formats possible to specify, via `--format` flag:
+
+'flat', 'traces', 'collapsed', 'flamegraph', 'tree', 'jfr', 'otlp', defaults to 'flamegraph'
+
+== status
+
+You can then inspect the state of profiling by `status` subcommand:
+
+----
+$ nodetool profile status
+Profiling is running for 7 seconds
+----
+
+If you attempt to start another profiling while the current profiling is running, this will not be possible:
+
+----
+$ nodetool profile start -e alloc -d 5m -o memory-allocation-5m.html
+Profiler has already started or there was a failure to start it.
+----
+
+== stop
+
+You can stop the profiling prematurely by `stop` sub-command
+
+----
+$ nodetool profile stop -o memory-allocation-5m.html
+----
+
+After the profiling is finished, either by waiting until it stops on its own or by us explicitly, we have a result file in a results directory on a node. We can inspect what results there are by `list` sub-command:
+
+== list
+
+----
+$ nodetool profile list
+memory-allocation-5m.html
+cpu.html
+----
+
+== fetch
+
+If you have access to a node, you can just go to, by default,
+`logs` directory of Cassandra, into `async-profiler` and obtain a respective file. However, in a scenario when
+you are executing remote profiling (nodetool exection is on a physically different machine from Cassandra node), or you do not have the direct access to remote disk, you need to use `fetch` subcommand, which will sent the content of your result file locally where you can save it to whatever destination you want:
+
+----
+$ nodetool profile fetch cpu.html /tmp/cpu.html
+----
+
+== purge
+
+Of course, more you profile, more disk space the results will occupy. If you have direct access, you can just
+remove the files yourself, however if you do not, you need to use `purge` sub-command which will remove all profiling files:
+
+----
+$ nodetool profile purge
+$ nodetool profile list
+<no output>
+----
+
+== execute
+
+You can also execute arbitrary commands, by `execute` subcommand, like this:
+
+----
+nodetool profile execute meminfo
+Call trace storage:   10244 KB
+  Flight recording:       0 KB
+      Dictionaries:      68 KB
+        Code cache:   11934 KB
+------------------------------
+             Total:   22246 KB
+----
+
+However, to execute arbitrary commands for Async-profiler, we need to enable _unsafe_ async profiling by system property of Cassandra `cassandra.async_profiler.unsafe_mode` set to `true`. You will not be able to do this otherwise.
+
+You can also control where profiling files go via `cassandra.logdir.async_profiler` system property. When not set, by default they will be stored to `cassandra.logdir` + `async-profiler` directory.
+
+== Using a Different Async-Profiler Version
+
+If you need to use a different version of async-profiler (for example, to test a newer version or a custom build), you can replace the JAR file in the classpath.
+
+After building Cassandra, replace the JAR in the build output directory:
+
+----
+$ cp /path/to/your/async-profiler-X.Y.jar build/lib/jars/async-profiler-4.2.jar
+----
+
+Or replace it in the lib directory before building:
+
+----
+$ cp /path/to/your/async-profiler-X.Y.jar lib/async-profiler-4.2.jar
+$ ant clean jar
+----
+
+Then restart Cassandra to use the new version.
+
+=== Compatibility Requirements
+
+The replacement JAR must maintain API compatibility with the original version:
+
+* Must include the `one.profiler.AsyncProfiler` class with compatible methods (`getInstance()`, `execute(String)`)
+* Must contain native libraries for your platform in the correct structure:
+** `linux-x64/libasyncProfiler.so`
+** `linux-arm64/libasyncProfiler.so`
+** `macos/libasyncProfiler.so`
+* Must support the same command syntax and profiling events (cpu, alloc, lock, wall, nativemem, cache-misses)
+
+To verify the replacement worked, check the version after restart:
+
+----
+$ nodetool profile status
+----
+
+If you encounter errors, check the Cassandra logs for async-profiler initialization issues.

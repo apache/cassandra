@@ -22,10 +22,11 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public final class ThreadLocalReadAheadBuffer
 {

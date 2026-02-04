@@ -21,6 +21,7 @@ package org.apache.cassandra.transport;
 import java.io.IOException;
 
 import org.junit.After;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;

@@ -23,13 +23,14 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
+import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalKeyspace;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.parseOptionalTables;
-import static org.apache.cassandra.tools.nodetool.CommandUtils.concatArgs;
 
 @Command(name = "verify", description = "Verify (check data checksum for) one or more tables")
 public class Verify extends AbstractCommand
@@ -78,6 +79,16 @@ public class Verify extends AbstractCommand
             description = "Do a quick check - avoid reading all data to verify checksums")
     private boolean quick = false;
 
+    @Option(paramLabel = "sai_only",
+            names = { "-s", "--sai-only"},
+            description = "Verify only sai index")
+    private boolean onlySai = false;
+
+    @Option(paramLabel = "include_sai",
+            names = { "-i", "--include-sai"},
+            description = "Include SAI index verification along with data files")
+    private boolean includeSai = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -88,6 +99,9 @@ public class Verify extends AbstractCommand
             out.println("verify is disabled unless a [-f|--force] override flag is provided. See CASSANDRA-9947 and CASSANDRA-17017 for details.");
             System.exit(1);
         }
+
+        if (onlySai && includeSai)
+            throw new IllegalArgumentException("Cannot specify both --sai-only and --include-sai");
 
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
@@ -103,7 +117,7 @@ public class Verify extends AbstractCommand
         {
             try
             {
-                probe.verify(out, extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspace, tableNames);
+                probe.verify(out, extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, onlySai, includeSai, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during verifying", e);

@@ -41,7 +41,12 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.*;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_START_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_START_BOUND;
 
 /**
  * ValueAccessor allows serializers and other code dealing with raw bytes to operate on different backing types
@@ -120,6 +125,12 @@ public interface ValueAccessor<V>
         return TypeSizes.sizeofUnsignedVInt(size) + size;
     }
 
+    default int sizeWithVIntLength(IndexedValueHolder<V> valueHolder, int i)
+    {
+        int size = valueHolder.size(i);
+        return TypeSizes.sizeofUnsignedVInt(size) + size;
+    }
+
     /** serialized size including a short length prefix */
     default int sizeWithShortLength(V value)
     {
@@ -168,10 +179,22 @@ public interface ValueAccessor<V>
      */
     void write(V value, DataOutputPlus out) throws IOException;
 
+    default void write(IndexedValueHolder<V> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        write(valueHolder.get(i), out);
+    }
+
+
     default void writeWithVIntLength(V value, DataOutputPlus out) throws IOException
     {
         out.writeUnsignedVInt32(size(value));
         write(value, out);
+    }
+
+    default void writeWithVIntLength(IndexedValueHolder<V> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(valueHolder.size(i));
+        write(valueHolder.get(i), out);
     }
 
     /**

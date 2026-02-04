@@ -19,6 +19,7 @@ package org.apache.cassandra.journal;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Timer;
+
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;

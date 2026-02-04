@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord;
 
 import accord.api.RoutingKey;
 import accord.primitives.Range;
+
 import org.apache.cassandra.utils.RangeTree;
 
 public enum RangeTreeRangeAccessor implements RangeTree.Accessor<RoutingKey, Range>

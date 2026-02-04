@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,7 +41,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.awaitility.Awaitility;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertTrue;

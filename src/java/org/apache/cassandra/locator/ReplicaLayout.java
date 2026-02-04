@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Set;
+import java.util.function.Predicate;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,9 +36,6 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.FBUtilities;
-
-import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * The relevant replicas for an operation over a given range or token.

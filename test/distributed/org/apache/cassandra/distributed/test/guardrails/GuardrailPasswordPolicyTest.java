@@ -19,14 +19,16 @@
 package org.apache.cassandra.distributed.test.guardrails;
 
 import java.util.Map;
+
 import javax.management.Attribute;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+
 import org.junit.Test;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.db.guardrails.CassandraPasswordGenerator;
 import org.apache.cassandra.db.guardrails.CassandraPasswordValidator;
 import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;

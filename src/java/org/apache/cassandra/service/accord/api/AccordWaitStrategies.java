@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.api;
 import javax.annotation.Nullable;
 
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StringRetryStrategy;

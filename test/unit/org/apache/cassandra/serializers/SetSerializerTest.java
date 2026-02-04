@@ -24,13 +24,15 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.Range;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
-import static org.junit.Assert.assertEquals;
+
 import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
+import static org.junit.Assert.assertEquals;
 
 public class SetSerializerTest
 {

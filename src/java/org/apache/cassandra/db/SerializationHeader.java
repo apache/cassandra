@@ -19,11 +19,18 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
 
 import accord.utils.Invariants;
+
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -56,6 +63,8 @@ public class SerializationHeader
 
     private final Map<ByteBuffer, AbstractType<?>> typeMap;
 
+    private final boolean columnsMayChanged;
+
     private SerializationHeader(boolean isForSSTable,
                                 AbstractType<?> keyType,
                                 List<AbstractType<?>> clusteringTypes,
@@ -63,12 +72,24 @@ public class SerializationHeader
                                 EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap)
     {
+        this(isForSSTable, keyType, clusteringTypes, columns, stats, typeMap, true);
+    }
+
+    private SerializationHeader(boolean isForSSTable,
+                                AbstractType<?> keyType,
+                                List<AbstractType<?>> clusteringTypes,
+                                RegularAndStaticColumns columns,
+                                EncodingStats stats,
+                                Map<ByteBuffer, AbstractType<?>> typeMap,
+                                boolean columnsMayChanged)
+    {
         this.isForSSTable = isForSSTable;
         this.keyType = keyType;
         this.clusteringTypes = clusteringTypes;
         this.columns = columns;
         this.stats = stats;
         this.typeMap = typeMap;
+        this.columnsMayChanged = columnsMayChanged;
     }
 
     public static SerializationHeader makeWithoutStats(TableMetadata metadata)
@@ -114,6 +135,21 @@ public class SerializationHeader
     public SerializationHeader(boolean isForSSTable,
                                TableMetadata metadata,
                                RegularAndStaticColumns columns,
+                               EncodingStats stats,
+                               boolean columnsMayChanged)
+    {
+        this(isForSSTable,
+             metadata.partitionKeyType,
+             metadata.comparator.subtypes(),
+             columns,
+             stats,
+             null,
+             columnsMayChanged);
+    }
+
+    public SerializationHeader(boolean isForSSTable,
+                               TableMetadata metadata,
+                               RegularAndStaticColumns columns,
                                EncodingStats stats)
     {
         this(isForSSTable,
@@ -121,7 +157,8 @@ public class SerializationHeader
              metadata.comparator.subtypes(),
              columns,
              stats,
-             null);
+             null,
+             true);
     }
 
     public RegularAndStaticColumns columns()
@@ -137,6 +174,11 @@ public class SerializationHeader
     public boolean isForSSTable()
     {
         return isForSSTable;
+    }
+
+    public boolean columnsMayChanged()
+    {
+        return columnsMayChanged;
     }
 
     public EncodingStats stats()
@@ -206,6 +248,14 @@ public class SerializationHeader
         long localDeletionTime = readLocalDeletionTime(in);
         return DeletionTime.build(markedAt, localDeletionTime);
     }
+
+    public void readDeletionTime(DataInputPlus in, DeletionTime.ReusableDeletionTime reuse) throws IOException
+    {
+        long markedAt = readTimestamp(in);
+        long localDeletionTime = readLocalDeletionTime(in);
+        reuse.reset(markedAt, localDeletionTime);
+    }
+
 
     public long timestampSerializedSize(long timestamp)
     {

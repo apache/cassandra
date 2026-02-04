@@ -22,10 +22,10 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.concurrent.TimeUnit;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DurationSpec;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.SpiffeCertificateValidatorTest.CERTIFICATE_PATH;

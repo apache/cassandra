@@ -22,7 +22,15 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.io.util.File;
+import net.openhft.chronicle.core.io.IORuntimeException;
+import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+import net.openhft.chronicle.threads.Pauser;
+import net.openhft.chronicle.wire.ReadMarshallable;
+import net.openhft.chronicle.wire.WireIn;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -31,15 +39,8 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
-import net.openhft.chronicle.core.io.IORuntimeException;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
-import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.RollCycles;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
-import net.openhft.chronicle.threads.Pauser;
-import net.openhft.chronicle.wire.ReadMarshallable;
-import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.audit.BinAuditLogger;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.binlog.BinLog;
 
 /**
@@ -175,7 +176,7 @@ public class AuditLogViewer
     private static class AuditLogViewerOptions
     {
         private final List<String> pathList;
-        private String rollCycle = "HOURLY";
+        private String rollCycle = "FAST_HOURLY";
         private boolean follow;
         private boolean ignoreUnsupported;
 
@@ -237,7 +238,7 @@ public class AuditLogViewer
         {
             Options options = new Options();
 
-            options.addOption(new Option("r", ROLL_CYCLE, true, "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY."));
+            options.addOption(new Option("r", ROLL_CYCLE, true, "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (FIVE_MINUTELY, FAST_HOURLY, FAST_DAILY). Default FAST_HOURLY."));
             options.addOption(new Option("f", FOLLOW, false, "Upon reacahing the end of the log continue indefinitely waiting for more records"));
             options.addOption(new Option("i", IGNORE, false, "Silently ignore unsupported records"));
             options.addOption(new Option("h", HELP_OPTION, false, "display this help message"));

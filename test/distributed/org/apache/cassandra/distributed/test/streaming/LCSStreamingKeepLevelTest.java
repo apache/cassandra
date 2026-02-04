@@ -66,8 +66,8 @@ public class LCSStreamingKeepLevelTest extends TestBaseImpl
         {
             populate(cluster);
 
-            long tokenVal = ((Murmur3Partitioner.LongToken)cluster.tokens().get(3).getToken()).token;
-            long prevTokenVal = ((Murmur3Partitioner.LongToken)cluster.tokens().get(2).getToken()).token;
+            long tokenVal = ((Murmur3Partitioner.LongToken)cluster.tokens().get(3).getToken()).getLongValue();
+            long prevTokenVal = ((Murmur3Partitioner.LongToken)cluster.tokens().get(2).getToken()).getLongValue();
             // move node 4 to the middle point between its current position and the previous node
             long newToken = (tokenVal + prevTokenVal) / 2;
             cluster.get(4).nodetoolResult("move", String.valueOf(newToken)).asserts().success();

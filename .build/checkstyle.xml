@@ -187,6 +187,15 @@
       <property name="illegalClassNames" value="var"/>
     </module>
 
+    <module name="AvoidStarImport"/>
+    <module name="ImportOrder">
+      <property name="groups" value="java,javax,/^com\./,/^net\./,/^org\./,/^accord\./,/^org\.apache\.cassandra\./"/>
+      <property name="ordered" value="true"/>
+      <property name="separated" value="true"/>
+      <property name="option" value="bottom"/>
+      <property name="sortStaticImportsAlphabetically" value="true"/>
+    </module>
+
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
 

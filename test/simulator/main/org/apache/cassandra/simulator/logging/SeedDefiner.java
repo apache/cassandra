@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.simulator.logging;
 
-import ch.qos.logback.core.PropertyDefinerBase;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+
+import ch.qos.logback.core.PropertyDefinerBase;
 
 public class SeedDefiner extends PropertyDefinerBase
 {

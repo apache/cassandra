@@ -25,12 +25,13 @@ import java.util.concurrent.BlockingQueue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.io.util.RebufferingInputStream;
+import org.apache.cassandra.streaming.StreamingDataInputPlus;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.streaming.StreamingDataInputPlus;
 
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 

@@ -47,7 +47,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 /**
  * Base class for the sstable writers used by CQLSSTableWriter.
  */
-abstract class AbstractSSTableSimpleWriter implements Closeable
+public abstract class AbstractSSTableSimpleWriter implements Closeable
 {
     protected final File directory;
     protected final TableMetadataRef metadata;
@@ -172,7 +172,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         }
     }
 
-    PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException
+    public PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException
     {
         return getUpdateFor(metadata.get().partitioner.decorateKey(key));
     }

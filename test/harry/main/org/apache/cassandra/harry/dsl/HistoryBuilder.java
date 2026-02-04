@@ -36,9 +36,9 @@ import org.apache.cassandra.harry.gen.IndexGenerators;
 import org.apache.cassandra.harry.gen.InvertibleGenerator;
 import org.apache.cassandra.harry.gen.ValueGenerators;
 import org.apache.cassandra.harry.gen.rng.JdkRandomEntropySource;
+import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.op.Visit;
-import org.apache.cassandra.harry.model.Model;
 import org.apache.cassandra.harry.util.BitSet;
 import org.apache.cassandra.harry.util.IteratorsUtil;
 

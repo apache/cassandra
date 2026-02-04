@@ -19,16 +19,18 @@
 package org.apache.cassandra.transport;
 
 import java.util.Map;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.security.FileBasedSslContextFactory;
+
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.security.FileBasedSslContextFactory;
 
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 

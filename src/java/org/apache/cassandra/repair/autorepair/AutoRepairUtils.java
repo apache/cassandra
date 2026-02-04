@@ -39,23 +39,13 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
+import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
+import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
-import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Splitter;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
-import org.apache.cassandra.locator.EndpointsByRange;
-import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.LocalStrategy;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,14 +60,24 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Splitter;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.CompactionMetadata;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByRange;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.AutoRepairMetricsManager;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
@@ -99,14 +99,13 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_DUE_TO_PRIORITY;
-import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.NOT_MY_TURN;
 import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.MY_TURN_FORCE_REPAIR;
+import static org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn.NOT_MY_TURN;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -178,11 +177,16 @@ public class AutoRepairUtils
     "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_FINISH_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
     SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
 
+    final static String SELECT_LAST_REPAIR_START_TIME_FOR_NODE = String.format(
+    "SELECT %s FROM %s.%s WHERE %s = ? AND %s = ?", COL_REPAIR_START_TS, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+    SystemDistributedKeyspace.AUTO_REPAIR_HISTORY, COL_REPAIR_TYPE, COL_HOST_ID);
+
     static ModificationStatement delStatementRepairHistory;
     static SelectStatement selectStatementRepairHistory;
     static ModificationStatement delStatementPriorityStatus;
     static SelectStatement selectStatementRepairPriority;
     static SelectStatement selectLastRepairTimeForNode;
+    static SelectStatement selectLastRepairStartTimeForNode;
     static ModificationStatement addPriorityHost;
     static ModificationStatement insertNewRepairHistoryStatement;
     static ModificationStatement recordStartRepairHistoryStatement;
@@ -208,6 +212,8 @@ public class AutoRepairUtils
                                                                                                               .forInternalCalls());
         selectLastRepairTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_TIME_FOR_NODE, ClientState
                                                                                                                       .forInternalCalls());
+        selectLastRepairStartTimeForNode = (SelectStatement) QueryProcessor.getStatement(SELECT_LAST_REPAIR_START_TIME_FOR_NODE, ClientState
+                                                                                                                                 .forInternalCalls());
         delStatementPriorityStatus = (ModificationStatement) QueryProcessor.getStatement(DEL_REPAIR_PRIORITY, ClientState
                                                                                                               .forInternalCalls());
         addPriorityHost = (ModificationStatement) QueryProcessor.getStatement(ADD_PRIORITY_HOST, ClientState
@@ -383,7 +389,8 @@ public class AutoRepairUtils
         // this function will be called when a node bootstrap finished
         UUID hostId = StorageService.instance.getHostIdForEndpoint(FBUtilities.getBroadcastAddressAndPort());
         // insert the data first
-        insertNewRepairHistory(repairType, currentTimeMillis(), currentTimeMillis());
+        long timestamp = currentTimeMillis();
+        insertNewRepairHistory(repairType, timestamp, timestamp);
         setForceRepair(repairType, hostId);
     }
 
@@ -408,7 +415,7 @@ public class AutoRepairUtils
         logger.info("Set force repair repair type: {}, node: {}", repairType, hostId);
     }
 
-    public static long getLastRepairTimeForNode(RepairType repairType, UUID hostId)
+    public static long getLastRepairFinishTimeForNode(RepairType repairType, UUID hostId)
     {
         ResultMessage.Rows rows = selectLastRepairTimeForNode.execute(QueryState.forInternalCalls(),
                                                                       QueryOptions.forInternalCalls(internalQueryCL,
@@ -422,6 +429,22 @@ public class AutoRepairUtils
             return 0;
         }
         return repairTime.one().getLong(COL_REPAIR_FINISH_TS);
+    }
+
+    public static long getLastRepairStartTimeForNode(RepairType repairType, UUID hostId)
+    {
+        ResultMessage.Rows rows = selectLastRepairStartTimeForNode.execute(QueryState.forInternalCalls(),
+                                                                           QueryOptions.forInternalCalls(internalQueryCL,
+                                                                                                         Lists.newArrayList(
+                                                                                                         ByteBufferUtil.bytes(repairType.toString()),
+                                                                                                         ByteBufferUtil.bytes(hostId))),
+                                                                           Dispatcher.RequestTime.forImmediateExecution());
+        UntypedResultSet repairTime = UntypedResultSet.create(rows.result);
+        if (repairTime.isEmpty())
+        {
+            return 0;
+        }
+        return repairTime.one().getLong(COL_REPAIR_START_TS);
     }
 
     @VisibleForTesting
@@ -841,7 +864,8 @@ public class AutoRepairUtils
                 if (!autoRepairHistoryIds.contains(hostId))
                 {
                     logger.info("{} for repair type {} doesn't exist in the auto repair history table, insert a new record.", repairType, hostId);
-                    insertNewRepairHistory(repairType, hostId, currentTimeMillis(), currentTimeMillis());
+                    long timestamp = currentTimeMillis();
+                    insertNewRepairHistory(repairType, hostId, timestamp, timestamp);
                 }
             }
 

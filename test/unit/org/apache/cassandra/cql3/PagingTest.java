@@ -19,23 +19,24 @@ package org.apache.cassandra.cql3;
 
 import java.util.Iterator;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.locator.NodeProximity;
-import org.apache.cassandra.locator.BaseProximity;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;

@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.Mutation;
 import org.apache.cassandra.cql3.ast.Txn;
@@ -115,6 +116,13 @@ Suppressed: java.lang.AssertionError: Unknown keyspace ks12
             if (wrapMutationAsTxn != 0 && rs.decide(wrapMutationAsTxn))
                 return super.command(rs, Txn.wrap(mutation), annotate);
             return super.command(rs, mutation, annotate);
+        }
+
+        @Override
+        protected boolean allowListElementAccessForUpdateSet()
+        {
+            // See CASSANDRA-20828
+            return false;
         }
 
         @Override

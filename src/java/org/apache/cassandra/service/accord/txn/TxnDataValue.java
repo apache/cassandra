@@ -23,6 +23,7 @@ import java.io.IOException;
 import javax.annotation.Nullable;
 
 import accord.primitives.Ranges;
+
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
@@ -42,6 +43,7 @@ public interface TxnDataValue
     {
         key(0),
         range(1);
+
         int id;
 
         Kind(int id)
@@ -49,14 +51,15 @@ public interface TxnDataValue
             this.id = id;
         }
 
-        public TxnDataValueSerializer serializer()
+        @SuppressWarnings("unchecked")
+        public <T extends TxnDataValue> IVersionedSerializer<T> serializer()
         {
             switch (this)
             {
                 case key:
-                    return TxnDataKeyValue.serializer;
+                    return (IVersionedSerializer<T>) TxnDataKeyValue.serializer;
                 case range:
-                    return TxnDataRangeValue.serializer;
+                    return (IVersionedSerializer<T>) TxnDataRangeValue.serializer;
                 default:
                     throw new IllegalStateException("Unrecognized kind " + this);
             }
@@ -71,7 +74,7 @@ public interface TxnDataValue
 
     long estimatedSizeOnHeap();
 
-    IVersionedSerializer<TxnDataValue> serializer = new IVersionedSerializer<TxnDataValue>()
+    IVersionedSerializer<TxnDataValue> serializer = new IVersionedSerializer<>()
     {
         @SuppressWarnings("unchecked")
         @Override

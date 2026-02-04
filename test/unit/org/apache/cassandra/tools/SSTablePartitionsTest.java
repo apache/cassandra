@@ -20,6 +20,8 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 
+import org.assertj.core.api.AbstractStringAssert;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,8 +31,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.AbstractStringAssert;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 
@@ -101,7 +101,7 @@ public class SSTablePartitionsTest extends OfflineToolUtils
     @After
     public void assertPostTestEnv()
     {
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, false);
+        assertNoUnexpectedThreadsStarted(false, OPTIONAL_THREADS_WITH_SCHEMA);
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
         assertKeyspaceNotLoaded();

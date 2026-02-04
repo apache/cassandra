@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.util.Collections;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;

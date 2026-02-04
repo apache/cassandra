@@ -24,9 +24,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import com.sun.nio.file.ExtendedOpenOption;
+
 import net.openhft.chronicle.core.util.ThrowingFunction;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
@@ -34,6 +35,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
 import sun.nio.ch.DirectBuffer;
 
 /*

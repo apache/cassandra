@@ -30,9 +30,9 @@ import org.apache.cassandra.schema.ReplicationParams;
 
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.emptyReplicas;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.fullReplicas;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.transientReplicas;
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.fullReplicas;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 

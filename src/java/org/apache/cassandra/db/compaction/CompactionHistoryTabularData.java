@@ -17,9 +17,17 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import javax.management.openmbean.*;
 import java.util.Map;
 import java.util.UUID;
+
+import javax.management.openmbean.CompositeDataSupport;
+import javax.management.openmbean.CompositeType;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.OpenType;
+import javax.management.openmbean.SimpleType;
+import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
+import javax.management.openmbean.TabularType;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -34,7 +42,8 @@ public class CompactionHistoryTabularData
 
     private static final String[] ITEM_DESCS = new String[]{ "time uuid", "keyspace name",
                                                              "column family name", "compaction finished at",
-                                                             "total bytes in", "total bytes out", "total rows merged", "compaction properties" };
+                                                             "total bytes in", "total bytes out", "total rows merged",
+                                                             "compaction properties" };
 
     private static final String TYPE_NAME = "CompactionHistory";
 
@@ -45,10 +54,10 @@ public class CompactionHistoryTabularData
     private static final CompositeType COMPOSITE_TYPE;
 
     private static final TabularType TABULAR_TYPE;
-    
+
     public static final String COMPACTION_TYPE_PROPERTY = "compaction_type";
-    
-    static 
+
+    static
     {
         try
         {

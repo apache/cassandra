@@ -55,6 +55,7 @@ import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
@@ -95,7 +96,7 @@ import org.apache.cassandra.transport.Dispatcher;
 
 import static accord.coordinate.CoordinationAdapter.Factory.Kind.Standard;
 import static accord.primitives.Txn.Kind.Write;
-import static accord.topology.Topologies.SelectNodeOwnership.SHARE;
+import static accord.topology.SelectShards.LIVE;
 import static accord.utils.Invariants.illegalState;
 import static accord.utils.Invariants.requireArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
@@ -159,9 +160,9 @@ public class AccordInteropExecution implements ReadCoordinator
 
         // TODO (required): compare this to latest logic in Accord, make sure it makes sense
         ActiveEpochs epochs = node.topology().active();
-        this.executes = epochs.forEpoch(route, executeAt.epoch(), SHARE);
+        this.executes = epochs.forEpoch(route, executeAt.epoch(), LIVE);
         this.allTopologies = txnId.epoch() != executeAt.epoch()
-                             ? epochs.preciseEpochs(route, txnId.epoch(), executeAt.epoch(), SHARE)
+                             ? epochs.preciseEpochs(route, txnId.epoch(), executeAt.epoch(), LIVE)
                              : executes;
         this.executeTopology = executes.getEpoch(executeAt.epoch());
         this.coordinateTopology = allTopologies.getEpoch(txnId.epoch());

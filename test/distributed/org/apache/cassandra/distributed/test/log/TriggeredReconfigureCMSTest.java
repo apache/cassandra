@@ -26,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;

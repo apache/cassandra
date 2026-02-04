@@ -20,6 +20,7 @@ package org.apache.cassandra.constraints;
 
 import java.util.List;
 
+import org.assertj.core.api.ThrowableAssert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -33,7 +34,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.assertj.core.api.ThrowableAssert;
 
 import static java.util.List.of;
 import static org.apache.cassandra.schema.ColumnMetadata.Kind.REGULAR;

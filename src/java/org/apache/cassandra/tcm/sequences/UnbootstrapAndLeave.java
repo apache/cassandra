@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +49,10 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.collect.ImmutableList.of;
+import static org.apache.cassandra.tcm.MultiStepOperation.Kind.LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_LEAVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_LEAVE;
-import static org.apache.cassandra.tcm.MultiStepOperation.Kind.LEAVE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 

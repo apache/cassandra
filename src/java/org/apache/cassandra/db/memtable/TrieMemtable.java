@@ -29,6 +29,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
+
+import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +77,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.EnsureOnHeap;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
-import org.github.jamm.Unmetered;
 
 /**
  * Trie memtable implementation. Improves memory usage, garbage collection efficiency and lookup performance.
@@ -736,7 +737,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         @Override
         public UnfilteredRowIterator unfilteredIterator()
         {
-            return unfilteredIterator(ColumnFilter.selection(super.columns()), Slices.ALL, false);
+            return unfilteredIterator(ColumnFilter.all(super.columns()), Slices.ALL, false);
         }
 
         @Override

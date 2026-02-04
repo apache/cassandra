@@ -188,6 +188,7 @@ public class BigTableScanner extends SSTableScanner<BigTableReader, RowIndexEntr
                "dfile=" + dfile +
                " ifile=" + ifile +
                " sstable=" + sstable +
+               " rangeIterator=" + rangeIterator +
                ")";
     }
 }

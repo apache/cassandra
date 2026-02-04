@@ -24,10 +24,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -59,9 +59,7 @@ public final class KeyspaceParams
     {
         DURABLE_WRITES,
         REPLICATION,
-        FAST_PATH,
-        COMMENT,
-        SECURITY_LABEL;
+        FAST_PATH;
 
         @Override
         public String toString()
@@ -181,8 +179,8 @@ public final class KeyspaceParams
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
                           .add(Option.FAST_PATH.toString(), fastPath.toString())
-                          .add(Option.COMMENT.toString(), comment)
-                          .add(Option.SECURITY_LABEL.toString(), securityLabel)
+                          .add("COMMENT", comment)
+                          .add("SECURITY_LABEL", securityLabel)
                           .toString();
     }
 

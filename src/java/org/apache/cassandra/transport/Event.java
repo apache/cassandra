@@ -23,10 +23,11 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import io.netty.buffer.ByteBuf;
 
 public abstract class Event
 {

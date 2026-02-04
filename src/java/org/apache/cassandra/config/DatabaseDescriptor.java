@@ -48,6 +48,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
@@ -61,6 +62,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import com.googlecode.concurrenttrees.common.Iterables;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -68,7 +70,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.progresslog.DefaultProgressLog;
-import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
@@ -121,6 +123,8 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -264,7 +268,7 @@ public class DatabaseDescriptor
      * The configuration for guardrails.
      */
     private static GuardrailsOptions guardrails;
-    private static StartupChecksOptions startupChecksOptions;
+    private static StartupChecksConfiguration startupChecksConfiguration;
 
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
@@ -1236,6 +1240,9 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(ex.getMessage());
         }
+
+        if (conf.compression_dictionary_training_sampling_rate <= 0.0f || conf.compression_dictionary_training_sampling_rate > 1.0f)
+            throw new ConfigurationException("Sampling rate has to be between (0.0;1], it is " + conf.compression_dictionary_training_sampling_rate);
     }
 
     @VisibleForTesting
@@ -1336,14 +1343,22 @@ public class DatabaseDescriptor
         }
     }
 
-    public static StartupChecksOptions getStartupChecksOptions()
+    public static StartupChecksConfiguration getStartupChecksConfiguration()
     {
-        return startupChecksOptions;
+        return startupChecksConfiguration;
     }
 
     private static void applyStartupChecks()
     {
-        startupChecksOptions = new StartupChecksOptions(conf.startup_checks);
+        try
+        {
+            StartupChecks startupChecks = new StartupChecks().withDefaultTests().withTest(new FileSystemOwnershipCheck()).withServiceLoaderTests();
+            startupChecksConfiguration = new StartupChecksConfiguration(startupChecks, conf.startup_checks);
+        }
+        catch (Throwable t)
+        {
+            throw new ConfigurationException("Invalid configuration of startup_checks: " + t.getMessage());
+        }
     }
 
     private static String storagedirFor(String type)
@@ -3215,6 +3230,16 @@ public class DatabaseDescriptor
         return conf.max_mutation_size.toBytes();
     }
 
+    public static int getSSTablesPerReadLogThreshold()
+    {
+        return conf.sstables_per_read_log_threshold;
+    }
+
+    public static void setSSTablesPerReadLogThreshold(int threshold)
+    {
+        conf.sstables_per_read_log_threshold = threshold;
+    }
+
     public static int getTombstoneWarnThreshold()
     {
         return conf.tombstone_warn_threshold;
@@ -4413,16 +4438,6 @@ public class DatabaseDescriptor
         return conf.compression_dictionary_cache_expire.toSeconds();
     }
 
-    public static int getCompressionDictionaryTrainingMaxDictionarySize()
-    {
-        return conf.compression_dictionary_training_max_dictionary_size.toBytes();
-    }
-
-    public static int getCompressionDictionaryTrainingMaxTotalSampleSize()
-    {
-        return conf.compression_dictionary_training_max_total_sample_size.toBytes();
-    }
-
     public static boolean getCompressionDictionaryTrainingAutoTrainEnabled()
     {
         return conf.compression_dictionary_training_auto_train_enabled;
@@ -4715,6 +4730,17 @@ public class DatabaseDescriptor
         conf.transient_replication_enabled = enabled;
     }
 
+    public static boolean cursorCompactionEnabled()
+    {
+        return conf.cursor_compaction_enabled;
+    }
+
+    @VisibleForTesting
+    public static void setCursorCompactionEnabled(boolean cursor_compaction_enabled)
+    {
+        conf.cursor_compaction_enabled = cursor_compaction_enabled;
+    }
+
     public static boolean enableDropCompactStorage()
     {
         return conf.drop_compact_storage_enabled;
@@ -4753,15 +4779,31 @@ public class DatabaseDescriptor
 
     public static void setGCLogThreshold(int threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold value for gc_log_threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGCWarnThreshold();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold value for gc_log_threshold (" + threshold + ") must be less than gc_warn_threshold which is currently "
-                                               + gcWarnThresholdInMs);
-
+        validateGCParams(threshold, getGCWarnThreshold());
         conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(threshold);
+    }
+
+    public static void validateGCParams(long logThreshold, long warnThreshold)
+    {
+        if (logThreshold <= 0)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold must be greater than 0");
+        if (logThreshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold must be less than Integer.MAX_VALUE");
+
+        if (warnThreshold <= 0)
+            throw new IllegalArgumentException("Threshold value for gc_warn*_threshold must be greater than 0");
+        if (warnThreshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold value for gc_warn*_threshold must be less than Integer.MAX_VALUE");
+
+        if (warnThreshold != 0 && logThreshold > warnThreshold)
+            throw new IllegalArgumentException("Threshold value for gc_log*_threshold (" + logThreshold + ") must be less than gc_warn*_threshold which is currently "
+                    + warnThreshold);
+    }
+
+    public static EncryptionContext getEncryptionContext()
+    {
+        return encryptionContext;
+
     }
 
     public static long getGCWarnThreshold()
@@ -4769,10 +4811,13 @@ public class DatabaseDescriptor
         return conf.gc_warn_threshold.toMilliseconds();
     }
 
-    public static void setGCWarnThreshold(int threshold)
+    public static void setGCWarnThreshold(long threshold)
     {
         if (threshold < 0)
             throw new IllegalArgumentException("Threshold value for gc_warn_threshold must be greater than or equal to 0");
+
+        if (threshold > Integer.MAX_VALUE)
+            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
 
         long gcLogThresholdInMs = getGCLogThreshold();
         if (threshold != 0 && threshold <= gcLogThresholdInMs)
@@ -4816,11 +4861,6 @@ public class DatabaseDescriptor
                                                + gcConcurrentPhaseLogThresholdInMs);
 
         conf.gc_concurrent_phase_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
-    }
-
-    public static EncryptionContext getEncryptionContext()
-    {
-        return encryptionContext;
     }
 
     public static boolean isCDCEnabled()
@@ -5495,7 +5535,7 @@ public class DatabaseDescriptor
 
     public static boolean getAccordTransactionsEnabled()
     {
-        return conf == null ? false : conf.accord.enabled;
+        return conf != null && conf.accord.enabled;
     }
 
     public static void setAccordTransactionsEnabled(boolean b)
@@ -6108,5 +6148,15 @@ public class DatabaseDescriptor
     public static void setPartitioner(String name)
     {
         partitioner = FBUtilities.newPartitioner(name);
+    }
+
+    public static boolean getGossipQuarantineDisabled()
+    {
+        return conf.gossip_quarantine_disabled;
+    }
+
+    public static void setGossipQuarantineDisabled(boolean disabled)
+    {
+        conf.gossip_quarantine_disabled = disabled;
     }
 }

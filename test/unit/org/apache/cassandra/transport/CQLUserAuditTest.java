@@ -29,23 +29,24 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.audit.DiagnosticEventAuditLogger;
-import org.apache.cassandra.auth.CassandraRoleManager;
-import org.apache.cassandra.auth.PasswordAuthenticator;
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.AuthenticationException;
 
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.PreparedStatement;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.exceptions.AuthenticationException;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.audit.AuditEvent;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.audit.DiagnosticEventAuditLogger;
+import org.apache.cassandra.auth.AuthTestUtils;
+import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -78,6 +79,8 @@ public class CQLUserAuditTest
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
 
         embedded = ServerTestUtils.startEmbeddedCassandraService();
+        AuthTestUtils.waitForExistingRoles();
+
 
         executeAs(Arrays.asList("CREATE ROLE testuser WITH LOGIN = true AND SUPERUSER = false AND PASSWORD = 'foo'",
                                 "CREATE ROLE testuser_nologin WITH LOGIN = false AND SUPERUSER = false AND PASSWORD = 'foo'",
@@ -214,20 +217,23 @@ public class CQLUserAuditTest
                                                    AuditLogEntryType expectedAuthType) throws Exception
     {
         boolean authFailed = false;
-        Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
+        try(Cluster cluster = Cluster.builder().addContactPoints(InetAddress.getLoopbackAddress())
                                  .withoutJMXReporting()
                                  .withCredentials(username, password)
-                                 .withPort(DatabaseDescriptor.getNativeTransportPort()).build();
-        try (Session session = cluster.connect())
+                                 .withPort(DatabaseDescriptor.getNativeTransportPort()).build())
         {
-            for (String query : queries)
-                session.execute(query);
+            try (Session session = cluster.connect())
+            {
+                for (String query : queries)
+                    session.execute(query);
+            }
+            catch (AuthenticationException e)
+            {
+                if (expectedAuthType == null)
+                    throw e;
+                authFailed = true;
+            }
         }
-        catch (AuthenticationException e)
-        {
-            authFailed = true;
-        }
-        cluster.close();
 
         if (expectedAuthType == null) return null;
 

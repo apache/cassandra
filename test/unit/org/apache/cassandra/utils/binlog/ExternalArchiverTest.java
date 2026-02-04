@@ -29,10 +29,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.io.util.File;
-import org.junit.Test;
 
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+
+import org.junit.Test;
+
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;

@@ -31,7 +31,10 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+
 import javax.annotation.Nullable;
+
+import org.agrona.collections.Object2ObjectHashMap;
 
 import accord.api.RoutingKey;
 import accord.local.Command;
@@ -55,7 +58,7 @@ import accord.utils.AsymmetricComparator;
 import accord.utils.Invariants;
 import accord.utils.SymmetricComparator;
 import accord.utils.UnhandledEnum;
-import org.agrona.collections.Object2ObjectHashMap;
+
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.service.accord.api.TokenKey;
@@ -353,7 +356,7 @@ public class CommandsForRanges extends TreeMap<Timestamp, Summary> implements Co
             }
         }
 
-        public CommandsForRanges.Loader loader(@Nullable TxnId primaryTxnId, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
+        public CommandsForRanges.Loader loader(TxnId primaryTxnId, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
         {
             RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
             MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();

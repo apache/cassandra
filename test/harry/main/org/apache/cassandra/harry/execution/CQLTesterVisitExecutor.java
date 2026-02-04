@@ -26,14 +26,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
+
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.harry.ColumnSpec;
 import org.apache.cassandra.harry.SchemaSpec;
-import org.apache.cassandra.harry.op.Visit;
-import org.apache.cassandra.harry.op.Operations;
 import org.apache.cassandra.harry.model.Model;
+import org.apache.cassandra.harry.op.Operations;
+import org.apache.cassandra.harry.op.Visit;
 
-import static org.apache.cassandra.harry.MagicConstants.*;
+import static org.apache.cassandra.harry.MagicConstants.LTS_UNKNOWN;
+import static org.apache.cassandra.harry.MagicConstants.NIL_DESCR;
+import static org.apache.cassandra.harry.MagicConstants.NIL_KEY;
+import static org.apache.cassandra.harry.MagicConstants.UNKNOWN_DESCR;
+import static org.apache.cassandra.harry.MagicConstants.UNSET_DESCR;
 
 public class CQLTesterVisitExecutor extends CQLVisitExecutor
 {

@@ -23,11 +23,17 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.NativeClustering;
+import org.apache.cassandra.db.NativeDecoratedKey;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.NativeCell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.OpOrder.Group;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 
@@ -87,7 +93,7 @@ public class NativeAllocator extends MemtableAllocator implements AddressBasedAl
         @Override
         public void addCell(Cell<?> cell)
         {
-            super.addCell(new NativeCell(allocator, writeOp, cell));
+            super.addCell(NativeCell.build(allocator, writeOp, cell));
         }
     }
 
@@ -153,7 +159,7 @@ public class NativeAllocator extends MemtableAllocator implements AddressBasedAl
         @Override
         public Cell<?> clone(Cell<?> cell)
         {
-            return new NativeCell(this, opGroup, cell);
+            return NativeCell.build(this, opGroup, cell);
         }
 
         @Override

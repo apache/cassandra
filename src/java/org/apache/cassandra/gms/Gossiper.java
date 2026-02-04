@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -56,41 +57,43 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.concurrent.FutureTask;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.compatibility.GossipHelper;
-import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.transformations.Assassinate;
-import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.MBeanWrapper;
-import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.Pair;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.compatibility.GossipHelper;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.Assassinate;
+import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -107,6 +110,10 @@ import static org.apache.cassandra.gms.Gossiper.GossipedWith.CMS;
 import static org.apache.cassandra.gms.Gossiper.GossipedWith.SEED;
 import static org.apache.cassandra.gms.VersionedValue.BOOTSTRAPPING_STATUS;
 import static org.apache.cassandra.gms.VersionedValue.HIBERNATE;
+import static org.apache.cassandra.gms.VersionedValue.REMOVED_TOKEN;
+import static org.apache.cassandra.gms.VersionedValue.REMOVING_TOKEN;
+import static org.apache.cassandra.gms.VersionedValue.SHUTDOWN;
+import static org.apache.cassandra.gms.VersionedValue.STATUS_LEFT;
 import static org.apache.cassandra.gms.VersionedValue.unsafeMakeVersionedValue;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
@@ -137,8 +144,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     private static final ScheduledExecutorPlus executor = executorFactory().scheduled("GossipTasks");
 
     static final ApplicationState[] STATES = ApplicationState.values();
-    static final List<String> DEAD_STATES = Arrays.asList(VersionedValue.REMOVING_TOKEN, VersionedValue.REMOVED_TOKEN,
-                                                          VersionedValue.STATUS_LEFT, VersionedValue.HIBERNATE);
+    static final List<String> DEAD_STATES = Arrays.asList(REMOVING_TOKEN, REMOVED_TOKEN, STATUS_LEFT, HIBERNATE);
     static ArrayList<String> SILENT_SHUTDOWN_STATES = new ArrayList<>();
     static
     {
@@ -185,7 +191,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     /* map where key is endpoint and value is timestamp when this endpoint was removed from
      * gossip. We will ignore any gossip regarding these endpoints for QUARANTINE_DELAY time
      * after removal to prevent nodes from falsely reincarnating during the time when removal
-     * gossip gets propagated to all nodes */
+     * gossip gets propagated to all nodes.
+     * Note: in future, this need only be used when ClusterMetadataService is in the GOSSIP state,
+     * i.e. during the major upgrade to the version with CEP-21, but before the CMS is initialized.
+     * In this state, gossip is still used to propagate changes to broadcast address and release
+     * version. Once the CMS initialization is complete, this is no longer necessary.
+     * Currently in order to support a controlled rollout of that change to behaviour, quarantine
+     * is still used by default, but can be disabled via config (gossip_quarantine_disabled) or
+     * JMX (GossiperMBean::setQuarantineDisabled)
+     */
     private final Map<InetAddressAndPort, Long> justRemovedEndpoints = new ConcurrentHashMap<>();
 
     private final Map<InetAddressAndPort, Long> expireTimeEndpointMap = new ConcurrentHashMap<>();
@@ -450,14 +464,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     public static boolean isShutdown(VersionedValue vv)
     {
-        if (vv == null)
-            return false;
-
-        String value = vv.value;
-        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
-        assert (pieces.length > 0);
-        String state = pieces[0];
-        return state.equals(VersionedValue.SHUTDOWN);
+        return matchesStatusString(vv, SHUTDOWN);
     }
 
     public static boolean isHibernate(EndpointState epState)
@@ -470,14 +477,38 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     public static boolean isHibernate(VersionedValue vv)
     {
+        return matchesStatusString(vv, HIBERNATE);
+    }
+
+    public static boolean isLeft(VersionedValue vv)
+    {
+        return matchesStatusString(vv, STATUS_LEFT);
+    }
+
+    private static boolean matchesStatusString(VersionedValue vv, String toMatch)
+    {
         if (vv == null)
             return false;
 
-        String value = vv.value;
-        String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
+        String[] pieces = vv.splitValue();
         assert (pieces.length > 0);
         String state = pieces[0];
-        return state.equals(VersionedValue.HIBERNATE);
+        return state.equals(toMatch);
+    }
+
+    public static long extractExpireTime(String[] pieces)
+    {
+        if (pieces.length < 3)
+            return 0L;
+        try
+        {
+            return Long.parseLong(pieces[2]);
+        }
+        catch (NumberFormatException e)
+        {
+            logger.debug("Invalid value found for expire time ({}), ignoring", pieces[2]);
+            return 0L;
+        }
     }
 
     public static void runInGossipStageBlocking(Runnable runnable)
@@ -696,8 +727,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     {
         if (disableEndpointRemoval)
             return;
+
+        // Quarantine is only necessary while upgrading from gossip-driven management of cluster metadata
+        if (getQuarantineDisabled() && ClusterMetadata.current().epoch.isAfter(Epoch.UPGRADE_GOSSIP))
+            return;
+
         justRemovedEndpoints.put(endpoint, quarantineExpiration);
         GossiperDiagnostics.quarantinedEndpoint(this, endpoint, quarantineExpiration);
+    }
+
+    public void clearQuarantinedEndpoints()
+    {
+        logger.info("Clearing quarantined endpoints");
+        justRemovedEndpoints.clear();
     }
 
     /**
@@ -948,16 +990,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 }
 
                 // check for dead state removal
-                long expireTime = getExpireTimeForEndpoint(endpoint);
-                if (!epState.isAlive() && (now > expireTime)
-                    && (!metadata.directory.allAddresses().contains(endpoint)))
-                {
-                    if (logger.isDebugEnabled())
-                    {
-                        logger.debug("time is expiring for endpoint : {} ({})", endpoint, expireTime);
-                    }
-                    runInGossipStageBlocking(() -> evictFromMembership(endpoint));
-                }
+                evictIfExpired(endpoint, epState, metadata.directory, now);
             }
         }
 
@@ -975,7 +1008,21 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         }
     }
 
-    protected long getExpireTimeForEndpoint(InetAddressAndPort endpoint)
+    @VisibleForTesting
+    void evictIfExpired(InetAddressAndPort endpoint, EndpointState epState, Directory directory, long now)
+    {
+        if (!epState.isAlive() && (!directory.allJoinedEndpoints().contains(endpoint)))
+        {
+            long expireTime = getExpireTimeForEndpoint(endpoint);
+            if (now > expireTime)
+            {
+                logger.info("Reached gossip expiry time for endpoint : {} ({})", endpoint, expireTime);
+                runInGossipStageBlocking(() -> evictFromMembership(endpoint));
+            }
+        }
+    }
+
+    long getExpireTimeForEndpoint(InetAddressAndPort endpoint)
     {
         /* default expireTime is aVeryLongTime */
         Long storedTime = expireTimeEndpointMap.get(endpoint);
@@ -1897,11 +1944,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     public void addExpireTimeForEndpoint(InetAddressAndPort endpoint, long expireTime)
     {
-        if (logger.isDebugEnabled())
+        if (expireTime == 0L)
+        {
+            logger.debug("Supplied expire time for {} was 0, not recording", endpoint);
+        }
+        else
         {
             logger.debug("adding expire time for endpoint : {} ({})", endpoint, expireTime);
+            expireTimeEndpointMap.put(endpoint, expireTime);
         }
-        expireTimeEndpointMap.put(endpoint, expireTime);
     }
 
     public static long computeExpireTime()
@@ -2104,6 +2155,50 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         MessagingService.instance().send(message, ep);
     }
 
+    public void unsafeBroadcastLeftStatus(InetAddressAndPort left,
+                                          Collection<Token> tokens,
+                                          Iterable<InetAddressAndPort> sendTo)
+    {
+        runInGossipStageBlocking(() -> {
+            EndpointState epState = endpointStateMap.get(left);
+            if (epState == null)
+            {
+                logger.info("No gossip state for node {}", left);
+                return;
+            }
+
+            NodeState state = ClusterMetadata.current().directory.peerState(left);
+            if (state != NodeState.LEFT)
+            {
+                logger.info("Node Status for {} is not LEFT ({})", left, state);
+                return;
+            }
+
+            EndpointState toSend = new EndpointState(epState);
+            toSend.forceNewerGenerationUnsafe();
+            toSend.markDead();
+            VersionedValue value = StorageService.instance.valueFactory.left(tokens, computeExpireTime());
+
+            if (left.equals(getBroadcastAddressAndPort()))
+            {
+                // Adding local state bumps the value's version. To keep this consistent across
+                // the cluster, re-fetch it before broadcasting.
+                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, value);
+                value = Gossiper.instance.endpointStateMap.get(getBroadcastAddressAndPort())
+                                                          .getApplicationState(ApplicationState.STATUS_WITH_PORT);
+            }
+
+            toSend.addApplicationState(ApplicationState.STATUS_WITH_PORT, value);
+            GossipDigestAck2 payload = new GossipDigestAck2(Collections.singletonMap(left, toSend));
+            logger.info("Sending app state with status {} to {}", value.value, sendTo);
+            for (InetAddressAndPort ep : sendTo)
+            {
+                Message<GossipDigestAck2> message = Message.out(Verb.GOSSIP_DIGEST_ACK2, payload);
+                MessagingService.instance().send(message, ep);
+            }
+        });
+    }
+
     private void unsafeUpdateEpStates(InetAddressAndPort endpoint, EndpointState epstate)
     {
         checkProperThreadForStateMutation();
@@ -2221,9 +2316,31 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                                 newValue = valueFactory.hibernate(true);
                                 break;
                             }
+
                             if (isLocal && !StorageService.instance.shouldJoinRing())
                                 break;
-                            newValue = GossipHelper.nodeStateToStatus(nodeId, metadata, tokens, valueFactory, oldValue);
+
+                            // If quarantine has been disabled and we have already seen a LEFT status for a remote peer
+                            // which originated from the peer itself or the node which coordinated its removal (and so
+                            // has a version > 0), keep it as this is how we ensure the gossip expiry time encoded in
+                            // the status string converges across peers.
+                            // Should a node leave and then rejoin after resetting its local state (i.e. wipe and
+                            // rejoin), it is automatically unregistered which removes all gossip state for it so there
+                            // will be no oldValue in that case.
+                            //
+                            // Note: don't reorder these conditions as isLeft includes a null check
+                            if (getQuarantineDisabled() && !isLocal && Gossiper.isLeft(oldValue) && oldValue.version > 0)
+                            {
+                                logger.debug("Already seen a LEFT status for {} with a non-zero version, " +
+                                             "dropping derived value {}", endpoint, newValue);
+                                newValue = oldValue;
+                            }
+                            else
+                            {
+                                newValue = GossipHelper.nodeStateToStatus(nodeId, metadata, tokens, valueFactory, oldValue);
+                                if (Gossiper.isLeft(newValue))
+                                    Gossiper.instance.addExpireTimeForEndpoint(endpoint, Gossiper.extractExpireTime(newValue.splitValue()));
+                            }
                             break;
                         default:
                             newValue = oldValue;
@@ -2268,5 +2385,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             Message<GossipDigestSyn> message = Message.out(GOSSIP_DIGEST_SYN, digestSynMessage);
             sendGossip(message, cms);
         }
+    }
+
+    @Override
+    public boolean getQuarantineDisabled()
+    {
+        return DatabaseDescriptor.getGossipQuarantineDisabled();
+    }
+
+    @Override
+    public void setQuarantineDisabled(boolean enabled)
+    {
+        logger.info("Setting gossip_quarantine_disabled: {}", enabled);
+        DatabaseDescriptor.setGossipQuarantineDisabled(enabled);
     }
 }

@@ -31,10 +31,12 @@ import javax.annotation.Nullable;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Assert;
 
-import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import io.netty.util.concurrent.GenericFutureListener;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;

@@ -23,10 +23,10 @@ import java.util.HashSet;
 import java.util.List;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.tools.ToolRunner;
-import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

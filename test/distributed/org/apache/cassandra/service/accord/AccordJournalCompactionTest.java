@@ -23,6 +23,7 @@ import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableSortedMap;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -39,6 +40,7 @@ import accord.utils.AccordGens;
 import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -125,7 +127,6 @@ public class AccordJournalCompactionTest
                 DurableBefore addDurableBefore = durableBeforeGen.next(rs);
                 // TODO: improve redundant before generator and re-enable
 //                updates.addRedundantBefore = redundantBeforeGen.next(rs);
-//                updates.newRedundantBefore = redundantBefore = RedundantBefore.merge(redundantBefore, updates.addRedundantBefore);
                 updates.newSafeToRead = safeToReadGen.next(rs);
                 updates.newRangesForEpoch = rangesForEpochGen.next(rs);
 

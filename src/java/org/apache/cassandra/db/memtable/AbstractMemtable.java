@@ -32,6 +32,8 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.github.jamm.Unmetered;
+
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -40,7 +42,6 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.github.jamm.Unmetered;
 
 public abstract class AbstractMemtable implements Memtable
 {
@@ -196,10 +197,9 @@ public abstract class AbstractMemtable implements Memtable
 
         public void update(RegularAndStaticColumns columns)
         {
-            for (ColumnMetadata s : columns.statics)
-                update(s);
-            for (ColumnMetadata r : columns.regulars)
-                update(r);
+            if (!columns.statics.isEmpty())
+                columns.statics.apply(this::update);
+            columns.regulars.apply(this::update);
         }
 
         public void update(ColumnsCollector other)
@@ -253,6 +253,8 @@ public abstract class AbstractMemtable implements Memtable
             {
                 EncodingStats current = stats.get();
                 EncodingStats updated = current.mergeWith(newStats);
+                if (current == updated)
+                    return;
                 if (stats.compareAndSet(current, updated))
                     return;
             }

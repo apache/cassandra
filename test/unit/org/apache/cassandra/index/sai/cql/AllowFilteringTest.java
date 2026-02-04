@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -33,7 +34,6 @@ import org.apache.cassandra.service.StorageService;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertNotNull;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 /**
  * Tests that {@code ALLOW FILTERING} is required only if needed.
  */

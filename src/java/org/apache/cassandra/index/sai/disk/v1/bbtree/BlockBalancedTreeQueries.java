@@ -19,10 +19,11 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.nio.ByteBuffer;
 
+import org.apache.lucene.index.PointValues.Relation;
+
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.lucene.index.PointValues.Relation;
 
 public class BlockBalancedTreeQueries
 {

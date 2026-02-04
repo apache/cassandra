@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import org.junit.Test;
-
 import java.nio.ByteBuffer;
+
+import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
@@ -31,7 +31,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     private static final ByteBuffer TOO_BIG = ByteBuffer.allocate(1024 * 65);
 
     @Test
-    public void testSingleClusteringInvalidQueries() throws Throwable
+    public void testSingleClusteringInvalidQueries()
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
 
@@ -53,7 +53,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testMultiClusteringInvalidQueries() throws Throwable
+    public void testMultiClusteringInvalidQueries()
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
@@ -229,9 +229,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 0, 0),
                    row(0, 0, 1, 0));
 
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) BETWEEN (?, ?, ?) AND (?, ?, ?)", 0, 0, 1, 0, 0, 0, 0),
-                   row(0, 0, 0, 0),
-                   row(0, 0, 1, 0));
+        // BETWEEN with inverted bounds returns empty result (first bound > second bound)
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) BETWEEN (?, ?, ?) AND (?, ?, ?)", 0, 0, 1, 0, 0, 0, 0));
     }
 
     @Test
@@ -317,7 +316,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testSinglePartitionInvalidQueries() throws Throwable
+    public void testSinglePartitionInvalidQueries()
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
@@ -329,7 +328,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testSingleClustering() throws Throwable
+    public void testSingleClustering()
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
 
@@ -481,7 +480,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testMultipleClustering() throws Throwable
+    public void testMultipleClustering()
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
@@ -726,11 +725,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 0, 0)
         );
 
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c) BETWEEN (?, ?) AND (?, ?) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 0, 0),
-                  row(0, 0, 1, 1),
-                  row(0, 0, 1, 0),
-                  row(0, 0, 0, 0)
-        );
+        // BETWEEN with inverted bounds returns empty result (first bound > second bound)
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND (b, c) BETWEEN (?, ?) AND (?, ?) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 0, 0));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) < (?, ?, ?) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 1),
                    row(0, 0, 1, 0),
@@ -743,11 +739,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 0, 0)
         );
 
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) BETWEEN (?, ?, ?) AND (?, ?, ?) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 1, 0, 0, 0),
-                   row(0, 0, 1, 1),
-                   row(0, 0, 1, 0),
-                   row(0, 0, 0, 0)
-        );
+        // BETWEEN with inverted bounds returns empty result (first bound > second bound)
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) BETWEEN (?, ?, ?) AND (?, ?, ?) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 1, 0, 0, 0));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b, c, d) > (?, ?, ?) AND (b) < (?) ORDER BY b DESC, c DESC, d DESC", 0, 0, 1, 0, 1),
                    row(0, 0, 1, 1)
@@ -952,7 +945,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testMultipleClusteringWithIndex() throws Throwable
+    public void testMultipleClusteringWithIndex()
     {
         Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY (a, b, c, d))");
@@ -1042,7 +1035,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testMultipleClusteringWithIndexAndValueOver64K() throws Throwable
+    public void testMultipleClusteringWithIndexAndValueOver64K()
     {
         Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b blob, c int, d int, PRIMARY KEY (a, b, c))");
@@ -1056,7 +1049,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testMultiColumnRestrictionsWithIndex() throws Throwable
+    public void testMultiColumnRestrictionsWithIndex()
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, v int, PRIMARY KEY (a, b, c, d, e))");
         createIndex("CREATE INDEX ON %s (v)");
@@ -1085,7 +1078,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testMultiplePartitionKeyAndMultiClusteringWithIndex() throws Throwable
+    public void testMultiplePartitionKeyAndMultiClusteringWithIndex()
     {
         Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");
@@ -1229,7 +1222,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testWithUnsetValues() throws Throwable
+    public void testWithUnsetValues()
     {
         createTable("CREATE TABLE %s (k int, i int, j int, s text, PRIMARY KEY(k,i,j))");
         createIndex("CREATE INDEX s_index ON %s (s)");
@@ -1330,32 +1323,12 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, -1, 0, -1, 0)
         );
 
-        assertRows(execute(
+        // BETWEEN with inverted bounds returns empty result (first bound > second bound in logical order)
+        assertEmpty(execute(
                    "SELECT * FROM %s" +
                    " WHERE a = ? " +
                    "AND (b,c,d,e) BETWEEN (?,?,?,?) " +
-                   "AND (?,?,?,?)", 0, 2, 0, 1, 1, -1, -1, -1, -1),
-
-                   row(0, 2, 0, 1, 1),
-                   row(0, 2, 0, -1, 0),
-                   row(0, 2, 0, -1, 1),
-                   row(0, 1, -1, 1, 0),
-                   row(0, 1, -1, 1, 1),
-                   row(0, 1, -1, 0, 0),
-                   row(0, 1, 0, 1, -1),
-                   row(0, 1, 0, 1, 1),
-                   row(0, 1, 0, 0, -1),
-                   row(0, 1, 0, 0, 0),
-                   row(0, 1, 0, 0, 1),
-                   row(0, 1, 0, -1, -1),
-                   row(0, 1, 1, 0, -1),
-                   row(0, 1, 1, 0, 0),
-                   row(0, 1, 1, 0, 1),
-                   row(0, 1, 1, -1, 0),
-                   row(0, 0, 0, 0, 0),
-                   row(0, -1, 0, 0, 0),
-                   row(0, -1, 0, -1, 0)
-        );
+                   "AND (?,?,?,?)", 0, 2, 0, 1, 1, -1, -1, -1, -1));
 
         assertRows(execute(
         "SELECT * FROM %s" +
@@ -1665,17 +1638,8 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, -1, 0, -1, 0)
         );
 
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b,c,d,e) BETWEEN (?,?,?,?) AND (?,?,?,?)", 0, 1, 0, 0, 0, -10, -1, -4, -1),
-                   row(0, 1, -1, 1, 0),
-                   row(0, 1, -1, 1, 1),
-                   row(0, 1, -1, 0, 0),
-                   row(0, 1, 0, 0, -1),
-                   row(0, 1, 0, 0, 0),
-                   row(0, 1, 0, -1, -1),
-                   row(0, 0, 0, 0, 0),
-                   row(0, -1, 0, 0, 0),
-                   row(0, -1, 0, -1, 0)
-        );
+        // BETWEEN with inverted bounds returns empty result (first bound > second bound in logical order)
+        assertEmpty(execute("SELECT * FROM %s WHERE a = ? AND (b,c,d,e) BETWEEN (?,?,?,?) AND (?,?,?,?)", 0, 1, 0, 0, 0, -10, -1, -4, -1));
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND (b,c,d,e) > (?,?,?,?)", 0, 1, 0, 0, 0),
                    row(0, 2, 0, 1, 1),
@@ -2032,34 +1996,12 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 2, -3, 1, 1)
         );
 
-        assertRows(execute(
+        // BETWEEN with inverted bounds returns empty result (first bound > second bound in logical order)
+        assertEmpty(execute(
                    "SELECT * FROM %s" +
                    " WHERE a = ? " +
                    "AND (b,c,d,e) BETWEEN (?,?,?,?) " +
-                   "AND (?,?,?,?)", 0, 2, 0, 1, 1, -1, -10, -10, -10),
-
-                   row(0, -1, 0, 0, 0),
-                   row(0, -1, 0, -1, 0),
-                   row(0, 0, 0, 0, 0),
-                   row(0, 1, 1, 0, -1),
-                   row(0, 1, 1, 0, 0),
-                   row(0, 1, 1, 0, 1),
-                   row(0, 1, 1, -1, 0),
-                   row(0, 1, 0, 1, -1),
-                   row(0, 1, 0, 1, 1),
-                   row(0, 1, 0, 0, -1),
-                   row(0, 1, 0, 0, 0),
-                   row(0, 1, 0, 0, 1),
-                   row(0, 1, 0, -1, -1),
-                   row(0, 1, -1, 1, 0),
-                   row(0, 1, -1, 1, 1),
-                   row(0, 1, -1, 0, 0),
-                   row(0, 2, 0, 1, 1),
-                   row(0, 2, 0, -1, 0),
-                   row(0, 2, 0, -1, 1),
-                   row(0, 2, -1, 1, 1),
-                   row(0, 2, -3, 1, 1)
-        );
+                   "AND (?,?,?,?)", 0, 2, 0, 1, 1, -1, -10, -10, -10));
 
         assertRows(execute(
         "SELECT * FROM %s" +
@@ -2257,7 +2199,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testInvalidColumnNames() throws Throwable
+    public void testInvalidColumnNames()
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
         assertInvalidMessage("Undefined column name e", "SELECT * FROM %s WHERE (b, e) = (0, 0)");
@@ -2269,7 +2211,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testInRestrictionsWithAllowFiltering() throws Throwable
+    public void testInRestrictionsWithAllowFiltering()
     {
         createTable("CREATE TABLE %s (pk int, c1 text, c2 int, c3 int, v int, primary key(pk, c1, c2, c3))");
         execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "0", 0, 1, 3);
@@ -2291,7 +2233,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
-    public void testInRestrictionsWithIndex() throws Throwable
+    public void testInRestrictionsWithIndex()
     {
         createTable("CREATE TABLE %s (pk int, c1 text, c2 int, c3 int, v int, primary key(pk, c1, c2, c3))");
         createIndex("CREATE INDEX ON %s (c3)");

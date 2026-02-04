@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -50,10 +51,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Txn;
+
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
@@ -148,6 +151,7 @@ import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRangeReadResult;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnValidationRejection;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.UnsupportedTransactionConsistencyLevel;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.SplitConsumer;
@@ -1316,13 +1320,16 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (accordResult != null)
                     {
-                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                        TxnResult result = accordResult.awaitAndGet();
+                        TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                         {
                             Tracing.trace("Accord returned retry new protocol");
                             logger.debug("Retrying mutations on different system because some mutations were misrouted according to Accord");
                             continue;
                         }
+                        TxnValidationRejection.maybeThrow(result);
+
                         Tracing.trace("Successfully wrote Accord mutations");
                     }
                 }
@@ -1549,9 +1556,11 @@ public class StorageProxy implements StorageProxyMBean
                     // the batch log.
                     if (accordResult != null)
                     {
-                        TxnResult.Kind kind = accordResult.awaitAndGet().kind();
+                        TxnResult result = accordResult.awaitAndGet();
+                        TxnResult.Kind kind = result.kind();
                         if (kind == retry_new_protocol && failure == null)
                             continue;
+                        TxnValidationRejection.maybeThrow(result);
                         Tracing.trace("Successfully wrote Accord mutations");
                         cleanup.ackMutation();
                     }

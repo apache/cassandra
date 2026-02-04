@@ -25,8 +25,10 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import accord.utils.TriFunction;
 import net.nicoulaj.compilecommand.annotations.Inline;
+
+import accord.utils.TriFunction;
+
 import org.apache.cassandra.utils.LongAccumulator;
 
 /**

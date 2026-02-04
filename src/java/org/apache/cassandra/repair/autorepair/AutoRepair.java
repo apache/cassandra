@@ -38,25 +38,24 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.repair.RepairCoordinator;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.utils.Clock;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.AutoRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.repair.autorepair.AutoRepairUtils.RepairTurn;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -210,7 +209,8 @@ public class AutoRepair
                 long startTimeInMillis = timeFunc.get();
                 logger.info("My host id: {}, my turn to run repair...repair primary-ranges only? {}", myId,
                             config.getRepairPrimaryTokenRangeOnly(repairType));
-                AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, timeFunc.get(), turn);
+                AutoRepairUtils.updateStartAutoRepairHistory(repairType, myId, startTimeInMillis, turn);
+                repairState.setLastRepairStartTime(startTimeInMillis);
 
                 repairState.setRepairKeyspaceCount(0);
                 repairState.setRepairInProgress(true);
@@ -403,20 +403,31 @@ public class AutoRepair
         }
     }
 
-    private boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
+    @VisibleForTesting
+    boolean tooSoonToRunRepair(AutoRepairConfig.RepairType repairType, AutoRepairState repairState, AutoRepairConfig config, UUID myId)
     {
-        if (repairState.getLastRepairTime() == 0)
+        if (repairState.getLastRepairFinishTime() == 0)
         {
-            // the node has either just boooted or has not run repair before,
+            // the node has either just booted or has not run repair before,
             // we should check for the node's repair history in the DB
-            repairState.setLastRepairTime(AutoRepairUtils.getLastRepairTimeForNode(repairType, myId));
+            repairState.setLastRepairFinishTime(AutoRepairUtils.getLastRepairFinishTimeForNode(repairType, myId));
+            repairState.setLastRepairStartTime(AutoRepairUtils.getLastRepairStartTimeForNode(repairType, myId));
         }
+
+        // If repair has not completed (start >= finish), don't skip - allow it to continue/resume
+        if (repairState.getLastRepairStartTime() >= repairState.getLastRepairFinishTime())
+        {
+            logger.info("Incomplete or unstarted repair detected (start_ts={} >= finish_ts={}), allowing resume",
+                        repairState.getLastRepairStartTime(), repairState.getLastRepairFinishTime());
+            return false;
+        }
+
         /*
          * check if it is too soon to run repair. one of the reason we
          * should not run frequent repair is that repair triggers
          * memtable flush
          */
-        long timeElapsedSinceLastRepair = TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - repairState.getLastRepairTime());
+        long timeElapsedSinceLastRepair = TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() - repairState.getLastRepairFinishTime());
         if (timeElapsedSinceLastRepair < config.getRepairMinInterval(repairType).toSeconds())
         {
             logger.info("Too soon to run repair, last repair was done {} seconds ago",
@@ -498,14 +509,14 @@ public class AutoRepair
                     "repairTokenRangesSkipCount {}, repairTablesSkipCount {}", repairType, timeInHours, repairState.getRepairKeyspaceCount(),
                     repairState.getSucceededTokenRangesCount(), repairState.getFailedTokenRangesCount(),
                     repairState.getSkippedTokenRangesCount(), repairState.getSkippedTablesCount());
-        if (repairState.getLastRepairTime() != 0)
+        if (repairState.getLastRepairFinishTime() != 0)
         {
             repairState.setClusterRepairTimeInSec((int) TimeUnit.MILLISECONDS.toSeconds(timeFunc.get() -
-                                                                                        repairState.getLastRepairTime()));
+                                                                                        repairState.getLastRepairFinishTime()));
             logger.info("Cluster repair time for repair type {}: {} day(s)", repairType,
                         TimeUnit.SECONDS.toDays(repairState.getClusterRepairTimeInSec()));
         }
-        repairState.setLastRepairTime(timeFunc.get());
+        repairState.setLastRepairFinishTime(timeFunc.get());
         repairState.setRepairInProgress(false);
 
         AutoRepairUtils.updateFinishAutoRepairHistory(repairType, myId, timeFunc.get());

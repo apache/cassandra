@@ -70,6 +70,13 @@ public class NativeAccessor implements ValueAccessor<NativeData>
         out.writeMemory(sourceValue.getAddress(), sourceValue.nativeDataSize());
     }
 
+    public void writeWithVIntLength(IndexedValueHolder<NativeData> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        int size = valueHolder.size(i);
+        out.writeUnsignedVInt32(size);
+        valueHolder.write(i, out);
+    }
+
     @Override
     public ByteBuffer toBuffer(NativeData value)
     {

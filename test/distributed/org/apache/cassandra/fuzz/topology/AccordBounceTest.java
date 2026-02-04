@@ -18,7 +18,18 @@
 
 package org.apache.cassandra.fuzz.topology;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+
+import org.junit.Test;
+
 import accord.primitives.Range;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
@@ -32,10 +43,6 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.TransactionalMode;
-import org.junit.Test;
-
-import java.util.*;
-import java.util.function.Supplier;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 

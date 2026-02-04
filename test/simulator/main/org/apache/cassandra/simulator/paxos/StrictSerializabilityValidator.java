@@ -20,9 +20,10 @@ package org.apache.cassandra.simulator.paxos;
 
 import javax.annotation.Nullable;
 
-import accord.verify.StrictSerializabilityVerifier;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
+
+import accord.verify.StrictSerializabilityVerifier;
 
 public class StrictSerializabilityValidator implements HistoryValidator
 {

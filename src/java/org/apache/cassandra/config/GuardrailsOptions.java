@@ -23,9 +23,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -985,6 +987,20 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.data_disk_usage_percentage_fail_threshold,
                                   x -> config.data_disk_usage_percentage_fail_threshold = x);
+    }
+
+
+    public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
+    {
+        return config.data_disk_usage_keyspace_wide_protection_enabled;
+    }
+
+    public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("data_disk_usage_keyspace_wide_protection_enabled",
+                                  enabled,
+                                  () -> config.data_disk_usage_keyspace_wide_protection_enabled,
+                                  x -> config.data_disk_usage_keyspace_wide_protection_enabled = x);
     }
 
     @Override

@@ -24,11 +24,11 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.junit.Test;
+import org.passay.IllegalSequenceRule;
 
 import org.apache.cassandra.db.guardrails.ValueValidator.ValidationViolation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
-import org.passay.IllegalSequenceRule;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;

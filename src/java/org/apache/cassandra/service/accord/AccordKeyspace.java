@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.Serialize;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Clustering;
@@ -303,7 +305,7 @@ public class AccordKeyspace
                 return null;
 
             // TODO (desired): consider whether better to not compact any validation failures, since we expect is already overwritten
-            CommandsForKey updated = current.withRedundantBeforeAtLeast(redundantBefore.gcBefore(), false);
+            CommandsForKey updated = current.withGcBeforeAtLeast(redundantBefore.gcBefore(), false);
             if (current == updated)
                 return row;
 

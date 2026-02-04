@@ -21,14 +21,16 @@ package org.apache.cassandra.simulator.systems;
 import java.util.ArrayDeque;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.ToIntFunction;
 
+import net.openhft.chronicle.core.util.WeakIdentityHashMap;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.openhft.chronicle.core.util.WeakIdentityHashMap;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
@@ -486,21 +488,35 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         private final IntSupplier nextId;
         private final WeakIdentityHashMap<Object, Integer> saved = new WeakIdentityHashMap<>();
+        private final ReentrantLock mapLock = new ReentrantLock();
 
         public IdentityHashCode(IntSupplier nextId)
         {
             this.nextId = nextId;
         }
 
-        public synchronized int applyAsInt(Object value)
+        /**
+         * As {@link #saved} is not thread safe, we want to preserve weak reference semantics, and we want to gracefully
+         * support virtual threads, we need to use another locking mechanism other than synchronized since that is a risk
+         * of deadlock in JDK21 as virtual threads block on held monitors and won't release.
+         */
+        public int applyAsInt(Object value)
         {
-            Integer id = saved.get(value);
-            if (id == null)
+            mapLock.lock();
+            try
             {
-                id = nextId.getAsInt();
-                saved.put(value, id);
+                Integer id = saved.get(value);
+                if (id == null)
+                {
+                    id = nextId.getAsInt();
+                    saved.put(value, id);
+                }
+                return id;
             }
-            return id;
+            finally
+            {
+                mapLock.unlock();
+            }
         }
     }
 

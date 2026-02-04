@@ -26,20 +26,22 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileStoreUtils;
-import org.apache.cassandra.io.util.PathUtils;
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+
+import org.junit.Test;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.ActiveCompactions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileStoreUtils;
+import org.apache.cassandra.io.util.PathUtils;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.fail;

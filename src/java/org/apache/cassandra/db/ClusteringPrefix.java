@@ -19,18 +19,20 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.ToIntFunction;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.constraints.ColumnConstraints;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -258,6 +260,33 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
      */
     public V get(int i);
 
+
+    /**
+     * A dedicated method to write ith value of this prefix,
+     * it is introduced for optimization reasons to avoid retrieval (and potential allocation) of ith value object.
+     * For the same reason null and empty check are performed inside the method.
+     */
+    default void writeValueSkippingNullAndEmpty(AbstractType<?> type, int i, DataOutputPlus out) throws IOException
+    {
+        V v = get(i);
+        if (v != null && !isEmpty(i))
+            type.writeValue(v, accessor(), out);
+    }
+
+    /**
+     * A dedicated method to get a written length of ith value of this prefix,
+     * it is introduced for optimization reasons to avoid retrieval (and potential allocation) of ith value object.
+     * For the same reason null and empty check are performed inside the method.
+     */
+    default long writtenLengthSkippingNullAndEmpty(AbstractType<?> type, int i)
+    {
+        V v = get(i);
+        if (v == null || isEmpty(i))
+            return 0;
+
+        return type.writtenLength(v, accessor());
+    }
+
     /**
      * The method is introduced to allow to avoid a value object retrieval/allocation for simple checks
      */
@@ -476,7 +505,6 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
         {
             int offset = 0;
             int clusteringSize = clustering.size();
-            ValueAccessor<V> accessor = clustering.accessor();
             // serialize in batches of 32, to avoid garbage when deserializing headers
             while (offset < clusteringSize)
             {
@@ -488,9 +516,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 out.writeUnsignedVInt(makeHeader(clustering, offset, limit));
                 while (offset < limit)
                 {
-                    V v = clustering.get(offset);
-                    if (v != null && !accessor.isEmpty(v))
-                        types.get(offset).writeValue(v, accessor, out);
+                    clustering.writeValueSkippingNullAndEmpty(types.get(offset), offset, out);
                     offset++;
                 }
             }
@@ -507,19 +533,14 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                 result += TypeSizes.sizeofUnsignedVInt(makeHeader(clustering, offset, limit));
                 offset = limit;
             }
-            ValueAccessor<V> accessor = clustering.accessor();
             for (int i = 0; i < clusteringSize; i++)
             {
-                V v = clustering.get(i);
-                if (v == null || accessor.isEmpty(v))
-                    continue; // handled in the header
-
-                result += types.get(i).writtenLength(v, accessor);
+                result += clustering.writtenLengthSkippingNullAndEmpty(types.get(i), i);
             }
             return result;
         }
 
-        byte[][] deserializeValuesWithoutSize(DataInputPlus in, int size, int version, List<AbstractType<?>> types) throws IOException
+        public byte[][] deserializeValuesWithoutSize(DataInputPlus in, int size, int version, List<AbstractType<?>> types) throws IOException
         {
             // Callers of this method should handle the case where size = 0 (in all case we want to return a special value anyway).
             assert size > 0;

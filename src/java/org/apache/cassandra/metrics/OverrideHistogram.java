@@ -19,9 +19,10 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Snapshot;
+
 import org.agrona.UnsafeAccess;
 
-public abstract class OverrideHistogram extends com.codahale.metrics.Histogram
+public class OverrideHistogram extends com.codahale.metrics.Histogram
 {
     private static final CassandraReservoir NO_RESERVOIR = new CassandraReservoir() {
         @Override public Snapshot getPercentileSnapshot() { return null; }
@@ -60,5 +61,10 @@ public abstract class OverrideHistogram extends com.codahale.metrics.Histogram
     public long[] bucketStarts(int length)
     {
         return reservoir.buckets(length);
+    }
+
+    public boolean isCumulative()
+    {
+        return true;
     }
 }

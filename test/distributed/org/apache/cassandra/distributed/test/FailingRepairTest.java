@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.awaitility.Awaitility;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -74,7 +76,6 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageService;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
@@ -336,6 +337,12 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         public Set<SSTableReader> getBackingSSTables()
         {
             return Collections.emptySet();
+        }
+
+        @Override
+        public boolean isFullRange()
+        {
+            return false;
         }
 
         public TableMetadata metadata()

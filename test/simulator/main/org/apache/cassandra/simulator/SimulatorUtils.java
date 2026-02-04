@@ -29,8 +29,9 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.utils.concurrent.Threads;
+
+import io.netty.util.concurrent.FastThreadLocal;
 import picocli.CommandLine;
 
 public class SimulatorUtils

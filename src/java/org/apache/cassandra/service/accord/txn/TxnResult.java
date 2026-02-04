@@ -26,7 +26,8 @@ public interface TxnResult extends Result
     {
         txn_data(0),
         retry_new_protocol(1),
-        range_read(2);
+        range_read(2),
+        validation_rejection(3);
 
         int id;
 

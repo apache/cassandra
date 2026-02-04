@@ -30,15 +30,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.zip.CRC32;
 
+import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
+
+import org.jctools.queues.MpscUnboundedArrayQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
-import com.codahale.metrics.Timer.Context;
+
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
@@ -58,7 +64,6 @@ import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.jctools.queues.MpscUnboundedArrayQueue;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -121,7 +126,7 @@ public class Journal<K, V> implements Shutdownable
 
     private final FlusherCallbacks flusherCallbacks;
 
-    final OpOrder readOrder = new OpOrder();
+    final OpOrder readOrder;
 
     private class FlusherCallbacks implements Flusher.Callbacks
     {
@@ -177,7 +182,8 @@ public class Journal<K, V> implements Shutdownable
                    Params params,
                    KeySupport<K> keySupport,
                    ValueSerializer<K, V> valueSerializer,
-                   SegmentCompactor<K, V> segmentCompactor)
+                   SegmentCompactor<K, V> segmentCompactor,
+                   OpOrder readOrder)
     {
         this.name = name;
         this.directory = directory;
@@ -185,6 +191,7 @@ public class Journal<K, V> implements Shutdownable
 
         this.keySupport = keySupport;
         this.valueSerializer = valueSerializer;
+        this.readOrder = readOrder;
 
         this.metrics = new Metrics<>(name);
         this.flusherCallbacks = new FlusherCallbacks();
@@ -222,6 +229,27 @@ public class Journal<K, V> implements Shutdownable
                               "Unexpected journal state after initialization", state);
         flusher.start();
         compactor.start();
+
+        final int maxSegments = 100;
+        if (segments.get().count(Segment::isStatic) > maxSegments)
+        {
+            while (true)
+            {
+                WaitQueue.Signal signal = compactor.compacted.register();
+                int count = segments.get().count(Segment::isStatic);
+                if (count <= maxSegments)
+                {
+                    signal.cancel();
+                    logger.info("Only {} static segments; continuing with startup", count);
+                    break;
+                }
+                else
+                {
+                    logger.info("Too many ({}) static segments; waiting until some compacted before starting up", count);
+                    signal.awaitThrowUncheckedOnInterrupt();
+                }
+            }
+        }
     }
 
     @VisibleForTesting
@@ -336,15 +364,25 @@ public class Journal<K, V> implements Shutdownable
         return null;
     }
 
-    public void readAll(K id, RecordConsumer<K> consumer)
+    public static <K, V> void readAll(K id, RecordConsumer<K> consumer, OpOrder.Group readGroup, Segments<K, V> segments)
     {
         EntrySerializer.EntryHolder<K> holder = new EntrySerializer.EntryHolder<>();
-        try (OpOrder.Group group = readOrder.start())
+        for (Segment<K, V> segment : segments.allSorted(false))
         {
-            for (Segment<K, V> segment : segments.get().allSorted(false))
-            {
-                segment.readAll(id, holder, consumer);
-            }
+            segment.readAll(id, holder, consumer);
+        }
+    }
+
+    public void readAll(K id, RecordConsumer<K> consumer, OpOrder.Group readGroup)
+    {
+        readAll(id, consumer, readGroup, segments.get());
+    }
+
+    public void readAll(K id, RecordConsumer<K> consumer)
+    {
+        try (OpOrder.Group readGroup = readOrder.start())
+        {
+            readAll(id, consumer, readGroup);
         }
     }
 
@@ -428,18 +466,15 @@ public class Journal<K, V> implements Shutdownable
      * @return true if the record was found, false otherwise
      */
     @SuppressWarnings("unused")
-    public boolean readLast(K id, RecordConsumer<K> consumer)
+    public static <K, V> boolean readLast(K id, RecordConsumer<K> consumer, OpOrder.Group readOrder, Segments<K, V> segments)
     {
-        try (OpOrder.Group group = readOrder.start())
+        for (Segment<K, V> segment : segments.allSorted(false))
         {
-            for (Segment<K, V> segment : segments.get().allSorted(false))
-            {
-                if (!segment.index().mayContainId(id))
-                    continue;
+            if (!segment.index().mayContainId(id))
+                continue;
 
-                if (segment.readLast(id, consumer))
-                    return true;
-            }
+            if (segment.readLast(id, consumer))
+                return true;
         }
         return false;
     }
@@ -707,7 +742,7 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    Segments<K, V> segments()
+    public Segments<K, V> segments()
     {
         return segments.get();
     }

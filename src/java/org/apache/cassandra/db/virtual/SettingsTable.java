@@ -26,21 +26,22 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.yaml.snakeyaml.introspector.Property;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Loader;
 import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
+import org.apache.cassandra.utils.JsonUtils;
 
 @VisibleForTesting
 public final class SettingsTable extends AbstractVirtualTable

@@ -20,6 +20,7 @@ package org.apache.cassandra.security;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.net.ssl.SSLException;
 
 import org.junit.AfterClass;
@@ -35,7 +36,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
-
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 
 public class FileBasedSslContextFactoryTest

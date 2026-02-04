@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.concurrent;
 
-import accord.utils.Invariants;
-import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.WithResources;
-import org.apache.cassandra.utils.concurrent.Future;
-
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+
+import accord.utils.Invariants;
+
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.WithResources;
+import org.apache.cassandra.utils.concurrent.Future;
 
 public class ManualExecutor implements ExecutorPlus
 {

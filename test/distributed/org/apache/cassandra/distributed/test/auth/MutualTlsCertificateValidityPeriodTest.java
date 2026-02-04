@@ -28,6 +28,14 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
+import com.codahale.metrics.Histogram;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+
+import org.assertj.core.api.Assertions;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -35,11 +43,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.codahale.metrics.Histogram;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -50,8 +53,6 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.metrics.MutualTlsMetrics;
 import org.apache.cassandra.utils.tls.CertificateBuilder;
 import org.apache.cassandra.utils.tls.CertificateBundle;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.InstanceOfAssertFactories;
 
 import static org.apache.cassandra.transport.TlsTestUtils.CLIENT_SPIFFE_IDENTITY;
 import static org.apache.cassandra.transport.TlsTestUtils.SERVER_KEYSTORE_PASSWORD;

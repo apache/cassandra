@@ -39,9 +39,11 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
@@ -57,11 +59,12 @@ import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import net.openhft.chronicle.core.util.ThrowingSupplier;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
-import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.WrappedExecutorPlus;
@@ -89,6 +92,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IScrubber;
@@ -669,6 +673,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     public AllSSTableOpStatus performVerify(ColumnFamilyStore cfs, IVerifier.Options options) throws InterruptedException, ExecutionException
     {
         assert !cfs.isIndex();
+        StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
+        boolean skipSaiCheck = indexGroup == null;
+        if (options.onlySai && skipSaiCheck)
+        {
+            logger.info("Skipping table {} during SAI-only verify because it has no SAI indexes.", cfs.getTableName());
+            return AllSSTableOpStatus.SUCCESSFUL;
+
+        }
+
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
@@ -1493,17 +1506,37 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     @VisibleForTesting
     void verifyOne(ColumnFamilyStore cfs, SSTableReader sstable, IVerifier.Options options, ActiveCompactionsTracker activeCompactions)
     {
-        CompactionInfo.Holder verifyInfo = null;
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
+
+        StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
+        boolean skipSaiCheck = indexGroup == null;
+
+        // Skip early if no SAI indexes on table
+        if (options.onlySai && skipSaiCheck)
         {
-            verifyInfo = verifier.getVerifyInfo();
-            activeCompactions.beginCompaction(verifyInfo);
-            verifier.verify();
+            logger.info("Skipping SAI validation for table {} because it has no SAI indexes.", cfs.getTableName());
+            return;
         }
-        finally
+
+        CompactionInfo.Holder verifyInfo = null;
+
+        if (!options.onlySai)
         {
-            if (verifyInfo != null)
-                activeCompactions.finishCompaction(verifyInfo);
+            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, options))
+            {
+                verifyInfo = verifier.getVerifyInfo();
+                activeCompactions.beginCompaction(verifyInfo);
+                verifier.verify();
+            }
+            finally
+            {
+                if (verifyInfo != null)
+                    activeCompactions.finishCompaction(verifyInfo);
+            }
+        }
+
+        if ((options.onlySai || options.includeSai) && !skipSaiCheck)
+        {
+            cfs.indexManager.validateSSTableAttachedIndexes(Collections.singleton(sstable), true, true);
         }
     }
 

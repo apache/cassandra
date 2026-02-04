@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+
 import javax.annotation.Nullable;
 import javax.management.InstanceNotFoundException;
 import javax.management.JMX;
@@ -117,7 +118,9 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
+import org.apache.cassandra.service.AsyncProfilerService;
 import org.apache.cassandra.service.AutoRepairService;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
@@ -187,6 +190,7 @@ public class NodeProbe implements AutoCloseable
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
     protected AutoRepairServiceMBean autoRepairProxy;
+    protected AsyncProfilerMBean asyncProfilerProxy;
     protected GuardrailsMBean grProxy;
     protected volatile Output output;
 
@@ -335,6 +339,9 @@ public class NodeProbe implements AutoCloseable
             name = new ObjectName(AutoRepairService.MBEAN_NAME);
             autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
 
+            name = new ObjectName(AsyncProfilerService.MBEAN_NAME);
+            asyncProfilerProxy = JMX.newMBeanProxy(mbeanServerConn, name, AsyncProfilerMBean.class);
+
             name = new ObjectName(Guardrails.MBEAN_NAME);
             grProxy = JMX.newMBeanProxy(mbeanServerConn, name, GuardrailsMBean.class);
         }
@@ -391,9 +398,9 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.scrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, keyspaceName, tables);
     }
 
-    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, boolean onlySai, boolean includeSai, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        return ssProxy.verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames);
+        return ssProxy.verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, onlySai, includeSai, keyspaceName, tableNames);
     }
 
     public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, long maxSSTableTimestamp, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
@@ -434,10 +441,10 @@ public class NodeProbe implements AutoCloseable
                 "scrubbing");
     }
 
-    public void verify(PrintStream out, boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public void verify(PrintStream out, boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, boolean onlySai, boolean includeSai, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         perform(out, keyspaceName,
-                () -> verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames),
+                () -> verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, onlySai, includeSai, keyspaceName, tableNames),
                 "verifying");
     }
 
@@ -1327,6 +1334,11 @@ public class NodeProbe implements AutoCloseable
     public AccordOperationsMBean getAccordOperationsProxy()
     {
         return accordProxy;
+    }
+
+    public AsyncProfilerMBean getAsyncProfilerProxy()
+    {
+        return asyncProfilerProxy;
     }
 
     public GossiperMBean getGossProxy()
@@ -2692,15 +2704,19 @@ public class NodeProbe implements AutoCloseable
      * Triggers compression dictionary training for the specified table.
      * Samples chunks from existing SSTables and trains a dictionary.
      *
-     * @param keyspace the keyspace name
-     * @param table the table name
-     * @param force force the dictionary training even if there are not enough samples
-     * @throws IOException if there's an error accessing the MBean
-     * @throws IllegalArgumentException if table doesn't support dictionary compression
+     * @param keyspace                   the keyspace name
+     * @param table                      the table name
+     * @param force                      force the dictionary training even if there are not enough samples
+     * @param parameters                 training parameters, if empty, training parameters will be taken from CQL's
+     *                                   compression section of a given table training is conducted on.
+     * @throws IOException               if there's an error accessing the MBean
+     * @throws IllegalArgumentException  if table doesn't support dictionary compression
      */
-    public void trainCompressionDictionary(String keyspace, String table, boolean force) throws IOException
+    public void trainCompressionDictionary(String keyspace, String table,
+                                           boolean force,
+                                           Map<String, String> parameters) throws IOException
     {
-        doWithCompressionDictionaryManagerMBean(proxy -> { proxy.train(force); return null; }, keyspace, table);
+        doWithCompressionDictionaryManagerMBean(proxy -> {proxy.train(force, parameters); return null; }, keyspace, table);
     }
 
     /**

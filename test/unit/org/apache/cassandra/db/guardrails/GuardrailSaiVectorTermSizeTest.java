@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.google.common.primitives.Floats;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.DataStorageSpec;

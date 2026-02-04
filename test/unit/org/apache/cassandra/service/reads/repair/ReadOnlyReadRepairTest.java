@@ -33,9 +33,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.ReadCallback;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.ReadRepair.ReadRepairSource;
+import org.apache.cassandra.transport.Dispatcher;
 
 public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
 {

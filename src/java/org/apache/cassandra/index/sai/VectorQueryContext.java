@@ -26,13 +26,14 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
-import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.vector.DiskAnn;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+
+import io.github.jbellis.jvector.util.Bits;
 
 
 /**

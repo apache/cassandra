@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -50,8 +51,9 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref.Visitor;
-import org.awaitility.Awaitility;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.utils.JavaUtils.parseJavaVersion;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SuppressWarnings({"unused", "unchecked", "rawtypes"})
@@ -468,10 +470,10 @@ public class RefCountedTest
     private Set<Ref.GlobalState> testCycles(Function<LambdaTestClass, Runnable> runOnCloseSupplier)
     {
         LambdaTestClass test = new LambdaTestClass();
-        Runnable weakRef = runOnCloseSupplier.apply(test);
+        Runnable supplierRef = runOnCloseSupplier.apply(test);
         RefCounted.Tidy tidier = new RefCounted.Tidy()
         {
-            Runnable ref = weakRef;
+            Runnable ref = supplierRef;
 
             public void tidy()
             {
@@ -505,7 +507,17 @@ public class RefCountedTest
     public void testCycles()
     {
         assertThat(testCycles(LambdaTestClass::getRunOnCloseLambdaWithThis)).isNotEmpty(); // sanity test
-        assertThat(testCycles(LambdaTestClass::getRunOnCloseInner)).isNotEmpty(); // sanity test
+
+        // Behavior changed in JDK21; this was a sanity check to explore the way things worked but doesn't impact
+        // the correctness of the final actual check of the test.
+        int version = parseJavaVersion(JAVA_VERSION.getString());
+        boolean runOnCloseInnerState = version >= 21;
+
+        var result = testCycles(LambdaTestClass::getRunOnCloseInner);
+        if (runOnCloseInnerState)
+            assertThat(result).isEmpty();
+        else
+            assertThat(result).isNotEmpty();
 
         assertThat(testCycles(LambdaTestClass::getRunOnCloseLambda)).isEmpty();
     }

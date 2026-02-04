@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.db.*;
 
 /**
  * Interface that allows to act on the result of merging multiple rows.

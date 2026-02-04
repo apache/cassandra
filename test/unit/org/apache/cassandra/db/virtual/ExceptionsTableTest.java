@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;

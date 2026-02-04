@@ -22,12 +22,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executor;
+
 import javax.annotation.Nullable;
 
 import accord.local.Node;
 import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;

@@ -21,9 +21,10 @@ package org.apache.cassandra.cql.jdbc;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.serializers.DecimalSerializer;
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.serializers.DecimalSerializer;
 
 public class JdbcDecimalTest
 {

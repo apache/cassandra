@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiPredicate;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -32,6 +33,7 @@ import accord.primitives.Routable.Domain;
 import accord.primitives.Seekables;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -189,7 +191,7 @@ public class ConsensusRequestRouter
         TableMetadata metadata = getTableMetadata(cm, tableId);
         // Non-distributed tables always take the Paxos path
         if (metadata == null)
-            pickPaxos();
+            return pickPaxos();
         return routeAndMaybeMigrate(cm, metadata, key, consistencyLevel, requestTime, timeoutNanos, isForWrite);
     }
 

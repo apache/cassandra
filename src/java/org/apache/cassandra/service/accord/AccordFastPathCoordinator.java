@@ -18,14 +18,23 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+
 import accord.api.TopologyListener;
 import accord.local.Node;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -42,9 +51,6 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.transformations.ReconfigureAccordFastPath;
 import org.apache.cassandra.utils.Clock;
-
-import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Listens to availability status of peers and updates tcm fast path data accordingly

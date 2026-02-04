@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
@@ -452,7 +453,16 @@ public interface StorageServiceMBean extends NotificationEmitter
      * The entire sstable will be read to ensure each cell validates if extendedVerify is true
      */
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Kept for backward compatibility with existing clients.
+     */
     public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Verify checksums of the given keyspace with extended options including SAI index validation.
+     */
+    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, boolean onlySai, boolean includeSai, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Rewrite all sstables to the latest version.
@@ -1027,6 +1037,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Returns the cluster partitioner */
     public String getPartitionerName();
 
+    /** Returns the threshold for logging queries that read more than threshold amount of SSTables */
+    public int getSSTablesPerReadLogThreshold();
+    /** Sets the threshold for logging queries that read more than threshold amount of SSTables */
+    public void setSSTablesPerReadLogThreshold(int threshold);
+
     /** Returns the threshold for warning of queries with many tombstones */
     public int getTombstoneWarnThreshold();
     /** Sets the threshold for warning queries with many tombstones */
@@ -1201,7 +1216,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Start the fully query logger.
      *
      * @param path Path where the full query log will be stored. If null cassandra.yaml value is used.
-     * @param rollCycle How often to create a new file for query data (MINUTELY, DAILY, HOURLY)
+     * @param rollCycle How often to create a new file for query data (FIVE_MINUTELY, FAST_DAILY, FAST_HOURLY)
      * @param blocking Whether threads submitting queries to the query log should block if they can't be drained to the filesystem or alternatively drops samples and log
      * @param maxQueueWeight How many bytes of query data to queue before blocking or dropping samples
      * @param maxLogSize How many bytes of log data to store before dropping segments. Might not be respected if a log file hasn't rolled so it can be deleted.

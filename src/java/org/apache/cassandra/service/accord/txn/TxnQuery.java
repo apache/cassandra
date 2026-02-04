@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
 import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
@@ -33,6 +34,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -154,6 +156,9 @@ public abstract class TxnQuery implements Query
         @Override
         public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
+            TxnValidationRejection rejection = TxnUpdate.validationRejection(update);
+            if (rejection != null) return rejection;
+
             // Skip the migration checks in the base class for empty transactions, we don't
             // want/need the RetryWithNewProtocolResult
             return new TxnData();
@@ -207,6 +212,9 @@ public abstract class TxnQuery implements Query
     @Override
     public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
     {
+        TxnValidationRejection rejection = TxnUpdate.validationRejection(update);
+        if (rejection != null) return rejection;
+
         // TODO (required): This is not the cluster metadata of the current transaction
         ClusterMetadata clusterMetadata = ClusterMetadata.current();
         checkState(clusterMetadata.epoch.getEpoch() >= executeAt.epoch(), "TCM epoch %d is < executeAt epoch %d", clusterMetadata.epoch.getEpoch(), executeAt.epoch());

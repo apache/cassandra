@@ -28,14 +28,15 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.quicktheories.WithQuickTheories;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static com.google.common.base.Predicates.not;
 import static java.util.concurrent.TimeUnit.SECONDS;

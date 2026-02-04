@@ -28,16 +28,18 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+
+import org.assertj.core.data.Percentage;
 import org.junit.Test;
 
-import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
-import org.assertj.core.data.Percentage;
+
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -22,8 +22,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine.Parameters;
+
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
 
 @Command(name = "getconcurrency", description = "Get maximum concurrency for processing stages")
 public class GetConcurrency extends AbstractCommand

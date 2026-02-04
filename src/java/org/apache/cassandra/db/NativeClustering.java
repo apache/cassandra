@@ -18,14 +18,18 @@
 */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AddressBasedNativeData;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.IndexedValueHolder;
 import org.apache.cassandra.db.marshal.NativeAccessor;
 import org.apache.cassandra.db.marshal.NativeData;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -34,7 +38,7 @@ import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeEndianMemoryUtil;
 
-public class NativeClustering implements Clustering<NativeData>
+public class NativeClustering implements Clustering<NativeData>, IndexedValueHolder<NativeData>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeClustering());
 
@@ -118,9 +122,57 @@ public class NativeClustering implements Clustering<NativeData>
         return buildDataObject(i, AddressBasedNativeData::new);
     }
 
+    public void writeValueSkippingNullAndEmpty(AbstractType<?> type, int i, DataOutputPlus out) throws IOException
+    {
+        if (!isEmpty(i)) // is null is checked as a part of isEmpty
+            type.writeValue(this, i, NativeAccessor.instance, out);
+    }
+
+    public long writtenLengthSkippingNullAndEmpty(AbstractType<?> type, int i)
+    {
+        if (isEmpty(i)) // is null is checked as a part of isEmpty
+            return 0;
+
+        return type.writtenLength(this, i, NativeAccessor.instance);
+    }
+
+    @Override
+    public int size(int i)
+    {
+        int size = size();
+        if (isNull(peer, size, i))
+            return 0;
+
+        int startOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 2 + i * 2);
+        int endOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 4 + i * 2);
+        return (endOffset - startOffset);
+    }
+
     public boolean isNull(int i)
     {
         return isNull(peer, size(), i);
+    }
+
+    @Override
+    public void write(int i, DataOutputPlus out) throws IOException
+    {
+        int size = size();
+        if (i >= size)
+            throw new IndexOutOfBoundsException();
+
+        int metadataSize = (size * 2) + 4;
+        int bitmapSize = ((size + 7) >>> 3);
+        long bitmapStart = peer + metadataSize;
+        int b = NativeEndianMemoryUtil.getByte(bitmapStart + (i >>> 3));
+        if ((b & (1 << (i & 7))) != 0)
+            return;
+
+        int startOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 2 + i * 2);
+        int endOffset = NativeEndianMemoryUtil.getUnsignedShort(peer + 4 + i * 2);
+
+        long address = bitmapStart + bitmapSize + startOffset;
+        int length = endOffset - startOffset;
+        out.writeMemory(address, length);
     }
 
     private static boolean isNull(long peer, int size, int i)

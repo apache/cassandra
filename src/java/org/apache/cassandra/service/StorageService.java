@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
@@ -60,6 +61,7 @@ import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
+import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
@@ -71,11 +73,11 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Meter;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
@@ -2158,6 +2160,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     Gossiper.instance.markDead(endpoint, epState);
                 });
             }
+            else if (Gossiper.isLeft(value))
+            {
+                long expireTime = Gossiper.extractExpireTime(value.splitValue());
+                logger.info("Node state LEFT detected, setting or updating expire time {}", expireTime);
+                Gossiper.instance.addExpireTimeForEndpoint(endpoint, expireTime);
+            }
         }
 
         if (epState == null || Gossiper.instance.isDeadState(epState))
@@ -2207,7 +2215,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     updateNetVersion(endpoint, value);
                     break;
                 case STATUS_WITH_PORT:
-                    String[] pieces = splitValue(value);
+                    String[] pieces = value.splitValue();
                     String moveName = pieces[0];
                     if (moveName.equals(VersionedValue.SHUTDOWN))
                         logger.info("Node {} state jump to shutdown", endpoint);
@@ -2224,11 +2232,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.debug("Ignoring application state {} from {} because it is not a member in token metadata",
                          state, endpoint);
         }
-    }
-
-    private static String[] splitValue(VersionedValue value)
-    {
-        return value.value.split(VersionedValue.DELIMITER_STR, -1);
     }
 
     public static void updateIndexStatus(InetAddressAndPort endpoint, VersionedValue versionedValue)
@@ -2690,10 +2693,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated(since = "4.0")
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        return verify(extendedVerify, false, false, false, false, false, keyspaceName, tableNames);
+        return verify(extendedVerify, false, false, false, false, false, false, false, keyspaceName, tableNames);
     }
 
+    /**
+     * Kept for backward compatibility with existing clients.
+     */
     public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, false, false, keyspaceName, tableNames);
+    }
+
+    public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, boolean onlySai, boolean includeSai, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         IVerifier.Options options = IVerifier.options().invokeDiskFailurePolicy(diskFailurePolicy)
@@ -2701,7 +2712,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                              .checkVersion(checkVersion)
                                              .mutateRepairStatus(mutateRepairStatus)
                                              .checkOwnsTokens(checkOwnsTokens)
-                                             .quick(quick).build();
+                                             .quick(quick)
+                                             .onlySai(onlySai)
+                                             .includeSai(includeSai).build();
         logger.info("Staring {} on {}.{} with options = {}", OperationType.VERIFY, keyspaceName, Arrays.toString(tableNames), options);
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tableNames))
         {
@@ -3967,6 +3980,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             try
             {
+                // stop async profiler on shutdown in case a user
+                // did not stop it beforehand on their own
+                AsyncProfilerService.instance().stop(Map.of());
+            }
+            catch (Throwable t)
+            {
+                logger.error("Failed to stop async profiler.", t);
+            }
+
+            try
+            {
                 // we are not shutting down ScheduledExecutors#scheduledFastTasks to be still able to progress time
                 // fast-tasks executor is shut down in StorageService's shutdown hook added to Runtime
                 ExecutorUtils.shutdownNowAndWait(1, MINUTES,
@@ -4707,6 +4731,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInvalidateKeycacheOnSSTableDeletion(boolean invalidate)
     {
         DatabaseDescriptor.setInvalidateKeycacheOnSSTableDeletion(invalidate);
+    }
+
+    public int getSSTablesPerReadLogThreshold()
+    {
+        return DatabaseDescriptor.getSSTablesPerReadLogThreshold();
+    }
+
+    public void setSSTablesPerReadLogThreshold(int threshold)
+    {
+        DatabaseDescriptor.setSSTablesPerReadLogThreshold(threshold);
+        logger.info("updated sstables_per_read_log_threshold to {}", threshold);
     }
 
     public int getTombstoneWarnThreshold()

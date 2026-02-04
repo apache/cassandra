@@ -1,1 +1,7 @@
-alter_user_statement ::= ALTER USER [ IF EXISTS ] role_name [ WITH [ HASHED ] PASSWORD string] [ user_option]
+alter_user_statement ::= ALTER USER [ IF EXISTS ] role_name ( WITH <option> ( AND <option> )* )?
+
+<option> ::= PASSWORD = <string>
+           | HASHED PASSWORD = <string>
+           | GENERATED PASSWORD
+           | SUPERUSER
+           | NOSUPERUSER

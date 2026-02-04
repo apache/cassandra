@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.service.accord.AccordService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +49,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -926,7 +927,7 @@ public abstract class LocalLog implements Closeable
         addListener(new MetadataSnapshotListener());
         addListener(new ClientNotificationListener());
         addListener(new UpgradeMigrationListener());
-        if (DatabaseDescriptor.getAccord().enabled)
+        if (DatabaseDescriptor.getAccordTransactionsEnabled())
             addListener(AccordService.MetadataChangeListener.instance);
     }
 

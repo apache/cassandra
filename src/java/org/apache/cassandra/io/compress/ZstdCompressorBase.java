@@ -24,11 +24,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import com.github.luben.zstd.Zstd;
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.github.luben.zstd.Zstd;
 
 public abstract class ZstdCompressorBase implements ICompressor
 {

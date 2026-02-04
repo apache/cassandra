@@ -20,15 +20,16 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 
+import com.datastax.driver.core.Session;
+
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;

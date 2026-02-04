@@ -57,6 +57,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -65,13 +66,16 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.vdurmont.semver4j.Semver;
+
 import org.apache.commons.lang3.StringUtils;
+import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
-import com.vdurmont.semver4j.Semver;
+
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -94,7 +98,6 @@ import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-import org.objectweb.asm.Opcodes;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BUILD_DATE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;

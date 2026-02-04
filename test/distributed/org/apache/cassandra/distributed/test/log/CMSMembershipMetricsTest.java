@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.log;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -31,7 +32,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
-import org.awaitility.Awaitility;
 
 import static org.junit.Assert.assertEquals;
 

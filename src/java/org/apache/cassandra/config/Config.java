@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
@@ -44,11 +45,11 @@ import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
-import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CURSOR_COMPACTION_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_CACHE_ENABLED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
@@ -523,8 +524,6 @@ public class Config
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
 
     // Dictionary training settings
-    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_dictionary_size = new DataStorageSpec.IntKibibytesBound("64KiB");
-    public volatile DataStorageSpec.IntKibibytesBound compression_dictionary_training_max_total_sample_size = new DataStorageSpec.IntKibibytesBound("10MiB");
     public volatile boolean compression_dictionary_training_auto_train_enabled = false;
     public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
 
@@ -579,6 +578,7 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound row_index_read_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound row_index_read_size_fail_threshold = null;
 
+    public volatile int sstables_per_read_log_threshold = 100;
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
@@ -659,6 +659,8 @@ public class Config
 
     @Replaces(oldName = "enable_drop_compact_storage", converter = Converters.IDENTITY, deprecated = true)
     public volatile boolean drop_compact_storage_enabled = false;
+
+    public boolean cursor_compaction_enabled = CURSOR_COMPACTION_ENABLED.getBoolean();
 
     public volatile boolean use_statements_enabled = true;
 
@@ -982,6 +984,7 @@ public class Config
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
     public volatile int data_disk_usage_percentage_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound data_disk_usage_max_disk_size = null;
+    public volatile boolean data_disk_usage_keyspace_wide_protection_enabled = false;
     public volatile int minimum_replication_factor_warn_threshold = -1;
     public volatile int minimum_replication_factor_fail_threshold = -1;
     public volatile int maximum_replication_factor_warn_threshold = -1;
@@ -1008,7 +1011,7 @@ public class Config
     public volatile DurationSpec.IntSecondsBound streaming_slow_events_log_timeout = new DurationSpec.IntSecondsBound("10s");
 
     /** The configuration of startup checks. */
-    public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();
+    public volatile Map<String, Map<String, Object>> startup_checks = new HashMap<>();
 
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile int repair_state_size = 100_000;
@@ -1520,4 +1523,29 @@ public class Config
     public boolean enforce_native_deadline_for_hints = false;
 
     public boolean paxos_repair_race_wait = true;
+
+    /**
+     * If true, gossip state updates for nodes which have left the cluster will continue to be processed while the
+     * node is still present in ClusterMetadata. This enables the gossip expiry time for those nodes (the deadline
+     * after which their state is fully purged from gossip) to converge across the remaining nodes in the cluster.
+     * This is a change from previous behaviour as historically once a node has advertised a LEFT status further
+     * updates to gossip state for it are ignored for a period of time to prevent flapping if older/stale states
+     * are encountered.
+     * Following CEP-21, most significant state changes are handled by the cluster metadata log, so resurrection
+     * of left nodes is not a problem for gossip to solve and so quarantine is not really necessary. However,
+     * FailureDetector does still use gossip messages to assess node health and some external systems still use gossip
+     * state to inform decisions about topology/node health/etc. For those reasons, for now the disabling of quarantine
+     * is off by default and hot-proppable.
+     *
+     * With quarantine still in effect, expiry from gossip of LEFT nodes will occur at different times on each peer.
+     * Also, when there are LEFT nodes in gossip, the state will never fully converge across the cluster as each node
+     * will have its own expiry time for a LEFT peer.
+     *
+     * With quarantine disabled the STATUS_WITH_PORT values for the left node which include the expiry time will
+     * converge and peers will all evict it from gossip after the same deadline.
+     *
+     * Eventually, this configuration option should be removed and quarantine disabled entirely for clusters running
+     * 6.0 and later.
+     */
+    public volatile boolean gossip_quarantine_disabled = false;
 }

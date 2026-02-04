@@ -22,13 +22,12 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 
-import static org.junit.Assert.assertEquals;
-
 import static org.apache.cassandra.db.ConsistencyLevel.NODE_LOCAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsForLevel;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetricsForLevel;
+import static org.junit.Assert.assertEquals;
 
 public class NodeLocalConsistencyTest extends CQLTester
 {

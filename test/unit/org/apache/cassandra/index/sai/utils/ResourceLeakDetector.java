@@ -20,11 +20,12 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.util.List;
 
+import com.carrotsearch.randomizedtesting.rules.StatementAdapter;
+
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
-import com.carrotsearch.randomizedtesting.rules.StatementAdapter;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 

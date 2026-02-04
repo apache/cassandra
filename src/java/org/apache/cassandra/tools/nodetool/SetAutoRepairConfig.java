@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Splitter;
-
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -28,10 +24,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Splitter;
+
 import org.apache.cassandra.tools.NodeProbe;
-import picocli.CommandLine.Parameters;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 import static com.google.common.base.Preconditions.checkArgument;
 

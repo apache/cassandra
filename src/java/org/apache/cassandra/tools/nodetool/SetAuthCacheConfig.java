@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

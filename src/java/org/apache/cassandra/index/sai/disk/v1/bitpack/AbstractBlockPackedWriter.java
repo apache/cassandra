@@ -19,9 +19,10 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
+
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.checkBlockSize;
 

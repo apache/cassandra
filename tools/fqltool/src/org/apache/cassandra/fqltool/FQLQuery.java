@@ -24,15 +24,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import com.google.common.collect.Sets;
-import com.google.common.primitives.Longs;
-
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
-import org.apache.cassandra.fql.FullQueryLogger;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.Longs;
+
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.binlog.BinLog;
@@ -244,11 +244,15 @@ public abstract class FQLQuery implements Comparable<FQLQuery>
         public BinLog.ReleaseableWriteMarshallable toMarshallable()
         {
             List<String> queryStrings = new ArrayList<>();
-            List<List<ByteBuffer>> values = new ArrayList<>();
+            List<byte[][]> values = new ArrayList<>();
             for (Single q : queries)
             {
                 queryStrings.add(q.query);
-                values.add(q.values);
+                byte[][] valuesAsArray = new byte[q.values.size()][];
+                int i = 0;
+                for (ByteBuffer value : q.values)
+                    valuesAsArray[i++] = value.array();
+                values.add(valuesAsArray);
             }
             return new FullQueryLogger.Batch(org.apache.cassandra.cql3.statements.BatchStatement.Type.valueOf(batchType.name()), queryStrings, values, queryOptions, queryState, queryStartTime);
         }

@@ -19,14 +19,14 @@ package org.apache.cassandra.index.sai.iterators;
 
 import java.io.Closeable;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
-
-import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * An abstract implementation of {@link AbstractGuavaIterator} that supports the building and management of

@@ -43,37 +43,22 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
-import accord.api.LocalListeners;
-import accord.coordinate.AbstractCoordination;
-import accord.coordinate.Coordination;
-import accord.coordinate.Coordination.CoordinationKind;
-import accord.coordinate.PrepareRecovery;
-import accord.coordinate.tracking.AbstractTracker;
-import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
-import accord.local.Commands.NotifyWaitingOnPlus;
-import accord.local.cfk.CommandsForKey.TxnInfo;
-import accord.primitives.Range;
-import accord.primitives.Ranges;
-import accord.primitives.Routable;
-import accord.primitives.RoutingKeys;
-import accord.topology.ActiveEpoch;
-import accord.topology.ActiveEpochs;
-import accord.topology.Shard;
-import accord.topology.Topology;
-import accord.utils.SortedListMap;
-import accord.utils.TinyEnumSet;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.LocalListeners;
 import accord.api.RoutingKey;
+import accord.coordinate.AbstractCoordination;
+import accord.coordinate.Coordination;
+import accord.coordinate.Coordination.CoordinationKind;
 import accord.coordinate.FetchData;
 import accord.coordinate.FetchRoute;
 import accord.coordinate.MaybeRecover;
+import accord.coordinate.PrepareRecovery;
+import accord.coordinate.tracking.AbstractTracker;
 import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
+import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
 import accord.impl.progresslog.TxnStateKind;
 import accord.local.Cleanup;
 import accord.local.Command;
@@ -81,6 +66,7 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.LatentStoreSelector;
 import accord.local.Commands;
+import accord.local.Commands.NotifyWaitingOnPlus;
 import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.Node;
@@ -90,29 +76,44 @@ import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.CommandsForKey.TxnInfo;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.local.durability.ShardDurability;
 import accord.primitives.FullRoute;
 import accord.primitives.Known;
 import accord.primitives.Participants;
 import accord.primitives.ProgressToken;
+import accord.primitives.Range;
+import accord.primitives.Ranges;
+import accord.primitives.Routable;
 import accord.primitives.Route;
+import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.topology.ActiveEpoch;
+import accord.topology.ActiveEpochs;
+import accord.topology.Shard;
+import accord.topology.Topology;
+import accord.utils.SortedListMap;
+import accord.utils.TinyEnumSet;
 import accord.utils.UnhandledEnum;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
@@ -146,6 +147,7 @@ import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.LocalizeString;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static accord.coordinate.Infer.InvalidIf.NotKnownToBeInvalid;
 import static accord.local.RedundantStatus.Property.GC_BEFORE;
@@ -157,8 +159,8 @@ import static accord.local.RedundantStatus.Property.LOCALLY_SYNCED;
 import static accord.local.RedundantStatus.Property.LOCALLY_WITNESSED;
 import static accord.local.RedundantStatus.Property.LOG_UNAVAILABLE;
 import static accord.local.RedundantStatus.Property.QUORUM_APPLIED;
-import static accord.local.RedundantStatus.Property.UNREADY;
 import static accord.local.RedundantStatus.Property.SHARD_APPLIED;
+import static accord.local.RedundantStatus.Property.UNREADY;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -169,6 +171,7 @@ import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.ASC;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.SORTED;
 import static org.apache.cassandra.db.virtual.VirtualTable.Sorted.UNSORTED;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_ACCORD_DEBUG;
+import static org.apache.cassandra.service.accord.AccordService.toFuture;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 // TODO (expected): split into separate classes in own package
@@ -690,7 +693,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  waiting_until text,\n" +
                         "  waiter 'TxnIdUtf8Type',\n" +
                         "  PRIMARY KEY (command_store_id, waiting_on, waiting_until, waiter)" +
-                        ')', Int32Type.instance), FAIL, UNSORTED, ASC);
+                        ')', Int32Type.instance), FAIL, ASC, ASC);
         }
 
         @Override
@@ -713,7 +716,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             collector.partition(commandStore.id())
                      .collect(rows -> {
                          // TODO (desired): support maybe execute immediately with safeStore
-                         AccordService.getBlocking(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         Future<?> future = toFuture(commandStore.chain((PreLoadContext.Empty) metadata::toString, safeStore -> { addRows(safeStore, rows); }));
+                         if (!future.awaitUntilThrowUncheckedOnInterrupt(collector.deadlineNanos()))
+                             throw new InternalTimeoutException();
                      });
         }
 
@@ -722,9 +727,14 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             LocalListeners listeners = safeStore.commandStore().unsafeGetListeners();
             for (LocalListeners.TxnListener listener : listeners.txnListeners())
             {
-                rows.add(listener.waitingOn.toString(), listener.awaitingStatus.name(), listener.waiter.toString())
+                rows.add(listener.waitingOn.toString(), ordered(listener.awaitingStatus), listener.waiter.toString())
                     .eagerCollect(ignore -> {});
             }
+        }
+
+        private String ordered(SaveStatus saveStatus)
+        {
+            return (saveStatus.ordinal() <= 9 ? "0" : "") + saveStatus.ordinal() + '_' + saveStatus.name();
         }
     }
 
@@ -1601,7 +1611,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "Accord per-CommandStore Transaction State",
                         "CREATE TABLE %s (\n" +
                         "  command_store_id int,\n" +
-                        "  txn_id text,\n" +
+                        "  txn_id 'TxnIdUtf8Type',\n" +
                         "  save_status text,\n" +
                         "  route text,\n" +
                         "  durability text,\n" +
@@ -1792,7 +1802,10 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 case TRY_EXECUTE:
                     run(txnId, commandStoreId, safeStore -> {
                         SafeCommand safeCommand = safeStore.unsafeGet(txnId);
-                        Commands.maybeExecute(safeStore, safeCommand, safeCommand.current(), true, true, NotifyWaitingOnPlus.adapter(null, true, true));
+                        Command command = safeCommand.current();
+                        if (command.saveStatus() == SaveStatus.Applying)
+                            return Commands.applyChain(safeStore, (Command.Executed) command);
+                        Commands.maybeExecute(safeStore, safeCommand, command, true, true, NotifyWaitingOnPlus.adapter(ignore -> {}, true, true));
                         return AsyncChains.success(null);
                     });
                     break;
@@ -1892,7 +1905,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             AccordService.getBlocking(accord.node()
                                             .commandStores()
                                             .forId(commandStoreId)
-                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply));
+                                            .chain(PreLoadContext.contextFor(txnId, TXN_OPS), apply)
+                                            .flatMap(i -> i));
         }
 
         private void cleanup(TxnId txnId, int commandStoreId, Cleanup cleanup)
@@ -2089,7 +2103,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  blocked_by_txn_id 'TxnIdUtf8Type',\n" +
                         "  save_status text,\n" +
                         "  execute_at text,\n" +
-                        "  PRIMARY KEY (txn_id, command_store_id, depth, blocked_by_key, blocked_by_txn_id)" +
+                        "  PRIMARY KEY (txn_id, depth, command_store_id, blocked_by_txn_id, blocked_by_key)" +
                         ')', TxnIdUtf8Type.instance), BEST_EFFORT, ASC);
         }
 
@@ -2111,7 +2125,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                     DebugBlockedTxns.visit(AccordService.unsafeInstance(), txnId, maxDepth, collector.deadlineNanos(), txn -> {
                         String keyStr = txn.blockedViaKey == null ? "" : txn.blockedViaKey.toString();
                         String txnIdStr = txn.txnId == null || txn.txnId.equals(txnId) ? "" : txn.txnId.toString();
-                        rows.add(txn.commandStoreId, txn.depth, keyStr, txnIdStr)
+                        rows.add(txn.depth, txn.commandStoreId, txnIdStr, keyStr)
                             .eagerCollect(columns -> {
                                 columns.add("save_status", txn.saveStatus, TO_STRING)
                                        .add("execute_at", txn.executeAt, TO_STRING);
@@ -2160,8 +2174,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  quorum_fast_privileged_deps int,\n" +
                         "  quorum_fast_privileged_nodeps int,\n" +
                         "  token_end 'TokenUtf8Type',\n" +
-                        "  PRIMARY KEY (table_id, token_start, epoch_start)" +
-                        ')', UTF8Type.instance), FAIL, ASC);
+                        "  PRIMARY KEY (table_id, token_start, epoch_start))" +
+                        "  WITH CLUSTERING ORDER BY (token_start ASC, epoch_start DESC);"
+                        , UTF8Type.instance), FAIL, ASC);
         }
 
         @Override
@@ -2181,7 +2196,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 Map<TokenKey, List<ShardAndEpochs>> startLookup = null;
                 for (ActiveEpoch epoch : snapshot)
                 {
-                    Topology topology = epoch.global();
+                    Topology topology = epoch.all();
                     for (Shard shard : topology.shards())
                     {
                         Range range = shard.range;

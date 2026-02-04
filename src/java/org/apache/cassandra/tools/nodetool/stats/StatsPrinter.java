@@ -21,9 +21,10 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.Map;
 
-import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+
+import org.apache.cassandra.utils.JsonUtils;
 
 /**
  * Interface for the Stats printer, that'd output statistics

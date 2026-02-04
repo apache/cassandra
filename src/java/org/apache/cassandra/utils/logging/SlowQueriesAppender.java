@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.utils.logging;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.db.virtual.SlowQueriesTable;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 public final class SlowQueriesAppender extends AbstractVirtualTableAppender
 {

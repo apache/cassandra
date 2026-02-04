@@ -21,8 +21,6 @@ package org.apache.cassandra.distributed.upgrade;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
@@ -33,6 +31,9 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import com.vdurmont.semver4j.Semver;
+
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;

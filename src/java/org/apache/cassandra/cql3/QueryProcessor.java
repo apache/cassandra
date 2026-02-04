@@ -30,18 +30,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
+
+import org.antlr.runtime.RecognitionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalCause;
-import org.antlr.runtime.RecognitionException;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -803,13 +803,6 @@ public class QueryProcessor implements QueryHandler
                 return createResultMessage(hashWithKeyspace, cachedWithKeyspace);
             }
         }
-        else
-        {
-            // Make sure the missing one is going to be eventually re-prepared
-            evictPrepared(hashWithKeyspace);
-            evictPrepared(hashWithoutKeyspace);
-        }
-
         Prepared prepared = parseAndPrepare(queryString, clientState, false);
         CQLStatement statement = prepared.statement;
 
@@ -914,19 +907,19 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processPrepared(CQLStatement statement, QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     throws RequestExecutionException, RequestValidationException
     {
-        List<ByteBuffer> variables = options.getValues();
+        int variablesSize = options.getValuesSize();
         // Check to see if there are any bound variables to verify
-        if (!(variables.isEmpty() && statement.getBindVariables().isEmpty()))
+        if (!(variablesSize == 0 && statement.getBindVariables().isEmpty()))
         {
-            if (variables.size() != statement.getBindVariables().size())
+            if (variablesSize != statement.getBindVariables().size())
                 throw new InvalidRequestException(String.format("there were %d markers(?) in CQL but %d bound variables",
                                                                 statement.getBindVariables().size(),
-                                                                variables.size()));
+                                                                variablesSize));
 
             // at this point there is a match in count between markers and variables that is non-zero
             if (logger.isTraceEnabled())
-                for (int i = 0; i < variables.size(); i++)
-                    logger.trace("[{}] '{}'", i+1, variables.get(i));
+                for (int i = 0; i < variablesSize; i++)
+                    logger.trace("[{}] '{}'", i+1, options.getValues().get(i));
         }
 
         metrics.preparedStatementsExecuted.inc();

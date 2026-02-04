@@ -22,20 +22,22 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.net.ssl.TrustManagerFactory;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import io.netty.handler.ssl.OpenSsl;
-import io.netty.handler.ssl.OpenSslContext;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.transport.TlsTestUtils;
+
+import io.netty.handler.ssl.OpenSsl;
+import io.netty.handler.ssl.OpenSslContext;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslProvider;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;

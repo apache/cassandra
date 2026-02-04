@@ -18,13 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool.layout;
 
-import org.apache.cassandra.tools.nodetool.CommandUtils;
-import org.apache.cassandra.tools.nodetool.JmxConnect;
-import org.apache.cassandra.tools.nodetool.NodetoolCommand;
-import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.StringUtils;
-import picocli.CommandLine;
-
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -37,6 +30,15 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.tools.nodetool.CommandUtils;
+import org.apache.cassandra.tools.nodetool.JmxConnect;
+import org.apache.cassandra.tools.nodetool.NodetoolCommand;
+import org.apache.cassandra.utils.Pair;
+
+import picocli.CommandLine;
 
 import static org.apache.cassandra.tools.nodetool.CommandUtils.findCassandraBackwardCompatibleArgument;
 import static org.apache.cassandra.tools.nodetool.CommandUtils.sortShortestFirst;

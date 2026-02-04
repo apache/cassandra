@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,11 +68,11 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.collect.ImmutableList.of;
+import static org.apache.cassandra.tcm.MultiStepOperation.Kind.REPLACE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_REPLACE;
 import static org.apache.cassandra.tcm.Transformation.Kind.MID_REPLACE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_REPLACE;
 import static org.apache.cassandra.tcm.sequences.BootstrapAndJoin.bootstrap;
-import static org.apache.cassandra.tcm.MultiStepOperation.Kind.REPLACE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
 import static org.apache.cassandra.tcm.sequences.SequenceState.halted;

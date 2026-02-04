@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compression;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
@@ -26,7 +27,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -37,6 +37,10 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,13 +49,14 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 {
     private static final String REPEATED_DATA = "The quick brown fox jumps over the lazy dog. This text repeats for better compression. ";
 
+    private final static String TRAINING_MAX_TOTAL_SAMPLE_SIZE = "128KiB";
+    private final static String TRAINING_MAX_DICTIONARY_SIZE = "10KiB";
+
     @Before
     public void configureDatabaseDescriptor()
     {
         Config config = DatabaseDescriptor.getRawConfig();
         config.compression_dictionary_training_sampling_rate = 1.0f;
-        config.compression_dictionary_training_max_total_sample_size = new DataStorageSpec.IntKibibytesBound("128KiB");
-        config.compression_dictionary_training_max_dictionary_size = new DataStorageSpec.IntKibibytesBound("10KiB");
         config.flush_compression = Config.FlushCompression.table;
         DatabaseDescriptor.setConfig(config);
     }
@@ -59,51 +64,59 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     @Test
     public void testEnableDisableDictionaryCompression()
     {
-        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        String table = createTable(getTableCql());
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
         // Insert data and flush to create SSTables
         for (int i = 0; i < 100; i++)
         {
-            execute("INSERT INTO %s (id, data) VALUES (?, ?)", i, REPEATED_DATA + " " + i);
+            execute("INSERT INTO %s (pk, data) VALUES (?, ?)", Integer.toString(i), REPEATED_DATA + " " + i);
         }
         flush();
 
         assertThatNoException()
         .as("Should allow manual training")
-        .isThrownBy(() -> manager.train(false));
+        .isThrownBy(() -> manager.train(false,
+                                        Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                               TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)));
 
         // Disable dictionary compression
         CompressionParams nonDictParams = CompressionParams.lz4();
         manager.maybeReloadFromSchema(nonDictParams);
 
-        assertThatThrownBy(() -> manager.train(false))
+        assertThatThrownBy(() -> manager.train(false,
+                                               Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                                      TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)))
         .as("Should disallow manual training when using lz4")
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("does not support dictionary compression");
 
         // Re-enable dictionary compression
         CompressionParams dictParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
-                                                              Collections.singletonMap("compression_level", "3"));
+                                                              Map.of("compression_level", "3",
+                                                                     TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE,
+                                                                     TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE));
         manager.maybeReloadFromSchema(dictParams);
 
         // Insert more data for the re-enabled compression
         for (int i = 100; i < 200; i++)
         {
-            execute("INSERT INTO %s (id, data) VALUES (?, ?)", i, REPEATED_DATA + " " + i);
+            execute("INSERT INTO %s (pk, data) VALUES (?, ?)", Integer.toString(i), REPEATED_DATA + " " + i);
         }
         flush();
 
         assertThatNoException()
         .as("Should allow manual training after switching back to dictionary compression")
-        .isThrownBy(() -> manager.train(false));
+        .isThrownBy(() -> manager.train(false,
+                                        Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                               TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)));
     }
 
     @Test
     public void testCompressionParameterChanges()
     {
-        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        String table = createTable(getTableCql());
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
         ICompressionDictionaryTrainer trainer = manager.trainer();
@@ -124,7 +137,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     @Test
     public void testResourceCleanupOnClose() throws Exception
     {
-        createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        createTable(getTableCql());
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
@@ -162,8 +175,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     public void testSSTableBasedTraining()
     {
         DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
-        String table = createTable("CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
-                                   "WITH compression = {'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb' : 4}");
+        String table = createTable(getTableCqlWithChunkLength());
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
@@ -184,7 +196,8 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         .hasSizeGreaterThan(0);
 
         // Train from existing SSTables
-        manager.train(true);
+        manager.train(true, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                   TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE));
 
         // Training should complete quickly since we're reading from existing SSTables
         spinUntilTrue(() -> TrainingState.fromCompositeData(manager.getTrainingState()).status == TrainingStatus.COMPLETED, 10);
@@ -210,15 +223,36 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     @Test
     public void testSSTableBasedTrainingWithoutSSTables()
     {
-        String table = createTable("CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
-                                   "WITH compression = {'class': 'ZstdDictionaryCompressor'}");
+        String table = createTable(getTableCql());
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
         CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
 
         // Try to train without any SSTables
-        assertThatThrownBy(() -> manager.train(false))
+        assertThatThrownBy(() -> manager.train(false, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)))
         .as("Should fail when no SSTables are available")
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("No SSTables available for training");
+    }
+
+    private String getTableCqlWithChunkLength()
+    {
+        return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+               "WITH compression = {" +
+               "'class': 'ZstdDictionaryCompressor'," +
+               "'chunk_length_in_kb' : 4, " +
+               '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + "'," +
+               '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '\'' +
+               '}';
+    }
+
+    private String getTableCql()
+    {
+        return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+               "WITH compression = {" +
+               "'class': 'ZstdDictionaryCompressor'," +
+               '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + "'," +
+               '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '\'' +
+               '}';
     }
 }

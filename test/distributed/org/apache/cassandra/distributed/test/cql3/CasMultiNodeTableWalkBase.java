@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.cql3;
 
 import accord.utils.Gen;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.CasCondition;
@@ -73,6 +74,13 @@ public abstract class CasMultiNodeTableWalkBase extends MultiNodeTableWalkBase
         private State(RandomSource rs, Cluster cluster)
         {
             super(rs, cluster);
+        }
+
+        @Override
+        protected boolean allowUsingTimestamp()
+        {
+            // Paxos doesn't allow USING TIMESTAMP
+            return false;
         }
 
         @Override

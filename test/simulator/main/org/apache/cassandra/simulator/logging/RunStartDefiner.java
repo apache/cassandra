@@ -19,8 +19,10 @@
 package org.apache.cassandra.simulator.logging;
 
 import accord.utils.Invariants;
-import ch.qos.logback.core.PropertyDefinerBase;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
+
+import ch.qos.logback.core.PropertyDefinerBase;
 
 public class RunStartDefiner extends PropertyDefinerBase
 {

@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import com.google.common.math.DoubleMath;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

@@ -21,6 +21,7 @@ package org.apache.cassandra.metrics;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.ShardedDecayingHistogram;
 import org.apache.cassandra.service.accord.AccordExecutor;
 
@@ -57,5 +58,9 @@ public class AccordExecutorMetrics
         preparingToRun = Metrics.register(factory.createMetricName("PreparingToRun"), gauges.newGauge(AccordExecutor::unsafePreparingToRunCount, Long::sum));
         waitingToRun = Metrics.register(factory.createMetricName("WaitingToRun"), gauges.newGauge(AccordExecutor::unsafeWaitingToRunCount, Long::sum));
         running = Metrics.register(factory.createMetricName("Running"), gauges.newGauge(AccordExecutor::unsafeRunningCount, Long::sum));
+    }
+
+    public static void touch()
+    {
     }
 }

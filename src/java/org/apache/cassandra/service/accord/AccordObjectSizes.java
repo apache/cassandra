@@ -59,11 +59,12 @@ import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.utils.ImmutableBitSet;
 import accord.utils.UnhandledEnum;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
@@ -80,7 +81,9 @@ import static accord.local.Command.Executed.executed;
 import static accord.local.Command.NotAcceptedWithoutDefinition.notAccepted;
 import static accord.local.Command.NotDefined.notDefined;
 import static accord.local.Command.PreAccepted.preaccepted;
-import static accord.local.Command.Truncated.*;
+import static accord.local.Command.Truncated.WaitingOn;
+import static accord.local.Command.Truncated.invalidated;
+import static accord.local.Command.Truncated.vestigial;
 import static accord.local.cfk.CommandsForKey.InternalStatus.ACCEPTED;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.TxnId.NO_TXNIDS;
@@ -417,6 +420,7 @@ public class AccordObjectSizes
 
     private static long EMPTY_CFK_SIZE = measure(new CommandsForKey(null));
     private static long EMPTY_INFO_SIZE = measure(CommandsForKey.NO_INFO);
+    private static long EMPTY_UNMANAGED_SIZE = measure(new CommandsForKey.Unmanaged(null, TxnId.NONE, TxnId.NONE));
     private static long EMPTY_INFO_EXTRA_ADDITIONAL_SIZE = measure(TxnInfo.create(TxnId.NONE, ACCEPTED, false, TxnId.NONE, NO_TXNIDS, Ballot.MAX)) - EMPTY_INFO_SIZE;
     public static long commandsForKey(CommandsForKey cfk)
     {
@@ -437,6 +441,15 @@ public class AccordObjectSizes
                 size += infoExtra.missing.length * TIMESTAMP_SIZE;
                 size += ballot(infoExtra.ballot);
             }
+        }
+        size += ObjectSizes.sizeOfReferenceArray(cfk.unmanagedCount());
+        size += cfk.unmanagedCount() * EMPTY_UNMANAGED_SIZE;
+        size += cfk.unmanagedCount() * TIMESTAMP_SIZE;
+        for (int i = 0 ; i < cfk.unmanagedCount() ; ++i)
+        {
+            CommandsForKey.Unmanaged unmanaged = cfk.getUnmanaged(i);
+            if (unmanaged.waitingUntil != unmanaged.txnId)
+                size += TIMESTAMP_SIZE;
         }
         return size;
     }

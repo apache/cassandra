@@ -23,14 +23,15 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import org.agrona.collections.IntHashSet;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
+
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Offset;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_ONE;

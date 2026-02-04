@@ -19,9 +19,13 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 
 import com.codahale.metrics.Histogram;
+
+import org.github.jamm.Unmetered;
+
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ArrayClustering;
@@ -49,7 +53,6 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
-import org.github.jamm.Unmetered;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -150,6 +153,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     static final Histogram indexInfoCountHistogram;
     static final Histogram indexInfoGetsHistogram;
     static final Histogram indexInfoReadsHistogram;
+
     static
     {
         MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME, "RowIndexEntry");
@@ -259,7 +263,6 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         default RowIndexEntry deserialize(FileDataInput input) throws IOException
         {
             return deserialize(input, input.getFilePointer());
-
         }
 
         void serializeForCache(RowIndexEntry rie, DataOutputPlus out) throws IOException;
@@ -358,6 +361,9 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
                 int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount, version);
 
+                // We should never get here with 0/1 entries
+                /** See: {@link org.apache.cassandra.io.sstable.format.big.RowIndexEntry#create} */
+                assert columnsIndexCount > 1;
                 if (size <= DatabaseDescriptor.getColumnIndexCacheSize())
                 {
                     return new IndexedEntry(position, in, deletionTime, headerLength, columnsIndexCount,
@@ -663,6 +669,21 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
             in.readUnsignedVInt();
         }
+
+        @Override
+        public String toString()
+        {
+            return "IndexedEntry{" +
+                   "position=" + position +
+                   ", deletionTime=" + deletionTime +
+                   ", headerLength=" + headerLength +
+                   ", columnsIndex=" + Arrays.toString(columnsIndex) +
+                   ", offsets=" + Arrays.toString(offsets) +
+                   ", indexedPartSize=" + indexedPartSize +
+                   ", idxInfoSerializer=" + idxInfoSerializer +
+                   ", version=" + version +
+                   '}';
+        }
     }
 
     /**
@@ -678,6 +699,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
             BASE_SIZE = ObjectSizes.measure(new ShallowIndexedEntry(0, 0, DeletionTime.LIVE, 0, 10, 0, null, BigFormat.getInstance().getLatestVersion()));
         }
 
+        // only for cache serialization
         private final long indexFilePosition;
 
         private final DeletionTime deletionTime;
@@ -700,8 +722,6 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                                     int indexedPartSize, ISerializer<IndexInfo> idxInfoSerializer, Version version)
         {
             super(dataFilePosition);
-
-            assert columnIndexCount > 1;
 
             this.indexFilePosition = indexFilePosition;
             this.headerLength = headerLength;
@@ -810,6 +830,23 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
             in.readUnsignedVInt();
         }
+
+        @Override
+        public String toString()
+        {
+            return "ShallowIndexedEntry{" +
+                   "position=" + position +
+                   ", indexFilePosition=" + indexFilePosition +
+                   ", deletionTime=" + deletionTime +
+                   ", headerLength=" + headerLength +
+                   ", columnsIndexCount=" + columnsIndexCount +
+                   ", indexedPartSize=" + indexedPartSize +
+                   ", offsetsOffset=" + offsetsOffset +
+                   ", idxInfoSerializer=" + idxInfoSerializer +
+                   ", fieldsSerializedSize=" + fieldsSerializedSize +
+                   ", version=" + version +
+                   '}';
+        }
     }
 
     private static final class ShallowInfoRetriever extends FileIndexInfoRetriever
@@ -899,5 +936,13 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         {
             super(message);
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return "RowIndexEntry{" +
+               "position=" + position +
+               '}';
     }
 }

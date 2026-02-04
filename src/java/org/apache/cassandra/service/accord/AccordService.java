@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -38,18 +39,6 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import accord.local.Catchup;
-import accord.topology.ActiveEpochs;
-import accord.topology.EpochReady;
-import accord.primitives.Txn;
-import org.apache.cassandra.config.AccordSpec;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
-import org.apache.cassandra.metrics.AccordReplicaMetrics;
-import org.apache.cassandra.metrics.AccordSystemMetrics;
-import org.apache.cassandra.service.accord.api.AccordViolationHandler;
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +50,9 @@ import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
+import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.DefaultProgressLogs;
+import accord.local.Catchup;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.ShardDistributor.EvenSplit;
@@ -75,7 +66,10 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.topology.ActiveEpochs;
+import accord.topology.EpochReady;
 import accord.topology.Shard;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
@@ -85,13 +79,20 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
+
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.AccordExecutorMetrics;
+import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -106,6 +107,7 @@ import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
+import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
@@ -125,12 +127,17 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
+import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_COMMAND_STORE;
+import static accord.local.RedundantStatus.Property.LOCALLY_DURABLE_TO_DATA_STORE;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
@@ -159,50 +166,78 @@ public class AccordService implements IAccordService, Shutdownable
         // Listener is initialized before Accord is initialized
         public static MetadataChangeListener instance = new MetadataChangeListener();
 
-        private MetadataChangeListener() {}
-
-        private final AtomicReference<ChangeListener> collector = new AtomicReference<>(new PreInitStateCollector());
-
-        @Override
-        public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        interface Sink
         {
-            collector.get().notifyPreCommit(prev, next, fromSnapshot);
-        }
-
-        @Override
-        public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
-        {
-            collector.get().notifyPostCommit(prev, next, fromSnapshot);
-        }
-
-        @VisibleForTesting
-        public void resetForTesting(ClusterMetadata metadata)
-        {
-            PreInitStateCollector stateCollector = new PreInitStateCollector();
-            stateCollector.items.add(metadata);
-            collector.set(stateCollector);
+            Sink update(ClusterMetadata next);
         }
 
         /**
          * Collects TCM events from startup util full Accord initialization to avoid races with TCM and creating gaps between
          * epochs restored from journal and reported by TCM.
          **/
-
-        static class PreInitStateCollector implements ChangeListener
+        static final class Collector implements Sink
         {
-            private final List<ClusterMetadata> items = new ArrayList<>(4);
+            static final Collector EMPTY = new Collector(new ClusterMetadata[0]);
+            final ClusterMetadata[] saved;
+
+            Collector(ClusterMetadata[] saved)
+            {
+                this.saved = saved;
+            }
 
             @Override
-            public synchronized void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+            public Sink update(ClusterMetadata next)
             {
-                logger.debug("Saving epoch {} to deliver after startup", next.epoch);
-                items.add(next);
+                ClusterMetadata[] newSaved = Arrays.copyOf(saved, saved.length + 1);
+                newSaved[saved.length] = next;
+                return new Collector(newSaved);
             }
 
-            public synchronized List<ClusterMetadata> getItems()
+            public List<ClusterMetadata> getItems()
             {
-                return new ArrayList<>(items);
+                return Arrays.asList(saved);
             }
+        }
+
+        private final AtomicReference<Sink> sink = new AtomicReference<>(Collector.EMPTY);
+
+        private MetadataChangeListener() {}
+
+        @Override
+        public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+        {
+            while (true)
+            {
+                Sink curSink = sink.get();
+                Sink nextSink = curSink.update(next);
+                if (nextSink == curSink || sink.compareAndSet(curSink, nextSink))
+                    return;
+            }
+        }
+
+        Collector replaceSinkIfEmpty(Sink newSink)
+        {
+            while (true)
+            {
+                Sink curSink = sink.get();
+                Invariants.require(curSink instanceof Collector);
+                if (curSink == Collector.EMPTY)
+                {
+                    if (sink.compareAndSet(curSink, newSink))
+                        return null;
+                }
+                else
+                {
+                    if (sink.compareAndSet(curSink, Collector.EMPTY))
+                        return (Collector) curSink;
+                }
+            }
+        }
+
+        @VisibleForTesting
+        public void unsafeResetForTesting(ClusterMetadata metadata)
+        {
+            sink.set(Collector.EMPTY.update(metadata));
         }
     }
 
@@ -221,7 +256,6 @@ public class AccordService implements IAccordService, Shutdownable
     private enum State { INIT, STARTED, SHUTTING_DOWN, SHUTDOWN }
 
     private final Node node;
-    private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordEndpointMapper endpointMapper;
     private final AccordTopologyService topologyService;
@@ -323,6 +357,7 @@ public class AccordService implements IAccordService, Shutdownable
 
         AccordReplicaMetrics.touch();
         AccordSystemMetrics.touch();
+        AccordExecutorMetrics.touch();
         AccordViolationHandler.setup();
         return as;
     }
@@ -403,7 +438,6 @@ public class AccordService implements IAccordService, Shutdownable
                              new AccordInteropFactory(endpointMapper),
                              journal.durableBeforePersister(),
                              journal);
-        this.nodeShutdown = toShutdownable(node);
         this.requestHandler = new AccordVerbHandler<>(node, endpointMapper);
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, endpointMapper);
     }
@@ -419,6 +453,7 @@ public class AccordService implements IAccordService, Shutdownable
         {
             journal.start(node);
             node.load();
+
 
             ClusterMetadata metadata = ClusterMetadata.current();
             endpointMapper.updateMapping(metadata);
@@ -475,67 +510,75 @@ public class AccordService implements IAccordService, Shutdownable
         AccordSpec spec = DatabaseDescriptor.getAccord();
         if (!spec.catchup_on_start)
         {
-            logger.info("Not catching up with peers");
+            logger.info("Catchup disabled; continuing to startup");
             return;
         }
 
         BootstrapState bootstrapState = SystemKeyspace.getBootstrapState();
         if (bootstrapState == COMPLETED)
         {
-            long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
-            int attempts = 1;
-            while (true)
+            node.commandStores().forAllUnsafe(commandStore -> ((DefaultProgressLog)commandStore.unsafeProgressLog()).setMode(CATCH_UP));
+            try
             {
-                logger.info("Catching up with quorum...");
-                long start = nanoTime();
-                long failAt = start + maxLatencyNanos;
-                Future<Void> f = toFuture(Catchup.catchup(node));
-                if (!f.awaitUntilThrowUncheckedOnInterrupt(failAt))
+                long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
+                int attempts = 1;
+                while (true)
                 {
-                    if (spec.catchup_on_start_exit_on_failure)
+                    logger.info("Catchup with quorum...");
+                    long start = nanoTime();
+                    long failAt = start + maxLatencyNanos;
+                    Future<Void> f = toFuture(Catchup.catchup(node));
+                    if (!f.awaitUntilThrowUncheckedOnInterrupt(failAt))
                     {
-                        logger.error("Catch up exceeded maximum latency of {}ns; shutting down", maxLatencyNanos);
-                        throw new RuntimeException("Could not catch up with peers");
-                    }
-                    logger.error("Catch up exceeded maximum latency of {}ns; starting up", maxLatencyNanos);
-                    break;
-                }
-
-                Throwable failed = f.cause();
-                if (failed != null)
-                {
-                    if (spec.catchup_on_start_exit_on_failure)
-                        throw new RuntimeException("Could not catch up with peers", failed);
-
-                    logger.error("Could not catch up with peers; continuing to startup");
-                    break;
-                }
-
-                long end = nanoTime();
-                double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
-                logger.info("Finished catching up with all quorums. {}s elapsed.", String.format("%.2f", seconds));
-
-                if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
-                    break;
-
-                if (++attempts > spec.catchup_on_start_max_attempts)
-                {
-                    if (spec.catchup_on_start_exit_on_failure)
-                    {
-                        logger.error("Catch up was slow, aborting after {} attempts and shutting down", attempts);
-                        throw new RuntimeException("Could not catch up with peers");
+                        if (spec.catchup_on_start_exit_on_failure)
+                        {
+                            logger.error("Catchup exceeded maximum latency of {}ns; shutting down", maxLatencyNanos);
+                            throw new RuntimeException("Could not catchup with peers");
+                        }
+                        logger.error("Catchup exceeded maximum latency of {}ns; continuing to startup", maxLatencyNanos);
+                        break;
                     }
 
-                    logger.info("Catch up was slow; continuing to startup after {} attempts.", attempts - 1);
-                    break;
-                }
+                    Throwable failed = f.cause();
+                    if (failed != null)
+                    {
+                        if (spec.catchup_on_start_exit_on_failure)
+                            throw new RuntimeException("Could not catchup with peers", failed);
 
-                logger.info("Catch up was slow, so we may behind again; retrying");
+                        logger.error("Could not catchup with peers; continuing to startup");
+                        break;
+                    }
+
+                    long end = nanoTime();
+                    double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
+                    logger.info("Finished catchup with all quorums. {}s elapsed.", String.format("%.2f", seconds));
+
+                    if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
+                        break;
+
+                    if (++attempts > spec.catchup_on_start_max_attempts)
+                    {
+                        if (spec.catchup_on_start_exit_on_failure)
+                        {
+                            logger.error("Catchup was slow, aborting after {} attempts and shutting down", attempts);
+                            throw new RuntimeException("Could not catchup with peers");
+                        }
+
+                        logger.info("Catchup was slow; continuing to startup after {} attempts.", attempts - 1);
+                        break;
+                    }
+
+                    logger.info("Catchup was slow, so we may behind again; retrying");
+                }
+            }
+            finally
+            {
+                node.commandStores().forAllUnsafe(commandStore -> ((DefaultProgressLog)commandStore.unsafeProgressLog()).unsetMode(CATCH_UP));
             }
         }
         else
         {
-            logger.info("Not catching up with quorum, as bootstrap state is {}", bootstrapState);
+            logger.info("No catchup, as bootstrap state is {}", bootstrapState);
         }
     }
 
@@ -565,24 +608,28 @@ public class AccordService implements IAccordService, Shutdownable
             }
 
             // Subscribe to TCM events, and collect any we may have missed to report now
-            ChangeListener prevListener = MetadataChangeListener.instance.collector.getAndSet(new ChangeListener()
+            MetadataChangeListener.Sink sink = new MetadataChangeListener.Sink()
             {
                 @Override
-                public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
+                public MetadataChangeListener.Sink update(ClusterMetadata next)
                 {
                     if (state != State.SHUTDOWN)
                         maybeReportMetadata(next);
+                    return this;
                 }
-            });
+            };
 
-            Invariants.require((prevListener instanceof MetadataChangeListener.PreInitStateCollector),
-                               "Listener should have been initialized with Accord pre-init state collector, but was " + prevListener.getClass());
-
-            MetadataChangeListener.PreInitStateCollector preinit = (MetadataChangeListener.PreInitStateCollector) prevListener;
-            for (ClusterMetadata item : preinit.getItems())
+            while (true)
             {
-                if (item.epoch.getEpoch() > highestKnown)
-                    maybeReportMetadata(item);
+                MetadataChangeListener.Collector collector = MetadataChangeListener.instance.replaceSinkIfEmpty(sink);
+                if (collector == null)
+                    break;
+
+                for (ClusterMetadata item : collector.getItems())
+                {
+                    if (item.epoch.getEpoch() > highestKnown)
+                        maybeReportMetadata(item);
+                }
             }
         }
         catch (InterruptedException e)
@@ -997,7 +1044,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private List<Shutdownable> shutdownableSubsystems()
     {
-        return Arrays.asList(scheduler, nodeShutdown, journal, topologyService);
+        return Arrays.asList((AccordCommandStores)node.commandStores(), journal, topologyService, scheduler);
     }
 
     @VisibleForTesting
@@ -1006,6 +1053,10 @@ public class AccordService implements IAccordService, Shutdownable
     {
         if (!ExecutorUtils.shutdownThenWait(shutdownableSubsystems(), timeout, unit))
             logger.error("One or more subsystems did not shut down cleanly.");
+
+        node.commandStores().forAllUnsafe(commandStore -> {
+            logger.info("{} stopping with durability: {}", commandStore, commandStore.unsafeGetRedundantBefore().map(b -> b == null ? null : b.maxBoundBoth(LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE), TxnId[]::new));
+        });
     }
 
     @Override
@@ -1072,43 +1123,6 @@ public class AccordService implements IAccordService, Shutdownable
         if (!notification.retired.isEmpty())
             topologyManager.onEpochRetired(notification.retired, notification.epoch);
         sink.respond(Ok, message);
-    }
-
-    private static Shutdownable toShutdownable(Node node)
-    {
-        return new Shutdownable() {
-            private volatile boolean isShutdown = false;
-
-            @Override
-            public boolean isTerminated()
-            {
-                // we don't know about terminiated... so settle for shutdown!
-                return isShutdown;
-            }
-
-            @Override
-            public void shutdown()
-            {
-                isShutdown = true;
-                node.shutdown();
-            }
-
-            @Override
-            public Object shutdownNow()
-            {
-                // node doesn't offer shutdownNow
-                shutdown();
-                return null;
-            }
-
-            @Override
-            public boolean awaitTermination(long timeout, TimeUnit units)
-            {
-                // TODO (required): expose awaitTermination in Node
-                // node doesn't offer
-                return true;
-            }
-        };
     }
 
     @VisibleForTesting

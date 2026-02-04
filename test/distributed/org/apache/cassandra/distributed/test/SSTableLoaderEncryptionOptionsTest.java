@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.io.FileUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,18 +35,17 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.BulkLoader;
 import org.apache.cassandra.tools.ToolRunner;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NativeSSTableLoaderClient;
 
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
-
 import static com.google.common.collect.Lists.transform;
-import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {

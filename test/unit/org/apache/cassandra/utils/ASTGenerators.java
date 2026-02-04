@@ -40,16 +40,24 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 
+import org.quicktheories.core.Gen;
+import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.Constraint;
+
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.KnownIssue;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Bind;
 import org.apache.cassandra.cql3.ast.CasCondition;
+import org.apache.cassandra.cql3.ast.CollectionAccess;
 import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.Expression;
@@ -64,6 +72,7 @@ import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.ast.TypeHint;
 import org.apache.cassandra.cql3.ast.Value;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -71,14 +80,9 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ShortType;
-
 import org.apache.cassandra.harry.model.ASTSingleTableModel;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.quicktheories.core.Gen;
-import org.quicktheories.core.RandomnessSource;
-import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.SYMBOL_GEN;
@@ -392,6 +396,11 @@ public class ASTGenerators
         }
     }
 
+    public interface ValueGen
+    {
+        Value generate(RandomnessSource rnd, Object value, AbstractType<?> type);
+    }
+
     public static class MutationGenBuilder
     {
         public enum DeleteKind { Partition, Row, Column }
@@ -414,6 +423,9 @@ public class ASTGenerators
         private boolean allowUpdateMultiplePartitionKeys = true;
         private boolean allowUpdateMultipleClusteringKeys = true;
         private EnumSet<KnownIssue> ignoreIssues = IGNORED_ISSUES;
+        private EnumSet<CollectionType.Kind> allowedCollectionElementAccessForUpdateSet = EnumSet.of(CollectionType.Kind.LIST, CollectionType.Kind.MAP);
+        private Gen<Boolean> collectionElementAccessForUpdateSet = SourceDSL.booleans().all();
+        private ValueGen valueGen = (rnd, obj, type) -> SourceDSL.booleans().all().generate(rnd) ? new Bind(obj, type) : new Literal(obj, type);
 
         public MutationGenBuilder(TableMetadata metadata)
         {
@@ -430,6 +442,18 @@ public class ASTGenerators
 
             for (Symbol symbol : allColumns)
                 columnExpressions.put(symbol, new ExpressionBuilder(symbol.type()));
+        }
+
+        public MutationGenBuilder disallowListElementAccessForUpdateSet()
+        {
+            return withListElementAccessForUpdateSet(false);
+        }
+
+        public MutationGenBuilder withListElementAccessForUpdateSet(boolean allow)
+        {
+            if (allow) allowedCollectionElementAccessForUpdateSet.add(CollectionType.Kind.LIST);
+            else       allowedCollectionElementAccessForUpdateSet.remove(CollectionType.Kind.LIST);
+            return this;
         }
 
         public MutationGenBuilder withIgnoreIssues(EnumSet<KnownIssue> ignoreIssues)
@@ -986,6 +1010,33 @@ public class ASTGenerators
             {
                 for (Symbol c : new ArrayList<>(columnsToGenerate))
                 {
+                    if (c.type().isMultiCell()
+                        && c.type().isCollection()
+                        && !allowedCollectionElementAccessForUpdateSet.isEmpty())
+                    {
+                        CollectionType<?> ct = (CollectionType<?>) c.type();
+                        if (allowedCollectionElementAccessForUpdateSet.contains(ct.kind)
+                            && collectionElementAccessForUpdateSet.generate(rnd))
+                        {
+                            //TODO (coverage): nothing stops the following: c[0] = 42, c[1] = 72, just not impl in generator yet
+                            Value key;
+                            switch (ct.kind)
+                            {
+                                case LIST:
+                                    key = valueGen.generate(rnd, (int) rnd.next(Constraint.between(0, 10)), Int32Type.instance);
+                                    break;
+                                case MAP:
+                                    key = valueGen.generate(rnd, getTypeSupport(ct.nameComparator()).bytesGen().generate(rnd), ct.nameComparator());
+                                    break;
+                                default:
+                                    throw new UnsupportedOperationException(ct.kind.name());
+                            }
+                            CollectionAccess ref = new CollectionAccess(c, key, ct.valueComparator());
+                            builder.value(ref, getTypeSupport(ct.valueComparator()).bytesGen().generate(rnd));
+                            columnsToGenerate.remove(c);
+                            continue;
+                        }
+                    }
                     var useOperator = columnExpressions.get(c).useOperator;
                     EnumSet<AssignmentOperator.Kind> additionOperatorAllowed = AssignmentOperator.supportsOperators(c.type(), isTransaction);
                     if (!additionOperatorAllowed.isEmpty() && useOperator.generate(rnd))
@@ -1094,7 +1145,8 @@ public class ASTGenerators
                     }
                     MutationGenBuilder mutationBuilder = new MutationGenBuilder(metadata)
                                                          .withTxnSafe()
-                                                         .disallowUpdateMultiplePartitionKeys()
+                                                         .disallowUpdateMultiplePartitionKeys() //TODO (coverage): this is something Accord should support, so should remove and make sure accord is updated
+                                                         .disallowListElementAccessForUpdateSet() //TODO (coverage): CASSANDRA-20828 found an issue with multi cell list type timestamp handling, so make sure accord doesn't hit this
                                                          .withReferences(new ArrayList<>(builder.allowedReferences()));
                     if (!allowReferences)
                         mutationBuilder.withReferences(Collections.emptyList());
@@ -1223,7 +1275,8 @@ public class ASTGenerators
         {
             MutationGenBuilder builder = mutationBuilder(IGNORED_ISSUES, rs, model, List.of(pk), indexes)
                                          .withTxnSafe()
-                                         .disallowUpdateMultiplePartitionKeys();
+                                         .disallowUpdateMultiplePartitionKeys() //TODO (coverage): this is something Accord should support, so should remove and make sure accord is updated
+                                         .disallowListElementAccessForUpdateSet(); //TODO (coverage): CASSANDRA-20828 found an issue with multi cell list type timestamp handling, so make sure accord doesn't hit this
             if (!allowEmpty)
                 builder.disallowEmpty();
             return builder.build();

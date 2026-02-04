@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File; //checkstyle: permit this import
+import java.io.File; // checkstyle: permit this import
 import java.util.Set;
 
 public interface DisallowedDirectoriesMBean

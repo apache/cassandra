@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.assertj.core.api.Assertions;
+
+import org.apache.cassandra.cql3.CQLTester;
 
 public abstract class ReadCommandCQLTester<T extends ReadCommand> extends CQLTester
 {

@@ -33,6 +33,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 public class ByteArrayUtil
 {
     public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+    public static final byte[][] EMPTY_ARRAY_OF_BYTE_ARRAYS = new byte[0][];
+    public static final byte[] UNSET_BYTE_ARRAY = new byte[0];
 
     public static int compareUnsigned(byte[] o1, byte[] o2)
     {
@@ -42,6 +44,11 @@ public class ByteArrayUtil
     public static int compareUnsigned(byte[] o1, int off1, byte[] o2, int off2, int len)
     {
         return FastByteOperations.compareUnsigned(o1, off1, len, o2, off2, len);
+    }
+
+    public static int compareUnsigned(byte[] o1, int off1, int len1, byte[] o2, int off2, int len2)
+    {
+        return FastByteOperations.compareUnsigned(o1, off1, len1, o2, off2, len2);
     }
 
     public static byte[] bytes(byte b)
@@ -232,6 +239,16 @@ public class ByteArrayUtil
         out.write(buffer);
     }
 
+    public static void writeWithShortLength(byte[] buffer, int offset, int length, DataOutput out) throws IOException
+    {
+        assert length <= buffer.length;
+        assert offset <= length;
+        assert length <= FBUtilities.MAX_UNSIGNED_SHORT
+            : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
+        out.writeShort(length);
+        out.write(buffer, offset, length);
+    }
+
     public static void writeWithVIntLength(byte[] bytes, DataOutputPlus out) throws IOException
     {
         out.writeUnsignedVInt32(bytes.length);
@@ -276,5 +293,17 @@ public class ByteArrayUtil
     public static void copyBytes(byte[] src, int srcPos, ByteBuffer dst, int dstPos, int length)
     {
         FastByteOperations.copy(src, srcPos, dst, dstPos, length);
+    }
+
+
+    public static ByteBuffer convertToByteBufferValue(byte[] arrayValue)
+    {
+        if (arrayValue == null)
+            return null;
+        if (arrayValue == ByteArrayUtil.UNSET_BYTE_ARRAY)
+            return ByteBufferUtil.UNSET_BYTE_BUFFER; // it is important for correctness to preserve unset value
+        if (arrayValue == ByteArrayUtil.EMPTY_BYTE_ARRAY)
+            return ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        return ByteBuffer.wrap(arrayValue);
     }
 }

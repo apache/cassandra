@@ -25,13 +25,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class CompressionDictionarySchedulerTest extends CQLTester
@@ -90,7 +92,7 @@ public class CompressionDictionarySchedulerTest extends CQLTester
         assertThat(sstables).isNotEmpty();
 
         CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
-        manager.trainer().start(true);
+        manager.trainer().start(true, config);
 
         assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
         scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
@@ -118,8 +120,8 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     private static CompressionDictionaryTrainingConfig createSampleAllTrainingConfig(ColumnFamilyStore cfs) {
         return CompressionDictionaryTrainingConfig
                .builder()
-               .maxDictionarySize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxDictionarySize())
-               .maxTotalSampleSize(DatabaseDescriptor.getCompressionDictionaryTrainingMaxTotalSampleSize())
+               .maxDictionarySize(new DataStorageSpec.IntKibibytesBound(DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE).toBytes())
+               .maxTotalSampleSize(new DataStorageSpec.IntKibibytesBound(DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE).toBytes())
                .samplingRate(1.0f)
                .chunkSize(cfs.metadata().params.compression.chunkLength())
                .build();

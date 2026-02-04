@@ -25,7 +25,12 @@ import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
+import org.reflections.util.ConfigurationBuilder;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
@@ -33,10 +38,6 @@ import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.assertj.core.api.Assertions;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ConfigurationBuilder;
 
 import static accord.utils.Property.qt;
 

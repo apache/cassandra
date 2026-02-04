@@ -18,10 +18,12 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.util.List;
+
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.tools.NodeProbe;
+
 import picocli.CommandLine.Command;
 
 @Command(name = "failuredetector", description = "Shows the failure detector information for the cluster")

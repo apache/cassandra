@@ -20,10 +20,11 @@ package org.apache.cassandra.utils;
 
 import java.util.Optional;
 
+import com.vdurmont.semver4j.Semver;
+
 import org.junit.Assume;
 import org.junit.Test;
 
-import com.vdurmont.semver4j.Semver;
 import oshi.PlatformEnum;
 
 import static org.apache.cassandra.utils.SystemInfo.ADDRESS_SPACE_VIOLATION_MESSAGE;

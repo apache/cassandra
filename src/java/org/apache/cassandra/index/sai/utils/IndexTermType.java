@@ -36,8 +36,8 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableSet;
-
 import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;

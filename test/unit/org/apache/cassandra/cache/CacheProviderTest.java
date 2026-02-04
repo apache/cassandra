@@ -23,10 +23,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.github.benmanes.caffeine.cache.Weigher;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.github.benmanes.caffeine.cache.Weigher;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.Digest;

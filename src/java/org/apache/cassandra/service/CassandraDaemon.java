@@ -34,17 +34,19 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthenticatedUser;
@@ -60,8 +62,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
-import org.apache.cassandra.db.virtual.ExceptionsTable;
 import org.apache.cassandra.db.virtual.AccordDebugRemoteKeyspace;
+import org.apache.cassandra.db.virtual.ExceptionsTable;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
@@ -74,11 +76,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
-import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.tcm.CMSOperations;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.RegistrationStatus;
-import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.net.StartupClusterConnectivityChecker;
@@ -86,13 +83,18 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.accord.AccordOperations;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
-import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.RegistrationStatus;
+import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -214,7 +216,6 @@ public class CassandraDaemon
     private JMXConnectorServer jmxServer;
 
     private final boolean runManaged;
-    protected final StartupChecks startupChecks;
     private boolean setupCompleted;
 
     public CassandraDaemon()
@@ -225,7 +226,6 @@ public class CassandraDaemon
     public CassandraDaemon(boolean runManaged)
     {
         this.runManaged = runManaged;
-        this.startupChecks = new StartupChecks().withDefaultTests().withTest(new FileSystemOwnershipCheck());
         this.setupCompleted = false;
     }
 
@@ -260,6 +260,8 @@ public class CassandraDaemon
         logSystemInfo(logger);
 
         NativeLibrary.tryMlockall();
+
+        AsyncProfilerService.instance();
 
         Keyspace.setInitialized();
         CommitLog.instance.start();
@@ -447,7 +449,7 @@ public class CassandraDaemon
     {
         try
         {
-            startupChecks.verify(DatabaseDescriptor.getStartupChecksOptions());
+            DatabaseDescriptor.getStartupChecksConfiguration().verify();
         }
         catch (StartupException e)
         {

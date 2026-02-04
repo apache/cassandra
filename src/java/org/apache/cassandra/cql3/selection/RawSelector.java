@@ -22,8 +22,8 @@ import java.util.List;
 
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.schema.TableMetadata;
 
 
 public class RawSelector

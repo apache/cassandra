@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Function;
@@ -80,13 +81,15 @@ public class BTreeRow extends AbstractRow
     private static final Comparator<ColumnData> COLUMN_COMPARATOR = (cd1, cd2) -> cd1.column.compareTo(cd2.column);
 
 
-    // We need to filter the tombstones of a row on every read (twice in fact: first to remove purgeable tombstone, and then after reconciliation to remove
-    // all tombstone since we don't return them to the client) as well as on compaction. But it's likely that many rows won't have any tombstone at all, so
-    // we want to speed up that case by not having to iterate/copy the row in this case. We could keep a single boolean telling us if we have tombstones,
-    // but that doesn't work for expiring columns. So instead we keep the deletion time for the first thing in the row to be deleted. This allow at any given
-    // time to know if we have any deleted information or not. If we any "true" tombstone (i.e. not an expiring cell), this value will be forced to
-    // Long.MIN_VALUE, but if we don't and have expiring cells, this will the time at which the first expiring cell expires. If we have no tombstones and
-    // no expiring cells, this will be Cell.MAX_DELETION_TIME;
+    // We need to filter the tombstones of a row on every read (twice in fact: first to remove purgeable tombstone,
+    // and then after reconciliation to remove all tombstone since we don't return them to the client) as well as on
+    // compaction. But it's likely that many rows won't have any tombstone at all, so we want to speed up that case
+    // by not having to iterate/copy the row in this case. We could keep a single boolean telling us if we have
+    // tombstones, but that doesn't work for expiring columns. So instead we keep the deletion time for the first
+    // thing in the row to be deleted. This allows at any given time to know if we have any deleted information or not.
+    // If we have any "true" tombstone (i.e. not an expiring cell), this value will be forced to Long.MIN_VALUE,
+    // but if we don't and have expiring cells, this will the time at which the first expiring cell expires. If we
+    // have no tombstones and no expiring cells, this will be Cell.MAX_DELETION_TIME;
     private final long minLocalDeletionTime;
 
     private BTreeRow(Clustering clustering,
@@ -351,7 +354,8 @@ public class BTreeRow extends AbstractRow
             if (!inclusionTester.test(column))
                 return null;
 
-            DroppedColumn dropped = droppedColumns.get(column.name.bytes);
+            // we check isEmpty here to avoid bytes.hashCode calculation if it is not needed
+            DroppedColumn dropped = droppedColumns.isEmpty() ? null : droppedColumns.get(column.name.bytes);
             if (column.isComplex())
                 return ((ComplexColumnData) cd).filter(filter, mayHaveShadowed ? activeDeletion : DeletionTime.LIVE, dropped, rowLiveness);
 
@@ -399,6 +403,8 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasComplexDeletion()
     {
+        if (minLocalDeletionTime == Cell.MAX_DELETION_TIME || !hasComplex())
+            return false;
         long result = accumulate((cd, v) -> ((ComplexColumnData) cd).complexDeletion().isLive() ? 0 : STOP_SENTINEL_VALUE,
                                  COLUMN_COMPARATOR, isStatic() ? FIRST_COMPLEX_STATIC : FIRST_COMPLEX_REGULAR, 0L);
         return result == STOP_SENTINEL_VALUE;
@@ -525,8 +531,8 @@ public class BTreeRow extends AbstractRow
     @Override
     public Row clone(Cloner cloner)
     {
-        Object[] tree = BTree.<ColumnData, ColumnData>transform(btree, c -> c.clone(cloner));
-        return BTreeRow.create(cloner.clone(clustering), primaryKeyLivenessInfo, deletion, tree);
+        Object[] tree = BTree.<ColumnData, Cloner,ColumnData>transform(btree, ColumnData::clone, cloner);
+        return BTreeRow.create(cloner.clone(clustering), primaryKeyLivenessInfo, deletion, tree, minLocalDeletionTime);
     }
 
     public int dataSize()

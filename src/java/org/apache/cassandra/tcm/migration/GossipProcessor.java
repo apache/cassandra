@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.tcm.migration;
 
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.Retry;
-import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.log.Entry;
 
 public class GossipProcessor implements Processor
 {

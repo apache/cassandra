@@ -21,13 +21,13 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.tools.ToolRunner;
-import org.mockito.ArgumentMatchers;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;

@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.AsyncProfilerService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
@@ -90,6 +91,7 @@ public class InternalNodeProbe extends NodeProbe
         arsProxy = ActiveRepairService.instance();
         memProxy = ManagementFactory.getMemoryMXBean();
         runtimeProxy = ManagementFactory.getRuntimeMXBean();
+        asyncProfilerProxy = AsyncProfilerService.instance();
     }
 
     @Override

@@ -32,7 +32,7 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.utils.UnhandledEnum;
-import io.netty.util.concurrent.FastThreadLocal;
+
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -40,12 +40,12 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
+import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.Task;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.concurrent.LocalAwareSequentialExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
-import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.SyncFutureTask;
 import org.apache.cassandra.concurrent.TaskFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -58,16 +58,18 @@ import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.simulator.systems.InterceptibleThreadFactory.ConcreteInterceptibleThreadFactory;
 import org.apache.cassandra.simulator.systems.InterceptibleThreadFactory.PlainThreadFactory;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.DiscardingSequentialExecutor;
-import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingTaskFactory;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingLocalAwareSequentialExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingPooledExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingPooledLocalAwareExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingSequentialExecutor;
+import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingTaskFactory;
 import org.apache.cassandra.simulator.systems.InterceptorOfExecution.InterceptExecution;
 import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.INFINITE_LOOP;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_DAEMON;

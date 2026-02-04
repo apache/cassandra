@@ -18,13 +18,6 @@
 
 package org.apache.cassandra.service;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import accord.utils.Invariants;
-import accord.utils.RandomSource;
-import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
-import org.apache.cassandra.service.TimeoutStrategy.Wait;
-
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
@@ -35,7 +28,16 @@ import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import static java.util.concurrent.TimeUnit.*;
+import com.google.common.annotations.VisibleForTesting;
+
+import accord.utils.Invariants;
+import accord.utils.RandomSource;
+
+import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
+import org.apache.cassandra.service.TimeoutStrategy.Wait;
+
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.service.TimeoutStrategy.parseInMicros;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -64,7 +66,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * <li> dynamic constant    {@code pX() * constant}
  * <li> dynamic linear      {@code pX() * constant * attempts}
  * <li> dynamic exponential {@code pX() * constant ^ attempts}
- *
+ * <li> Note: for dynamic exponential, attempts is subtracted by 1, such that times begin at {@code pX() * constant}.
  * e.g.
  * <li> {@code 10ms <= p50(rw)*0.66...p99(rw)}
  * <li> {@code 10ms <= p95(rw)*1.8^attempts <= 100ms}

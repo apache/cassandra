@@ -24,15 +24,17 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.datastax.driver.core.Row;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Ignore;
 import org.junit.Test;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.spi.LoggingEvent;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.DataRange;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

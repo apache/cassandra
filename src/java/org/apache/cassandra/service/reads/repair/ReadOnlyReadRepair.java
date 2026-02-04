@@ -21,6 +21,7 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.Map;
 
 import com.codahale.metrics.Meter;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
@@ -30,8 +31,8 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations

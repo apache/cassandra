@@ -1990,6 +1990,10 @@ transparent_data_encryption_options:
 # SAFETY THRESHOLDS #
 #####################
 
+# Log the query if it reads more than
+# sstables_per_read_log_threshold SSTables
+sstables_per_read_log_threshold: 100
+
 # When executing a scan, within or across a partition, we need to keep the
 # tombstones seen in memory so we can return them to the coordinator, which
 # will use them to make sure other replicas also know about the deleted rows.
@@ -2125,7 +2129,7 @@ audit_logging_options:
   # excluded_categories:
   # included_users:
   # excluded_users:
-  # roll_cycle: HOURLY
+  # roll_cycle: FAST_HOURLY
   # block: true
   # max_queue_weight: 268435456 # 256 MiB
   # max_log_size: 17179869184 # 16 GiB
@@ -2140,7 +2144,7 @@ audit_logging_options:
 # nodetool enablefullquerylog
 # full_query_logging_options:
   # log_dir:
-  # roll_cycle: HOURLY
+  # roll_cycle: FAST_HOURLY
   # block: true
   # max_queue_weight: 268435456 # 256 MiB
   # max_log_size: 17179869184 # 16 GiB
@@ -2513,6 +2517,10 @@ drop_compact_storage_enabled: false
 # Min unit: B
 # data_disk_usage_max_disk_size:
 #
+# Configures the disk usage guardrails to block all writes to a keyspace if any node which replicates that keyspace
+# is full. By default, this is disabled.
+# data_disk_usage_keyspace_wide_protection_enabled: false
+#
 # Guardrail to warn or fail when the minimum replication factor is lesser than threshold.
 # This would also apply to system keyspaces.
 # Suggested value for use in production: 2 or higher
@@ -2664,6 +2672,9 @@ max_security_label_length: 48
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
 # Uncomment the startup checks and configure them appropriately to cover your needs.
+#
+# It is possible to implement custom startup checks by implementing StatupCheck interface 
+# and placing JAR on a classpath, using SPI mechanism.
 #
 #startup_checks:
 # Verifies correct ownership of attached locations on disk at startup. See CASSANDRA-16879 for more details.
@@ -2919,24 +2930,12 @@ compression_dictionary_cache_size: 10
 # Min unit: s
 compression_dictionary_cache_expire: 24h
 
-# Dictionary training configuration (advanced settings)
-# These settings control how compression dictionaries are trained from sample data.
-
-# Maximum size of a trained compression dictionary.
-# Larger dictionaries may provide better compression but use more memory.
-compression_dictionary_training_max_dictionary_size: 64KiB
-
-# Maximum total size of sample data to collect for dictionary training.
-# More sample data generally produces better dictionaries but takes longer to train.
-# The recommended sample size is 100x the dictionary size.
-compression_dictionary_training_max_total_sample_size: 10MiB
-
 # Enable automatic dictionary training based on sampling of write operations.
 # When enabled, the system will automatically collect samples and train new dictionaries.
 # Manual training via nodetool is always available regardless of this setting.
 compression_dictionary_training_auto_train_enabled: false
 
-# Sampling rate for automatic dictionary training (1-10000).
-# Value of 100 means 1% of writes are sampled. Lower values reduce overhead but may
+# Sampling rate for automatic dictionary training (0.01-1).
+# Value of 0.01 means 1% of writes are sampled. Lower values reduce overhead but may
 # result in less representative sample data for dictionary training.
 compression_dictionary_training_sampling_rate: 0.01

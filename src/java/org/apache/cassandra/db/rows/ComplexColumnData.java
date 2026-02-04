@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -257,7 +258,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     @Override
     public ColumnData clone(Cloner cloner)
     {
-        return transform(c -> cloner.clone(c));
+        return transform(cloner::clone);
     }
 
     public int estimateCloneSize(Cloner cloner)

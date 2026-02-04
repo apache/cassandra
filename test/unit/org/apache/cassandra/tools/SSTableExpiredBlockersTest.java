@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.tools;
 
+import org.assertj.core.api.Assertions;
+import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -34,10 +34,10 @@ public class SSTableExpiredBlockersTest extends OfflineToolUtils
     {
         ToolResult tool = ToolRunner.invokeClass(SSTableExpiredBlockers.class);
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-        Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Missing arguments"));
         assertEquals(1, tool.getExitCode());
 
-        assertNoUnexpectedThreadsStarted(null, false);
+        assertNoUnexpectedThreadsStarted(false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -50,7 +50,12 @@ public class SSTableExpiredBlockersTest extends OfflineToolUtils
     {
         // If you added, modified options or help, please update docs if necessary
         ToolResult tool = ToolRunner.invokeClass(SSTableExpiredBlockers.class);
-        String help = "Usage: sstableexpiredblockers <keyspace> <table>\n";
+        String help = "usage: sstableexpiredblockers [options] <keyspace> <table>\n" +
+                      "--\n" +
+                      "Outputs all SSTables that are blocking other SSTables from getting dropped.\n" +
+                      "--\n" +
+                      "Options are:\n" +
+                      " -H,--human-readable   Displays values in a human-readable format\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
@@ -58,6 +63,16 @@ public class SSTableExpiredBlockersTest extends OfflineToolUtils
     public void testWrongArgsIgnored()
     {
         ToolResult tool = ToolRunner.invokeClass(SSTableExpiredBlockers.class, "--debugwrong", "system_schema", "tables");
+        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Unrecognized option: --debugwrong"));
+        assertEquals(1, tool.getExitCode());
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testHumanReadableArg()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableExpiredBlockers.class, "--human-readable", "system_schema", "tables");
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("No sstables for"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
         assertEquals(1, tool.getExitCode());

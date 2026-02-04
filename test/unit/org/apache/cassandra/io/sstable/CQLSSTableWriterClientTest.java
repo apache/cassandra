@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 
 import com.google.common.io.Files;
+
 import org.junit.After;
 import org.junit.Before;
 

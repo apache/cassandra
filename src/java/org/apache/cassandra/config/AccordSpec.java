@@ -20,8 +20,10 @@ package org.apache.cassandra.config;
 
 import java.util.concurrent.TimeUnit;
 
-import accord.utils.Invariants;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -197,6 +199,7 @@ public class AccordSpec
     public static class JournalSpec implements Params
     {
         public int segmentSize = 32 << 20;
+        public int compactMaxSegments = 32;
         public FailurePolicy failurePolicy = FailurePolicy.STOP;
         public ReplayMode replayMode = ReplayMode.ONLY_NON_DURABLE;
         public FlushMode flushMode = FlushMode.PERIODIC;
@@ -223,6 +226,12 @@ public class AccordSpec
         public int segmentSize()
         {
             return segmentSize;
+        }
+
+        @Override
+        public int compactMaxSegments()
+        {
+            return compactMaxSegments;
         }
 
         @Override

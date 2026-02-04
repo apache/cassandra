@@ -20,14 +20,15 @@ package org.apache.cassandra.db.compression;
 
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.github.luben.zstd.ZstdDictCompress;
 import com.github.luben.zstd.ZstdDictDecompress;
+import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.compress.ZstdCompressorBase;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -42,9 +43,8 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     private final int checksum;
     // One ZstdDictDecompress and multiple ZstdDictCompress (per level) can be derived from the same raw dictionary content
     private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel = new ConcurrentHashMap<>();
-    private volatile ZstdDictDecompress dictDecompress;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Ref<ZstdCompressionDictionary> selfRef;
+    private final AtomicReference<ZstdDictDecompress> dictDecompress = new AtomicReference<>();
+    private volatile Ref<ZstdCompressionDictionary> selfRef;
 
     @VisibleForTesting
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary)
@@ -59,7 +59,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
         this.dictId = dictId;
         this.rawDictionary = rawDictionary;
         this.checksum = checksum;
-        this.selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress));
+        this.selfRef = null;
     }
 
     @Override
@@ -90,7 +90,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     public int estimatedOccupiedMemoryBytes()
     {
         int occupied = rawDictionary.length;
-        occupied += dictDecompress != null ? rawDictionary.length : 0;
+        occupied += dictDecompress.get() != null ? rawDictionary.length : 0;
         occupied += zstdDictCompressPerLevel.size() * rawDictionary.length;
 
         return occupied;
@@ -114,50 +114,65 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
      * Get a pre-processed compression tables that is optimized for compression.
      * It is derived/computed from dictionary bytes.
      * The internal data structure is different from the tables for decompression.
-     *
+     * <br>
+     * IMPORTANT: Caller MUST hold a valid reference (via tryRef/ref) to this dictionary.
+     * The reference counting mechanism ensures tidy() cannot run while references exist,
+     * making synchronization unnecessary. This method is safe to call concurrently as long
+     * as each caller holds a reference.
+     * <br>
      * @param compressionLevel compression level to create the compression table
-     * @return ZstdDictCompress
+     * @return ZstdDictCompress for the specified compression level
+     * @throws IllegalStateException if called without holding a valid reference
      */
     public ZstdDictCompress dictionaryForCompression(int compressionLevel)
     {
-        if (closed.get())
-            throw new IllegalStateException("Dictionary has been closed. " + dictId);
-
+        ensureNotReleased();
         ZstdCompressorBase.validateCompressionLevel(compressionLevel);
 
-        return zstdDictCompressPerLevel.computeIfAbsent(compressionLevel, level -> {
-            if (closed.get())
-                throw new IllegalStateException("Dictionary has been closed");
-            return new ZstdDictCompress(rawDictionary, level);
-        });
+        // Fast path: check if already exists to avoid locking the bin
+        ZstdDictCompress existing = zstdDictCompressPerLevel.get(compressionLevel);
+        if (existing != null)
+            return existing;
+
+        // A little slow path: create new dictionary for this compression level
+        // No additional synchronization needed - reference counting prevents tidy() while in use
+        return zstdDictCompressPerLevel.computeIfAbsent(compressionLevel, level ->
+            new ZstdDictCompress(rawDictionary, level));
     }
 
     /**
      * Get a pre-processed decompression tables that is optimized for decompression.
      * It is derived/computed from dictionary bytes.
      * The internal data structure is different from the tables for compression.
+     * <br>
+     * IMPORTANT: Caller MUST hold a valid reference (via tryRef/ref) to this dictionary.
+     * The reference counting mechanism ensures tidy() cannot run while references exist,
+     * making synchronization unnecessary. This method is safe to call concurrently as long
+     * as each caller holds a reference.
+     * <br>
+     * Thread-safe: Multiple threads can safely call this method concurrently.
+     * The decompression dictionary will be created exactly once on first access.
      *
-     * @return ZstdDictDecompress
+     * @return ZstdDictDecompress for decompression operations
+     * @throws IllegalStateException if called without holding a valid reference
      */
     public ZstdDictDecompress dictionaryForDecompression()
     {
-        if (closed.get())
-            throw new IllegalStateException("Dictionary has been closed");
-
-        ZstdDictDecompress result = dictDecompress;
+        ensureNotReleased();
+        // Fast path: if already initialized, return immediately
+        ZstdDictDecompress result = dictDecompress.get();
         if (result != null)
             return result;
 
+        // Slow path: need to initialize with proper double-checked locking
+        // Reference counting guarantees tidy() won't run during this operation
         synchronized (this)
         {
-            if (closed.get())
-                throw new IllegalStateException("Dictionary has been closed");
-
-            result = dictDecompress;
+            result = dictDecompress.get();
             if (result == null)
             {
                 result = new ZstdDictDecompress(rawDictionary);
-                dictDecompress = result;
+                dictDecompress.set(result);
             }
             return result;
         }
@@ -166,7 +181,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     @Override
     public Ref<ZstdCompressionDictionary> tryRef()
     {
-        return selfRef.tryRef();
+        return initRefLazily().tryRef();
     }
 
     @Override
@@ -178,33 +193,71 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     @Override
     public Ref<ZstdCompressionDictionary> ref()
     {
-        return selfRef.ref();
+        return initRefLazily().ref();
     }
 
     @Override
-    public void close()
+    public Ref<ZstdCompressionDictionary> initRefLazily()
     {
-        if (closed.compareAndSet(false, true))
+        if (selfRef == null)
         {
-            selfRef.release();
+            synchronized (this)
+            {
+                if (selfRef == null)
+                {
+                    selfRef = new Ref<>(this, new Tidy(zstdDictCompressPerLevel, dictDecompress));
+                }
+            }
         }
+        return selfRef;
     }
 
+    private void ensureNotReleased()
+    {
+        if (selfRef == null)
+            throw new IllegalStateException("Dictionary ref is not initialized. " +
+                                            "Call initRefLazily() or tryRef() first: " + dictId);
+
+        if (selfRef.globalCount() <= 0)
+            throw new IllegalStateException("Dictionary has been released: " + dictId);
+    }
+
+    /**
+     * Tidy implementation for cleaning up native Zstd resources.
+     *
+     * This class holds direct references to the resources that need cleanup,
+     * avoiding a circular reference pattern where Tidy would hold a reference
+     * to the parent dictionary object.
+     */
     private static class Tidy implements RefCounted.Tidy
     {
         private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel;
-        private volatile ZstdDictDecompress dictDecompress;
+        private final AtomicReference<ZstdDictDecompress> dictDecompress;
 
-        Tidy(ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel, ZstdDictDecompress dictDecompress)
+        Tidy(ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel,
+             AtomicReference<ZstdDictDecompress> dictDecompress)
         {
             this.zstdDictCompressPerLevel = zstdDictCompressPerLevel;
             this.dictDecompress = dictDecompress;
         }
 
+        /**
+         * Clean up native resources when reference count reaches zero.
+         *
+         * IMPORTANT: This method is called exactly once when the last reference is released.
+         * Reference counting guarantees that no other thread can be executing
+         * dictionaryForCompression/Decompression when this runs, because:
+         * 1. Those methods require holding a valid reference
+         * 2. This only runs when refcount goes from 0 to -1
+         * 3. Once refcount is negative, tryRef() returns null, preventing new references
+         *
+         * Therefore, no synchronization is needed - we have exclusive access to clean up.
+         */
         @Override
         public void tidy()
         {
             // Close all compression dictionaries
+            // No synchronization needed - reference counting ensures exclusive access
             for (ZstdDictCompress compressDict : zstdDictCompressPerLevel.values())
             {
                 try
@@ -220,7 +273,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
             zstdDictCompressPerLevel.clear();
 
             // Close decompression dictionary
-            ZstdDictDecompress decompressDict = dictDecompress;
+            ZstdDictDecompress decompressDict = dictDecompress.get();
             if (decompressDict != null)
             {
                 try
@@ -231,7 +284,7 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
                 {
                     logger.warn("Failed to close ZstdDictDecompress", e);
                 }
-                dictDecompress = null;
+                dictDecompress.set(null);
             }
         }
 

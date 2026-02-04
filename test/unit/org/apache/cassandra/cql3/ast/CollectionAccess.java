@@ -25,14 +25,26 @@ import org.apache.cassandra.db.marshal.AbstractType;
 public class CollectionAccess implements ReferenceExpression
 {
     private final ReferenceExpression column;
-    private final ReferenceExpression element;
+    public final Value element;
     private final AbstractType<?> type;
 
-    public CollectionAccess(ReferenceExpression column, ReferenceExpression element, AbstractType<?> type)
+    public CollectionAccess(ReferenceExpression column, Value element, AbstractType<?> type)
     {
         this.column = column;
         this.element = element;
         this.type = type;
+    }
+
+    @Override
+    public ReferenceExpression visit(Visitor v)
+    {
+        var u = v.visit(this);
+        if (u != this) return u;
+        var col = column.visit(v);
+        var val = element.visit(v);
+        if (col != column || val != element)
+            return new CollectionAccess(col, val, type);
+        return this;
     }
 
     @Override
@@ -54,5 +66,18 @@ public class CollectionAccess implements ReferenceExpression
     public Stream<? extends Element> stream()
     {
         return Stream.of(column, element);
+    }
+
+    @Override
+    public Symbol column()
+    {
+        // could be recursive... foo.bar.baz[42]
+        return column.column();
+    }
+
+    @Override
+    public String toString()
+    {
+        return toCQL();
     }
 }

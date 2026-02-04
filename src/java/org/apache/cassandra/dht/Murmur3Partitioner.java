@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -34,7 +35,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
 import accord.primitives.Ranges;
+
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PreHashedDecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -177,7 +180,7 @@ public class Murmur3Partitioner implements IPartitioner
     {
         static final long serialVersionUID = -5833580143318243006L;
 
-        public final long token;
+         long token;
 
         public LongToken(long token)
         {
@@ -320,6 +323,18 @@ public class Murmur3Partitioner implements IPartitioner
         return new LongToken(normalize(hash[0]));
     }
 
+    private long calculateTokenValue(ByteBuffer key, long[] hash)
+    {
+        if (key.remaining() == 0)
+        {
+            hash[0] = MINIMUM.token;
+            hash[1] = 0;
+            return MINIMUM.token;
+        }
+        populateHash(key, hash);
+        return normalize(hash[0]);
+    }
+
     @Override
     public boolean isFixedLength()
     {
@@ -386,8 +401,13 @@ public class Murmur3Partitioner implements IPartitioner
     private long[] getHash(ByteBuffer key)
     {
         long[] hash = new long[2];
-        MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, hash);
+        populateHash(key, hash);
         return hash;
+    }
+
+    private void populateHash(ByteBuffer key, long[] hash)
+    {
+        MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, hash);
     }
 
     public LongToken getRandomToken()
@@ -564,5 +584,80 @@ public class Murmur3Partitioner implements IPartitioner
     public Function<Ranges, AccordSplitter> accordSplitter()
     {
         return ignore -> splitter;
+    }
+
+    private static class ReusableLongToken extends LongToken
+    {
+        public ReusableLongToken()
+        {
+            super(MINIMUM.token);
+        }
+
+        void setToken(long token)
+        {
+            this.token = token;
+        }
+    }
+
+    private static class ReusableMurmurKey extends ReusableDecoratedKey
+    {
+        protected final long[] hash = new long[2];
+        private long tokenValue = MINIMUM.token;
+        ReusableMurmurKey(int initialSize)
+        {
+            super(new ReusableLongToken(), initialSize);
+        }
+
+        protected void recalculateToken()
+        {
+            Token token = getToken();
+            ((ReusableLongToken) token).setToken(Murmur3Partitioner.instance.calculateTokenValue(key, hash));
+            tokenValue = token.getLongValue();
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            return (obj instanceof ReusableMurmurKey) ? equals((ReusableMurmurKey) obj) : super.equals(obj);
+        }
+
+        public boolean equals(ReusableMurmurKey obj)
+        {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+
+            if (tokenValue != obj.tokenValue)
+                return false;
+            return Arrays.equals(keyBytes, 0, keyLength, obj.keyBytes, 0, obj.getKeyLength()); // we compare faster than BB.equals for array backed BB
+        }
+
+        @Override
+        public int compareTo(PartitionPosition pos)
+        {
+            return (pos instanceof ReusableMurmurKey) ? compareTo((ReusableMurmurKey) pos) : super.compareTo(pos);
+        }
+
+        public int compareTo(ReusableMurmurKey obj)
+        {
+            if (this == obj)
+                return 0;
+
+            int cmp = Long.compare(tokenValue, obj.tokenValue);
+            return cmp == 0 ? Arrays.compareUnsigned(keyBytes, 0, keyLength, obj.keyBytes, 0, obj.keyLength) : cmp;
+        }
+    }
+
+    @Override
+    public ReusableDecoratedKey createReusableKey(int initialSize)
+    {
+        return new ReusableMurmurKey(initialSize);
+    }
+
+    @Override
+    public boolean supportsReusableKeys()
+    {
+        return true;
     }
 }

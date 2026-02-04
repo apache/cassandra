@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -33,6 +34,7 @@ import accord.utils.Gens;
 import accord.utils.Invariants;
 import accord.utils.LazyToString;
 import accord.utils.ReflectionUtils;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -50,7 +52,6 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.api.TokenKey.serializer;

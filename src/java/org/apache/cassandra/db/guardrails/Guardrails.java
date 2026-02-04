@@ -22,13 +22,15 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -554,6 +556,19 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, value) ->
                      isWarning ? "Replica disk usage exceeds warning threshold"
                                : "Write request failed because disk usage exceeds failure threshold");
+    /**
+     * Guardrail on the data disk usage of replicas across a datacenter which replicates a given keyspace.
+     * This is used at write time to verify the status of any node which might replicate a given keyspace.
+     */
+    public static final Predicates<String> diskUsageKeyspaceWideProtection =
+    new Predicates<>("disk_usage_keyspace_wide_protection",
+                     null,
+                     state -> DiskUsageBroadcaster.instance::isDatacenterStuffed,
+                     state -> DiskUsageBroadcaster.instance::isDatacenterFull,
+                     (isWarning, value) ->
+                     isWarning ? "Disk usage in keyspace datacenter exceeds warning threshold"
+                               : "Write request failed because disk usage exceeds failure threshold in keyspace datacenter.");
+
     /**
      * Guardrail on passwords for CREATE / ALTER ROLE statements.
      */
@@ -1593,6 +1608,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDataDiskUsageMaxDiskSize(@Nullable String size)
     {
         DEFAULT_CONFIG.setDataDiskUsageMaxDiskSize(sizeFromString(size));
+    }
+
+    @Override
+    public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
+    {
+        return DEFAULT_CONFIG.getDataDiskUsageKeyspaceWideProtectionEnabled();
+    }
+
+    @Override
+    public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDataDiskUsageKeyspaceWideProtectionEnabled(enabled);
     }
 
     @Override

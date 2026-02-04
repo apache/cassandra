@@ -33,9 +33,12 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.agrona.collections.Object2ObjectHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +55,7 @@ import accord.utils.Invariants;
 import accord.utils.QuadFunction;
 import accord.utils.TriFunction;
 import accord.utils.UnhandledEnum;
-import org.agrona.collections.Object2ObjectHashMap;
+
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -259,8 +262,7 @@ public class AccordCache implements CacheSize
                 {
                     //noinspection LockAcquiredButNotSafelyReleased
                     lock.lock();
-                    node.tryApplyShrink(cur, upd);
-                    queue.addLast(node);
+                    node.tryApplyShrink(cur, upd, queue);
                 }
             }
         }
@@ -1322,7 +1324,7 @@ public class AccordCache implements CacheSize
             try (DataInputBuffer buf = new DataInputBuffer(buffer, false))
             {
                 builder.deserializeNext(buf, Version.LATEST);
-                return builder.construct(commandStore.unsafeGetRedundantBefore());
+                return builder.construct(commandStore.safeGetRedundantBefore());
             }
             catch (UnknownTableException e)
             {

@@ -35,9 +35,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -555,7 +555,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Assert.assertEquals(replication, sut.rf.asKeyspaceParams().replication);
 
         Assert.assertEquals(modelState.simulatedPlacements.nodes.stream().map(Node::token).collect(Collectors.toSet()),
-                            actualMetadata.tokenMap.tokens().stream().map(t -> ((LongToken) t).token).collect(Collectors.toSet()));
+                            actualMetadata.tokenMap.tokens().stream().map(t -> ((LongToken) t).getLongValue()).collect(Collectors.toSet()));
 
         for (Map.Entry<ReplicationParams, DataPlacement> e : actualMetadata.placements.asMap().entrySet())
         {

@@ -37,7 +37,6 @@ import java.util.stream.Stream;
 
 import org.apache.commons.lang3.function.Consumers;
 import org.junit.Test;
-
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;

@@ -23,10 +23,10 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
+import org.mindrot.jbcrypt.BCrypt;
 
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.mindrot.jbcrypt.BCrypt;
 
 import static java.lang.String.format;
 import static java.util.Collections.singletonList;

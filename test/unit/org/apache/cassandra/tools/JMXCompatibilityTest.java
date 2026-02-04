@@ -21,13 +21,15 @@ package org.apache.cassandra.tools;
 import java.util.List;
 import java.util.Map;
 
+import com.datastax.driver.core.SimpleStatement;
 import com.google.common.collect.ImmutableMap;
+
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -37,7 +39,6 @@ import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.assertj.core.api.Assertions;
 
 import static com.google.common.collect.Lists.newArrayList;
 
