@@ -372,9 +372,11 @@ public abstract class AbstractReplicationStrategy
         try
         {
             ReplicationFactor rf = ReplicationFactor.fromString(s);
-            
+
             if (rf.hasTransientReplicas())
             {
+                if (rf.fullReplicas == 0)
+                    throw new ConfigurationException("Replication factor must have at least one full replica, got " + s);
                 if (DatabaseDescriptor.getNumTokens() > 1)
                     throw new ConfigurationException("Transient replication is not supported with vnodes yet");
                 if (!replicationType.isTracked())
