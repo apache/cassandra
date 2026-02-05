@@ -79,7 +79,7 @@ public class DirectCompressedSequentialWriterTest
     public void cleanup()
     {
         // Reset to standard mode after each test
-        DatabaseDescriptor.setCompactionWriteDiskAccessMode(DiskAccessMode.standard);
+        DatabaseDescriptor.setBackgroundWriteDiskAccessMode(DiskAccessMode.standard);
     }
 
     /**
@@ -439,7 +439,7 @@ public class DirectCompressedSequentialWriterTest
         assumeDirectIOSupported();
 
         // Verify buffer size getter works
-        int bufferSize = DatabaseDescriptor.getCompactionDirectIOWriteBufferSize();
+        int bufferSize = DatabaseDescriptor.getDirectWriteBufferSize();
         assertTrue("Buffer size should be positive", bufferSize > 0);
         assertTrue("Buffer size should be at least 4KB", bufferSize >= 4096);
     }

@@ -223,7 +223,7 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode compactionReadDiskAccessMode;
 
-    private static DiskAccessMode compactionWriteDiskAccessMode;
+    private static DiskAccessMode backgroundWriteDiskAccessMode;
 
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
@@ -901,9 +901,9 @@ public class DatabaseDescriptor
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
 
-        initializeCompactionWriteDiskAccessMode();
-        if (compactionWriteDiskAccessMode != conf.compaction_write_disk_access_mode)
-            logger.info("compaction_write_disk_access_mode resolved to: {}", compactionWriteDiskAccessMode);
+        initializeBackgroundWriteDiskAccessMode();
+        if (backgroundWriteDiskAccessMode != conf.background_write_disk_access_mode)
+            logger.info("background_write_disk_access_mode resolved to: {}", backgroundWriteDiskAccessMode);
 
         if (conf.memtable_flush_writers == 0)
         {
@@ -3360,33 +3360,33 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Return compaction write disk access mode.
+     * Return background write disk access mode.
      */
-    public static DiskAccessMode getCompactionWriteDiskAccessMode()
+    public static DiskAccessMode getBackgroundWriteDiskAccessMode()
     {
-        return compactionWriteDiskAccessMode;
+        return backgroundWriteDiskAccessMode;
     }
 
     @VisibleForTesting
-    public static void setCompactionWriteDiskAccessMode(DiskAccessMode diskAccessMode)
+    public static void setBackgroundWriteDiskAccessMode(DiskAccessMode diskAccessMode)
     {
-        compactionWriteDiskAccessMode = diskAccessMode;
-        conf.compaction_write_disk_access_mode = diskAccessMode;
+        backgroundWriteDiskAccessMode = diskAccessMode;
+        conf.background_write_disk_access_mode = diskAccessMode;
     }
 
     /**
-     * Return the aligned write buffer size for Direct IO compaction writes.
+     * Return the aligned write buffer size for Direct IO writes.
      * @return buffer size in bytes
      */
-    public static int getCompactionDirectIOWriteBufferSize()
+    public static int getDirectWriteBufferSize()
     {
-        return conf.compaction_direct_io_write_buffer_size.toBytes();
+        return conf.direct_write_buffer_size.toBytes();
     }
 
     @VisibleForTesting
-    public static void initializeCompactionWriteDiskAccessMode()
+    public static void initializeBackgroundWriteDiskAccessMode()
     {
-        DiskAccessMode providedMode = conf.compaction_write_disk_access_mode;
+        DiskAccessMode providedMode = conf.background_write_disk_access_mode;
 
         // For 'auto', default to standard (conservative, safe default)
         if (providedMode == DiskAccessMode.auto)
@@ -3424,21 +3424,21 @@ public class DatabaseDescriptor
                 if (!unsupportedLocations.isEmpty())
                 {
                     throw new ConfigurationException(
-                        String.format("compaction_write_disk_access_mode is set to 'direct', but the following data directories " +
-                                      "do not support Direct I/O: %s. Either change compaction_write_disk_access_mode to 'standard' " +
+                        String.format("background_write_disk_access_mode is set to 'direct', but the following data directories " +
+                                      "do not support Direct I/O: %s. Either change background_write_disk_access_mode to 'standard' " +
                                       "in cassandra.yaml, or ensure all data directories are on filesystems that support Direct I/O.",
                                       unsupportedLocations), false);
                 }
             }
         }
 
-        // Only 'standard' and 'direct' are valid for compaction writes
+        // Only 'standard' and 'direct' are valid for background writes
         if (providedMode != DiskAccessMode.standard && providedMode != DiskAccessMode.direct)
         {
-            throw new ConfigurationException("compaction_write_disk_access_mode must be 'standard', 'direct', or 'auto'. Got: " + providedMode, false);
+            throw new ConfigurationException("background_write_disk_access_mode must be 'standard', 'direct', or 'auto'. Got: " + providedMode, false);
         }
 
-        compactionWriteDiskAccessMode = providedMode;
+        backgroundWriteDiskAccessMode = providedMode;
     }
 
     public static String getSavedCachesLocation()

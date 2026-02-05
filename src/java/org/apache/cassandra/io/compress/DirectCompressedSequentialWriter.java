@@ -94,7 +94,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
         // Buffer must hold at least one chunk + CRC (4 bytes) + blockSize for leftover after partial flush
         // Use configured size or minimum required, whichever is larger
-        int configuredSize = DatabaseDescriptor.getCompactionDirectIOWriteBufferSize();
+        int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize();
         int minRequiredSize = parameters.chunkLength() + 4 + blockSize;
         int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
 

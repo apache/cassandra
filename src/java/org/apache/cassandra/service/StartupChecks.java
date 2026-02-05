@@ -260,8 +260,8 @@ public class StartupChecks
             if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
                 directIOWritePaths.add(new File(DatabaseDescriptor.getCommitLogLocation()).toPath());
 
-            // Add data directories when Direct IO is enabled for compaction writes
-            if (DatabaseDescriptor.getCompactionWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+            // Add data directories when Direct IO is enabled for background writes
+            if (DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == Config.DiskAccessMode.direct)
             {
                 for (String dataDir : DatabaseDescriptor.getAllDataFileLocations())
                     directIOWritePaths.add(new File(dataDir).toPath());
@@ -741,7 +741,7 @@ public class StartupChecks
 
             // Check if either compaction reads or writes use Direct IO
             boolean directReads = DatabaseDescriptor.getCompactionReadDiskAccessMode() == Config.DiskAccessMode.direct;
-            boolean directWrites = DatabaseDescriptor.getCompactionWriteDiskAccessMode() == Config.DiskAccessMode.direct;
+            boolean directWrites = DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == Config.DiskAccessMode.direct;
 
             if (!directReads && !directWrites)
                 return;
@@ -751,8 +751,8 @@ public class StartupChecks
             if (!unsupportedLocations.isEmpty())
             {
                 String configuredModes = directReads && directWrites
-                    ? "compaction reads and writes"
-                    : directReads ? "compaction reads" : "compaction writes";
+                    ? "compaction reads and background writes"
+                    : directReads ? "compaction reads" : "background writes";
 
                 throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
                                            String.format("Direct I/O is configured for %s, " +

@@ -49,11 +49,8 @@ public class DataComponent
         {
             final CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
 
-            // Use Direct IO for compaction writes if configured
-            // Only apply to non-flush operations (compaction, streaming, etc.)
-            // Flushes may benefit from page cache and have different performance characteristics
-            DiskAccessMode writeMode = DatabaseDescriptor.getCompactionWriteDiskAccessMode();
-            if (writeMode == DiskAccessMode.direct && operationType != OperationType.FLUSH)
+            DiskAccessMode backgroundWriteMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
+            if (backgroundWriteMode == DiskAccessMode.direct && operationType != OperationType.FLUSH)
             {
                 return new DirectCompressedSequentialWriter(descriptor.fileFor(Components.DATA),
                                                             descriptor.fileFor(Components.COMPRESSION_INFO),

@@ -365,15 +365,16 @@ public class Config
 
     public DataStorageSpec.IntKibibytesBound compressed_read_ahead_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
 
-    // Direct IO for compaction writes (compressed SSTables only)
-    // When 'direct' is set, compaction writes bypass the OS page cache using O_DIRECT
+    // Direct IO for background SSTable writes (compaction, streaming, scrub, cleanup, etc.)
+    // When 'direct' is set, background writes bypass the OS page cache using O_DIRECT.
+    // Memtable flushes always use buffered I/O regardless of this setting.
     // Default is 'standard' (buffered I/O) - users must opt-in to Direct IO
-    public DiskAccessMode compaction_write_disk_access_mode = DiskAccessMode.standard;
+    public DiskAccessMode background_write_disk_access_mode = DiskAccessMode.standard;
 
-    // Preferred buffer size for Direct IO compaction writes. Will be aligned up to filesystem block size.
+    // Preferred buffer size for Direct IO background writes. Will be aligned up to filesystem block size.
     // If a table's compression chunk_length exceeds this value, the buffer will auto-expand to fit.
     // Larger buffers reduce syscall overhead but increase memory usage per compaction thread.
-    public DataStorageSpec.IntKibibytesBound compaction_direct_io_write_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
+    public DataStorageSpec.IntKibibytesBound direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
 
     // fraction of free disk space available for compaction after min free space is subtracted
     public volatile Double max_space_usable_for_compactions_in_percentage = .95;
