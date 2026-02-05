@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Unit tests for DirectIOCompressedSequentialWriter.
+ * Unit tests for DirectCompressedSequentialWriter.
  *
  * Tests verify:
  * - Basic write and read functionality
@@ -346,6 +346,85 @@ public class DirectCompressedSequentialWriterTest
                 {
                 }
             }
+        }
+        finally
+        {
+            dataFile.tryDelete();
+            metadataFile.tryDelete();
+        }
+    }
+
+    @Test
+    public void testAbortCleansUpResources() throws IOException
+    {
+        assumeDirectIOSupported();
+
+        File dataFile = FileUtils.createTempFile("abort_test", ".db");
+        File metadataFile = new File(dataFile.absolutePath() + ".metadata");
+
+        try
+        {
+            byte[] testData = new byte[1024];
+            new Random(99).nextBytes(testData);
+
+            MetadataCollector collector = new MetadataCollector(
+                new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+
+            // finishOnClose(false) ensures close() triggers the abort path, not finish()
+            SequentialWriterOption abortOnCloseOption = SequentialWriterOption.newBuilder()
+                                                                             .finishOnClose(false)
+                                                                             .build();
+
+            // Write data but do NOT call finish() -- close triggers abort path
+            try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
+                dataFile, metadataFile, null,
+                abortOnCloseOption, CompressionParams.lz4(), collector, null))
+            {
+                writer.write(testData);
+                // No writer.finish() -- this is intentional
+            }
+            // If we reach here, abort completed without throwing.
+            // The aligned buffer, compressed buffer, and channel were all cleaned up.
+        }
+        finally
+        {
+            dataFile.tryDelete();
+            metadataFile.tryDelete();
+        }
+    }
+
+    @Test
+    public void testAbortAfterMultipleChunks() throws IOException
+    {
+        assumeDirectIOSupported();
+
+        File dataFile = FileUtils.createTempFile("abort_multichunk_test", ".db");
+        File metadataFile = new File(dataFile.absolutePath() + ".metadata");
+
+        try
+        {
+            // Write enough data to trigger multiple chunk flushes
+            int dataSize = DEFAULT_CHUNK_LENGTH * 3 + 500;
+            byte[] testData = new byte[dataSize];
+            new Random(77).nextBytes(testData);
+
+            MetadataCollector collector = new MetadataCollector(
+                new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+
+            // finishOnClose(false) ensures close() triggers the abort path, not finish()
+            SequentialWriterOption abortOnCloseOption = SequentialWriterOption.newBuilder()
+                                                                             .finishOnClose(false)
+                                                                             .build();
+
+            // Write data but do NOT call finish() -- close triggers abort path
+            try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
+                dataFile, metadataFile, null,
+                abortOnCloseOption, CompressionParams.lz4(), collector, null))
+            {
+                writer.write(testData);
+                // No writer.finish() -- this is intentional
+            }
+            // If we reach here, abort completed without throwing after multi-chunk writes.
         }
         finally
         {

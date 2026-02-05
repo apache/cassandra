@@ -59,7 +59,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     private final ICompressor compressor;
 
     // used to store compressed data
-    protected ByteBuffer compressed;
+    private ByteBuffer compressed;
 
     // holds a number of already written chunks
     protected int chunkCount = 0;
@@ -73,7 +73,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     private final ByteBuffer crcCheckBuffer = ByteBuffer.allocate(4);
     protected final Optional<File> digestFile;
 
-    protected final int maxCompressedLength;
+    private final int maxCompressedLength;
     private final boolean isDictionaryEnabled;
 
     private static ByteBuffer allocateBuffer(CompressionParams parameters)
@@ -263,6 +263,8 @@ public class CompressedSequentialWriter extends SequentialWriter
      *   <li>Calculate and write a 4-byte CRC32 checksum</li>
      *   <li>Update any full-file checksum tracking (for digest file)</li>
      * </ul>
+     * The position of {@code toWrite} after this method returns is unspecified;
+     * the caller does not rely on it.
      *
      * @param toWrite the compressed (or uncompressed fallback) data, flipped and ready to read
      */
