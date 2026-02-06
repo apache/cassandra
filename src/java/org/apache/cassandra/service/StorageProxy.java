@@ -120,6 +120,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -1088,11 +1089,11 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         // NOTE: this ReplicaPlan is a lie, this usage of ReplicaPlan could do with being clarified - the selected() collection is essentially (I think) never used
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
-        AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
+        CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(ClusterMetadata.current(), keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
+        AbstractReplicationStrategy rs = plan.replicationStrategy();
 
         // If we are coordinating a new mutation id for the first time then create a TrackedWriteResponseHandler
-        AbstractWriteResponseHandler<?> responseHandler = rs.getWriteResponseHandler(replicaPlan, null, WriteType.SIMPLE, null, requestTime);
+        AbstractWriteResponseHandler<?> responseHandler = rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
         responseHandler = TrackedWriteResponseHandler.wrap(responseHandler, mutationId);
 
         // For tracked keyspaces, the local commit MUST execute synchronously BEFORE sending to remote replicas.
@@ -1100,7 +1101,7 @@ public class StorageProxy implements StorageProxyMBean
         // reconciliation via ActiveLogReconciler.
         Message<Commit> message = Message.outWithFlag(PAXOS_COMMIT_REQ, proposal, MessageFlag.CALL_BACK_ON_FAILURE);
         Replica localReplica = null;
-        for (Replica replica : replicaPlan.liveAndDown())
+        for (Replica replica : plan.replicas().liveAndDown())
         {
             if (replica.isSelf())
             {
@@ -1129,7 +1130,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // Now send to remote replicas
         IntHashSet remoteReplicas = new IntHashSet();
-        for (Replica replica : replicaPlan.liveAndDown())
+        for (Replica replica : plan.replicas().liveAndDown())
         {
             if (replica.isSelf())
                 continue; // Already executed locally above
@@ -1158,22 +1159,22 @@ public class StorageProxy implements StorageProxyMBean
 
         Token tk = update.partitionKey().getToken();
 
+        ClusterMetadata cm = ClusterMetadata.current();
+
+        CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
+
         AbstractWriteResponseHandler<Commit> responseHandler = null;
         // NOTE: this ReplicaPlan is a lie, this usage of ReplicaPlan could do with being clarified - the selected() collection is essentially (I think) never used
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
         if (shouldBlock)
-        {
-            AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
-            responseHandler = rs.getWriteResponseHandler(replicaPlan, null, WriteType.SIMPLE, proposal::makeMutation, requestTime);
-        }
+            responseHandler = plan.replicationStrategy().getWriteResponseHandler(plan, null, WriteType.SIMPLE, proposal::makeMutation, requestTime);
 
         Message<Commit> message = Message.outWithFlag(PAXOS_COMMIT_REQ, proposal, MessageFlag.CALL_BACK_ON_FAILURE);
-        for (Replica replica : replicaPlan.liveAndDown())
+        for (Replica replica : plan.replicas().liveAndDown())
         {
             InetAddressAndPort destination = replica.endpoint();
             checkHintOverload(replica);
 
-            if (replicaPlan.isAlive(replica))
+            if (plan.replicas().isAlive(replica))
             {
                 if (shouldBlock)
                 {
@@ -1191,7 +1192,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 if (responseHandler != null)
                 {
-                    responseHandler.expired();
+                    responseHandler.expired(destination);
                 }
                 if (allowHints && shouldHint(replica))
                 {
@@ -1616,11 +1617,11 @@ public class StorageProxy implements StorageProxyMBean
                                                                pending.get());
                         };
 
-                        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(metadata, Keyspace.open(keyspaceName), consistencyLevel, computeReplicas, ReplicaPlans.writeAll);
+                        CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(metadata, Keyspace.open(keyspaceName), consistencyLevel, computeReplicas, ReplicaPlans.writeAll);
 
                         wrappers.add(wrapViewBatchResponseHandler(mutation,
                                                                   consistencyLevel,
-                                                                  replicaPlan,
+                                                                  plan,
                                                                   baseComplete,
                                                                   WriteType.BATCH,
                                                                   cleanup,
@@ -1911,7 +1912,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             ConsistencyLevel batchConsistencyLevel = consistencyLevelForBatchLog(consistencyLevel, requireQuorumForRemove);
             // This can't be updated for each iteration because cleanup has to go to the correct replicas which is where the batchlog is originally written
-            ReplicaPlan.ForWrite batchlogReplicaPlan = ReplicaPlans.forBatchlogWrite(ClusterMetadata.current(), batchConsistencyLevel == ConsistencyLevel.ANY);
+            CoordinationPlan.ForWrite coordinationPlan = CoordinationPlan.ForWriteWithIdeal.forBatchlogWrite(ClusterMetadata.current(), batchConsistencyLevel == ConsistencyLevel.ANY);
             final TimeUUID batchUUID = nextTimeUUID();
             boolean wroteToBatchLog = false;
             while (true)
@@ -1921,7 +1922,7 @@ public class StorageProxy implements StorageProxyMBean
                 attributeNonAccordLatency = true;
                 List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
                 List<Mutation> accordMutations = new ArrayList<>(mutations.size());
-                BatchlogCleanup cleanup = new BatchlogCleanup(() -> asyncRemoveFromBatchlog(batchlogReplicaPlan, batchUUID, requestTime));
+                BatchlogCleanup cleanup = new BatchlogCleanup(() -> asyncRemoveFromBatchlog(coordinationPlan.replicas(), batchUUID, requestTime));
 
                 // add a handler for each mutation that will not be written on Accord - includes checking availability, but doesn't initiate any writes, yet
                 SplitConsumer<Mutation> splitConsumer = (accordMutation, untrackedMutation, trackedMutation, originalMutations, mutationIndex) -> {
@@ -1940,15 +1941,15 @@ public class StorageProxy implements StorageProxyMBean
 
 
                     // Always construct the replica plan to check availability
-                    ReplicaPlan.ForWrite dataReplicaPlan = ReplicaPlans.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
+                    CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
 
-                    if (dataReplicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
+                    if (plan.replicas().lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
                         writeMetrics.localRequests.mark();
                     else
                         writeMetrics.remoteRequests.mark();
 
                     WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(untrackedMutation,
-                                                                                   dataReplicaPlan,
+                                                                                   plan,
                                                                                    batchConsistencyLevel,
                                                                                    WriteType.BATCH,
                                                                                    cleanup,
@@ -1971,7 +1972,7 @@ public class StorageProxy implements StorageProxyMBean
                     // with the mutations delivered by the batch log since an unacknowledged Accord txn won't be retried
                     // unless those mutations are also written to the batch log
                     // Only write to the log once and reuse the batchUUID for every attempt to route the mutations correctly
-                    doFallibleWriteWithMetricTracking(() -> syncWriteToBatchlog(mutations, batchlogReplicaPlan, batchUUID, requestTime), consistencyLevel);
+                    doFallibleWriteWithMetricTracking(() -> syncWriteToBatchlog(mutations, coordinationPlan, batchUUID, requestTime), consistencyLevel);
                     Tracing.trace("Successfully wrote to batchlog");
                     wroteToBatchLog = true;
                 }
@@ -2104,17 +2105,17 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static void syncWriteToBatchlog(Collection<Mutation> mutations, ReplicaPlan.ForWrite replicaPlan, TimeUUID uuid, Dispatcher.RequestTime requestTime)
+    private static void syncWriteToBatchlog(Collection<Mutation> mutations, CoordinationPlan.ForWrite coordinationPlan, TimeUUID uuid, Dispatcher.RequestTime requestTime)
     throws WriteTimeoutException, WriteFailureException
     {
-        WriteResponseHandler<?> handler = new WriteResponseHandler<>(replicaPlan,
+        WriteResponseHandler<?> handler = new WriteResponseHandler<>(coordinationPlan,
                                                                      WriteType.BATCH_LOG,
                                                                      null,
                                                                      requestTime);
 
         Batch batch = Batch.createLocal(uuid, FBUtilities.timestampMicros(), mutations);
         Message<Batch> message = Message.out(BATCH_STORE_REQ, batch);
-        for (Replica replica : replicaPlan.liveAndDown())
+        for (Replica replica : coordinationPlan.replicas().liveAndDown())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, replica, batch.size());
@@ -2146,8 +2147,8 @@ public class StorageProxy implements StorageProxyMBean
     {
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            Replicas.temporaryAssertFull(wrapper.handler.replicaPlan.liveAndDown());  // TODO: CASSANDRA-14549
-            ReplicaPlan.ForWrite replicas = wrapper.handler.replicaPlan.withContacts(wrapper.handler.replicaPlan.liveAndDown());
+            Replicas.temporaryAssertFull(wrapper.handler.replicaPlan().liveAndDown());  // TODO: CASSANDRA-14549
+            ReplicaPlan.ForWrite replicas = wrapper.handler.replicaPlan().withContacts(wrapper.handler.replicaPlan().liveAndDown());
 
             try
             {
@@ -2167,9 +2168,9 @@ public class StorageProxy implements StorageProxyMBean
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
         {
-            EndpointsForToken sendTo = wrapper.handler.replicaPlan.liveAndDown();
+            EndpointsForToken sendTo = wrapper.handler.replicaPlan().liveAndDown();
             Replicas.temporaryAssertFull(sendTo); // TODO: CASSANDRA-14549
-            sendToHintedReplicas(wrapper.mutation, wrapper.handler.replicaPlan.withContacts(sendTo), wrapper.handler, localDataCenter, stage, requestTime);
+            sendToHintedReplicas(wrapper.mutation, wrapper.handler.replicaPlan().withContacts(sendTo), wrapper.handler, localDataCenter, stage, requestTime);
         }
 
         for (WriteResponseHandlerWrapper wrapper : wrappers)
@@ -2202,30 +2203,32 @@ public class StorageProxy implements StorageProxyMBean
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token tk = mutation.key().getToken();
 
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
 
-        if (replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
+        ClusterMetadata cm = ClusterMetadata.current();
+
+        CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(cm, keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
+
+        if (plan.replicas().lookup(FBUtilities.getBroadcastAddressAndPort()) != null)
             writeMetrics.localRequests.mark();
         else
             writeMetrics.remoteRequests.mark();
 
-        AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
-        AbstractWriteResponseHandler<IMutation> responseHandler = rs.getWriteResponseHandler(replicaPlan, callback, writeType, mutation.hintOnFailure(), requestTime);
+        AbstractWriteResponseHandler<IMutation> responseHandler = plan.replicationStrategy().getWriteResponseHandler(plan, callback, writeType, mutation.hintOnFailure(), requestTime);
 
-        performer.apply(mutation, replicaPlan, responseHandler, localDataCenter, requestTime);
+        performer.apply(mutation, plan.replicas(), responseHandler, localDataCenter, requestTime);
         return responseHandler;
     }
 
     // same as performWrites except does not initiate writes (but does perform availability checks).
     private static WriteResponseHandlerWrapper wrapBatchResponseHandler(Mutation mutation,
-                                                                        ReplicaPlan.ForWrite replicaPlan,
+                                                                        CoordinationPlan.ForWriteWithIdeal plan,
                                                                         ConsistencyLevel batchConsistencyLevel,
                                                                         WriteType writeType,
                                                                         BatchlogResponseHandler.BatchlogCleanup cleanup,
                                                                         Dispatcher.RequestTime requestTime)
     {
-        AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
-        AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan, null, writeType, mutation, requestTime);
+        AbstractReplicationStrategy rs = plan.replicationStrategy();
+        AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(plan, null, writeType, mutation, requestTime);
         BatchlogResponseHandler<IMutation> batchHandler = new BatchlogResponseHandler<>(writeHandler, batchConsistencyLevel.blockFor(rs), cleanup, requestTime);
         return new WriteResponseHandlerWrapper(batchHandler, mutation);
     }
@@ -2236,14 +2239,14 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static WriteResponseHandlerWrapper wrapViewBatchResponseHandler(Mutation mutation,
                                                                             ConsistencyLevel batchConsistencyLevel,
-                                                                            ReplicaPlan.ForWrite replicaPlan,
+                                                                            CoordinationPlan.ForWriteWithIdeal plan,
                                                                             AtomicLong baseComplete,
                                                                             WriteType writeType,
                                                                             BatchlogResponseHandler.BatchlogCleanup cleanup,
                                                                             Dispatcher.RequestTime requestTime)
     {
-        AbstractReplicationStrategy replicationStrategy = replicaPlan.replicationStrategy();
-        AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, () -> {
+        AbstractReplicationStrategy replicationStrategy = plan.replicationStrategy();
+        AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(plan, () -> {
             long delay = Math.max(0, currentTimeMillis() - baseComplete.get());
             viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS);
         }, writeType, mutation, requestTime);
@@ -2362,7 +2365,7 @@ public class StorageProxy implements StorageProxyMBean
             else
             {
                 //Immediately mark the response as expired since the request will not be sent
-                responseHandler.expired();
+                responseHandler.expired(destination.endpoint());
                 if (shouldHint(destination))
                 {
                     if (endpointsToHint == null)
@@ -2567,10 +2570,10 @@ public class StorageProxy implements StorageProxyMBean
             // there we'll mark a local request against the metrics.
             writeMetrics.remoteRequests.mark();
 
-            ReplicaPlan.ForWrite forWrite = ReplicaPlans.forForwardingCounterWrite(metadata, keyspace, tk,
-                                                                                   clm -> ReplicaPlans.findCounterLeaderReplica(clm, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency()));
+            CoordinationPlan.ForWrite plan = CoordinationPlan.forForwardingCounterWrite(metadata, keyspace, tk,
+                                                                                        clm -> ReplicaPlans.findCounterLeaderReplica(clm, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency()));
             // Forward the actual update to the chosen leader replica
-            AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(forWrite,
+            AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(plan,
                                                                                                  WriteType.COUNTER, null, requestTime);
 
             Tracing.trace("Enqueuing counter update to {}", replica);
@@ -3831,7 +3834,7 @@ public class StorageProxy implements StorageProxyMBean
                 HintsService.instance.write(hostIds, Hint.create(mutation,  creationTime));
                 validTargets.forEach(HintsService.instance.metrics::incrCreatedHints);
                 // Notify the handler only for CL == ANY
-                if (responseHandler != null && responseHandler.replicaPlan.consistencyLevel() == ConsistencyLevel.ANY)
+                if (responseHandler != null && responseHandler.replicaPlan().consistencyLevel() == ConsistencyLevel.ANY)
                     responseHandler.onResponse(null);
             }
         };

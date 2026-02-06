@@ -39,6 +39,8 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -207,7 +209,7 @@ public class ReadExecutorTest
     public void testRaceWithNonSpeculativeFailure()
     {
         MockSinglePartitionReadCommand command = new MockSinglePartitionReadCommand(TimeUnit.DAYS.toMillis(365));
-        ReplicaPlan.ForTokenRead plan = plan(ConsistencyLevel.LOCAL_ONE, targets, targets.subList(0, 1));
+        CoordinationPlan.ForTokenRead plan = plan(ConsistencyLevel.LOCAL_ONE, targets, targets.subList(0, 1));
         AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, command, plan, Dispatcher.RequestTime.forImmediateExecution());
 
         // Issue an initial request against the first endpoint...
@@ -271,13 +273,13 @@ public class ReadExecutorTest
         }
     }
 
-    private ReplicaPlan.ForTokenRead plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)
+    private CoordinationPlan.ForTokenRead plan(EndpointsForToken targets, ConsistencyLevel consistencyLevel)
     {
         return plan(consistencyLevel, targets, targets);
     }
 
-    private ReplicaPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
+    private CoordinationPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, natural, selected, natural, (cm) -> null, (self) -> null, Epoch.EMPTY);
+        return CoordinationPlans.create(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, natural, selected, natural, (cm) -> null, (self) -> null, Epoch.EMPTY));
     }
 }

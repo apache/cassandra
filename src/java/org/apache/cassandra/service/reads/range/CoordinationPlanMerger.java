@@ -25,20 +25,19 @@ import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
+class CoordinationPlanMerger extends AbstractIterator<CoordinationPlan.ForRangeRead>
 {
     private final Keyspace keyspace;
     private final ConsistencyLevel consistency;
     private final TableId tableId;
-    private final PeekingIterator<ReplicaPlan.ForRangeRead> ranges;
+    private final PeekingIterator<CoordinationPlan.ForRangeRead> ranges;
 
-    ReplicaPlanMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, TableId tableId, ConsistencyLevel consistency)
+    CoordinationPlanMerger(Iterator<CoordinationPlan.ForRangeRead> iterator, Keyspace keyspace, TableId tableId, ConsistencyLevel consistency)
     {
         this.keyspace = keyspace;
         this.tableId = tableId;
@@ -47,12 +46,12 @@ class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
     }
 
     @Override
-    protected ReplicaPlan.ForRangeRead computeNext()
+    protected CoordinationPlan.ForRangeRead computeNext()
     {
         if (!ranges.hasNext())
             return endOfData();
 
-        ReplicaPlan.ForRangeRead current = ranges.next();
+        CoordinationPlan.ForRangeRead current = ranges.next();
         ClusterMetadata metadata = ClusterMetadata.current();
 
         // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
@@ -65,11 +64,11 @@ class ReplicaPlanMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
             // Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
             // the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
             // wire compatibility, so it's likely easier not to bother;
-            if (current.range().right.isMinimum())
+            if (current.replicas().range().right.isMinimum())
                 break;
 
-            ReplicaPlan.ForRangeRead next = ranges.peek();
-            ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(metadata, keyspace, tableId, consistency, current, next);
+            CoordinationPlan.ForRangeRead next = ranges.peek();
+            CoordinationPlan.ForRangeRead merged = CoordinationPlan.maybeMergeRangeReads(metadata, keyspace, tableId, consistency, current, next);
             if (merged == null)
                 break;
 

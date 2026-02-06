@@ -58,6 +58,8 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -1250,7 +1252,7 @@ public class DataResolverTest extends AbstractReadResponseTest
     }
 
     private DataResolver resolverWithVerifier(final ReadCommand command,
-                                              final ReplicaPlan.SharedForRangeRead plan,
+                                              final CoordinationPlan.ForRangeRead plan,
                                               final ReadRepair readRepair,
                                               final Dispatcher.RequestTime requestTime,
                                               final RepairedDataVerifier verifier)
@@ -1258,7 +1260,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         class TestableDataResolver extends DataResolver
         {
 
-            public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, ReadRepair readRepair, Dispatcher.RequestTime requestTime)
+            public TestableDataResolver(ReadCommand command, CoordinationPlan.ForRangeRead plan, ReadRepair readRepair, Dispatcher.RequestTime requestTime)
             {
                 super(ReadCoordinator.DEFAULT, command, plan, readRepair, requestTime, true);
             }
@@ -1324,17 +1326,17 @@ public class DataResolverTest extends AbstractReadResponseTest
         assertEquals(update.metadata().name, cfm.name);
     }
 
-    private ReplicaPlan.SharedForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
+    private CoordinationPlan.ForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
         BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan = (self, t) -> ReplicaPlans.forReadRepair(self, ClusterMetadata.current(), ks, null, consistencyLevel, t, (i) -> true, ReadCoordinator.DEFAULT);
-        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks,
-                                                               ks.getReplicationStrategy(),
-                                                               consistencyLevel,
-                                                               ReplicaUtils.FULL_BOUNDS,
-                                                               replicas, replicas, replicas,
-                                                               1, null,
-                                                               repairPlan,
-                                                               Epoch.EMPTY));
+        return CoordinationPlans.create(ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks,
+                                                                                        ks.getReplicationStrategy(),
+                                                                                        consistencyLevel,
+                                                                                        ReplicaUtils.FULL_BOUNDS,
+                                                                                        replicas, replicas, replicas,
+                                                                                        1, null,
+                                                                                        repairPlan,
+                                                                                        Epoch.EMPTY)));
     }
 
     private static void resolveAndConsume(DataResolver resolver)

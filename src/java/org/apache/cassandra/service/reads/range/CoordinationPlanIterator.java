@@ -34,8 +34,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -43,7 +43,7 @@ import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
 
-class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
+class CoordinationPlanIterator extends AbstractIterator<CoordinationPlan.ForRangeRead>
 {
     private final Keyspace keyspace;
     private final ConsistencyLevel consistency;
@@ -53,11 +53,11 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
     final Iterator<? extends AbstractBounds<PartitionPosition>> ranges;
     private final int rangeCount;
 
-    ReplicaPlanIterator(AbstractBounds<PartitionPosition> keyRange,
-                        @Nullable Index.QueryPlan indexQueryPlan,
-                        Keyspace keyspace,
-                        TableId tableId,
-                        ConsistencyLevel consistency)
+    CoordinationPlanIterator(AbstractBounds<PartitionPosition> keyRange,
+                             @Nullable Index.QueryPlan indexQueryPlan,
+                             Keyspace keyspace,
+                             TableId tableId,
+                             ConsistencyLevel consistency)
     {
         this.indexQueryPlan = indexQueryPlan;
         this.keyspace = keyspace;
@@ -81,12 +81,12 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
     }
 
     @Override
-    protected ReplicaPlan.ForRangeRead computeNext()
+    protected CoordinationPlan.ForRangeRead computeNext()
     {
         if (!ranges.hasNext())
             return endOfData();
 
-        return ReplicaPlans.forRangeRead(keyspace, tableId, indexQueryPlan, consistency, ranges.next(), 1);
+        return CoordinationPlan.forRangeRead(ClusterMetadata.current(), keyspace, tableId, indexQueryPlan, consistency, ranges.next(), 1);
     }
 
     /**

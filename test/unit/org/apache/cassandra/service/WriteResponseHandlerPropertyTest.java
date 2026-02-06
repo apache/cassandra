@@ -18,33 +18,24 @@
 
 package org.apache.cassandra.service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
-import org.junit.Test;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.exceptions.CoordinatorBehindException;
-import org.apache.cassandra.exceptions.RequestFailure;
-import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
-import org.apache.cassandra.exceptions.WriteFailureException;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.InOurDc;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
+import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.quicktheories.QuickTheory.qt;
@@ -286,13 +277,15 @@ public class WriteResponseHandlerPropertyTest extends ResponseHandlerPropertyTes
                                                               EndpointsForToken targets,
                                                               EndpointsForToken pending) throws Exception
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(
-            ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, ClusterMetadata.current().epoch,
-                                Predicates.alwaysTrue(), ReplicaPlans.writeAll),
-            null,
-            WriteType.SIMPLE,
-            null,
-            Dispatcher.RequestTime.forImmediateExecution());
+        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(ks, cl,
+                                                                 (cm) -> targets,
+                                                                 (cm) -> pending,
+                                                                 ClusterMetadata.current().epoch,
+                                                                 Predicates.alwaysTrue(),
+                                                                 ReplicaPlans.writeAll);
+        CoordinationPlan.ForWriteWithIdeal coordinationPlan = CoordinationPlans.create(replicaPlan, null);
+        return ks.getReplicationStrategy().getWriteResponseHandler(coordinationPlan, null, WriteType.SIMPLE, null,
+                                                                   Dispatcher.RequestTime.forImmediateExecution());
     }
 
     /**
@@ -496,8 +489,8 @@ public class WriteResponseHandlerPropertyTest extends ResponseHandlerPropertyTes
 
                 // Build endpoint lookup for replica indices
                 List<InetAddressAndPort> allEndpoints = new ArrayList<>();
-                handler.replicaPlan.contacts().forEach(r -> allEndpoints.add(r.endpoint()));
-                handler.replicaPlan.pending().forEach(r -> allEndpoints.add(r.endpoint()));
+                handler.replicaPlan().contacts().forEach(r -> allEndpoints.add(r.endpoint()));
+                handler.replicaPlan().pending().forEach(r -> allEndpoints.add(r.endpoint()));
 
                 for (int i = 0; i < Math.min(responses.size(), 10); i++)
                 {
@@ -529,8 +522,8 @@ public class WriteResponseHandlerPropertyTest extends ResponseHandlerPropertyTes
             }
 
             // Debug: show what the handler thinks about pending replicas
-            diagnostic.append(String.format("Handler's replicaPlan.pending() size: %d\n", handler.replicaPlan.pending().size()));
-            for (Replica replica : handler.replicaPlan.pending())
+            diagnostic.append(String.format("Handler's replicaPlan.pending() size: %d\n", handler.replicaPlan().pending().size()));
+            for (Replica replica : handler.replicaPlan().pending())
             {
                 diagnostic.append(String.format("  Pending replica: %s\n", replica.endpoint()));
             }

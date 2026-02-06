@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
@@ -88,7 +87,6 @@ import org.apache.cassandra.locator.ReplicaPlan.ForRead;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -404,7 +402,7 @@ public class Paxos
         final Epoch epoch;
         final Function<ClusterMetadata, Participants> recompute;
 
-        Participants(Epoch epoch, Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live,
+        public Participants(Epoch epoch, Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live,
                      Function<ClusterMetadata, Participants> recompute)
         {
             this.epoch = epoch;
@@ -464,26 +462,15 @@ public class Paxos
 
         }
 
-        static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        public static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
         {
             return get(metadata, table, token, consistencyForConsensus, FailureDetector.isReplicaAlive);
         }
 
         static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus, Predicate<Replica> isReplicaAlive)
         {
-            KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
-            // MetaStrategy distributes the entire keyspace to all replicas. In addition, its tables (currently only
-            // the dist log table) don't use the globally configured partitioner. For these reasons we don't lookup the
-            // replicas using the supplied token as this can actually be of the incorrect type (for example when
-            // performing Paxos repair).
-            final Token actualToken = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : token;
-            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, actualToken);
-            ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
-                                                     ? all.filter(InOurDc.replicas()) : all;
-
-            EndpointsForToken live = all.all().filter(isReplicaAlive);
-            return new Participants(metadata.epoch, Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live,
-                                    (cm) -> get(cm, table, actualToken, consistencyForConsensus));
+            AbstractReplicationStrategy strategy = metadata.schema.getKeyspaceMetadata(table.keyspace).replicationStrategy;
+            return strategy.paxosParticipants(metadata, table, token, consistencyForConsensus, isReplicaAlive);
         }
 
         static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
@@ -1139,7 +1126,6 @@ public class Paxos
                     // round's proposal (if any).
                     PaxosPrepare.Success success = prepare.success();
 
-                    Supplier<Participants> plan = () -> success.participants;
                     List<Message<IReadResponse>> responses = success.responses;
 
                     // There should be only a single response from the coordinator that was selected to do the tracked read
@@ -1161,7 +1147,7 @@ public class Paxos
                     }
                     else
                     {
-                        DataResolver<EndpointsForToken, Participants> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, plan, NoopReadRepair.instance, requestTime);
+                        DataResolver<EndpointsForToken, Participants> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, () -> success.participants, NoopReadRepair.instance, requestTime);
 
                         for (int i = 0 ; i < responses.size() ; ++i)
                         {

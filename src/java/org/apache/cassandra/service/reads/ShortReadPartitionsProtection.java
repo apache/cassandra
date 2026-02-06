@@ -38,10 +38,10 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
@@ -93,17 +93,17 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
         lastPartitionKey = partition.partitionKey();
 
+        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         /*
          * Extend for moreContents() then apply protection to track lastClustering by applyToRow().
          *
          * If we don't apply the transformation *after* extending the partition with MoreRows,
          * applyToRow() method of protection will not be called on the first row of the new extension iterator.
          */
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), partition.partitionKey().getToken(), source);
-        ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
+        CoordinationPlan.ForTokenRead plan = CoordinationPlan.forSingleReplicaTokenRead(keyspace, partition.partitionKey().getToken(), source);
         ShortReadRowsProtection protection = new ShortReadRowsProtection(partition.partitionKey(),
                                                                          command, source,
-                                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan),
+                                                                         (cmd) -> executeReadCommand(cmd, plan),
                                                                          singleResultCounter,
                                                                          mergedResultCounter);
         return Transformation.apply(MoreRows.extend(partition, protection), protection);
@@ -177,16 +177,17 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
                                                       : new ExcludingBounds<>(lastPartitionKey, bounds.right);
         DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
 
-        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source, 1);
-        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
+        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
+        CoordinationPlan.ForRangeRead plan = CoordinationPlan.forSingleReplicaRangeRead(keyspace, cmd.dataRange().keyRange(), source, 1);
+        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), plan);
     }
 
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
+    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, CoordinationPlan.ForRead<E, P> plan)
     {
-        cmd = coordinator.maybeAllowOutOfRangeReads(cmd, replicaPlan.get().consistencyLevel());
-        DataResolver<E, P> resolver = new DataResolver<>(coordinator, cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, requestTime);
-        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
+        cmd = coordinator.maybeAllowOutOfRangeReads(cmd, plan.consistencyLevel());
+        DataResolver<E, P> resolver = new DataResolver<>(coordinator, cmd, plan, (NoopReadRepair<E, P>)NoopReadRepair.instance, requestTime);
+        ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, plan, requestTime);
 
         if (source.isSelf() && coordinator.localReadSupported())
         {

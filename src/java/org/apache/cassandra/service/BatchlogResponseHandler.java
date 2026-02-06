@@ -38,7 +38,7 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 
     public BatchlogResponseHandler(AbstractWriteResponseHandler<T> wrapped, int requiredBeforeFinish, BatchlogCleanup cleanup, Dispatcher.RequestTime requestTime)
     {
-        super(wrapped.replicaPlan, wrapped.callback, wrapped.writeType, null, requestTime);
+        super(wrapped.plan, wrapped.callback, wrapped.writeType, null, requestTime);
         this.wrapped = wrapped;
         this.requiredBeforeFinish = requiredBeforeFinish;
         this.cleanup = cleanup;

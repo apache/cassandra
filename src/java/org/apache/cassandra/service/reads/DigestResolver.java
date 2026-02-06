@@ -20,6 +20,7 @@ package org.apache.cassandra.service.reads;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -45,7 +46,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 {
     private volatile Message<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+    public DigestResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
         super(coordinator, command, replicaPlan, requestTime);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,

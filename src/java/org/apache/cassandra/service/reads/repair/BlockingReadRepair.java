@@ -43,6 +43,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -135,9 +136,9 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         ForWrite repairPlan();
     }
 
-    BlockingReadRepair(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+    BlockingReadRepair(ReadCoordinator coordinator, ReadCommand command, CoordinationPlan.ForRead<E, P> plan, Dispatcher.RequestTime requestTime)
     {
-        super(coordinator, command, replicaPlan, requestTime);
+        super(coordinator, command, plan, requestTime);
     }
 
     @Override
@@ -293,7 +294,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
 
     public void repairPartitionDirectly(ReadCoordinator readCoordinator, DecoratedKey dk, Map<Replica, Mutation> mutations, ForWrite writePlan)
     {
-        ReadRepair delegateRR = ReadRepairStrategy.BLOCKING.create(readCoordinator, command, replicaPlan, requestTime);
+        ReadRepair delegateRR = ReadRepairStrategy.BLOCKING.create(readCoordinator, command, plan, requestTime);
         delegateRR.repairPartition(dk, mutations, writePlan, ReadRepairSource.REPAIR_VIA_ACCORD);
         delegateRR.maybeSendAdditionalWrites();
         delegateRR.awaitWrites();

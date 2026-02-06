@@ -57,13 +57,13 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
@@ -167,7 +167,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     private final Id readId = Id.nextId();
     private final ReadCommand command;
-    private final ReplicaPlan.AbstractForRead<E, P> replicaPlan;
+    private final CoordinationPlan.ForRead<E, P> plan;
     private final ConsistencyLevel consistencyLevel;
     private final Dispatcher.RequestTime requestTime;
 
@@ -188,17 +188,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         }
     }
 
-    public TrackedRead(ReadCommand command, ReplicaPlan.AbstractForRead<E, P> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public TrackedRead(ReadCommand command, CoordinationPlan.ForRead<E, P> plan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         this.command = command;
-        this.replicaPlan = replicaPlan;
+        this.plan = plan;
         this.consistencyLevel = consistencyLevel;
         this.requestTime = requestTime;
     }
 
-    public ReplicaPlan.AbstractForRead<E, P> replicaPlan()
+    public ReplicaPlan.ForRead<E, P> replicaPlan()
     {
-        return replicaPlan;
+        return plan.replicas();
     }
 
     @Override
@@ -216,9 +216,9 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public static class Partition extends TrackedRead<EndpointsForToken, ReplicaPlan.ForTokenRead>
     {
-        private Partition(SinglePartitionReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+        private Partition(SinglePartitionReadCommand command, CoordinationPlan.ForTokenRead plan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, consistencyLevel, requestTime);
+            super(command, plan, consistencyLevel, requestTime);
         }
 
         public static Partition create(ClusterMetadata metadata, SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
@@ -227,15 +227,15 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
             SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
-            ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(metadata,
-                                                                        keyspace,
-                                                                        cfs.getTableId(),
-                                                                        command.partitionKey().getToken(),
-                                                                        command.indexQueryPlan(),
-                                                                        consistencyLevel,
-                                                                        retry,
-                                                                        ReadCoordinator.DEFAULT);
-            return new Partition(command, replicaPlan, consistencyLevel, requestTime);
+            CoordinationPlan.ForTokenRead plan = CoordinationPlan.forTokenRead(metadata,
+                                                                               keyspace,
+                                                                               cfs.getTableId(),
+                                                                               command.partitionKey().getToken(),
+                                                                               command.indexQueryPlan(),
+                                                                               consistencyLevel,
+                                                                               retry,
+                                                                               ReadCoordinator.DEFAULT);
+            return new Partition(command, plan, consistencyLevel, requestTime);
         }
 
         @Override
@@ -247,15 +247,15 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public static class Range extends TrackedRead<EndpointsForRange, ReplicaPlan.ForRangeRead>
     {
-        private Range(PartitionRangeReadCommand command, ReplicaPlan.AbstractForRead<EndpointsForRange, ReplicaPlan.ForRangeRead> replicaPlan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+        private Range(PartitionRangeReadCommand command, CoordinationPlan.ForRangeRead plan, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, consistencyLevel, requestTime);
+            super(command, plan, consistencyLevel, requestTime);
         }
 
-        public static TrackedRead.Range create(PartitionRangeReadCommand command, ReplicaPlan.ForRangeRead replicaPlan, Dispatcher.RequestTime requestTime)
+        public static TrackedRead.Range create(PartitionRangeReadCommand command, CoordinationPlan.ForRangeRead plan, Dispatcher.RequestTime requestTime)
         {
             Preconditions.checkArgument(command.metadata().replicationType().isTracked());
-            return new Range(command, replicaPlan, replicaPlan.consistencyLevel(), requestTime);
+            return new Range(command, plan, plan.consistencyLevel(), requestTime);
         }
 
         @Override
@@ -285,7 +285,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
     {
         // TODO: skip local coordination if this node knows its recovering from an outage
         // TODO: read speculation
-        Replica localReplica = replicaPlan.lookup(FBUtilities.getBroadcastAddressAndPort());
+        Replica localReplica = plan.replicas().lookup(FBUtilities.getBroadcastAddressAndPort());
         if (localReplica != null)
             readMetrics.localRequests.mark();
         else
@@ -294,10 +294,10 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         // create an id
         // select data node
         // select summary nodes
-        E selected = replicaPlan.contacts().filter(r -> FailureDetector.instance.isAlive(r.endpoint()));
-        if (selected.size() < replicaPlan.readQuorum())
-            throw new UnavailableException(String.format("Insufficient replicas available for read (%d < %d)", selected.size(), replicaPlan.readQuorum()),
-                                           replicaPlan.consistencyLevel(), selected.size(), replicaPlan.readQuorum());
+        E selected = plan.replicas().contacts().filter(r -> FailureDetector.instance.isAlive(r.endpoint()));
+        if (selected.size() < plan.replicas().readQuorum())
+            throw new UnavailableException(String.format("Insufficient replicas available for read (%d < %d)", selected.size(), plan.replicas().readQuorum()),
+                                           plan.consistencyLevel(), selected.size(), plan.replicas().readQuorum());
         Replica dataReplica = localReplica != null && localReplica.isFull()
                             ? localReplica
                             : Iterables.getOnlyElement(selected.filter(Replica::isFull, 1));
@@ -413,17 +413,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                 RequestFailure failure = (RequestFailure) ex;
                 if (failure.reason == RequestFailureReason.TIMEOUT)
                 {
-                    throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
+                    throw new ReadTimeoutException(plan.consistencyLevel(), 0, plan.replicas().readQuorum(), false);
                 }
 
                 reasons = failure.reasonByEndpoint();
             }
 
-            throw new ReadFailureException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false, reasons);
+            throw new ReadFailureException(plan.consistencyLevel(), 0, plan.replicas().readQuorum(), false, reasons);
         }
         catch (TimeoutException e)
         {
-            throw new ReadTimeoutException(replicaPlan.consistencyLevel(), 0, replicaPlan.readQuorum(), false);
+            throw new ReadTimeoutException(plan.consistencyLevel(), 0, plan.replicas().readQuorum(), false);
         }
     }
 

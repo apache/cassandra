@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
@@ -34,6 +33,8 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -179,9 +180,9 @@ public class ReadCallbackPropertyTest extends ResponseHandlerPropertyTestBase
     {
         private volatile boolean dataPresent = false;
 
-        public TestResponseResolver(Supplier<ReplicaPlan.ForTokenRead> replicaPlan, Dispatcher.RequestTime requestTime)
+        public TestResponseResolver(CoordinationPlan.ForTokenRead plan, Dispatcher.RequestTime requestTime)
         {
-            super(null, null, replicaPlan, requestTime);
+            super(null, null, plan, requestTime);
         }
 
         @Override
@@ -216,9 +217,9 @@ public class ReadCallbackPropertyTest extends ResponseHandlerPropertyTestBase
     /**
      * Creates a ReplicaPlan for testing with the given parameters.
      */
-    private static ReplicaPlan.SharedForTokenRead createReplicaPlan(Keyspace ks,
-                                                                     ConsistencyLevel cl,
-                                                                     EndpointsForToken contacts)
+    private static CoordinationPlan.ForTokenRead createReplicaPlan(Keyspace ks,
+                                                                   ConsistencyLevel cl,
+                                                                   EndpointsForToken contacts)
     {
         ReplicaPlan.ForTokenRead plan = new ReplicaPlan.ForTokenRead(
             ks,
@@ -231,7 +232,7 @@ public class ReadCallbackPropertyTest extends ResponseHandlerPropertyTestBase
             (self) -> null, // repair plan function
             Epoch.EMPTY
         );
-        return ReplicaPlan.shared(plan);
+        return CoordinationPlans.create(plan);
     }
 
     /**
@@ -313,11 +314,11 @@ public class ReadCallbackPropertyTest extends ResponseHandlerPropertyTestBase
                 contactedIndices.add(i);
         }
 
-        ReplicaPlan.SharedForTokenRead sharedPlan = createReplicaPlan(ks, cl, contacts);
+        CoordinationPlan.ForTokenRead plan = createReplicaPlan(ks, cl, contacts);
         Dispatcher.RequestTime requestTime = new Dispatcher.RequestTime(System.nanoTime(), System.nanoTime());
 
-        TestResponseResolver resolver = new TestResponseResolver(sharedPlan, requestTime);
-        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, null, sharedPlan, requestTime);
+        TestResponseResolver resolver = new TestResponseResolver(plan, requestTime);
+        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, null, plan, requestTime);
 
         return new HandlerWithContacts(handler, contactedIndices);
     }

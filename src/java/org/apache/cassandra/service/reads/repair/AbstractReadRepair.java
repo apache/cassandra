@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -58,7 +59,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
     protected final Dispatcher.RequestTime requestTime;
-    protected final ReplicaPlan.Shared<E, P> replicaPlan;
+    protected final CoordinationPlan.ForRead<E, P> plan;
     protected final ColumnFamilyStore cfs;
 
     private volatile DigestRepair<E, P> digestRepair = null;
@@ -78,19 +79,19 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     }
 
     public AbstractReadRepair(ReadCoordinator coordinator, ReadCommand command,
-                              ReplicaPlan.Shared<E, P> replicaPlan,
+                              CoordinationPlan.ForRead<E, P> plan,
                               Dispatcher.RequestTime requestTime)
     {
         this.coordinator = coordinator;
         this.command = command;
         this.requestTime = requestTime;
-        this.replicaPlan = replicaPlan;
+        this.plan = plan;
         this.cfs = Keyspace.openAndGetStore(command.metadata());
     }
 
     protected P replicaPlan()
     {
-        return replicaPlan.get();
+        return plan.replicas();
     }
 
     void sendReadCommand(Replica to, ReadCallback<E, P> readCallback, boolean speculative, boolean trackRepairedStatus)
@@ -135,9 +136,10 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
          */
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
 
+        CoordinationPlan.ForRead<E, P> repairPlan = plan.copyWithResetTracker();
         // Do a full data read to resolve the correct response (and repair node that need be)
-        DataResolver<E, P> resolver = new DataResolver<>(coordinator, command, replicaPlan, this, requestTime, trackRepairedStatus);
-        ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, requestTime);
+        DataResolver<E, P> resolver = new DataResolver<>(coordinator, command, repairPlan, this, requestTime, trackRepairedStatus);
+        ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, repairPlan, requestTime);
 
         digestRepair = new DigestRepair<>(resolver, readCallback, resultConsumer);
 
@@ -175,7 +177,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         ConsistencyLevel consistency = replicaPlan().consistencyLevel();
         ConsistencyLevel speculativeCL = consistency.isDatacenterLocal() ? ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.QUORUM;
         return  consistency != ConsistencyLevel.EACH_QUORUM
-                && consistency.satisfies(speculativeCL, replicaPlan.get().replicationStrategy())
+                && consistency.satisfies(speculativeCL, plan.replicationStrategy())
                 && cfs.sampleReadLatencyMicros <= command.getTimeout(MICROSECONDS);
     }
 
@@ -193,7 +195,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             if (uncontacted == null)
                 return;
 
-            replicaPlan.addToContacts(uncontacted);
+            plan.addToContacts(uncontacted);
             sendReadCommand(uncontacted, repair.readCallback, true, false);
             ReadRepairMetrics.speculatedRead.mark();
             ReadRepairDiagnostics.speculatedRead(this, uncontacted.endpoint(), replicaPlan());

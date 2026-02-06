@@ -38,7 +38,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
@@ -70,18 +71,18 @@ public class RangeCommandIteratorTest
         int vnodeCount = 0;
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        List<ReplicaPlan.ForRangeRead> ranges = new ArrayList<>();
+        List<CoordinationPlan.ForRangeRead> ranges = new ArrayList<>();
         for (int i = 0; i + 1 < tokens.size(); i++)
         {
             Range<PartitionPosition> range = Range.makeRowRange(tokens.get(i), tokens.get(i + 1));
-            ranges.add(ReplicaPlans.forRangeRead(keyspace, TABLE_ID, null, ConsistencyLevel.ONE, range, 1));
+            ranges.add(CoordinationPlans.create(ReplicaPlans.forRangeRead(keyspace, TABLE_ID, null, ConsistencyLevel.ONE, range, 1)));
             vnodeCount++;
         }
 
-        ReplicaPlanMerger merge = new ReplicaPlanMerger(ranges.iterator(), keyspace, TABLE_ID, ConsistencyLevel.ONE);
-        ReplicaPlan.ForRangeRead mergedRange = Iterators.getOnlyElement(merge);
+        CoordinationPlanMerger merge = new CoordinationPlanMerger(ranges.iterator(), keyspace, TABLE_ID, ConsistencyLevel.ONE);
+        CoordinationPlan.ForRangeRead mergedRange = Iterators.getOnlyElement(merge);
         // all ranges are merged as test has only one node.
-        assertEquals(vnodeCount, mergedRange.vnodeCount());
+        assertEquals(vnodeCount, mergedRange.replicas().vnodeCount());
     }
 
     @Test
@@ -108,27 +109,27 @@ public class RangeCommandIteratorTest
         AbstractBounds<PartitionPosition> keyRange = command.dataRange().keyRange();
 
         // without range merger, there will be 2 batches requested: 1st batch with 1 range and 2nd batch with remaining ranges
-        CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
+        CloseableIterator<CoordinationPlan.ForRangeRead> replicaPlans = coordinatorPlanIterator(keyRange, keyspace, false);
         RangeCommandIterator data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 2, vnodeCount);
 
         // without range merger and initial cf=5, there will be 1 batches requested: 5 vnode ranges for 1st batch
-        replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
+        replicaPlans = coordinatorPlanIterator(keyRange, keyspace, false);
         data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, vnodeCount, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
 
         // without range merger and max cf=1, there will be 5 batches requested: 1 vnode range per batch
-        replicaPlans = replicaPlanIterator(keyRange, keyspace, false);
+        replicaPlans = coordinatorPlanIterator(keyRange, keyspace, false);
         data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, vnodeCount, vnodeCount);
 
         // with range merger, there will be only 1 batch requested, as all ranges share the same replica - localhost
-        replicaPlans = replicaPlanIterator(keyRange, keyspace, true);
+        replicaPlans = coordinatorPlanIterator(keyRange, keyspace, true);
         data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1000, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
 
         // with range merger and max cf=1, there will be only 1 batch requested, as all ranges share the same replica - localhost
-        replicaPlans = replicaPlanIterator(keyRange, keyspace, true);
+        replicaPlans = coordinatorPlanIterator(keyRange, keyspace, true);
         data = new RangeCommandIterator(replicaPlans, command, ReadCoordinator.DEFAULT, 1, 1, vnodeCount, Dispatcher.RequestTime.forImmediateExecution());
         verifyRangeCommandIterator(data, rows, 1, vnodeCount);
     }
@@ -164,13 +165,13 @@ public class RangeCommandIteratorTest
         return new TokenUpdater().withKeys(values).update().getTokens();
     }
 
-    private static CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlanIterator(AbstractBounds<PartitionPosition> keyRange,
-                                                                                   Keyspace keyspace,
-                                                                                   boolean withRangeMerger)
+    private static CloseableIterator<CoordinationPlan.ForRangeRead> coordinatorPlanIterator(AbstractBounds<PartitionPosition> keyRange,
+                                                                                            Keyspace keyspace,
+                                                                                            boolean withRangeMerger)
     {
-        CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = new ReplicaPlanIterator(keyRange, null, keyspace, null, ConsistencyLevel.ONE);
+        CloseableIterator<CoordinationPlan.ForRangeRead> replicaPlans = new CoordinationPlanIterator(keyRange, null, keyspace, null, ConsistencyLevel.ONE);
         if (withRangeMerger)
-            replicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, null, ConsistencyLevel.ONE);
+            replicaPlans = new CoordinationPlanMerger(replicaPlans, keyspace, null, ConsistencyLevel.ONE);
 
         return  replicaPlans;
     }

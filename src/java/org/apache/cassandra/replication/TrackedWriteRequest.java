@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
@@ -171,13 +172,14 @@ public class TrackedWriteRequest
 
         Preconditions.checkArgument(mutation.id().isNone());
         String keyspaceName = mutation.getKeyspaceName();
+        ClusterMetadata cm = ClusterMetadata.current();
         Keyspace keyspace = Keyspace.open(keyspaceName);
         Token token = mutation.key().getToken();
 
-        ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(keyspace, consistencyLevel, token, ReplicaPlans.writeAll);
-        AbstractReplicationStrategy rs = plan.replicationStrategy();
+        AbstractReplicationStrategy rs = cm.schema.getKeyspaceMetadata(keyspaceName).replicationStrategy;
+        CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(cm, keyspace, consistencyLevel, token, ReplicaPlans.writeAll);
 
-        if (plan.lookup(FBUtilities.getBroadcastAddressAndPort()) == null)
+        if (plan.replicas().lookup(FBUtilities.getBroadcastAddressAndPort()) == null)
         {
             logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
@@ -193,19 +195,19 @@ public class TrackedWriteRequest
         if (logger.isTraceEnabled())
         {
             logger.trace("Write replication plan for mutation {}: live={}, pending={}, all={}",
-                         id, plan.live(), plan.pending(), plan.contacts());
+                         id, plan.replicas().live(), plan.replicas().pending(), plan.replicas().contacts());
         }
 
         final TrackedWriteResponseHandler handler;
         if (mutation instanceof CounterMutation)
         {
             handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.COUNTER, null, requestTime), id);
-            applyCounterMutationLocally((CounterMutation) mutation, plan, handler);
+            applyCounterMutationLocally((CounterMutation) mutation, plan.replicas(), handler);
         }
         else
         {
             handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime), id);
-            applyLocallyAndSendToReplicas((Mutation) mutation, plan, handler);
+            applyLocallyAndSendToReplicas((Mutation) mutation, plan.replicas(), handler);
         }
         return handler;
     }
@@ -264,7 +266,7 @@ public class TrackedWriteRequest
                 logger.trace("Skipping dead replica {} for mutation {}", destination, mutation.id());
                 // Only call expired() for AbstractWriteResponseHandler (not for LeaderCallback)
                 if (handler instanceof AbstractWriteResponseHandler)
-                    ((AbstractWriteResponseHandler<?>) handler).expired(); // immediately mark the response as expired since the request will not be sent
+                    ((AbstractWriteResponseHandler<?>) handler).expired(destination.endpoint()); // immediately mark the response as expired since the request will not be sent
                 continue;
             }
 

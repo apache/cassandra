@@ -63,9 +63,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 /**
- * Tests for {@link ReplicaPlanMerger}.
+ * Tests for {@link CoordinationPlanMerger}.
  */
-public class ReplicaPlanMergerTest
+public class CoordinationPlanMergerTest
 {
     private static final String KEYSPACE = "ReplicaPlanMergerTest";
     private static Keyspace keyspace;
@@ -416,13 +416,13 @@ public class ReplicaPlanMergerTest
                                   AbstractBounds<PartitionPosition> queryRange,
                                   AbstractBounds<PartitionPosition>... expected)
     {
-        try (ReplicaPlanIterator originals = new ReplicaPlanIterator(queryRange, null, keyspace, null, ANY); // ANY avoids endpoint erros
-             ReplicaPlanMerger merger = new ReplicaPlanMerger(originals, keyspace, null, consistencyLevel))
+        try (CoordinationPlanIterator originals = new CoordinationPlanIterator(queryRange, null, keyspace, null, ANY); // ANY avoids endpoint erros
+             CoordinationPlanMerger merger = new CoordinationPlanMerger(originals, keyspace, null, consistencyLevel))
         {
             // collect the merged ranges
             List<AbstractBounds<PartitionPosition>> mergedRanges = new ArrayList<>(expected.length);
             while (merger.hasNext())
-                mergedRanges.add(merger.next().range());
+                mergedRanges.add(merger.next().replicas().range());
 
             assertFalse("The number of merged ranges should never be greater than the number of original ranges",
                         mergedRanges.size() > originals.size());
