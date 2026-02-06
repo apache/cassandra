@@ -52,9 +52,8 @@ public class ReplicationFactorTest
     public void shouldFailOnInvalidRF()
     {
         assertRfParseFailure("-1", "Replication factor must be non-negative");
-        assertRfParseFailure("3/3", "Transient replicas must be zero, or less than total replication factor");
         assertRfParseFailure("3/-1", "Amount of transient nodes should be strictly positive");
-        assertRfParseFailure("3/4", "Transient replicas must be zero, or less than total replication factor");
+        assertRfParseFailure("3/4", "Transient replicas must be less than or equal to total replication factor");
         assertRfParseFailure("3/", "Replication factor format is <replicas> or <replicas>/<transient>");
         assertRfParseFailure("1/a", "For input string");
         assertRfParseFailure("a/1", "For input string");

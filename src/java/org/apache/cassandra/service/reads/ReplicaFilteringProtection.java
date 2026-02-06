@@ -60,11 +60,11 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -164,13 +164,13 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         mergeListener = new QueryMergeListener();
     }
 
-    private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, Replica source, ReplicaPlan.Shared<EndpointsForToken, ReplicaPlan.ForTokenRead> replicaPlan)
+    private UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, Replica source, CoordinationPlan.ForTokenRead plan)
     {
         @SuppressWarnings("unchecked")
         DataResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver =
-            new DataResolver<>(coordinator, cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, requestTime);
+            new DataResolver<>(coordinator, cmd, plan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, requestTime);
 
-        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, requestTime);
+        ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, plan, requestTime);
         // TODO No tracked path here yet so assert it doesn't handle transient replication correctly
         checkState(!source.isTransient());
         if (source.isSelf() && coordinator.localReadSupported())
@@ -636,20 +636,20 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
                                                                                key,
                                                                                filter);
 
-            ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forSingleReplicaRead(keyspace, key.getToken(), source);
+            CoordinationPlan.ForTokenRead plan = CoordinationPlan.forSingleReplicaTokenRead(keyspace, key.getToken(), source);
 
             try
             {
-                return executeReadCommand(cmd, source, ReplicaPlan.shared(replicaPlan));
+                return executeReadCommand(cmd, source, plan);
             }
             catch (ReadTimeoutException e)
             {
-                int blockFor = consistency.blockFor(replicaPlan.replicationStrategy());
+                int blockFor = consistency.blockFor(plan.replicationStrategy());
                 throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
             }
             catch (UnavailableException e)
             {
-                int blockFor = consistency.blockFor(replicaPlan.replicationStrategy());
+                int blockFor = consistency.blockFor(plan.replicationStrategy());
                 throw UnavailableException.create(consistency, blockFor, blockFor - 1);
             }
         }

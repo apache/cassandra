@@ -34,12 +34,12 @@ import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
@@ -68,7 +68,7 @@ public abstract class AbstractReadExecutor implements ReadExecutor
 
     protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
-    private   final ReplicaPlan.SharedForTokenRead replicaPlan;
+    private   final CoordinationPlan.ForTokenRead plan;
     protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
     protected final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> digestResolver;
     protected final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler;
@@ -79,16 +79,16 @@ public abstract class AbstractReadExecutor implements ReadExecutor
     private   final int initialDataRequestCount;
     protected volatile PartitionIterator result = null;
 
-    AbstractReadExecutor(ReadCoordinator coordinator, ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, int initialDataRequestCount, Dispatcher.RequestTime requestTime)
+    AbstractReadExecutor(ReadCoordinator coordinator, ColumnFamilyStore cfs, ReadCommand command, CoordinationPlan.ForTokenRead plan, int initialDataRequestCount, Dispatcher.RequestTime requestTime)
     {
         this.coordinator = coordinator;
         this.command = command;
-        this.replicaPlan = ReplicaPlan.shared(replicaPlan);
+        this.plan = plan;
         this.initialDataRequestCount = initialDataRequestCount;
         // the ReadRepair and DigestResolver both need to see our updated
-        this.readRepair = ReadRepair.create(coordinator, command, this.replicaPlan, requestTime);
-        this.digestResolver = new DigestResolver<>(coordinator, command, this.replicaPlan, requestTime);
-        this.handler = new ReadCallback<>(digestResolver, command, this.replicaPlan, requestTime);
+        this.readRepair = ReadRepair.create(coordinator, command, plan, requestTime);
+        this.digestResolver = new DigestResolver<>(coordinator, command, plan, requestTime);
+        this.handler = new ReadCallback<>(digestResolver, command, plan, requestTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
         this.requestTime = requestTime;
@@ -99,7 +99,7 @@ public abstract class AbstractReadExecutor implements ReadExecutor
         // TODO: we need this when talking with pre-3.0 nodes. So if we preserve the digest format moving forward, we can get rid of this once
         // we stop being compatible with pre-3.0 nodes.
         int digestVersion = MessagingService.current_version;
-        for (Replica replica : replicaPlan.contacts())
+        for (Replica replica : plan.replicas().contacts())
             digestVersion = Math.min(digestVersion, MessagingService.instance().versions.get(replica.endpoint()));
         command.setDigestVersion(digestVersion);
     }
@@ -195,32 +195,32 @@ public abstract class AbstractReadExecutor implements ReadExecutor
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(metadata,
-                                                                    keyspace,
-                                                                    command.metadata().id,
-                                                                    command.partitionKey().getToken(),
-                                                                    command.indexQueryPlan(),
-                                                                    consistencyLevel,
-                                                                    retry,
-                                                                    coordinator);
+        CoordinationPlan.ForTokenRead plan = CoordinationPlan.forTokenRead(metadata,
+                                                                           keyspace,
+                                                                           command.metadata().id,
+                                                                           command.partitionKey().getToken(),
+                                                                           command.indexQueryPlan(),
+                                                                           consistencyLevel,
+                                                                           retry,
+                                                                           coordinator);
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
         if (retry.equals(NeverSpeculativeRetryPolicy.INSTANCE) || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
-            return new NeverSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime, false);
+            return new NeverSpeculatingReadExecutor(coordinator, cfs, command, plan, requestTime, false);
 
         if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
-            return new AlwaysSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime);
+            return new AlwaysSpeculatingReadExecutor(coordinator, cfs, command, plan, requestTime);
 
         // There are simply no extra replicas to speculate.
         // Handle this separately so it can record failed attempts to speculate due to lack of replicas
-        if (replicaPlan.contacts().size() == replicaPlan.readCandidates().size())
+        if (plan.replicas().contacts().size() == plan.replicas().readCandidates().size())
         {
             boolean recordFailedSpeculation = consistencyLevel != ConsistencyLevel.ALL;
-            return new NeverSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime, recordFailedSpeculation);
+            return new NeverSpeculatingReadExecutor(coordinator, cfs, command, plan, requestTime, recordFailedSpeculation);
         }
         else // PERCENTILE or CUSTOM.
-            return new SpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, requestTime);
+            return new SpeculatingReadExecutor(coordinator, cfs, command, plan, requestTime);
     }
 
     /**
@@ -256,7 +256,7 @@ public abstract class AbstractReadExecutor implements ReadExecutor
     @Override
     public ReplicaPlan.ForTokenRead replicaPlan()
     {
-        return replicaPlan.get();
+        return plan.replicas();
     }
 
     void onReadTimeout() {}
@@ -273,11 +273,11 @@ public abstract class AbstractReadExecutor implements ReadExecutor
         public NeverSpeculatingReadExecutor(ReadCoordinator coordinator,
                                             ColumnFamilyStore cfs,
                                             ReadCommand command,
-                                            ReplicaPlan.ForTokenRead replicaPlan,
+                                            CoordinationPlan.ForTokenRead plan,
                                             Dispatcher.RequestTime requestTime,
                                             boolean logFailedSpeculation)
         {
-            super(coordinator, cfs, command, replicaPlan, 1, requestTime);
+            super(coordinator, cfs, command, plan, 1, requestTime);
             this.logFailedSpeculation = logFailedSpeculation;
         }
 
@@ -297,13 +297,13 @@ public abstract class AbstractReadExecutor implements ReadExecutor
         public SpeculatingReadExecutor(ReadCoordinator coordinator,
                                        ColumnFamilyStore cfs,
                                        ReadCommand command,
-                                       ReplicaPlan.ForTokenRead replicaPlan,
+                                       CoordinationPlan.ForTokenRead plan,
                                        Dispatcher.RequestTime requestTime)
         {
             // We're hitting additional targets for read repair (??).  Since our "extra" replica is the least-
             // preferred by the snitch, we do an extra data read to start with against a replica more
             // likely to respond; better to let RR fail than the entire query.
-            super(coordinator, cfs, command, replicaPlan, replicaPlan.readQuorum() < replicaPlan.contacts().size() ? 2 : 1, requestTime);
+            super(coordinator, cfs, command, plan, plan.replicas().readQuorum() < plan.replicas().contacts().size() ? 2 : 1, requestTime);
         }
 
         public void maybeTryAdditionalReplicas()
@@ -342,7 +342,7 @@ public abstract class AbstractReadExecutor implements ReadExecutor
                 // we must update the plan to include this new node, else when we come to read-repair, we may not include this
                 // speculated response in the data requests we make again, and we will not be able to 'speculate' an extra repair read,
                 // nor would we be able to speculate a new 'write' if the repair writes are insufficient
-                super.replicaPlan.addToContacts(extraReplica);
+                super.plan.addToContacts(extraReplica);
 
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
@@ -367,12 +367,12 @@ public abstract class AbstractReadExecutor implements ReadExecutor
         public AlwaysSpeculatingReadExecutor(ReadCoordinator coordinator,
                                              ColumnFamilyStore cfs,
                                              ReadCommand command,
-                                             ReplicaPlan.ForTokenRead replicaPlan,
+                                             CoordinationPlan.ForTokenRead plan,
                                              Dispatcher.RequestTime requestTime)
         {
             // presumably, we speculate an extra data request here in case it is our data request that fails to respond,
             // and there are no more nodes to consult
-            super(coordinator, cfs, command, replicaPlan, replicaPlan.contacts().size() > 1 ? 2 : 1, requestTime);
+            super(coordinator, cfs, command, plan, plan.replicas().contacts().size() > 1 ? 2 : 1, requestTime);
         }
 
         public void maybeTryAdditionalReplicas()
@@ -397,7 +397,7 @@ public abstract class AbstractReadExecutor implements ReadExecutor
     public void setResult(PartitionIterator result)
     {
         Preconditions.checkState(this.result == null, "Result can only be set once");
-        this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().readCandidates().endpointList());
+        this.result = DuplicateRowChecker.duringRead(result, this.plan.replicas().readCandidates().endpointList());
     }
 
     public void awaitResponses() throws ReadTimeoutException

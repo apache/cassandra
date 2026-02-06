@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicates;
 
+import org.apache.cassandra.locator.*;
+import org.apache.cassandra.locator.CoordinationPlanTestUtils;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -57,6 +59,7 @@ import static java.util.concurrent.TimeUnit.DAYS;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class WriteResponseHandlerTest
@@ -148,8 +151,8 @@ public class WriteResponseHandlerTest
         assertEquals(startingCount + 1, ks.metric.idealCLWriteLatency.latency.getCount());
 
         //Don't need the others
-        awr.expired();
-        awr.expired();
+        awr.expired(targets.get(2).endpoint());
+        awr.expired(targets.get(3).endpoint());
 
         assertEquals(0,  ks.metric.writeFailedIdealCL.getCount());
     }
@@ -216,10 +219,9 @@ public class WriteResponseHandlerTest
         awr.onResponse(createDummyMessage(2));
 
         //Fail in remote DC
-        awr.expired();
-        awr.expired();
-        awr.expired();
-        assertEquals(1, ks.metric.writeFailedIdealCL.getCount());
+        awr.expired(targets.get(3).endpoint());
+        awr.expired(targets.get(4).endpoint());
+        awr.expired(targets.get(5).endpoint());
         assertEquals(0, ks.metric.idealCLWriteLatency.totalLatency.getCount());
     }
 
@@ -260,14 +262,14 @@ public class WriteResponseHandlerTest
 
         // Failure in local DC
         awr.onResponse(createDummyMessage(0));
-        
-        awr.expired();
-        awr.expired();
+
+        awr.expired(targets.get(1).endpoint());
+        awr.expired(targets.get(2).endpoint());
 
         //Fail in remote DC
-        awr.expired();
-        awr.expired();
-        awr.expired();
+        awr.expired(targets.get(3).endpoint());
+        awr.expired(targets.get(4).endpoint());
+        awr.expired(targets.get(5).endpoint());
 
         assertEquals(startingCount, ks.metric.writeFailedIdealCL.getCount());
     }
@@ -297,6 +299,28 @@ public class WriteResponseHandlerTest
     }
 
 
+    /**
+     * expired(from) must notify the ResponseTracker so that when enough down-node expirations
+     * accumulate to make quorum mathematically impossible, the handler signals failure immediately
+     * rather than blocking until the full RPC timeout.
+     */
+    @Test
+    public void expiredUpdatesResponseTrackerAndSignalsFailureWhenQuorumImpossible()
+    {
+        // QUORUM on 6 replicas (3 DC1 + 3 DC2) requires 4 acks.
+        // If 3 replicas are expired (down at dispatch time), only 3 remain — quorum is impossible.
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.QUORUM, null);
+
+        awr.expired(targets.get(0).endpoint());
+        awr.expired(targets.get(1).endpoint());
+        awr.expired(targets.get(2).endpoint()); // 3 remaining, blockFor=4: impossible to succeed
+
+        assertTrue("handler must be complete (failed) after quorum becomes impossible via expired()",
+                   awr.isComplete());
+        assertFalse("handler must not report success",
+                    awr.coordinationPlan().responses().isSuccessful());
+    }
+
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
     {
         return createWriteResponseHandler(cl, ideal, Dispatcher.RequestTime.forImmediateExecution());
@@ -304,8 +328,9 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
-                                                                   null, WriteType.SIMPLE, null, requestTime, ideal);
+        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll);
+        CoordinationPlan.ForWriteWithIdeal coordinationPlan = CoordinationPlanTestUtils.create(replicaPlan, ideal);
+        return ks.getReplicationStrategy().getWriteResponseHandler(coordinationPlan, null, WriteType.SIMPLE, null, requestTime);
     }
 
     private static Message createDummyMessage(int target)

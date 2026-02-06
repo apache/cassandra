@@ -77,11 +77,11 @@ public class RangeCommands
         Tracing.trace("Computing ranges to query");
 
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(),
-                                                                   command.indexQueryPlan(),
-                                                                   keyspace,
-                                                                   command.metadata().id(),
-                                                                   consistencyLevel);
+        CoordinationPlanIterator replicaPlans = new CoordinationPlanIterator(command.dataRange().keyRange(),
+                                                                             command.indexQueryPlan(),
+                                                                             keyspace,
+                                                                             command.metadata().id(),
+                                                                             consistencyLevel);
 
         if (command.isTopK())
             return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, readCoordinator, replicaPlans.size(), requestTime);
@@ -112,7 +112,7 @@ public class RangeCommands
             Tracing.trace("Submitting range requests on {} ranges with a concurrency of {}", replicaPlans.size(), concurrencyFactor);
         }
 
-        ReplicaPlanMerger mergedReplicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, command.metadata().id(), consistencyLevel);
+        CoordinationPlanMerger mergedReplicaPlans = new CoordinationPlanMerger(replicaPlans, keyspace, command.metadata().id(), consistencyLevel);
         return new RangeCommandIterator(mergedReplicaPlans,
                                         command,
                                         readCoordinator,
@@ -150,15 +150,15 @@ public class RangeCommands
         try
         {
             Keyspace keyspace = Keyspace.open(metadata.keyspace);
-            ReplicaPlanIterator rangeIterator = new ReplicaPlanIterator(DataRange.allData(metadata.partitioner).keyRange(),
-                                                                        null,
-                                                                        keyspace,
-                                                                        metadata.id,
-                                                                        consistency);
+            CoordinationPlanIterator rangeIterator = new CoordinationPlanIterator(DataRange.allData(metadata.partitioner).keyRange(),
+                                                                                  null,
+                                                                                  keyspace,
+                                                                                  metadata.id,
+                                                                                  consistency);
 
             // Called for the side effect of running assureSufficientLiveReplicasForRead.
             // Deliberately called with an invalid vnode count in case it is used elsewhere in the future..
-            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, metadata.id, null, consistency, r.range(), -1));
+            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, metadata.id, null, consistency, r.replicas().range(), -1));
             return true;
         }
         catch (UnavailableException e)

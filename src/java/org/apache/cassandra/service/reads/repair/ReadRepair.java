@@ -29,6 +29,7 @@ import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -41,13 +42,13 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     public interface Factory
     {
         <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
+        ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, CoordinationPlan.ForRead<E, P> plan, Dispatcher.RequestTime requestTime);
     }
 
     static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+    ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, CoordinationPlan.ForRead<E, P> plan, Dispatcher.RequestTime requestTime)
     {
-        return command.metadata().params.readRepair.create(coordinator, command, replicaPlan, requestTime);
+        return command.metadata().params.readRepair.create(coordinator, command, plan, requestTime);
     }
 
     /**

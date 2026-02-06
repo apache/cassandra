@@ -46,6 +46,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NodeProximity;
@@ -296,7 +297,7 @@ public class ForwardedWrite
         }
     }
 
-    public static AbstractWriteResponseHandler<Object> forwardMutation(Mutation mutation, ReplicaPlan.ForWrite plan, AbstractReplicationStrategy strategy, Dispatcher.RequestTime requestTime)
+    public static AbstractWriteResponseHandler<Object> forwardMutation(Mutation mutation, CoordinationPlan.ForWriteWithIdeal plan, AbstractReplicationStrategy strategy, Dispatcher.RequestTime requestTime)
     {
         // find leader
         NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
@@ -310,7 +311,7 @@ public class ForwardedWrite
         Replica leader = null;
         for (Replica replica : proximity.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), endpoints))
         {
-            if (plan.isAlive(replica))
+            if (plan.replicas().isAlive(replica))
                 leader = replica;
         }
         Preconditions.checkState(leader != null, "Could not find leader for %s", mutation);
@@ -321,17 +322,17 @@ public class ForwardedWrite
         AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
 
         // Add callbacks for replicas to respond directly to coordinator
-        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
+        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan.replicas()), requestTime);
         for (Replica endpoint : endpoints)
         {
-            if (plan.isAlive(endpoint))
+            if (plan.replicas().isAlive(endpoint))
             {
                 logger.trace("Adding forwarding callback for response from {} id {}", endpoint, toLeader.id());
                 MessagingService.instance().callbacks.addWithExpiration(handler, toLeader, endpoint);
             }
             else
             {
-                handler.expired();
+                handler.expired(endpoint.endpoint());
             }
         }
 
@@ -345,7 +346,7 @@ public class ForwardedWrite
      * The leader will apply the counter mutation, assign a mutation ID, and replicate to other replicas.
      */
     public static AbstractWriteResponseHandler<Object> forwardCounterMutation(CounterMutation counterMutation,
-                                                                              ReplicaPlan.ForWrite plan,
+                                                                              CoordinationPlan.ForWriteWithIdeal plan,
                                                                               AbstractReplicationStrategy strategy,
                                                                               Dispatcher.RequestTime requestTime)
     {
@@ -375,18 +376,19 @@ public class ForwardedWrite
         // Create response handler for all replicas
         AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.COUNTER, null, requestTime);
 
+        ReplicaPlan.ForWrite replicas = plan.replicas();
         // Add callbacks for all live replicas to respond directly to coordinator
         Message<CounterMutation> forwardMessage = Message.outWithRequestTime(Verb.COUNTER_MUTATION_REQ, counterMutation, requestTime);
-        for (Replica replica : plan.contacts())
+        for (Replica replica : replicas.contacts())
         {
-            if (plan.isAlive(replica))
+            if (replicas.isAlive(replica))
             {
                 logger.trace("Adding forwarding callback for tracked counter response from {} id {}", replica, forwardMessage.id());
                 MessagingService.instance().callbacks.addWithExpiration(handler, forwardMessage, replica);
             }
             else
             {
-                handler.expired();
+                handler.expired(replica.endpoint());
             }
         }
 
@@ -407,7 +409,7 @@ public class ForwardedWrite
      * @return the write response handler
      */
     public static AbstractWriteResponseHandler<Object> forward(IMutation mutation,
-                                                               ReplicaPlan.ForWrite plan,
+                                                               CoordinationPlan.ForWriteWithIdeal plan,
                                                                AbstractReplicationStrategy strategy,
                                                                Dispatcher.RequestTime requestTime)
     {

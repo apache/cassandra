@@ -30,10 +30,10 @@ import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.DataResolver;
@@ -61,13 +61,13 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
 {
     private final Keyspace keyspace;
 
-    ScanAllRangesCommandIterator(Keyspace keyspace, CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
+    ScanAllRangesCommandIterator(Keyspace keyspace, CloseableIterator<CoordinationPlan.ForRangeRead> coordinationPlans,
                                  PartitionRangeReadCommand command,
                                  ReadCoordinator readCoordinator,
                                  int totalRangeCount,
                                  Dispatcher.RequestTime requestTime)
     {
-        super(replicaPlans, command, readCoordinator, totalRangeCount, totalRangeCount, totalRangeCount, requestTime);
+        super(coordinationPlans, command, readCoordinator, totalRangeCount, totalRangeCount, totalRangeCount, requestTime);
         Preconditions.checkState(command.isTopK());
 
         this.keyspace = keyspace;
@@ -79,23 +79,22 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
         // get all replicas to contact
         Set<InetAddressAndPort> replicasToQuery = null;
         ConsistencyLevel consistencyLevel = null;
-        while (replicaPlans.hasNext())
+        while (coordinatorPlans.hasNext())
         {
             if (replicasToQuery == null)
                 replicasToQuery = new HashSet<>();
 
-            ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
-            replicasToQuery.addAll(replicaPlan.contacts().endpoints());
+            CoordinationPlan.ForRangeRead replicaPlan = coordinatorPlans.next();
+            replicasToQuery.addAll(replicaPlan.replicas().contacts().endpoints());
             consistencyLevel = replicaPlan.consistencyLevel();
         }
 
         if (replicasToQuery == null || replicasToQuery.isEmpty())
             return EmptyIterators.partition();
 
-        ReplicaPlan.ForRangeRead plan = ReplicaPlans.forFullRangeRead(keyspace, consistencyLevel, command.dataRange().keyRange(), replicasToQuery, totalRangeCount);
-        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(plan);
-        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, command, sharedReplicaPlan, NoopReadRepair.instance, requestTime, false);
-        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, command, sharedReplicaPlan, requestTime);
+        CoordinationPlan.ForRangeRead plan = CoordinationPlan.forFullRangeRead(keyspace, consistencyLevel, command.dataRange().keyRange(), replicasToQuery, totalRangeCount);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, command, plan, NoopReadRepair.instance, requestTime, false);
+        ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, command, plan, requestTime);
 
         int nodes = 0;
         for (InetAddressAndPort endpoint : replicasToQuery)
@@ -106,7 +105,7 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
             nodes++;
         }
 
-        rangesQueried += plan.vnodeCount();
+        rangesQueried += plan.replicas().vnodeCount();
         batchesRequested++;
 
         Tracing.trace("Submitted scanning all ranges requests to {} nodes", nodes);

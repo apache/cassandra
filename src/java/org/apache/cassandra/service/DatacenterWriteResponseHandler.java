@@ -22,42 +22,50 @@ import java.util.function.Supplier;
 
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class blocks for a quorum of responses _in the local datacenter only_ (CL.LOCAL_QUORUM).
+ *
+ * The response tracker handles DC filtering via countsTowardQuorum().
+ * This handler still uses waitingFor to filter collectSuccess() calls.
  */
 public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
 {
     private final Predicate<InetAddressAndPort> waitingFor = InOurDc.endpoints();
 
-    public DatacenterWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
+    public DatacenterWriteResponseHandler(CoordinationPlan.ForWrite coordinationPlan,
                                           Runnable callback,
                                           WriteType writeType,
                                           Supplier<Mutation> hintOnFailure,
                                           Dispatcher.RequestTime requestTime)
     {
-        super(replicaPlan, callback, writeType, hintOnFailure, requestTime);
-        assert replicaPlan.consistencyLevel().isDatacenterLocal();
+        super(coordinationPlan, callback, writeType, hintOnFailure, requestTime);
+        assert coordinationPlan.consistencyLevel().isDatacenterLocal();
     }
 
     @Override
     public void onResponse(Message<T> message)
     {
-        if (message == null || waitingFor(message.from()))
+        InetAddressAndPort from = message == null ? FBUtilities.getBroadcastAddressAndPort() : message.from();
+
+        plan.responses().onResponse(from);
+
+        if (message == null || waitingFor(from))
         {
-            super.onResponse(message);
+            replicaPlan().collectSuccess(from);
         }
-        else
-        {
-            //WriteResponseHandler.response will call logResonseToIdealCLDelegate so only do it if not calling WriteResponseHandler.response.
-            //Must be last after all subclass processing
-            logResponseToIdealCLDelegate(message);
-        }
+
+        if (plan.responses().isComplete())
+            signal();
+
+        // Must be last
+        logResponseToIdealCLDelegate(message);
     }
 
     @Override

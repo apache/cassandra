@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -27,99 +25,61 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
+ *
+ * The PerDcResponseTracker handles per-datacenter counting.
  */
 public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
     private static final Locator locator = DatabaseDescriptor.getLocator();
 
-    private final Map<String, AtomicInteger> responses = new HashMap<String, AtomicInteger>();
-    private final AtomicInteger acks = new AtomicInteger(0);
-
-    public DatacenterSyncWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
+    public DatacenterSyncWriteResponseHandler(CoordinationPlan.ForWrite coordinationPlan,
                                               Runnable callback,
                                               WriteType writeType,
                                               Supplier<Mutation> hintOnFailure,
                                               Dispatcher.RequestTime requestTime)
     {
-        // Response is been managed by the map so make it 1 for the superclass.
-        super(replicaPlan, callback, writeType, hintOnFailure, requestTime);
-        assert replicaPlan.consistencyLevel() == ConsistencyLevel.EACH_QUORUM;
-
-        if (replicaPlan.replicationStrategy() instanceof NetworkTopologyStrategy)
-        {
-            NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicaPlan.replicationStrategy();
-            for (String dc : strategy.getDatacenters())
-            {
-                int rf = strategy.getReplicationFactor(dc).allReplicas;
-                responses.put(dc, new AtomicInteger((rf / 2) + 1));
-            }
-        }
-        else
-        {
-            responses.put(locator.local().datacenter, new AtomicInteger(ConsistencyLevel.quorumFor(replicaPlan.replicationStrategy())));
-        }
-
-        // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
-        // guarantees (see #833)
-        for (Replica pending : replicaPlan.pending())
-        {
-            responses.get(locator.location(pending.endpoint()).datacenter).incrementAndGet();
-        }
+        super(coordinationPlan, callback, writeType, hintOnFailure, requestTime);
+        assert replicaPlan().consistencyLevel() == ConsistencyLevel.EACH_QUORUM;
     }
 
     public void onResponse(Message<T> message)
     {
         try
         {
-            Map<ParamType, Object> params;
-            String dataCenter;
-
-            if (message != null)
-            {
-                params = message.header.params();
-                dataCenter = locator.location(message.from()).datacenter;
-            }
-            else
-            {
-                params = MessageParams.capture();
-                dataCenter = locator.local().datacenter;
-            }
+            Map<ParamType, Object> params = message != null
+                                            ? message.header.params()
+                                            : MessageParams.capture();
 
             if (WriteWarningContext.isSupported(params.keySet()))
                 getWarningContext().updateCounters(params);
 
-            responses.get(dataCenter).getAndDecrement();
-            acks.incrementAndGet();
+            InetAddressAndPort from = message == null ? FBUtilities.getBroadcastAddressAndPort() : message.from();
 
-            for (AtomicInteger i : responses.values())
-            {
-                if (i.get() > 0)
-                    return;
-            }
+            plan.responses().onResponse(from);
 
-            // all the quorum conditions are met
-            signal();
+            if (plan.responses().isComplete())
+                signal();
         }
         finally
         {
-            //Must be last after all subclass processing
+            // Must be last - forward to ideal CL delegate
             logResponseToIdealCLDelegate(message);
         }
     }
 
     protected int ackCount()
     {
-        return acks.get();
+        return plan.responses().received();
     }
 }

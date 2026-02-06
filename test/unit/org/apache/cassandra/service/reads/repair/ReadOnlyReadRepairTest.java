@@ -28,6 +28,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlanTestUtils;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -42,9 +44,9 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     private static class InstrumentedReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
             extends ReadOnlyReadRepair implements InstrumentedReadRepair
     {
-        public InstrumentedReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+        public InstrumentedReadOnlyReadRepair(ReadCommand command, CoordinationPlan.ForRead<E, P> plan, Dispatcher.RequestTime requestTime)
         {
-            super(ReadCoordinator.DEFAULT, command, replicaPlan, requestTime);
+            super(ReadCoordinator.DEFAULT, command, plan, requestTime);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();
@@ -78,25 +80,25 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, Dispatcher.RequestTime requestTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, CoordinationPlan.ForRead<?, ?> plan, Dispatcher.RequestTime requestTime)
     {
-        return new InstrumentedReadOnlyReadRepair(command, replicaPlan, requestTime);
+        return new InstrumentedReadOnlyReadRepair(command, plan, requestTime);
     }
 
     @Test
     public void getMergeListener()
     {
-        ReplicaPlan.SharedForRangeRead replicaPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(replicaPlan);
-        Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(replicaPlan.get()));
+        CoordinationPlan.ForRangeRead plan = CoordinationPlanTestUtils.create(replicaPlan(replicas, replicas));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(plan);
+        Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(plan.replicas()));
     }
 
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
-        ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
+        CoordinationPlan.ForRangeRead plan = CoordinationPlanTestUtils.create(replicaPlan(replicas, replicas));
         ReplicaPlan.ForWrite writePlan = repairPlan(replicas, replicas);
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(plan);
         repair.repairPartition(null, Collections.emptyMap(), writePlan, ReadRepairSource.OTHER);
     }
 }

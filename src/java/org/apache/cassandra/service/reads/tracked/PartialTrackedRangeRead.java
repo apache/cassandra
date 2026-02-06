@@ -53,9 +53,9 @@ import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -333,14 +333,15 @@ public abstract class PartialTrackedRangeRead extends PartialTrackedRead
 
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         PartitionRangeReadCommand followUpCmd = command.withUpdatedLimitsAndDataRange(newLimits, newDataRange);
-        ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forRangeRead(keyspace,
-                                                                         command.metadata().id,
-                                                                         followUpCmd.indexQueryPlan(),
-                                                                         consistencyLevel,
-                                                                         followUpCmd.dataRange().keyRange(),
-                                                                         1);
+        CoordinationPlan.ForRangeRead plan = CoordinationPlan.forRangeRead(ClusterMetadata.current(),
+                                                                           keyspace,
+                                                                           command.metadata().id,
+                                                                           followUpCmd.indexQueryPlan(),
+                                                                           consistencyLevel,
+                                                                           followUpCmd.dataRange().keyRange(),
+                                                                           1);
 
-        TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, replicaPlan, requestTime);
+        TrackedRead.Range read = TrackedRead.Range.create(followUpCmd, plan, requestTime);
         logger.trace("Short read detected, starting followup read {}", read);
         return read;
     }

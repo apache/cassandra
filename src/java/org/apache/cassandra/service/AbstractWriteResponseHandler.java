@@ -29,6 +29,9 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +48,6 @@ import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
@@ -81,13 +83,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     //Count down until all responses and expirations have occured before deciding whether the ideal CL was reached.
     private AtomicInteger responsesAndExpirations;
     private final Condition condition = newOneTimeCondition();
-    protected final ReplicaPlan.ForWrite replicaPlan;
+    protected final CoordinationPlan.ForWrite plan;
 
     protected final Runnable callback;
     protected final WriteType writeType;
-    private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater =
-        AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
-    private volatile int failures = 0;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> alreadyHintedForRetryOnDifferentSystemUpdater =
         AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "alreadyHintedForRetryOnDifferentSystem");
     // Only write a hint to be applied as a transaction once
@@ -117,14 +116,24 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      * @param hintOnFailure
      * @param requestTime
      */
-    protected AbstractWriteResponseHandler(ForWrite replicaPlan, Runnable callback, WriteType writeType,
+    protected AbstractWriteResponseHandler(CoordinationPlan.ForWrite plan, Runnable callback, WriteType writeType,
                                            Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
     {
-        this.replicaPlan = replicaPlan;
+        this.plan = plan;
         this.callback = callback;
         this.writeType = writeType;
         this.hintOnFailure = hintOnFailure;
         this.requestTime = requestTime;
+    }
+
+    public CoordinationPlan.ForWrite coordinationPlan()
+    {
+        return plan;
+    }
+
+    public ForWrite replicaPlan()
+    {
+        return plan.replicas();
     }
 
     public void get() throws WriteTimeoutException, WriteFailureException, RetryOnDifferentSystemException
@@ -145,7 +154,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             throwTimeout();
 
         int candidateReplicaCount = candidateReplicaCount();
-        if (blockFor() + failures > candidateReplicaCount)
+        if (!plan.responses().isSuccessful())
         {
             // failures keeps incrementing, and this.failureReasonByEndpoint keeps getting new entries after signaling.
             // Simpler to reason about what happened by copying this.failureReasonByEndpoint and then inferring
@@ -179,10 +188,10 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                     throw new CoordinatorBehindException("Write request failed due to coordinator behind");
             }
 
-            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, getFailureReasonByEndpointMap());
+            throw new WriteFailureException(replicaPlan().consistencyLevel(), ackCount(), blockFor(), writeType, getFailureReasonByEndpointMap());
         }
 
-        if (replicaPlan.stillAppliesTo(ClusterMetadata.current()))
+        if (replicaPlan().stillAppliesTo(ClusterMetadata.current()))
         {
             if (warningContext != null)
             {
@@ -217,7 +226,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         // avoid sending confusing info to the user (see CASSANDRA-6491).
         if (acks >= blockedFor)
             acks = blockedFor - 1;
-        throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
+        throw new WriteTimeoutException(writeType, replicaPlan().consistencyLevel(), acks, blockedFor);
     }
 
     public final long currentTimeoutNanos()
@@ -236,7 +245,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     public void setIdealCLResponseHandler(AbstractWriteResponseHandler handler)
     {
         this.idealCLDelegate = handler;
-        idealCLDelegate.responsesAndExpirations = new AtomicInteger(replicaPlan.contacts().size());
+        idealCLDelegate.responsesAndExpirations = new AtomicInteger(replicaPlan().contacts().size());
     }
 
     /**
@@ -287,9 +296,12 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         }
     }
 
-    public final void expired()
+    public final void expired(InetAddressAndPort from)
     {
+        plan.responses().onFailure(from, RequestFailureReason.NODE_DOWN);
         logFailureOrTimeoutToIdealCLDelegate();
+        if (plan.responses().isComplete() && !plan.responses().isSuccessful())
+            signal();
     }
 
     /**
@@ -299,7 +311,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
-        return replicaPlan.writeQuorum();
+        return replicaPlan().writeQuorum();
     }
 
     /**
@@ -309,15 +321,15 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     protected int candidateReplicaCount()
     {
-        if (replicaPlan.consistencyLevel().isDatacenterLocal())
-            return countInOurDc(replicaPlan.liveAndDown()).allReplicas();
+        if (replicaPlan().consistencyLevel().isDatacenterLocal())
+            return countInOurDc(replicaPlan().liveAndDown()).allReplicas();
 
-        return replicaPlan.liveAndDown().size();
+        return replicaPlan().liveAndDown().size();
     }
 
     public ConsistencyLevel consistencyLevel()
     {
-        return replicaPlan.consistencyLevel();
+        return replicaPlan().consistencyLevel();
     }
 
     /**
@@ -345,14 +357,17 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     protected void signal()
     {
+        if (condition.isSignalled())
+            return;
+
         //The ideal CL should only count as a strike if the requested CL was achieved.
         //If the requested CL is not achieved it's fine for the ideal CL to also not be achieved.
-        if (idealCLDelegate != null && blockFor() + failures <= candidateReplicaCount())
+        if (idealCLDelegate != null && plan.responses().isSuccessful())
         {
             idealCLDelegate.requestedCLAchieved = true;
             if (idealCLDelegate == this)
             {
-                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - requestTime.startedAtNanos());
+                replicaPlan().keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - requestTime.startedAtNanos());
             }
         }
 
@@ -361,9 +376,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             callback.run();
     }
 
-    /**
-     * Check if the handler has completed (for testing purposes).
-     */
+    @VisibleForTesting
     public boolean isComplete()
     {
         return condition.isSignalled();
@@ -374,10 +387,6 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         logger.trace("Got failure {} from {}", failure, from);
 
-        int n = waitingFor(from)
-                ? failuresUpdater.incrementAndGet(this)
-                : failures;
-
         if (failureReasonByEndpoint == null)
             synchronized (this)
             {
@@ -386,14 +395,16 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             }
         failureReasonByEndpoint.put(from, failure.reason);
 
+        plan.responses().onFailure(from, failure.reason);
+
         logFailureOrTimeoutToIdealCLDelegate();
 
-        if (blockFor() + n > candidateReplicaCount())
+        if (plan.responses().isComplete() && !plan.responses().isSuccessful())
             signal();
 
         // If the failure was RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM then we only want to hint once
         // and not for each instance since odds are it will be applied as a transaction at all replicas
-        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)) )
+        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan().lookup(from)))
         {
             if (failure.reason == RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM)
             {
@@ -402,7 +413,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             }
             else
             {
-                StorageProxy.submitHint(hintOnFailure.get(), replicaPlan.lookup(from), null);
+                StorageProxy.submitHint(hintOnFailure.get(), replicaPlan().lookup(from), null);
             }
         }
     }
@@ -427,7 +438,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             // Only mark it as failed if the requested CL was achieved.
             if (!condition.isSignalled() && requestedCLAchieved)
             {
-                replicaPlan.keyspace().metric.writeFailedIdealCL.inc();
+                replicaPlan().keyspace().metric.writeFailedIdealCL.inc();
             }
         }
     }
@@ -437,7 +448,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      */
     public void maybeTryAdditionalReplicas(IMutation mutation, WritePerformer writePerformer, String localDC)
     {
-        EndpointsForToken uncontacted = replicaPlan.liveUncontacted();
+        EndpointsForToken uncontacted = replicaPlan().liveUncontacted();
         if (uncontacted.isEmpty())
             return;
 
@@ -459,7 +470,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.additionalWrites.inc();
 
-                writePerformer.apply(mutation, replicaPlan.withContacts(uncontacted),
+                writePerformer.apply(mutation, replicaPlan().withContacts(uncontacted),
                                      (AbstractWriteResponseHandler<IMutation>) this,
                                      localDC,
                                      requestTime);

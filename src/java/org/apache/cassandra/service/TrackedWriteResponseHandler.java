@@ -38,7 +38,7 @@ public class TrackedWriteResponseHandler<T> extends AbstractWriteResponseHandler
 
     private TrackedWriteResponseHandler(AbstractWriteResponseHandler<T> wrapped, MutationId mutationId)
     {
-        super(wrapped.replicaPlan, wrapped.callback, wrapped.writeType, null, wrapped.getRequestTime());
+        super(wrapped.plan, wrapped.callback, wrapped.writeType, null, wrapped.getRequestTime());
         this.wrapped = wrapped;
         this.mutationId = mutationId;
     }

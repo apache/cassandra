@@ -61,6 +61,8 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlanTestUtils;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -366,11 +368,11 @@ public abstract  class AbstractReadRepairTest
                                             Epoch.EMPTY);
     }
 
-    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, Dispatcher.RequestTime requestTime);
+    public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, CoordinationPlan.ForRead<?, ?> plan, Dispatcher.RequestTime requestTime);
 
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.Shared<?, ?> replicaPlan)
+    public InstrumentedReadRepair createInstrumentedReadRepair(CoordinationPlan.ForRead<?, ?> plan)
     {
-        return createInstrumentedReadRepair(command, replicaPlan, Dispatcher.RequestTime.forImmediateExecution());
+        return createInstrumentedReadRepair(command, plan, Dispatcher.RequestTime.forImmediateExecution());
 
     }
 
@@ -381,7 +383,7 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void readSpeculationCycle()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(CoordinationPlanTestUtils.create(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());
@@ -400,7 +402,7 @@ public abstract  class AbstractReadRepairTest
     @Test
     public void noSpeculationRequired()
     {
-        InstrumentedReadRepair repair = createInstrumentedReadRepair(ReplicaPlan.shared(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
+        InstrumentedReadRepair repair = createInstrumentedReadRepair(CoordinationPlanTestUtils.create(replicaPlan(replicas, EndpointsForRange.of(replica1, replica2))));
         ResultConsumer consumer = new ResultConsumer();
 
         Assert.assertEquals(epSet(), repair.getReadRecipients());

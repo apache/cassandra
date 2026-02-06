@@ -48,7 +48,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -60,20 +59,17 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.PreserveTimestamp;
@@ -609,22 +605,21 @@ public class BatchlogManager implements BatchlogManagerMBean
             String ks = mutation.getKeyspaceName();
             Token tk = mutation.key().getToken();
             ClusterMetadata metadata = ClusterMetadata.current();
-            KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(ks);
+            Keyspace keyspace = Keyspace.open(ks);
 
             // TODO: this logic could do with revisiting at some point, as it is unclear what its rationale is
             // we perform a local write, ignoring errors and inline in this thread (potentially slowing replay down)
             // effectively bumping CL for locally owned writes and also potentially stalling log replay if an error occurs
-            // once we decide how it should work, it can also probably be simplified, and avoid constructing a ReplicaPlan directly
-            ReplicaLayout.ForTokenWrite allReplias = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspaceMetadata, tk);
-            ReplicaPlan.ForWrite replicaPlan = forReplayMutation(metadata, Keyspace.open(ks), tk);
+            ReplicaLayout.ForTokenWrite allReplicas = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace.getMetadata(), tk);
+            CoordinationPlan.ForWrite replayPlan = CoordinationPlan.forReplayMutation(metadata, keyspace, tk);
 
-            Replica selfReplica = allReplias.all().selfIfPresent();
+            Replica selfReplica = allReplicas.all().selfIfPresent();
             if (selfReplica != null)
                 mutation.apply();
 
-            for (Replica replica : allReplias.all())
+            for (Replica replica : allReplicas.all())
             {
-                if (replica == selfReplica || replicaPlan.liveAndDown().contains(replica))
+                if (replica == selfReplica || replayPlan.replicas().liveAndDown().contains(replica))
                     continue;
 
                 UUID hostId = metadata.directory.peerId(replica.endpoint()).toUUID();
@@ -635,26 +630,13 @@ public class BatchlogManager implements BatchlogManagerMBean
                 }
             }
 
-            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, mutation, Dispatcher.RequestTime.forImmediateExecution());
+            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replayPlan, () -> mutation, Dispatcher.RequestTime.forImmediateExecution());
             Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
-            for (Replica replica : replicaPlan.liveAndDown())
+            for (Replica replica : replayPlan.replicas().liveAndDown())
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler);
             return handler;
         }
 
-        public static ReplicaPlan.ForWrite forReplayMutation(ClusterMetadata metadata, Keyspace keyspace, Token token)
-        {
-            ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace.getMetadata(), token);
-            Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
-
-            Replica selfReplica = liveAndDown.all().selfIfPresent();
-            ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
-
-            return new ReplicaPlan.ForWrite(keyspace, liveAndDown.replicationStrategy(),
-                                            ConsistencyLevel.ONE, liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all(),
-                                            (cm) -> forReplayMutation(cm, keyspace, token),
-                                            metadata.epoch);
-        }
         private static int gcgs(Collection<Mutation> mutations)
         {
             int gcgs = Integer.MAX_VALUE;
@@ -672,16 +654,16 @@ public class BatchlogManager implements BatchlogManagerMBean
             private final Set<InetAddressAndPort> undelivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
             // TODO: should we be hinting here, since presumably batch log will retry? Maintaining historical behaviour for the moment.
-            ReplayWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan, Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
+            ReplayWriteResponseHandler(CoordinationPlan.ForWrite coordinationPlan, Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
             {
-                super(replicaPlan, null, WriteType.UNLOGGED_BATCH, hintOnFailure, requestTime);
-                Iterables.addAll(undelivered, replicaPlan.contacts().endpoints());
+                super(coordinationPlan, null, WriteType.UNLOGGED_BATCH, hintOnFailure, requestTime);
+                Iterables.addAll(undelivered, replicaPlan().contacts().endpoints());
             }
 
             @Override
             protected int blockFor()
             {
-                return this.replicaPlan.contacts().size();
+                return this.replicaPlan().contacts().size();
             }
 
             @Override

@@ -29,6 +29,8 @@ import java.util.function.Predicate;
 
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -44,7 +46,6 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
@@ -119,9 +120,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, Dispatcher.RequestTime requestTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, CoordinationPlan.ForRead<?,?> plan, Dispatcher.RequestTime requestTime)
     {
-        return new DiagnosticBlockingRepairHandler(command, replicaPlan, requestTime);
+        return new DiagnosticBlockingRepairHandler(command, plan, requestTime);
     }
 
     private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
@@ -134,9 +135,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         private Set<InetAddressAndPort> recipients = Collections.emptySet();
         private ReadCallback readCallback = null;
 
-        DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, Dispatcher.RequestTime requestTime)
+        DiagnosticBlockingRepairHandler(ReadCommand command, CoordinationPlan.ForRead<?,?> plan, Dispatcher.RequestTime requestTime)
         {
-            super(ReadCoordinator.DEFAULT, command, replicaPlan, requestTime);
+            super(ReadCoordinator.DEFAULT, command, plan, requestTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 

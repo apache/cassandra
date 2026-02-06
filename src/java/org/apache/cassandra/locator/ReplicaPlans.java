@@ -264,15 +264,6 @@ public class ReplicaPlans
         return localReplicas.get(ThreadLocalRandom.current().nextInt(localReplicas.size()));
     }
 
-    /**
-     * A forwarding counter write is always sent to a single owning coordinator for the range, by the original coordinator
-     * (if it is not itself an owner)
-     */
-    public static ReplicaPlan.ForWrite forForwardingCounterWrite(ClusterMetadata metadata, Keyspace keyspace, Token token, Function<ClusterMetadata, Replica> replica)
-    {
-        return forSingleReplicaWrite(metadata, keyspace, token, replica);
-    }
-
     public static ReplicaPlan.ForWrite forLocalBatchlogWrite()
     {
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
@@ -285,6 +276,35 @@ public class ReplicaPlans
                EndpointsForToken.empty(token)
         );
         return forWrite(systemKeyspace, ConsistencyLevel.ONE, (cm) -> liveAndDown, (cm) -> true, writeAll);
+    }
+
+    /**
+     * Create a replica plan for replaying a mutation from the batchlog.
+     *
+     * When recovering failed batches, mutations are replayed to live remote replicas only
+     * (local replica is handled separately by the caller).
+     *
+     * @param metadata the cluster metadata
+     * @param keyspace the keyspace
+     * @param token the token for the mutation
+     * @return replica plan targeting live remote replicas with CL.ONE
+     */
+    public static ReplicaPlan.ForWrite forReplayMutation(ClusterMetadata metadata, Keyspace keyspace, Token token)
+    {
+        ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace.getMetadata(), token);
+        Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
+
+        Replica selfReplica = liveAndDown.all().selfIfPresent();
+        ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
+
+        return new ReplicaPlan.ForWrite(keyspace, keyspace.getReplicationStrategy(),
+                                        ConsistencyLevel.ONE,
+                                        liveRemoteOnly.pending(),
+                                        liveRemoteOnly.all(),
+                                        liveRemoteOnly.all(),
+                                        liveRemoteOnly.all(),
+                                        (cm) -> forReplayMutation(cm, keyspace, token),
+                                        metadata.epoch);
     }
 
     /**

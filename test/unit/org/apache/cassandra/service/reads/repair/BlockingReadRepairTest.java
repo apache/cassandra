@@ -35,6 +35,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -86,9 +87,9 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
             extends BlockingReadRepair<E, P> implements InstrumentedReadRepair<E, P>
     {
-        public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+        public InstrumentedBlockingReadRepair(ReadCommand command, CoordinationPlan.ForRead<E, P> plan, Dispatcher.RequestTime requestTime)
         {
-            super(ReadCoordinator.DEFAULT, command, replicaPlan, requestTime);
+            super(ReadCoordinator.DEFAULT, command, plan, requestTime);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();
@@ -116,9 +117,9 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     }
 
     @Override
-    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, Dispatcher.RequestTime requestTime)
+    public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, CoordinationPlan.ForRead<?, ?> plan, Dispatcher.RequestTime requestTime)
     {
-        return new InstrumentedBlockingReadRepair(command, replicaPlan, requestTime);
+        return new InstrumentedBlockingReadRepair(command, plan, requestTime);
     }
 
     @Test

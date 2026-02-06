@@ -26,6 +26,9 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.service.reads.DataResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +59,6 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.RangeReadTarget;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.RangeReadWithTarget;
-import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
@@ -82,7 +84,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
     public static final ClientRangeRequestMetrics rangeMetrics = new ClientRangeRequestMetrics("RangeSlice");
 
-    final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
+    final CloseableIterator<CoordinationPlan.ForRangeRead> coordinatorPlans;
     final int totalRangeCount;
     final PartitionRangeReadCommand command;
     final boolean enforceStrictLiveness;
@@ -101,7 +103,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     // when it was not good enough initially.
     private int liveReturned;
 
-    RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
+    RangeCommandIterator(CloseableIterator<CoordinationPlan.ForRangeRead> coordinatorPlans,
                          PartitionRangeReadCommand command,
                          ReadCoordinator readCoordinator,
                          int concurrencyFactor,
@@ -109,7 +111,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                          int totalRangeCount,
                          Dispatcher.RequestTime requestTime)
     {
-        this.replicaPlans = replicaPlans;
+        this.coordinatorPlans = coordinatorPlans;
         this.command = command;
         this.readCoordinator = readCoordinator;
         this.concurrencyFactor = concurrencyFactor;
@@ -127,7 +129,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             while (sentQueryIterator == null || !sentQueryIterator.hasNext())
             {
                 // If we don't have more range to handle, we're done
-                if (!replicaPlans.hasNext())
+                if (!coordinatorPlans.hasNext())
                     return endOfData();
 
                 // else, sends the next batch of concurrent queries (after having close the previous iterator)
@@ -205,31 +207,30 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         return new AccordRangeResponse(result, rangeCommand.isReversed());
     }
 
-    private SingleRangeResponse executeNormal(ReplicaPlan.ForRangeRead replicaPlan, PartitionRangeReadCommand rangeCommand, ReadCoordinator readCoordinator)
+    private SingleRangeResponse executeNormal(CoordinationPlan.ForRangeRead plan, PartitionRangeReadCommand rangeCommand, ReadCoordinator readCoordinator)
     {
-        rangeCommand = (PartitionRangeReadCommand) readCoordinator.maybeAllowOutOfRangeReads(rangeCommand, replicaPlan.consistencyLevel());
+        rangeCommand = (PartitionRangeReadCommand) readCoordinator.maybeAllowOutOfRangeReads(rangeCommand, plan.consistencyLevel());
         // If enabled, request repaired data tracking info from full replicas, but
         // only if there are multiple full replicas to compare results from.
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                                      && replicaPlan.contacts().filter(Replica::isFull).size() > 1
+                                      && plan.replicas().contacts().filter(Replica::isFull).size() > 1
                                       && !command.metadata().replicationType().isTracked();
 
-        ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
-        ReadRepair.create(readCoordinator, command, sharedReplicaPlan, requestTime);
+        ReadRepair.create(readCoordinator, command, plan, requestTime);
         DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-        new DataResolver<>(readCoordinator, rangeCommand, sharedReplicaPlan, readRepair, requestTime, trackRepairedStatus);
+        new DataResolver<>(readCoordinator, rangeCommand, plan, readRepair, requestTime, trackRepairedStatus);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
-        new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, requestTime);
-        checkState(!replicaPlan.contacts().anyMatch(Replica::isTransient), "Transient replication requires mutation tracking");
+        new ReadCallback<>(resolver, rangeCommand, plan, requestTime);
+        checkState(!plan.replicas().contacts().anyMatch(Replica::isTransient), "Transient replication requires mutation tracking");
 
-        if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf() && readCoordinator.localReadSupported())
+        if (plan.replicas().contacts().size() == 1 && plan.replicas().contacts().get(0).isSelf() && readCoordinator.localReadSupported())
         {
             Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler, requestTime, trackRepairedStatus));
         }
         else
         {
-            for (Replica replica : replicaPlan.contacts())
+            for (Replica replica : plan.replicas().contacts())
             {
                 Tracing.trace("Enqueuing request to {}", replica);
                 Message<ReadCommand> message = rangeCommand.createMessage(trackRepairedStatus && replica.isFull(), requestTime);
@@ -243,20 +244,20 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     /**
      * Queries the provided sub-range.
      *
-     * @param replicaPlan the subRange to query.
+     * @param plan the subRange to query.
      * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
      * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
      * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
      * that it's the query that "continues" whatever we're previously queried).
      */
-    private PartitionIterator query(ClusterMetadata cm, ReplicaPlan.ForRangeRead replicaPlan, ReadCoordinator readCoordinator, List<ReadRepair<?, ?>> readRepairs, boolean isFirst)
+    private PartitionIterator query(ClusterMetadata cm, CoordinationPlan.ForRangeRead plan, ReadCoordinator readCoordinator, List<ReadRepair<?, ?>> readRepairs, boolean isFirst)
     {
-        PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
+        PartitionRangeReadCommand rangeCommand = command.forSubRange(plan.replicas().range(), isFirst);
 
         // Accord interop execution should always be coordinated through the C* plumbing
         if (!readCoordinator.isEventuallyConsistent())
         {
-            SingleRangeResponse response = executeNormal(replicaPlan, rangeCommand, readCoordinator);
+            SingleRangeResponse response = executeNormal(plan, rangeCommand, readCoordinator);
             readRepairs.add(response.getReadRepair());
             return response;
         }
@@ -271,11 +272,11 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
             if (accordSplit.target == RangeReadTarget.accord && readCoordinator.isEventuallyConsistent())
             {
-                return executeAccord(cm, accordSplit.read, replicaPlan.consistencyLevel());
+                return executeAccord(cm, accordSplit.read, plan.consistencyLevel());
             }
             else
             {
-                return executeNormalWithMigrationSplit(cm, replicaPlan, readCoordinator, readRepairs, accordSplit.read);
+                return executeNormalWithMigrationSplit(cm, plan, readCoordinator, readRepairs, accordSplit.read);
             }
         }
 
@@ -310,11 +311,11 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         {
             if (accordSplit.target == RangeReadTarget.accord && readCoordinator.isEventuallyConsistent())
             {
-                responses.add(executeAccord(cm, accordSplit.read, replicaPlan.consistencyLevel()));
+                responses.add(executeAccord(cm, accordSplit.read, plan.consistencyLevel()));
             }
             else
             {
-                responses.add(executeNormalWithMigrationSplit(cm, replicaPlan, readCoordinator, readRepairs, accordSplit.read));
+                responses.add(executeNormalWithMigrationSplit(cm, plan, readCoordinator, readRepairs, accordSplit.read));
             }
         }
 
@@ -325,7 +326,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
                                        command.metadata().enforceStrictLiveness());
     }
 
-    private PartitionIterator executeSplit(RangeReadWithReplication split, ReplicaPlan.ForRangeRead replicaPlan, List<ReadRepair<?, ?>> readRepairs)
+    private PartitionIterator executeSplit(RangeReadWithReplication split, CoordinationPlan.ForRangeRead replicaPlan, List<ReadRepair<?, ?>> readRepairs)
     {
         if (split.useTracked)
         {
@@ -345,20 +346,20 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
      * Execute a normal C* range, splitting for migration if needed.
      */
     private PartitionIterator executeNormalWithMigrationSplit(ClusterMetadata cm,
-                                                                ReplicaPlan.ForRangeRead replicaPlan,
-                                                                ReadCoordinator readCoordinator,
-                                                                List<ReadRepair<?, ?>> readRepairs,
-                                                                PartitionRangeReadCommand rangeCommand)
+                                                              CoordinationPlan.ForRangeRead plan,
+                                                              ReadCoordinator readCoordinator,
+                                                              List<ReadRepair<?, ?>> readRepairs,
+                                                              PartitionRangeReadCommand rangeCommand)
     {
         List<RangeReadWithReplication> migrationSplits = MigrationRouter.splitRangeRead(cm, rangeCommand);
 
         if (migrationSplits.size() == 1)
-            return executeSplit(migrationSplits.get(0), replicaPlan, readRepairs);
+            return executeSplit(migrationSplits.get(0), plan, readRepairs);
 
         List<PartitionIterator> responses = new ArrayList<>(migrationSplits.size());
 
         for (RangeReadWithReplication split : migrationSplits)
-            responses.add(executeSplit(split, replicaPlan, readRepairs));
+            responses.add(executeSplit(split, plan, readRepairs));
 
         // Apply limits since migration splits may have gaps in results
         return rangeCommand.limits().filter(PartitionIterators.concat(responses),
@@ -375,26 +376,26 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         ClusterMetadata cm = ClusterMetadata.current();
         try
         {
-            for (int i = 0; i < concurrencyFactor && replicaPlans.hasNext(); )
+            for (int i = 0; i < concurrencyFactor && coordinatorPlans.hasNext(); )
             {
-                ReplicaPlan.ForRangeRead replicaPlan = replicaPlans.next();
+                CoordinationPlan.ForRangeRead plan = coordinatorPlans.next();
                 boolean isFirst = i == 0;
                 PartitionIterator response;
                 // Only add the retry wrapper to reroute for the top level coordinator execution
                 // not Accord's interop execution
                 if (readCoordinator.isEventuallyConsistent())
                 {
-                    Function<ClusterMetadata, PartitionIterator> querySupplier = clusterMetadata -> query(clusterMetadata, replicaPlan, readCoordinator, readRepairs, isFirst);
-                    response = retryingPartitionIterator(querySupplier, replicaPlan.consistencyLevel());
+                    Function<ClusterMetadata, PartitionIterator> querySupplier = clusterMetadata -> query(clusterMetadata, plan, readCoordinator, readRepairs, isFirst);
+                    response = retryingPartitionIterator(querySupplier, plan.consistencyLevel());
                 }
                 else
                 {
-                    response = query(cm, replicaPlan, readCoordinator, readRepairs, isFirst);
+                    response = query(cm, plan, readCoordinator, readRepairs, isFirst);
                 }
                 concurrentQueries.add(response);
                 // due to RangeMerger, coordinator may fetch more ranges than required by concurrency factor.
-                rangesQueried += replicaPlan.vnodeCount();
-                i += replicaPlan.vnodeCount();
+                rangesQueried += plan.replicas().vnodeCount();
+                i += plan.replicas().vnodeCount();
             }
             batchesRequested++;
         }
@@ -480,7 +481,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             if (sentQueryIterator != null)
                 sentQueryIterator.close();
 
-            replicaPlans.close();
+            coordinatorPlans.close();
         }
         finally
         {
