@@ -34,26 +34,9 @@
         <cve>CVE-2025-58057</cve>
     </suppress>
 
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-19142 -->
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-20412 -->
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-21159 -->
     <suppress>
-        <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-core@.*$</packageUrl>
-        <cve>CVE-2023-6378</cve>
-        <cve>CVE-2023-6481</cve>
-        <cve>CVE-2024-12798</cve>
-        <cve>CVE-2024-12801</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-classic@.*$</packageUrl>
-        <cve>CVE-2023-6378</cve>
-        <cve>CVE-2023-6481</cve>
-        <cve>CVE-2024-12798</cve>
-        <cve>CVE-2024-12801</cve>
-    </suppress>
-
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-20024 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/org\.apache\.lucene/lucene\-.*@9.7.0$</packageUrl>
-        <cve>CVE-2024-45772</cve>
+        <packageUrl regex="true">^pkg:maven/io\.netty/netty\-.*@.*$</packageUrl>
+        <cve>CVE-2025-67735</cve>
     </suppress>
 </suppressions>
