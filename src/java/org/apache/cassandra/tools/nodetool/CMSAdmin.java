@@ -299,18 +299,18 @@ public class CMSAdmin extends AbstractCommand
     }
 
     @Command(name = "dump", description = "Dumps cluster metadata into a file")
-    public static class DumpClusterMetadata extends NodeTool.NodeToolCmd
+    public static class DumpClusterMetadata extends AbstractCommand
     {
 
-        @Option(title = "Epoch", name = { "-e", "--epoch" }, required = false,
+        @Option(names = { "-e", "--epoch" }, paramLabel = "Epoch",
         description = "Epoch at which cluster metadata should be dumped")
         private Long epoch;
 
-        @Option(title = "Transform Epoch", name = { "-te", "--transform-epoch" }, required = false,
+        @Option(names = { "-te", "--transform-epoch" }, paramLabel = "Transform Epoch",
         description = "Force metadata to given X epoch while dumping")
         private Long transformEpoch;
 
-        @Option(title = "Serialization Version", name = { "-sv", "--serialization-version" }, required = false,
+        @Option(names = { "-sv", "--serialization-version" }, paramLabel = "Serialization Version",
         description = "Serialization Version")
         private Version version;
 

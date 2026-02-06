@@ -81,7 +81,8 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         tool.assertOnCleanExit();
         assertThat(tool.getExitCode()).isZero();
-        assertThat(tool.getStdout()).contains("usage");
+        //TODO: it is taking time to have stdout populated, it is flaky
+        assertThat(tool.getStdout()).contains("Usage");
         assertThat(tool.getStderr()).isEmpty();
 
         assertCorrectEnvPostTest();
@@ -91,7 +92,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
     public void testRunCommandThatDoesNotExist()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(CMSOfflineTool.class, "cmddoesnotexist");
-        assertThat(tool.getExitCode()).isOne();
+        assertThat(tool.getExitCode()).isEqualTo(2);
     }
 
     @Test
@@ -204,10 +205,9 @@ public class CMSOfflineToolTest extends OfflineToolUtils
                                                               "-o",
                                                               outputFile);
 
-        assertThat(result.getExitCode()).withFailMessage(result.getStderr()).isEqualTo(1);
+        assertThat(result.getExitCode()).withFailMessage(result.getStderr()).isEqualTo(2);
         assertThat(Files.exists(Paths.get(outputFile))).isFalse();
-        assertThat(result.getStderr()).contains("cmsofflinetool: serializationVersion: can not convert \"" +
-                                                serializationVersion + "\" to a Version");
+        assertThat(result.getStderr()).contains("Invalid value for option '--serialization-version'");
     }
 
     @Test
@@ -404,7 +404,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         NodeId joinedNodeId = NodeId.fromUUID(new UUID(0, 4L));
 
         Directory newDirectory = metadata.directory
-                                 .with(joinedNodeId,
+                                 .unsafeWithNodeForTesting(joinedNodeId,
                                        new NodeAddresses(joiningNodeInetAddress),
                                        new Location("datacenter1", "rack4"),
                                        NodeVersion.CURRENT)
@@ -568,7 +568,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         "  native_port           7000\n" +
         "  local_address         /127.0.0.1\n" +
         "  state                 REGISTERED\n" +
-        "  serialization_version V7\n" +
+        "  serialization_version V8\n" +
         "  cassandra_version     5.1.0\n" +
         "  dc                    datacenter1\n" +
         "  is_cms_member         false\n" +
@@ -582,7 +582,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         "  native_port           7000\n" +
         "  local_address         /127.0.0.2\n" +
         "  state                 REGISTERED\n" +
-        "  serialization_version V7\n" +
+        "  serialization_version V8\n" +
         "  cassandra_version     5.1.0\n" +
         "  dc                    datacenter1\n" +
         "  is_cms_member         false\n" +
@@ -596,7 +596,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         "  native_port           7000\n" +
         "  local_address         /127.0.0.3\n" +
         "  state                 REGISTERED\n" +
-        "  serialization_version V7\n" +
+        "  serialization_version V8\n" +
         "  cassandra_version     5.1.0\n" +
         "  dc                    datacenter1\n" +
         "  is_cms_member         false\n"

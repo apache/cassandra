@@ -26,12 +26,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.Option;
-import io.airlift.airline.OptionType;
-import io.airlift.airline.ParseException;
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -63,7 +60,18 @@ import static org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfigura
 /**
  * Offline tool to print or update cluster metadata dump.
  */
-public class CMSOfflineTool
+@Command(name = "cmsofflinetool",
+         mixinStandardHelpOptions = true,
+         description = "Offline tool to print or update cluster metadata dump",
+         subcommands = { CMSOfflineTool.AddToCMS.class,
+                         CMSOfflineTool.AssignTokens.class,
+                         CMSOfflineTool.Describe.class,
+                         CMSOfflineTool.ForceJoin.class,
+                         CMSOfflineTool.ForgetNode.class,
+                         CommandLine.HelpCommand.class,
+                         CMSOfflineTool.PrintDataPlacements.class,
+                         CMSOfflineTool.PrintDirectoryCmd.class })
+public class CMSOfflineTool implements Runnable
 {
 
     private static final String TOOL_NAME = "cmsofflinetool";
@@ -76,78 +84,49 @@ public class CMSOfflineTool
 
     public static void main(String[] args) throws IOException
     {
-        //noinspection UseOfSystemOutOrSystemErr
-        System.exit(new CMSOfflineTool(new Output(System.out, System.err)).execute(args));
+        CMSOfflineTool tool = new CMSOfflineTool(Output.CONSOLE);
+        CommandLine cli = new CommandLine(tool)
+                .setColorScheme(CommandLine.Help.defaultColorScheme(CommandLine.Help.Ansi.OFF))
+                .setExecutionExceptionHandler((ex, cmd, parseResult) -> {
+                    cmd.getErr().println("error: " + ex.getMessage());
+                    cmd.getErr().println("-- StackTrace --");
+                    cmd.getErr().println(getStackTraceAsString(ex));
+                    return 2;
+                });
+        int status = cli.execute(args);
+        System.exit(status);
     }
 
-    public int execute(String... args)
+    @Override
+    public void run()
     {
-        Cli.CliBuilder<ClusterMetadataToolRunnable> builder = Cli.builder(TOOL_NAME);
-
-        List<Class<? extends ClusterMetadataToolRunnable>> commands = new ArrayList<>()
-        {{
-            add(ClusterMetadataToolHelp.class);
-            add(AddToCMS.class);
-            add(AssignTokens.class);
-            add(Describe.class);
-            add(ForceJoin.class);
-            add(ForgetNode.class);
-            add(PrintDataPlacements.class);
-            add(PrintDirectoryCmd.class);
-        }};
-
-        builder.withDescription("Offline tool to print or update cluster metadata dump")
-               .withDefaultCommand(ClusterMetadataToolHelp.class)
-               .withCommands(commands);
-
-        Cli<ClusterMetadataToolRunnable> parser = builder.build();
-        int status = 0;
-        try
-        {
-            ClusterMetadataToolRunnable parse = parser.parse(args);
-            parse.run(output);
-        }
-        catch (ParseException pe)
-        {
-            status = 1;
-            badUse(pe);
-        }
-        catch (Exception e)
-        {
-            status = 2;
-            err(e);
-        }
-        return status;
+        CommandLine.usage(this, output.out);
     }
 
-
-    private void badUse(Exception e)
+    public static abstract class ClusterMetadataToolCmd implements Runnable
     {
-        output.err.println(TOOL_NAME + ": " + e.getMessage());
-        output.err.printf("See '%s help' or '%s help <command>'.%n", TOOL_NAME, TOOL_NAME);
-    }
-
-    private void err(Exception e)
-    {
-        output.err.println("error: " + e.getMessage());
-        output.err.println("-- StackTrace --");
-        output.err.println(getStackTraceAsString(e));
-    }
-
-
-    interface ClusterMetadataToolRunnable
-    {
-        void run(Output output) throws IOException;
-    }
-
-    public static abstract class ClusterMetadataToolCmd implements ClusterMetadataToolRunnable
-    {
-        @Option(type = OptionType.COMMAND, name = { "-f", "--file" }, description = "Cluster metadata dump file path", required = true)
+        @Option(names = { "-f", "--file" }, description = "Cluster metadata dump file path", required = true)
         protected String metadataDumpPath;
 
-        @Option(type = OptionType.COMMAND, name = { "-sv", "--serialization-version" }, description = "Serialization version to use")
+        @Option(names = { "-sv", "--serialization-version" }, description = "Serialization version to use")
         private Version serializationVersion;
 
+        protected Output output = new Output(System.out, System.err);
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                execute(output);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        protected abstract void execute(Output output) throws IOException;
 
         public ClusterMetadata parseClusterMetadata() throws IOException
         {
@@ -196,27 +175,17 @@ public class CMSOfflineTool
         }
     }
 
-    public static class ClusterMetadataToolHelp extends Help implements ClusterMetadataToolRunnable
-    {
-
-        @Override
-        public void run(Output output)
-        {
-            run();
-        }
-    }
-
     @Command(name = "addtocms", description = "Makes a node as CMS member")
     public static class AddToCMS extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-ip", "--ip-address" }, description = "IP address of the target endpoint. Port can be optionally specified using a colon after the IP address (e.g., 127.0.0.1:9042).", required = true)
+        @Option(names = { "-ip", "--ip-address" }, description = "IP address of the target endpoint. Port can be optionally specified using a colon after the IP address (e.g., 127.0.0.1:9042).", required = true)
         private String ipAddress;
 
-        @Option(type = OptionType.COMMAND, name = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
+        @Option(names = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
         private String outputFilePath;
 
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             InetAddressAndPort nodeAddress = InetAddressAndPort.getByNameUnchecked(ipAddress);
@@ -242,18 +211,18 @@ public class CMSOfflineTool
     @Command(name = "assigntokens", description = "Assigns a token for given instance")
     public static class AssignTokens extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-ip", "--ip-address" }, description = "IP address of the target endpoint. Port can be optionally specified using a colon after the IP address (e.g., 127.0.0.1:9042).", required = true)
+        @Option(names = { "-ip", "--ip-address" }, description = "IP address of the target endpoint. Port can be optionally specified using a colon after the IP address (e.g., 127.0.0.1:9042).", required = true)
         private String ip;
 
-        @Option(name = { "-t", "--token" }, description = "Token to assign. Pass it multiple times to assign multiple tokens to node.", required = true)
+        @Option(names = { "-t", "--token" }, description = "Token to assign. Pass it multiple times to assign multiple tokens to node.", required = true)
         private List<String> tokenList = new ArrayList<>();
 
-        @Option(type = OptionType.COMMAND, name = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
+        @Option(names = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
         private String outputFilePath;
 
 
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
 
@@ -275,7 +244,7 @@ public class CMSOfflineTool
     public static class Describe extends ClusterMetadataToolCmd
     {
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
@@ -291,14 +260,14 @@ public class CMSOfflineTool
     @Command(name = "forcejoin", description = "Forces a node to move to JOINED stated")
     public static class ForceJoin extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-id", "--node-id" }, description = "Node ID. It can be integer ID assigned to node or the node uuid", required = true)
+        @Option(names = { "-id", "--node-id" }, description = "Node ID. It can be integer ID assigned to node or the node uuid", required = true)
         private String id;
 
-        @Option(type = OptionType.COMMAND, name = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
+        @Option(names = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
         private String outputFilePath;
 
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             NodeId nodeId = NodeId.fromString(id);
@@ -316,14 +285,14 @@ public class CMSOfflineTool
     @Command(name = "forgetnode", description = "Removes a nodes from given cluster metadata")
     public static class ForgetNode extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-id", "--node-id" }, description = "Node ID to forget. It can be UUID of node as well.", required = true)
+        @Option(names = { "-id", "--node-id" }, description = "Node ID to forget. It can be UUID of node as well.", required = true)
         private String id;
 
-        @Option(type = OptionType.COMMAND, name = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
+        @Option(names = { "-o", "--output-file" }, description = "Ouput file path for storing the updated Cluster Metadata")
         private String outputFilePath;
 
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             NodeId nodeId = NodeId.fromString(id);
@@ -344,7 +313,7 @@ public class CMSOfflineTool
     {
 
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             Directory directory = metadata.directory;
@@ -375,11 +344,11 @@ public class CMSOfflineTool
     @Command(name = "printdataplacements", description = "Prints data placements in cluster medata file")
     public static class PrintDataPlacements extends ClusterMetadataToolCmd
     {
-        @Option(name = { "-ks", "--keyspace" }, description = "Keyspace to use for printing data placements", required = true)
+        @Option(names = { "-ks", "--keyspace" }, description = "Keyspace to use for printing data placements", required = true)
         private String keyspace;
 
         @Override
-        public void run(Output output) throws IOException
+        public void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
 
