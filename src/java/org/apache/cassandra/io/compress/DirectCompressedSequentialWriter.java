@@ -66,7 +66,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     private final int blockSize;
 
     // Aligned write buffer that accumulates compressed chunks + checksums
-    private ByteBuffer alignedWriteBuffer;
+    private ByteBuffer writeBuffer;
 
     private int writeBufferPosition = 0;
 
@@ -75,6 +75,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
     // Full file checksum for digest file (since we manage our own I/O)
     private final CRC32 fullFileChecksum = new CRC32();
+    private final CRC32 chunkChecksum = new CRC32();
     private final ByteBuffer crcBuffer = ByteBuffer.allocate(4);
 
     public DirectCompressedSequentialWriter(File file,
@@ -93,29 +94,12 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
                                             "Block size: " + blockSize);
 
         // Buffer must hold at least one chunk + CRC (4 bytes) + blockSize for leftover after partial flush
-        // Use configured size or minimum required, whichever is larger
-        int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize();
+        // Use configured size or minimum required, whichever is larger.
+        int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
         int minRequiredSize = parameters.chunkLength() + 4 + blockSize;
         int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
 
-        this.alignedWriteBuffer = BufferUtil.allocateDirectAligned(bufferSize, blockSize);
-    }
-
-    @Override
-    public DataPosition mark()
-    {
-        throw new UnsupportedOperationException(
-            "mark() is not supported with Direct IO. The aligned write buffer may contain " +
-            "unflushed data, making chunkOffset stale relative to actual channel position.");
-    }
-
-    @Override
-    public synchronized void resetAndTruncate(DataPosition mark)
-    {
-        throw new UnsupportedOperationException(
-            "resetAndTruncate() is not supported with Direct IO. O_DIRECT requires " +
-            "block-aligned read buffers and the aligned write buffer may contain data " +
-            "not yet flushed to disk.");
+        this.writeBuffer = BufferUtil.allocateDirectAligned(bufferSize, blockSize);
     }
 
     @Override
@@ -142,9 +126,9 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
         // Calculate CRC
         toWrite.mark();
-        CRC32 crc = new CRC32();
-        crc.update(toWrite);
-        int crcValue = (int) crc.getValue();
+        chunkChecksum.reset();
+        chunkChecksum.update(toWrite);
+        int crcValue = (int) chunkChecksum.getValue();
         toWrite.reset();
 
         // Write data to aligned buffer
@@ -166,23 +150,23 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         int dataLength = data.remaining();
 
         // Buffer is sized to chunkLength + CRC + blockSize, so after flush there's always room
-        if (writeBufferPosition + dataLength > alignedWriteBuffer.capacity())
+        if (writeBufferPosition + dataLength > writeBuffer.capacity())
             flushCompleteBlocks();
 
-        alignedWriteBuffer.position(writeBufferPosition);
-        alignedWriteBuffer.put(data);
-        writeBufferPosition = alignedWriteBuffer.position();
+        writeBuffer.position(writeBufferPosition);
+        writeBuffer.put(data);
+        writeBufferPosition = writeBuffer.position();
     }
 
     private void writeCrcToAlignedBuffer(int crcValue)
     {
         // After flush, leftover is < blockSize, so there's always room for the 4-byte CRC
-        if (writeBufferPosition + 4 > alignedWriteBuffer.capacity())
+        if (writeBufferPosition + 4 > writeBuffer.capacity())
             flushCompleteBlocks();
 
-        alignedWriteBuffer.position(writeBufferPosition);
-        alignedWriteBuffer.putInt(crcValue);
-        writeBufferPosition = alignedWriteBuffer.position();
+        writeBuffer.position(writeBufferPosition);
+        writeBuffer.putInt(crcValue);
+        writeBufferPosition = writeBuffer.position();
     }
 
     private void flushCompleteBlocks()
@@ -195,21 +179,21 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
         try
         {
-            alignedWriteBuffer.position(0);
-            alignedWriteBuffer.limit(flushLimit);
-            fchannel.write(alignedWriteBuffer);
+            writeBuffer.position(0);
+            writeBuffer.limit(flushLimit);
+            fchannel.write(writeBuffer);
 
             // Compact: move leftover to buffer start
             int leftover = writeBufferPosition - flushLimit;
             if (leftover > 0)
             {
-                alignedWriteBuffer.limit(writeBufferPosition);
-                alignedWriteBuffer.position(flushLimit);
-                alignedWriteBuffer.compact();
+                writeBuffer.limit(writeBufferPosition);
+                writeBuffer.position(flushLimit);
+                writeBuffer.compact();
             }
             else
             {
-                alignedWriteBuffer.clear();
+                writeBuffer.clear();
             }
             writeBufferPosition = leftover;
         }
@@ -233,13 +217,13 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
             int flushLimit = BitUtil.align(writeBufferPosition, blockSize);
 
             // Zero the padding region
-            alignedWriteBuffer.position(writeBufferPosition);
-            ByteBufferUtil.writeZeroes(alignedWriteBuffer, flushLimit - writeBufferPosition);
+            writeBuffer.position(writeBufferPosition);
+            ByteBufferUtil.writeZeroes(writeBuffer, flushLimit - writeBufferPosition);
 
             // Write with padding
-            alignedWriteBuffer.position(0);
-            alignedWriteBuffer.limit(flushLimit);
-            fchannel.write(alignedWriteBuffer);
+            writeBuffer.position(0);
+            writeBuffer.limit(flushLimit);
+            fchannel.write(writeBuffer);
 
             // Truncate to actual size (remove padding)
             fchannel.truncate(actualDataSize);
@@ -283,6 +267,25 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         });
     }
 
+    // Unsupported operations — Direct IO does not support mark/reset
+
+    @Override
+    public DataPosition mark()
+    {
+        throw new UnsupportedOperationException(
+            "mark() is not supported with Direct IO. The aligned write buffer may contain " +
+            "unflushed data, making chunkOffset stale relative to actual channel position.");
+    }
+
+    @Override
+    public synchronized void resetAndTruncate(DataPosition mark)
+    {
+        throw new UnsupportedOperationException(
+            "resetAndTruncate() is not supported with Direct IO. O_DIRECT requires " +
+            "block-aligned read buffers and the aligned write buffer may contain data " +
+            "not yet flushed to disk.");
+    }
+
     protected class DirectTransactionalProxy extends CompressedSequentialWriter.TransactionalProxy
     {
         @Override
@@ -298,20 +301,20 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         @Override
         protected Throwable doPreCleanup(Throwable accumulate)
         {
-            if (alignedWriteBuffer != null)
+            if (writeBuffer != null)
             {
                 try
                 {
                     // Agrona's allocateDirectAligned returns a slice; clean the backing buffer (attachment)
-                    DirectBuffer db = (DirectBuffer) alignedWriteBuffer;
+                    DirectBuffer db = (DirectBuffer) writeBuffer;
                     ByteBuffer attachment = (ByteBuffer) db.attachment();
-                    MemoryUtil.clean(attachment != null ? attachment : alignedWriteBuffer);
+                    MemoryUtil.clean(attachment != null ? attachment : writeBuffer);
                 }
                 catch (Throwable t)
                 {
                     accumulate = merge(accumulate, t);
                 }
-                alignedWriteBuffer = null;
+                writeBuffer = null;
             }
 
             // Parent handles: channel close, buffer cleanup, compressed buffer cleanup

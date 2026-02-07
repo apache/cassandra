@@ -3374,13 +3374,9 @@ public class DatabaseDescriptor
         conf.background_write_disk_access_mode = diskAccessMode;
     }
 
-    /**
-     * Return the aligned write buffer size for Direct IO writes.
-     * @return buffer size in bytes
-     */
-    public static int getDirectWriteBufferSize()
+    public static DataStorageSpec.IntKibibytesBound getDirectWriteBufferSize()
     {
-        return conf.direct_write_buffer_size.toBytes();
+        return conf.direct_write_buffer_size;
     }
 
     @VisibleForTesting

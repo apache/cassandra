@@ -439,7 +439,7 @@ public class DirectCompressedSequentialWriterTest
         assumeDirectIOSupported();
 
         // Verify buffer size getter works
-        int bufferSize = DatabaseDescriptor.getDirectWriteBufferSize();
+        int bufferSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
         assertTrue("Buffer size should be positive", bufferSize > 0);
         assertTrue("Buffer size should be at least 4KB", bufferSize >= 4096);
     }
