@@ -267,8 +267,6 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         });
     }
 
-    // Unsupported operations — Direct IO does not support mark/reset
-
     @Override
     public DataPosition mark()
     {
