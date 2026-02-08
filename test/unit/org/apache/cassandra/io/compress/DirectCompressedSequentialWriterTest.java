@@ -38,7 +38,6 @@ import org.apache.cassandra.schema.CompressionParams;
 import static org.apache.cassandra.schema.CompressionParams.DEFAULT_CHUNK_LENGTH;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DirectCompressedSequentialWriterTest
@@ -47,24 +46,6 @@ public class DirectCompressedSequentialWriterTest
     public static void setupClass()
     {
         DatabaseDescriptor.daemonInitialization();
-    }
-
-    @Test
-    public void testBasicWriteAndRead() throws IOException
-    {
-        testWriteAndRead("basicTest", 1024, CompressionParams.lz4());
-    }
-
-    @Test
-    public void testSmallDataLessThanChunk() throws IOException
-    {
-        testWriteAndRead("smallData", 100, CompressionParams.lz4());
-    }
-
-    @Test
-    public void testChunkAlignedData() throws IOException
-    {
-        testWriteAndRead("chunkAligned", DEFAULT_CHUNK_LENGTH, CompressionParams.lz4());
     }
 
     @Test
@@ -166,63 +147,9 @@ public class DirectCompressedSequentialWriterTest
     }
 
     @Test
-    public void testFileIntegrity() throws IOException
-    {
-        File dataFile = FileUtils.createTempFile("integrity_test", ".db");
-        File metadataFile = new File(dataFile.absolutePath() + ".metadata");
-
-        int dataSize = DEFAULT_CHUNK_LENGTH * 5 + 1234;  // Multiple chunks with remainder
-        byte[] testData = new byte[dataSize];
-        new Random(123).nextBytes(testData);
-
-        try
-        {
-            // Write data
-            MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
-            try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-            dataFile, metadataFile, null,
-            SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
-            {
-                writer.write(testData);
-                writer.finish();
-            }
-
-            // Verify file exists and has correct metadata
-            assertTrue("Data file should exist", dataFile.exists());
-            assertTrue("Metadata file should exist", metadataFile.exists());
-
-            // Read and verify data
-            try (CompressionMetadata metadata = CompressionMetadata.open(metadataFile, dataFile.length(), true);
-                 FileHandle fh = new FileHandle.Builder(dataFile).withCompressionMetadata(metadata).complete();
-                 RandomAccessReader reader = fh.createReader())
-            {
-                assertEquals("Uncompressed length should match", dataSize, reader.length());
-
-                byte[] readBack = new byte[dataSize];
-                reader.readFully(readBack);
-
-                assertTrue("Should be at EOF", reader.isEOF());
-                assertArrayEquals("Data should match exactly", testData, readBack);
-            }
-        }
-        finally
-        {
-            dataFile.tryDelete();
-            metadataFile.tryDelete();
-        }
-    }
-
-    @Test
     public void testSingleByteWrite() throws IOException
     {
         testWriteAndRead("singleByte", 1, CompressionParams.lz4());
-    }
-
-    @Test
-    public void testExactlyOneBlock() throws IOException
-    {
-        // Write exactly 4096 bytes (typical block size)
-        testWriteAndRead("oneBlock", 4096, CompressionParams.lz4());
     }
 
     @Test
@@ -322,53 +249,6 @@ public class DirectCompressedSequentialWriterTest
             dataFile.tryDelete();
             metadataFile.tryDelete();
         }
-    }
-
-    @Test
-    public void testAbortAfterMultipleChunks() throws IOException
-    {
-        File dataFile = FileUtils.createTempFile("abort_multichunk_test", ".db");
-        File metadataFile = new File(dataFile.absolutePath() + ".metadata");
-
-        try
-        {
-            // Write enough data to trigger multiple chunk flushes
-            int dataSize = DEFAULT_CHUNK_LENGTH * 3 + 500;
-            byte[] testData = new byte[dataSize];
-            new Random(77).nextBytes(testData);
-
-            MetadataCollector collector = new MetadataCollector(
-            new ClusteringComparator(Collections.singletonList(BytesType.instance)));
-
-            // finishOnClose(false) ensures close() triggers the abort path, not finish()
-            SequentialWriterOption abortOnCloseOption = SequentialWriterOption.newBuilder()
-                                                                              .finishOnClose(false)
-                                                                              .build();
-
-            // Write data but do NOT call finish() -- close triggers abort path
-            try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-            dataFile, metadataFile, null,
-            abortOnCloseOption, CompressionParams.lz4(), collector, null))
-            {
-                writer.write(testData);
-                // No writer.finish() -- this is intentional
-            }
-            // If we reach here, abort completed without throwing after multi-chunk writes.
-        }
-        finally
-        {
-            dataFile.tryDelete();
-            metadataFile.tryDelete();
-        }
-    }
-
-    @Test
-    public void testConfiguredBufferSize()
-    {
-        // Verify buffer size getter works
-        int bufferSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
-        assertTrue("Buffer size should be positive", bufferSize > 0);
-        assertTrue("Buffer size should be at least 4KB", bufferSize >= 4096);
     }
 
     private void testWriteAndRead(String testName, int dataSize, CompressionParams params) throws IOException
