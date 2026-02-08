@@ -83,7 +83,8 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
                                             "Block size: " + blockSize);
 
         int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
-        int minRequiredSize = parameters.chunkLength() + 4 + blockSize;
+        int maxChunkWrite = parameters.getSstableCompressor().initialCompressedBufferLength(parameters.chunkLength());
+        int minRequiredSize = maxChunkWrite + 4 + blockSize;
         int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
 
         this.writeBuffer = BufferUtil.allocateDirectAligned(bufferSize, blockSize);
@@ -125,7 +126,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     {
         int dataLength = data.remaining();
 
-        // Buffer is sized to chunkLength + CRC + blockSize, so after flush there's always room
+        // Buffer is sized to hold the worst-case chunk write + CRC + blockSize, so after flush there's always room
         if (writeBufferPosition + dataLength > writeBuffer.capacity())
             flushCompleteBlocks();
 
@@ -253,8 +254,14 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         @Override
         protected void doPrepare()
         {
-            syncInternal();
+            // Flush compressed chunks into writeBuffer; complete blocks reach fchannel,
+            // but a partial-block tail may remain buffered. We use doFlush(0) rather than
+            // syncInternal() to avoid an unnecessary fsync before the tail is written.
+            doFlush(0);
+            // Pad and write the remaining tail to fchannel, then truncate to actual size.
             flushFinalWithPadding();
+            // Single fsync to make all data durable before writing the digest.
+            syncDataOnlyInternal();
             writeDigestFile();
             sstableMetadataCollector.addCompressionRatio(compressedSize, uncompressedSize);
             metadataWriter.finalizeLength(current(), chunkCount).prepareToCommit();
