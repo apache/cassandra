@@ -255,8 +255,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         protected void doPrepare()
         {
             // Flush compressed chunks into writeBuffer; complete blocks reach fchannel,
-            // but a partial-block tail may remain buffered. We use doFlush(0) rather than
-            // syncInternal() to avoid an unnecessary fsync before the tail is written.
+            // but a partial-block tail may remain buffered.
             doFlush(0);
             // Pad and write the remaining tail to fchannel, then truncate to actual size.
             flushFinalWithPadding();
