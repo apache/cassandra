@@ -33,6 +33,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -146,6 +147,27 @@ public class ReadCommandVerbHandlerTest
                               .build());
     }
 
+    @Test(expected = TombstoneOverwhelmingException.class)
+    public void tombstoneExceptionPropagatesWithoutWarningTracking()
+    {
+        ReadCommand command = new TombstoneThrowingReadCommand(metadata);
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .from(peer())
+                              .withId(messageId())
+                              .build());
+    }
+
+    @Test(expected = TombstoneOverwhelmingException.class)
+    public void tombstoneExceptionPropagatesWithWarningTracking()
+    {
+        ReadCommand command = new TombstoneThrowingReadCommand(metadata);
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .from(peer())
+                              .withFlag(MessageFlag.TRACK_WARNINGS)
+                              .withId(messageId())
+                              .build());
+    }
+
     private static int messageId()
     {
         return random.nextInt();
@@ -196,6 +218,34 @@ public class ReadCommandVerbHandlerTest
         public boolean isTrackingRepairedData()
         {
             return trackingRepairedData;
+        }
+    }
+
+    private static class TombstoneThrowingReadCommand extends SinglePartitionReadCommand
+    {
+        TombstoneThrowingReadCommand(TableMetadata metadata)
+        {
+            super(metadata.epoch,
+                  false,
+                  0,
+                  false,
+                  PotentialTxnConflicts.DISALLOW,
+                  metadata,
+                  FBUtilities.nowInSeconds(),
+                  ColumnFilter.all(metadata),
+                  RowFilter.none(),
+                  DataLimits.NONE,
+                  KEY,
+                  new ClusteringIndexSliceFilter(Slices.ALL, false),
+                  null,
+                  false,
+                  null);
+        }
+
+        @Override
+        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+        {
+            throw new TombstoneOverwhelmingException(1000, "test_query", metadata(), KEY, Clustering.EMPTY);
         }
     }
 
