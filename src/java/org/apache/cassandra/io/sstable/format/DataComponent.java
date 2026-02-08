@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.EnumSet;
+
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -37,6 +39,14 @@ import org.apache.cassandra.schema.TableMetadata;
 
 public class DataComponent
 {
+
+    private static final EnumSet<OperationType> DIRECT_IO_EXCLUDED = EnumSet.of(
+        // Memtbale data is useful to remain in the page cache due to the likelihood of access
+        OperationType.FLUSH,
+        // Scrub uses SSTableRewriter.tryAppend() which requires mark/resetAndTruncate for corrupt partition rollback
+        OperationType.SCRUB
+    );
+
     public static SequentialWriter buildWriter(Descriptor descriptor,
                                                TableMetadata metadata,
                                                SequentialWriterOption options,
@@ -50,7 +60,7 @@ public class DataComponent
             final CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
 
             DiskAccessMode backgroundWriteMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
-            if (backgroundWriteMode == DiskAccessMode.direct && operationType != OperationType.FLUSH)
+            if (backgroundWriteMode == DiskAccessMode.direct && !DIRECT_IO_EXCLUDED.contains(operationType))
             {
                 return new DirectCompressedSequentialWriter(descriptor.fileFor(Components.DATA),
                                                             descriptor.fileFor(Components.COMPRESSION_INFO),
