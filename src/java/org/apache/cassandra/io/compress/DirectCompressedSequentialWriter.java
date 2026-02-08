@@ -205,9 +205,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
     private void updateFullChecksum(ByteBuffer data, int crcValue)
     {
-        data.mark();
         fullFileChecksum.update(data);
-        data.reset();
 
         // Include CRC in full checksum (matches ChecksumWriter.appendDirect with checksumIncrementalResult=true)
         crcBuffer.clear();

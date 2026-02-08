@@ -21,12 +21,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Random;
 
-import org.junit.After;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -44,114 +41,58 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/**
- * Unit tests for DirectCompressedSequentialWriter.
- *
- * Tests verify:
- * - Basic write and read functionality
- * - File integrity and checksum correctness
- * - Various data sizes (small, chunk-aligned, large)
- * - Output matches standard CompressedSequentialWriter
- */
 public class DirectCompressedSequentialWriterTest
 {
-    private static boolean directIOSupported = false;
-
     @BeforeClass
     public static void setupClass()
     {
         DatabaseDescriptor.daemonInitialization();
-
-        // Check if Direct IO is supported on the test filesystem
-        try
-        {
-            File tempDir = FileUtils.createTempFile("direct-io-test", ".tmp").parent();
-            int blockSize = FileUtils.getBlockSize(tempDir);
-            directIOSupported = blockSize > 0;
-        }
-        catch (Exception e)
-        {
-            directIOSupported = false;
-        }
-    }
-
-    @After
-    public void cleanup()
-    {
-        // Reset to standard mode after each test
-        DatabaseDescriptor.setBackgroundWriteDiskAccessMode(DiskAccessMode.standard);
-    }
-
-    /**
-     * Skip test if Direct IO is not supported on this filesystem.
-     */
-    private void assumeDirectIOSupported()
-    {
-        Assume.assumeTrue("Direct IO not supported on this filesystem", directIOSupported);
     }
 
     @Test
     public void testBasicWriteAndRead() throws IOException
     {
-        assumeDirectIOSupported();
         testWriteAndRead("basicTest", 1024, CompressionParams.lz4());
     }
 
     @Test
     public void testSmallDataLessThanChunk() throws IOException
     {
-        assumeDirectIOSupported();
         testWriteAndRead("smallData", 100, CompressionParams.lz4());
     }
 
     @Test
     public void testChunkAlignedData() throws IOException
     {
-        assumeDirectIOSupported();
         testWriteAndRead("chunkAligned", DEFAULT_CHUNK_LENGTH, CompressionParams.lz4());
     }
 
     @Test
     public void testMultipleChunks() throws IOException
     {
-        assumeDirectIOSupported();
         testWriteAndRead("multiChunk", DEFAULT_CHUNK_LENGTH * 3 + 500, CompressionParams.lz4());
     }
 
     @Test
     public void testLargeData() throws IOException
     {
-        assumeDirectIOSupported();
         // Write 1MB of data
         testWriteAndRead("largeData", 1024 * 1024, CompressionParams.lz4());
     }
 
     @Test
-    public void testWithZstdCompression() throws IOException
+    public void testAllCompressors() throws IOException
     {
-        assumeDirectIOSupported();
-        testWriteAndRead("zstdTest", DEFAULT_CHUNK_LENGTH * 2, CompressionParams.zstd());
-    }
-
-    @Test
-    public void testWithSnappyCompression() throws IOException
-    {
-        assumeDirectIOSupported();
-        testWriteAndRead("snappyTest", DEFAULT_CHUNK_LENGTH * 2, CompressionParams.snappy());
-    }
-
-    @Test
-    public void testWithDeflateCompression() throws IOException
-    {
-        assumeDirectIOSupported();
-        testWriteAndRead("deflateTest", DEFAULT_CHUNK_LENGTH * 2, CompressionParams.deflate());
+        for (CompressionParams params : new CompressionParams[]{ CompressionParams.lz4(),
+                                                                 CompressionParams.zstd(),
+                                                                 CompressionParams.snappy(),
+                                                                 CompressionParams.deflate() })
+            testWriteAndRead(params.getSstableCompressor().getClass().getSimpleName(), DEFAULT_CHUNK_LENGTH * 2, params);
     }
 
     @Test
     public void testOutputMatchesStandardWriter() throws IOException
     {
-        assumeDirectIOSupported();
-
         int dataSize = DEFAULT_CHUNK_LENGTH * 2 + 100;
         byte[] testData = new byte[dataSize];
         new Random(42).nextBytes(testData);
@@ -167,8 +108,8 @@ public class DirectCompressedSequentialWriterTest
         {
             MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
             try (CompressedSequentialWriter writer = new CompressedSequentialWriter(
-                standardFile, standardMetadata, null,
-                SequentialWriterOption.DEFAULT, params, collector))
+            standardFile, standardMetadata, null,
+            SequentialWriterOption.DEFAULT, params, collector))
             {
                 writer.write(testData);
                 writer.finish();
@@ -198,8 +139,8 @@ public class DirectCompressedSequentialWriterTest
         {
             MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                directFile, directMetadata, null,
-                SequentialWriterOption.DEFAULT, params, collector, null))
+            directFile, directMetadata, null,
+            SequentialWriterOption.DEFAULT, params, collector, null))
             {
                 writer.write(testData);
                 writer.finish();
@@ -227,8 +168,6 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testFileIntegrity() throws IOException
     {
-        assumeDirectIOSupported();
-
         File dataFile = FileUtils.createTempFile("integrity_test", ".db");
         File metadataFile = new File(dataFile.absolutePath() + ".metadata");
 
@@ -241,8 +180,8 @@ public class DirectCompressedSequentialWriterTest
             // Write data
             MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                dataFile, metadataFile, null,
-                SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
+            dataFile, metadataFile, null,
+            SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
             {
                 writer.write(testData);
                 writer.finish();
@@ -276,14 +215,12 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testSingleByteWrite() throws IOException
     {
-        assumeDirectIOSupported();
         testWriteAndRead("singleByte", 1, CompressionParams.lz4());
     }
 
     @Test
     public void testExactlyOneBlock() throws IOException
     {
-        assumeDirectIOSupported();
         // Write exactly 4096 bytes (typical block size)
         testWriteAndRead("oneBlock", 4096, CompressionParams.lz4());
     }
@@ -291,8 +228,6 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testMarkThrowsUnsupportedOperationException() throws IOException
     {
-        assumeDirectIOSupported();
-
         File dataFile = FileUtils.createTempFile("mark_test", ".db");
         File metadataFile = new File(dataFile.absolutePath() + ".metadata");
 
@@ -300,8 +235,8 @@ public class DirectCompressedSequentialWriterTest
         {
             MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                dataFile, metadataFile, null,
-                SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
+            dataFile, metadataFile, null,
+            SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
             {
                 writer.write(new byte[100]);
                 try
@@ -324,8 +259,6 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testResetAndTruncateThrowsUnsupportedOperationException() throws IOException
     {
-        assumeDirectIOSupported();
-
         File dataFile = FileUtils.createTempFile("reset_test", ".db");
         File metadataFile = new File(dataFile.absolutePath() + ".metadata");
 
@@ -333,8 +266,8 @@ public class DirectCompressedSequentialWriterTest
         {
             MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                dataFile, metadataFile, null,
-                SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
+            dataFile, metadataFile, null,
+            SequentialWriterOption.DEFAULT, CompressionParams.lz4(), collector, null))
             {
                 writer.write(new byte[100]);
                 try
@@ -357,8 +290,6 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testAbortCleansUpResources() throws IOException
     {
-        assumeDirectIOSupported();
-
         File dataFile = FileUtils.createTempFile("abort_test", ".db");
         File metadataFile = new File(dataFile.absolutePath() + ".metadata");
 
@@ -368,17 +299,17 @@ public class DirectCompressedSequentialWriterTest
             new Random(99).nextBytes(testData);
 
             MetadataCollector collector = new MetadataCollector(
-                new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+            new ClusteringComparator(Collections.singletonList(BytesType.instance)));
 
             // finishOnClose(false) ensures close() triggers the abort path, not finish()
             SequentialWriterOption abortOnCloseOption = SequentialWriterOption.newBuilder()
-                                                                             .finishOnClose(false)
-                                                                             .build();
+                                                                              .finishOnClose(false)
+                                                                              .build();
 
             // Write data but do NOT call finish() -- close triggers abort path
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                dataFile, metadataFile, null,
-                abortOnCloseOption, CompressionParams.lz4(), collector, null))
+            dataFile, metadataFile, null,
+            abortOnCloseOption, CompressionParams.lz4(), collector, null))
             {
                 writer.write(testData);
                 // No writer.finish() -- this is intentional
@@ -396,8 +327,6 @@ public class DirectCompressedSequentialWriterTest
     @Test
     public void testAbortAfterMultipleChunks() throws IOException
     {
-        assumeDirectIOSupported();
-
         File dataFile = FileUtils.createTempFile("abort_multichunk_test", ".db");
         File metadataFile = new File(dataFile.absolutePath() + ".metadata");
 
@@ -409,17 +338,17 @@ public class DirectCompressedSequentialWriterTest
             new Random(77).nextBytes(testData);
 
             MetadataCollector collector = new MetadataCollector(
-                new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+            new ClusteringComparator(Collections.singletonList(BytesType.instance)));
 
             // finishOnClose(false) ensures close() triggers the abort path, not finish()
             SequentialWriterOption abortOnCloseOption = SequentialWriterOption.newBuilder()
-                                                                             .finishOnClose(false)
-                                                                             .build();
+                                                                              .finishOnClose(false)
+                                                                              .build();
 
             // Write data but do NOT call finish() -- close triggers abort path
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                dataFile, metadataFile, null,
-                abortOnCloseOption, CompressionParams.lz4(), collector, null))
+            dataFile, metadataFile, null,
+            abortOnCloseOption, CompressionParams.lz4(), collector, null))
             {
                 writer.write(testData);
                 // No writer.finish() -- this is intentional
@@ -434,19 +363,14 @@ public class DirectCompressedSequentialWriterTest
     }
 
     @Test
-    public void testConfiguredBufferSize() throws IOException
+    public void testConfiguredBufferSize()
     {
-        assumeDirectIOSupported();
-
         // Verify buffer size getter works
         int bufferSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
         assertTrue("Buffer size should be positive", bufferSize > 0);
         assertTrue("Buffer size should be at least 4KB", bufferSize >= 4096);
     }
 
-    /**
-     * Helper method to test write and read cycle.
-     */
     private void testWriteAndRead(String testName, int dataSize, CompressionParams params) throws IOException
     {
         File dataFile = FileUtils.createTempFile(testName + "_direct", ".db");
@@ -460,8 +384,8 @@ public class DirectCompressedSequentialWriterTest
             // Write
             MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
             try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
-                dataFile, metadataFile, null,
-                SequentialWriterOption.DEFAULT, params, collector, null))
+            dataFile, metadataFile, null,
+            SequentialWriterOption.DEFAULT, params, collector, null))
             {
                 writer.write(testData);
                 writer.finish();
