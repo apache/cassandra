@@ -48,32 +48,21 @@ import sun.nio.ch.DirectBuffer;
 import static org.apache.cassandra.utils.Throwables.merge;
 
 /**
- * A CompressedSequentialWriter that uses Direct IO (O_DIRECT) for writes.
+ * Uses O_DIRECT to bypass the OS page cache, reducing memory pressure during compaction.
  * <p>
- * This writer bypasses the OS page cache by using O_DIRECT, which can improve
- * I/O predictability and reduce memory pressure during compaction.
- * <p>
- * Direct IO requires all writes to be aligned to the filesystem block size.
- * This writer accumulates compressed chunks in an aligned buffer and flushes
- * only complete aligned blocks to disk. At file close, any remaining data is
- * padded, written, and the file is truncated to the actual data size.
- * <p>
- * This flushes only complete blocks keeping leftover data in the buffer until the next flush or final close.
+ * O_DIRECT requires all writes to be block-aligned, so compressed chunks are accumulated in an aligned buffer.
+ * Only complete blocks are flushed; at close, remaining data is padded, written, and the file is truncated to
+ * actual size.
  */
 public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 {
 
-    private final int blockSize;
-
-    // Aligned write buffer that accumulates compressed chunks + checksums
     private ByteBuffer writeBuffer;
-
     private int writeBufferPosition = 0;
-
-    // Track actual data written (before any padding) for final truncation
     private long actualDataSize = 0;
 
-    // Full file checksum for digest file (since we manage our own I/O)
+    private final int blockSize;
+    // ChecksumWriter writes CRCs directly to the channel, bypassing our aligned buffer. Track checksums ourselves.
     private final CRC32 fullFileChecksum = new CRC32();
     private final CRC32 chunkChecksum = new CRC32();
     private final ByteBuffer crcBuffer = ByteBuffer.allocate(4);
@@ -93,8 +82,6 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
             throw new IllegalStateException("Unable to determine filesystem block size for Direct IO. " +
                                             "Block size: " + blockSize);
 
-        // Buffer must hold at least one chunk + CRC (4 bytes) + blockSize for leftover after partial flush
-        // Use configured size or minimum required, whichever is larger.
         int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
         int minRequiredSize = parameters.chunkLength() + 4 + blockSize;
         int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
@@ -111,37 +98,26 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     @Override
     protected void seekToChunkStart()
     {
-        // No-op: Direct IO writes sequentially to the aligned buffer
+        // Not needed: writes go to the aligned buffer, not directly to the channel
     }
 
-    /**
-     * Write a compressed chunk to the aligned buffer instead of directly to the channel.
-     * This is the key override that enables Direct IO - we accumulate chunks in the aligned buffer and flush only
-     * when we have complete aligned blocks.
-     */
     @Override
     protected void writeChunk(ByteBuffer toWrite)
     {
         int chunkLength = toWrite.remaining();
 
-        // Calculate CRC
         toWrite.mark();
         chunkChecksum.reset();
         chunkChecksum.update(toWrite);
         int crcValue = (int) chunkChecksum.getValue();
         toWrite.reset();
 
-        // Write data to aligned buffer
         writeToAlignedBuffer(toWrite);
-
-        // Write CRC (4 bytes) to aligned buffer
         writeCrcToAlignedBuffer(crcValue);
 
-        // Update full file checksum for digest
         toWrite.rewind();
         updateFullChecksum(toWrite, crcValue);
 
-        // Track actual data size for final truncation
         actualDataSize = chunkOffset + chunkLength + 4;
     }
 
@@ -171,7 +147,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
     private void flushCompleteBlocks()
     {
-        // Align DOWN to get only complete blocks
+        // Align down: O_DIRECT cannot write partial blocks
         int flushLimit = writeBufferPosition & -blockSize;
 
         if (flushLimit == 0)
@@ -183,7 +159,6 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
             writeBuffer.limit(flushLimit);
             fchannel.write(writeBuffer);
 
-            // Compact: move leftover to buffer start
             int leftover = writeBufferPosition - flushLimit;
             if (leftover > 0)
             {
@@ -203,9 +178,6 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         }
     }
 
-    /**
-     * Flush all remaining data with padding, then truncate to actual size. Called at file close.
-     */
     private void flushFinalWithPadding()
     {
         if (writeBufferPosition == 0)
@@ -213,19 +185,16 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
         try
         {
-            // Align UP - pad to block boundary
             int flushLimit = BitUtil.align(writeBufferPosition, blockSize);
 
-            // Zero the padding region
             writeBuffer.position(writeBufferPosition);
             ByteBufferUtil.writeZeroes(writeBuffer, flushLimit - writeBufferPosition);
 
-            // Write with padding
             writeBuffer.position(0);
             writeBuffer.limit(flushLimit);
             fchannel.write(writeBuffer);
 
-            // Truncate to actual size (remove padding)
+            // O_DIRECT required padding; truncate back to actual data size
             fchannel.truncate(actualDataSize);
         }
         catch (IOException e)
@@ -247,9 +216,6 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         fullFileChecksum.update(crcBuffer);
     }
 
-    /**
-     * Write our own digest file since we manage the checksum ourselves.
-     */
     @Override
     protected void writeDigestFile()
     {
@@ -315,7 +281,6 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
                 writeBuffer = null;
             }
 
-            // Parent handles: channel close, buffer cleanup, compressed buffer cleanup
             return super.doPreCleanup(accumulate);
         }
     }

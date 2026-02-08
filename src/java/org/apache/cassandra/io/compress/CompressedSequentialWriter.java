@@ -253,21 +253,6 @@ public class CompressedSequentialWriter extends SequentialWriter
             runPostFlush.accept(getLastFlushOffset());
     }
 
-    /**
-     * Write a compressed chunk to the output channel along with its CRC checksum.
-     * <p>
-     * Subclasses may override this to write to a different destination (e.g., an aligned buffer for Direct IO).
-     * The buffer is in ready-to-read state (already flipped). Implementations must:
-     * <ul>
-     *   <li>Write the buffer contents</li>
-     *   <li>Calculate and write a 4-byte CRC32 checksum</li>
-     *   <li>Update any full-file checksum tracking (for digest file)</li>
-     * </ul>
-     * The position of {@code toWrite} after this method returns is unspecified;
-     * the caller does not rely on it.
-     *
-     * @param toWrite the compressed (or uncompressed fallback) data, flipped and ready to read
-     */
     protected void writeChunk(ByteBuffer toWrite)
     {
         try
@@ -396,11 +381,6 @@ public class CompressedSequentialWriter extends SequentialWriter
         }
     }
 
-    /**
-     * Write the full file checksum to the digest file if present.
-     * Subclasses that override writeChunk() must also manage their own full-file
-     * checksum and call this or write the digest file themselves.
-     */
     protected void writeDigestFile()
     {
         digestFile.ifPresent(crcMetadata::writeFullChecksum);
