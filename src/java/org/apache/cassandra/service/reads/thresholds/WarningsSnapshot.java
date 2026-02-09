@@ -211,7 +211,7 @@ public class WarningsSnapshot
 
         public static Warnings create(ThresholdCounter warnings, ThresholdCounter aborts)
         {
-            if (warnings == ThresholdCounter.empty() && aborts == ThresholdCounter.empty())
+            if (warnings.isEmpty() && aborts.isEmpty())
                 return EMPTY;
             return new Warnings(warnings, aborts);
         }

@@ -64,7 +64,6 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
     protected abstract long totalWarnings();
     protected abstract void assertWarnings(List<String> warnings);
     protected abstract void populateTopPartitions(int pk, long value);
-    protected abstract void clearTopPartitions();
 
     @Before
     public void setup()
@@ -72,7 +71,6 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
         CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
         CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
         CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v blob, PRIMARY KEY (pk, ck))");
-        clearTopPartitions();
     }
 
     @Test
@@ -89,10 +87,8 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
 
     private void noTopPartitionsTest(boolean featureEnabled)
     {
-        // Don't populate TopPartitionTracker
         enable(featureEnabled);
 
-        // Write some data
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)",
                                       ConsistencyLevel.ALL, bytes(512));
 

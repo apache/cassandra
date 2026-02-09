@@ -61,9 +61,7 @@ public class WriteThresholds
         long sizeWarnBytes = sizeWarnThreshold != null ? sizeWarnThreshold.toBytes() : -1;
 
         for (PartitionUpdate update : mutation.getPartitionUpdates())
-        {
             checkWriteThresholdsInternal(update, update.partitionKey(), sizeWarnBytes, tombstoneWarnThreshold);
-        }
     }
 
     /**
@@ -98,9 +96,9 @@ public class WriteThresholds
             if (currentLong < estimatedSize)
             {
                 MessageParams.add(ParamType.WRITE_SIZE_WARN, estimatedSize);
-                noSpamLogger.warn("Write to {} partition {} triggered size warning; " +
-                                  "estimated size is {} bytes, threshold is {} bytes (see write_size_warn_threshold)",
-                                  meta, meta.partitionKeyType.toCQLString(key.getKey()), estimatedSize, sizeWarnBytes);
+                noSpamLogger.warn("Write to {}.{} partition {} triggered size warning; estimated size is {} bytes, " +
+                                  "threshold is {} bytes (see write_size_warn_threshold)", meta.keyspace, meta.name,
+                                  meta.partitionKeyType.toCQLString(key.getKey()), estimatedSize, sizeWarnBytes);
             }
         }
 
@@ -112,9 +110,10 @@ public class WriteThresholds
             if (currentLong < estimatedTombstones)
             {
                 MessageParams.add(ParamType.WRITE_TOMBSTONE_WARN, (int) estimatedTombstones);
-                noSpamLogger.warn("Write to {} partition {} triggered tombstone warning; " +
+                noSpamLogger.warn("Write to {}.{} partition {} triggered tombstone warning; " +
                                   "estimated tombstone count is {}, threshold is {} (see write_tombstone_warn_threshold)",
-                                  meta, meta.partitionKeyType.toCQLString(key.getKey()), estimatedTombstones, tombstoneWarnThreshold);
+                                  meta.keyspace, meta.name, meta.partitionKeyType.toCQLString(key.getKey()),
+                                  estimatedTombstones, tombstoneWarnThreshold);
             }
         }
     }

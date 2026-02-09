@@ -35,7 +35,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.thresholds.CoordinatorWarningsState;
-import org.apache.cassandra.utils.Pair;
 
 public class CoordinatorWriteWarnings
 {
@@ -69,21 +68,13 @@ public class CoordinatorWriteWarnings
      */
     public static void update(IMutation mutation, WriteWarningsSnapshot snapshot)
     {
-        if (snapshot.isEmpty())
-        {
-            return;
-        }
+        if (snapshot.isEmpty()) return;
 
         Warnings warnings = STATE.mutable();
-        if (warnings == EMPTY)
-        {
-            return;
-        }
+        if (warnings == EMPTY) return;
 
         for (PartitionUpdate update : mutation.getPartitionUpdates())
-        {
             warnings.merge(update.metadata().id, update.partitionKey(), snapshot);
-        }
     }
 
     /**
@@ -105,23 +96,23 @@ public class CoordinatorWriteWarnings
 
     private static void processWarnings(Warnings warnings)
     {
-        if (warnings.partitions == null || warnings.partitions.isEmpty())
+        if (warnings.tables == null || warnings.tables.isEmpty() || warnings.partitionKey == null)
             return;
 
-        for (Map.Entry<Pair<TableId, DecoratedKey>, WriteWarningsSnapshot> entry : warnings.partitions.entrySet())
+        for (Map.Entry<TableId, WriteWarningsSnapshot> entry : warnings.tables.entrySet())
         {
-            Pair<TableId, DecoratedKey> key = entry.getKey();
+            TableId tableId = entry.getKey();
             WriteWarningsSnapshot snapshot = entry.getValue();
 
-            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(key.left);
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableId);
             if (cfs == null)
             {
-                logger.warn("ColumnFamilyStore is null for table {}, skipping", key.left);
+                logger.warn("ColumnFamilyStore is null for table {}, skipping", tableId);
                 continue;
             }
 
             TableMetadata metadata = cfs.metadata();
-            String partitionKey = metadata.partitionKeyType.toCQLString(key.right.getKey());
+            String partitionKey = metadata.partitionKeyType.toCQLString(warnings.partitionKey.getKey());
 
             recordWarnings(partitionKey, cfs, snapshot);
         }
@@ -162,17 +153,25 @@ public class CoordinatorWriteWarnings
 
     /**
      * Internal state holder for accumulated warnings.
+     * A Mutation is always for a single partition key, so we store it once
+     * and track warnings per table within that partition.
      */
     private static class Warnings
     {
         @Nullable
-        Map<Pair<TableId, DecoratedKey>, WriteWarningsSnapshot> partitions;
+        DecoratedKey partitionKey;
+
+        @Nullable
+        Map<TableId, WriteWarningsSnapshot> tables;
 
         void merge(TableId id, DecoratedKey partitionKey, WriteWarningsSnapshot snapshot)
         {
-            if (partitions == null)
-                partitions = new HashMap<>();
-            partitions.merge(Pair.create(id, partitionKey), snapshot, WriteWarningsSnapshot::merge);
+            if (this.partitionKey == null)
+                this.partitionKey = partitionKey;
+
+            if (tables == null)
+                tables = new HashMap<>();
+            tables.merge(id, snapshot, WriteWarningsSnapshot::merge);
         }
     }
 }

@@ -2028,7 +2028,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     MessageParams.reset();
 
-                    boolean trackWriteWarnings = description instanceof Mutation && handler instanceof AbstractWriteResponseHandler;
+                    boolean trackWriteWarnings = description instanceof Mutation && handler instanceof AbstractWriteResponseHandler && DatabaseDescriptor.getWriteThresholdsEnabled();
                     if (trackWriteWarnings)
                         WriteThresholds.checkWriteThresholds((Mutation) description);
                     runnable.run();

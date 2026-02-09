@@ -873,6 +873,77 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testWriteSizeWarnThresholdValidation()
+    {
+        Config conf = new Config();
+
+        // Error: warn < min
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(1, MEBIBYTES);
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("write_size_warn_threshold (1MiB) cannot be less than min_tracked_partition_size (5MiB)");
+
+        // Valid: warn == min
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Valid: warn > min
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(10, MEBIBYTES);
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Valid: null values
+        conf.write_size_warn_threshold = null;
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(10, MEBIBYTES);
+        conf.min_tracked_partition_size = null;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        conf.write_size_warn_threshold = null;
+        conf.min_tracked_partition_size = null;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+    }
+
+    @Test
+    public void testWriteTombstoneWarnThresholdValidation()
+    {
+        Config conf = new Config();
+
+        // Error: threshold < -1
+        conf.write_tombstone_warn_threshold = -2;
+        conf.min_tracked_partition_tombstone_count = 100;
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("write_tombstone_warn_threshold (-2) must be -1 (disabled) or >= 0");
+
+        // Valid: threshold == -1 (disabled)
+        conf.write_tombstone_warn_threshold = -1;
+        conf.min_tracked_partition_tombstone_count = 100;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Error: warn < min
+        conf.write_tombstone_warn_threshold = 50;
+        conf.min_tracked_partition_tombstone_count = 100;
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("write_tombstone_warn_threshold (50) cannot be less than min_tracked_partition_tombstone_count (100)");
+
+        // Valid: warn == min
+        conf.write_tombstone_warn_threshold = 100;
+        conf.min_tracked_partition_tombstone_count = 100;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Valid: warn > min
+        conf.write_tombstone_warn_threshold = 200;
+        conf.min_tracked_partition_tombstone_count = 100;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+    }
+
+    @Test
     public void testDefaultSslContextFactoryConfiguration()
     {
         Config config = DatabaseDescriptor.loadConfig();

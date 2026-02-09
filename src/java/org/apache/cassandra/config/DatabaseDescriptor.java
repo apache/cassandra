@@ -1318,8 +1318,12 @@ public class DatabaseDescriptor
         validateReadThresholds("local_read_size", config.local_read_size_warn_threshold, config.local_read_size_fail_threshold);
         validateReadThresholds("row_index_read_size", config.row_index_read_size_warn_threshold, config.row_index_read_size_fail_threshold);
 
-        // Validate write thresholds
-        validateWriteThreshold("write_tombstone_warn_threshold", config.write_tombstone_warn_threshold);
+        // Write threshold warning depends on top_partitions tracking
+        if (config.write_thresholds_enabled && !config.top_partitions_enabled)
+            logger.warn("Write thresholds require top partitions tracking to be enabled");
+
+        validateWriteSizeThreshold(config.write_size_warn_threshold, config.min_tracked_partition_size);
+        validateWriteTombstoneThresholdRange(config.write_tombstone_warn_threshold, config.min_tracked_partition_tombstone_count);
     }
 
     private static void validateReadThresholds(String name, DataStorageSpec.LongBytesBound warn, DataStorageSpec.LongBytesBound fail)
@@ -1329,11 +1333,24 @@ public class DatabaseDescriptor
                                                            name + "_fail_threshold", fail,
                                                            name + "_warn_threshold", warn));
     }
-    
-    private static void validateWriteThreshold(String name, int value)
+
+    private static void validateWriteSizeThreshold(DataStorageSpec.LongBytesBound writeSizeWarn, DataStorageSpec.LongBytesBound minTrackedSize)
     {
-        if (value < -1)
-            throw new ConfigurationException(String.format("%s (%d) must be -1 (disabled) or >= 0", name, value));
+        if (writeSizeWarn != null && minTrackedSize != null)
+        {
+            if (writeSizeWarn.toBytes() < minTrackedSize.toBytes())
+                throw new ConfigurationException(String.format("write_size_warn_threshold (%s) cannot be less than min_tracked_partition_size (%s)", writeSizeWarn, minTrackedSize));
+        }
+    }
+
+    private static void validateWriteTombstoneThresholdRange(int writeTombstoneWarn, long minTrackedTombstoneCount)
+    {
+        if (writeTombstoneWarn < -1)
+            throw new ConfigurationException(String.format("write_tombstone_warn_threshold (%d) must be -1 (disabled) or >= 0", writeTombstoneWarn));
+
+        if (writeTombstoneWarn != -1 && writeTombstoneWarn < minTrackedTombstoneCount)
+            throw new ConfigurationException(String.format("write_tombstone_warn_threshold (%d) cannot be less than min_tracked_partition_tombstone_count (%d)",
+                                                           writeTombstoneWarn, minTrackedTombstoneCount));
     }
 
     public static GuardrailsOptions getGuardrailsConfig()

@@ -54,6 +54,11 @@ public final class ThresholdCounter
         return EMPTY;
     }
 
+    public boolean isEmpty()
+    {
+        return instances.isEmpty();
+    }
+
     public static ThresholdCounter create(Set<InetAddressAndPort> instances, AtomicLong maxValue)
     {
         ImmutableSet<InetAddressAndPort> copy = ImmutableSet.copyOf(instances);
@@ -69,13 +74,12 @@ public final class ThresholdCounter
 
     public ThresholdCounter merge(ThresholdCounter other)
     {
-        if (other == EMPTY)
+        if (other.isEmpty())
             return this;
         ImmutableSet<InetAddressAndPort> copy = ImmutableSet.<InetAddressAndPort>builder()
                                                 .addAll(instances)
                                                 .addAll(other.instances)
                                                 .build();
-        // since other is NOT empty, then output can not be empty; so skip create method
         return new ThresholdCounter(copy, Math.max(maxValue, other.maxValue));
     }
 

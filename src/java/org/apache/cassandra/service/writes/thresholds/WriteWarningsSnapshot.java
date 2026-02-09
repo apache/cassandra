@@ -47,7 +47,7 @@ public class WriteWarningsSnapshot
 
     public static WriteWarningsSnapshot create(ThresholdCounter writeSize, ThresholdCounter writeTombstone)
     {
-        if (writeSize == ThresholdCounter.empty() && writeTombstone == ThresholdCounter.empty())
+        if (writeSize.isEmpty() && writeTombstone.isEmpty())
             return EMPTY;
         return new WriteWarningsSnapshot(writeSize, writeTombstone);
     }
@@ -61,10 +61,7 @@ public class WriteWarningsSnapshot
     {
         if (other == null || other == EMPTY)
             return this;
-        return WriteWarningsSnapshot.create(
-        writeSize.merge(other.writeSize),
-        writeTombstone.merge(other.writeTombstone)
-        );
+        return WriteWarningsSnapshot.create(writeSize.merge(other.writeSize), writeTombstone.merge(other.writeTombstone));
     }
 
     @VisibleForTesting

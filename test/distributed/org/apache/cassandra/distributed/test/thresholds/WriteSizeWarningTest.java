@@ -97,14 +97,6 @@ public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
     }
 
     @Override
-    protected void clearTopPartitions()
-    {
-        CLUSTER.stream().forEach(node -> node.runOnInstance(() -> {
-            // No-op: TopPartitionTracker is recreated when table is dropped/created
-        }));
-    }
-
-    @Override
     protected long totalWarnings()
     {
         return CLUSTER.stream()

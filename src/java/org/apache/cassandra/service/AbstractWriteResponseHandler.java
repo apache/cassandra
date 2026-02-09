@@ -96,8 +96,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private final Dispatcher.RequestTime requestTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
     private volatile WriteWarningContext warningContext;
-    private static final AtomicReferenceFieldUpdater<AbstractWriteResponseHandler, WriteWarningContext> warningsUpdater
-    = AtomicReferenceFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, WriteWarningContext.class, "warningContext");
+    private static final AtomicReferenceFieldUpdater<AbstractWriteResponseHandler, WriteWarningContext> warningsUpdater =
+        AtomicReferenceFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, WriteWarningContext.class, "warningContext");
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
