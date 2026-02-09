@@ -19,130 +19,81 @@
 package org.apache.cassandra.tcm.ownership;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.Collection;
 import java.util.Set;
+import java.util.function.Function;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesByEndpoint;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
-public class Delta
+public interface Delta
 {
-    public static final Serializer serializer = new Serializer();
+    Serializer serializer = new Serializer();
 
-    private static final Delta EMPTY = new Delta(RangesByEndpoint.EMPTY, RangesByEndpoint.EMPTY);
-
-    public final RangesByEndpoint removals;
-    public final RangesByEndpoint additions;
-
-    public Delta(RangesByEndpoint removals, RangesByEndpoint additions)
-    {
-        this.removals = removals;
-        this.additions = additions;
-    }
-
-    public Delta onlyAdditions()
-    {
-        return new Delta(RangesByEndpoint.EMPTY, additions);
-    }
-
-    public Delta onlyRemovals()
-    {
-        return new Delta(removals, RangesByEndpoint.EMPTY);
-    }
-
-    public Set<InetAddressAndPort> allEndpoints()
-    {
-        Set<InetAddressAndPort> endpoints = new HashSet<>(removals.keySet());
-        endpoints.addAll(additions.keySet());
-        return endpoints;
-    }
+    Delta merge(Delta other);
+    Delta invert();
+    boolean isEmpty();
 
     /**
-     * Merges this delta with `other`
-     *
-     * Note that if opposite operations (add a range in this, remove it in other for example) exist in
-     * `this` and `other` the operations cancel eachother out and neither will be in the resulting delta.
-     * @param other
-     * @return
+     * Required since we still encode the placements with endpoints
      */
-    public Delta merge(Delta other)
-    {
-        RangesByEndpoint.Builder removalsBuilder = new RangesByEndpoint.Builder();
-        RangesByEndpoint.Builder additionsBuilder = new RangesByEndpoint.Builder();
-        addChange(removals, other.additions, removalsBuilder);
-        addChange(other.removals, additions, removalsBuilder);
-        addChange(additions, other.removals, additionsBuilder);
-        addChange(other.additions, removals, additionsBuilder);
-        return new Delta(removalsBuilder.build(),
-                         additionsBuilder.build());
-    }
+    EndpointDelta asEndpointDelta(Function<NodeId, InetAddressAndPort> endpointLookup);
+    RangesByEndpoint removals(Function<NodeId, InetAddressAndPort> endpointLookup);
+    RangesByEndpoint additions(Function<NodeId, InetAddressAndPort> endpointLookup);
+    Collection<Range<Token>> addedRanges();
+    Collection<Range<Token>> removedRanges();
+    // todo this should be Set<NodeId>
+    Set<InetAddressAndPort> allEndpoints();
 
-    private static void addChange(RangesByEndpoint change, RangesByEndpoint opposite, RangesByEndpoint.Builder builder)
+    class Serializer implements MetadataSerializer<Delta>
     {
-        change.asMap().forEach((ep, replicas) -> {
-            replicas.forEach(replica -> {
-                if (!opposite.get(ep).contains(replica) && !builder.get(ep).contains(replica))
-                    builder.put(ep, replica);
-            });
-        });
-    }
-
-    public Delta invert()
-    {
-        return new Delta(additions, removals);
-    }
-
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Delta delta = (Delta) o;
-
-        return Objects.equals(removals, delta.removals) && Objects.equals(additions, delta.additions);
-    }
-
-    public int hashCode()
-    {
-        return Objects.hash(removals, additions);
-    }
-
-    @Override
-    public String toString()
-    {
-        return "Delta{" +
-               "removals=" + removals +
-               ", additions=" + additions +
-               '}';
-    }
-
-    public static Delta empty()
-    {
-        return EMPTY;
-    }
-
-    public static final class Serializer implements MetadataSerializer<Delta>
-    {
+        @Override
         public void serialize(Delta t, DataOutputPlus out, Version version) throws IOException
         {
-            RangesByEndpoint.serializer.serialize(t.removals, out, version);
-            RangesByEndpoint.serializer.serialize(t.additions, out, version);
+            if (version.isBefore(Version.V9))
+            {
+                if (!(t instanceof EndpointDelta))
+                    throw new IllegalStateException("Serialization version is before V9, can't serialize node id deltas");
+                EndpointDelta.serializer.serialize((EndpointDelta)t, out, version);
+            }
+            else
+            {
+                if (!(t instanceof NodeIdDelta))
+                    throw new IllegalStateException("Serialization version is V9 or later, can't serialize endpoint id deltas");
+                NodeIdDelta.serializer.serialize((NodeIdDelta)t, out, version);
+            }
         }
 
+        @Override
         public Delta deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return new Delta(RangesByEndpoint.serializer.deserialize(in, version),
-                             RangesByEndpoint.serializer.deserialize(in, version));
+            if (version.isBefore(Version.V9))
+                return EndpointDelta.serializer.deserialize(in, version);
+            return NodeIdDelta.serializer.deserialize(in, version);
         }
 
+        @Override
         public long serializedSize(Delta t, Version version)
         {
-            return RangesByEndpoint.serializer.serializedSize(t.removals, version) +
-                   RangesByEndpoint.serializer.serializedSize(t.additions, version);
+            if (version.isBefore(Version.V9))
+            {
+                if (!(t instanceof EndpointDelta))
+                    throw new IllegalStateException("Serialization version is before V9, can't serialize node id deltas");
+                return EndpointDelta.serializer.serializedSize((EndpointDelta)t, version);
+            }
+            else
+            {
+                if (!(t instanceof NodeIdDelta))
+                    throw new IllegalStateException("Serialization version is V9 or later, can't serialize endpoint id deltas");
+                return NodeIdDelta.serializer.serializedSize((NodeIdDelta)t, version);
+            }
         }
     }
 }

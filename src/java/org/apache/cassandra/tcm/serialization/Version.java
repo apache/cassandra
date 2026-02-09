@@ -81,6 +81,7 @@ public enum Version
     /**
      * - DataPlacements don't include MetaStrategy, replaced by ClusterMetadata.CMSMembership
      * - Size of DataPlacements is encoded as vint
+     * - Encode deltas as nodeIds instead of endpoints
      */
     V9(9),
 

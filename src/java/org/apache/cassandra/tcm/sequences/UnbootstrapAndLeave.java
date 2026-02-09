@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -254,14 +255,15 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
+        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
         switch (next)
         {
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement
             case FINISH_LEAVE:
-                placements = midLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midLeave.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
             case MID_LEAVE:
             case START_LEAVE:
-                placements = startLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startLeave.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert leave from " + next);

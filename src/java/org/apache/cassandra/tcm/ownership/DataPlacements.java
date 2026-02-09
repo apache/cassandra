@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -37,10 +38,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
@@ -181,9 +185,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         return builder.build();
     }
 
-    public DataPlacements applyDelta(Epoch epoch, PlacementDeltas deltas)
+    public DataPlacements applyDelta(Function<NodeId, InetAddressAndPort> endpointLookup, Epoch epoch, PlacementDeltas deltas)
     {
-        return deltas.apply(epoch, this);
+        return deltas.apply(endpointLookup, epoch, this);
     }
 
     public static DataPlacements empty()
@@ -308,7 +312,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             if (!Objects.equals(lv, rv))
             {
                 logger.warn("Values for key {} differ: {} != {}", k, lv, rv);
-                logger.warn("Difference: {}", lv.difference(rv));
+                logger.warn("Difference: {}", lv.difference(ClusterMetadata.current(), rv));
             }
         }
         for (ReplicationParams k : Sets.difference(l.keySet(), r.keySet()))

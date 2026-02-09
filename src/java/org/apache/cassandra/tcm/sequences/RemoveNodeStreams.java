@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.sequences;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -54,8 +55,8 @@ public class RemoveNodeStreams implements LeaveStreams
     public void execute(NodeId leaving, PlacementDeltas startLeave, PlacementDeltas midLeave, PlacementDeltas finishLeave) throws ExecutionException, InterruptedException
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        MovementMap movements = movementMap(metadata.directory.endpoint(leaving),
-                                            metadata,
+        MovementMap movements = movementMap(metadata,
+                                            metadata.directory.endpoint(leaving),
                                             startLeave);
         movements.forEach((params, eps) -> logger.info("Removenode movements: {}: {}", params, eps));
         String operationId = leaving.toUUID().toString();
@@ -107,9 +108,10 @@ public class RemoveNodeStreams implements LeaveStreams
      * create a map where the key is the destination, and the values are possible sources
      * @return
      */
-    private static MovementMap movementMap(InetAddressAndPort leaving, ClusterMetadata metadata, PlacementDeltas startDelta)
+    private static MovementMap movementMap(ClusterMetadata metadata, InetAddressAndPort leaving, PlacementDeltas startDelta)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
+        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
         // map of dest->src* movements, keyed by replication settings. During unbootstrap, this will be used to construct
         // a stream plan for each keyspace, based on their replication params.
         startDelta.forEach((params, delta) -> {
@@ -118,13 +120,14 @@ public class RemoveNodeStreams implements LeaveStreams
                 return;
 
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
-            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals;
+            RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions(endpointLookup);
+            RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals(endpointLookup);
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
             ReplicaGroups currentPlacements = metadata.placement(params).reads;
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(newReplica.range());
+
                                    currentPlacements.forRange(newReplica.range()).get().forEach(replica -> {
                                        if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(newReplica.endpoint()))
                                            candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);

@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -216,7 +217,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
                     if (streamData)
                     {
-                        MovementMap movements = movementMap(metadata.directory.endpoint(startReplace.replaced()), startReplace.delta());
+                        MovementMap movements = movementMap(startReplace.replaced(), startReplace.delta(), metadata);
                         boolean dataAvailable = bootstrap(bootstrapTokens,
                                                           StorageService.INDEFINITE,
                                                           metadata,
@@ -319,14 +320,15 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
+        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
         switch (next)
         {
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
             case FINISH_REPLACE:
-                placements = midReplace.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midReplace.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
             case MID_REPLACE:
             case START_REPLACE:
-                placements = startReplace.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startReplace.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert replacement from " + next);
@@ -352,17 +354,18 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
      *
      * keys in the map are the ranges the replacement node needs to stream, values are the potential endpoints.
      */
-    private static MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
+    private static MovementMap movementMap(NodeId beingReplaced, PlacementDeltas startDelta, ClusterMetadata metadata)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         DataPlacements placements = ClusterMetadata.current().placements();
+        InetAddressAndPort beingReplacedEndpoint = metadata.directory.endpoint(beingReplaced);
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
-            delta.writes.additions.flattenValues().forEach((destination) -> {
+            delta.writes.additions(metadata.directory::endpoint).flattenValues().forEach((destination) -> {
                 originalPlacements.reads.forRange(destination.range())
                                         .get().stream()
-                                        .filter(r -> !r.endpoint().equals(beingReplaced))
+                                        .filter(r -> !r.endpoint().equals(beingReplacedEndpoint))
                                         .forEach(source -> movements.put(destination, source));
             });
             movementMapBuilder.put(params, movements.build());

@@ -37,7 +37,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -46,10 +45,11 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
-import static org.apache.cassandra.tcm.membership.MembershipUtils.randomEndpoint;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 
@@ -60,37 +60,19 @@ public class OwnershipUtils
         return new Murmur3Partitioner.LongToken(t);
     }
 
-    public static RangesByEndpoint emptyReplicas()
-    {
-        return new RangesByEndpoint.Builder().build();
-    }
-
-    public static RangesByEndpoint fullReplicas(InetAddressAndPort endpoint, Range<Token> range)
-    {
-        RangesByEndpoint.Builder b = new RangesByEndpoint.Builder();
-        b.put(endpoint, Replica.fullReplica(endpoint, range));
-        return b.build();
-    }
-
-    public static RangesByEndpoint transientReplicas(InetAddressAndPort endpoint, Range<Token> range)
-    {
-        RangesByEndpoint.Builder b = new RangesByEndpoint.Builder();
-        b.put(endpoint, Replica.transientReplica(endpoint, range));
-        return b.build();
-    }
-
-    public static PlacementDeltas deltas(DataPlacements first, DataPlacements second)
+    public static PlacementDeltas deltas(ClusterMetadata metadata, DataPlacements first, DataPlacements second)
     {
         assert first.asMap().keySet().equals(second.asMap().keySet());
 
         PlacementDeltas.Builder deltas = PlacementDeltas.builder(first.size());
         first.asMap().forEach((params, placement) -> {
-            deltas.put(params, placement.difference(second.get(params)));
+            deltas.put(params, placement.difference(metadata, second.get(params)));
         });
         return deltas.build();
     }
 
-    public static DataPlacements placements(List<Range<Token>> ranges,
+    public static DataPlacements placements(Directory directory,
+                                            List<Range<Token>> ranges,
                                             Set<ReplicationParams> replication,
                                             Random random)
     {
@@ -101,12 +83,16 @@ public class OwnershipUtils
             assertNotNull(s);
             int rf = Integer.parseInt(s);
             DataPlacement.Builder placement = DataPlacement.builder();
+            assert rf <= directory.addresses.size() : rf + " XXX " + directory;
             for (Range<Token> range : ranges)
             {
-                // pick rf random nodes to be replicas, no duplicates
+                // pick rf nodes from directory to become replicas
                 Set<InetAddressAndPort> replicas = new HashSet<>(rf);
                 while (replicas.size() < rf)
-                    replicas.add(randomEndpoint(random));
+                {
+                    InetAddressAndPort ep = directory.endpoint(new NodeId(1 + random.nextInt(directory.addresses.size())));
+                    replicas.add(ep);
+                }
 
                 replicas.forEach(e -> {
                     Replica replica = Replica.fullReplica(e, range);
@@ -146,12 +132,13 @@ public class OwnershipUtils
         return ranges;
     }
 
-    public static DataPlacements randomPlacements(Random random)
+    public static Set<ReplicationParams> replicationForRandomPlacements = ImmutableSet.of(KeyspaceParams.simple(1).replication,
+                                                                                          KeyspaceParams.simple(2).replication,
+                                                                                          KeyspaceParams.simple(3).replication);
+
+    public static DataPlacements randomPlacements(Directory directory, Random random)
     {
-        Set<ReplicationParams> replication = ImmutableSet.of(KeyspaceParams.simple(1).replication,
-                                                             KeyspaceParams.simple(2).replication,
-                                                             KeyspaceParams.simple(3).replication);
-        return placements(ranges(random), replication, random);
+        return placements(directory, ranges(random), replicationForRandomPlacements, random);
     }
 
     public static void setLocalTokens(int... tokens)
@@ -222,18 +209,17 @@ public class OwnershipUtils
         ClusterMetadataTestHelper.movePartially(broadcastAddress, newTokens);
     }
 
-    public static PlacementDeltas randomDeltas(List<Range<Token>> ranges, Random random)
+    public static PlacementDeltas randomDeltas(ClusterMetadata metadata, List<Range<Token>> ranges, Random random)
     {
-        Set<ReplicationParams> replication = ImmutableSet.of(KeyspaceParams.simple(1).replication,
-                                                             KeyspaceParams.simple(2).replication,
-                                                             KeyspaceParams.simple(3).replication);
-        return deltas(placements(ranges, replication, random), placements(ranges, replication, random));
+        return deltas(metadata,
+                      placements(metadata.directory, ranges, replicationForRandomPlacements, random),
+                      placements(metadata.directory, ranges, replicationForRandomPlacements, random));
     }
 
-    public static PlacementDeltas randomDeltas(IPartitioner partitioner, Random random)
+    public static PlacementDeltas randomDeltas(ClusterMetadata metadata, IPartitioner partitioner, Random random)
     {
         List<Range<Token>> ranges = ranges(10, partitioner, random);
-        return randomDeltas(ranges,random);
+        return randomDeltas(metadata, ranges, random);
     }
 
     public static Set<Token> randomTokens(int numTokens, IPartitioner partitioner, Random random)

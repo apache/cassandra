@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 
@@ -96,11 +97,11 @@ public class InProgressSequenceCancellationTest
                                                              KeyspaceParams.simple(5).replication,
                                                              KeyspaceParams.simple(10).replication);
         NodeAddresses addresses = nodeAddresses(random);
-        Directory directory = new Directory().with(addresses, new Location("dc", "rack"));
+        Directory directory = directory(addresses, replication, random);
         NodeId nodeId = directory.peerId(addresses.broadcastAddress);
         LockedRanges.Key key = LockedRanges.keyFor(epoch(random));
         // Initial placements, i.e. state before the sequence was initiated - what we want to return to
-        DataPlacements placements = placements(ranges(random), replication, random);
+        DataPlacements placements = placements(directory, ranges(random), replication, random);
         // Ranges locked by other operations
         LockedRanges locked = lockedRanges(placements, random);
 
@@ -114,14 +115,14 @@ public class InProgressSequenceCancellationTest
                                                     .build().metadata.forceEpoch(epoch(random));
 
         // Placements after PREPARE_JOIN
-        DataPlacements afterPrepare = placements(ranges(random), replication, random);
-        PlacementDeltas prepareDeltas = deltas(placements, afterPrepare);
+        DataPlacements afterPrepare = placements(directory, ranges(random), replication, random);
+        PlacementDeltas prepareDeltas = deltas(before, placements, afterPrepare);
         // Placements after START_JOIN
-        DataPlacements afterStart = placements(ranges(random), replication, random);
-        PlacementDeltas startDeltas = deltas(afterPrepare, afterStart);
+        DataPlacements afterStart = placements(directory, ranges(random), replication, random);
+        PlacementDeltas startDeltas = deltas(before, afterPrepare, afterStart);
         // Placements after MID_JOIN
-        DataPlacements afterMid = placements(ranges(random), replication, random);
-        PlacementDeltas midDeltas = deltas(afterStart, afterMid);
+        DataPlacements afterMid = placements(directory, ranges(random), replication, random);
+        PlacementDeltas midDeltas = deltas(before, afterStart, afterMid);
         // No need to create a deltas or placements for after FINISH_JOIN because it's too late to cancel by then
         PlacementDeltas finishDeltas = PlacementDeltas.empty();
 
@@ -173,11 +174,11 @@ public class InProgressSequenceCancellationTest
                                                              KeyspaceParams.simple(10).replication);
 
         NodeAddresses addresses = nodeAddresses(random);
-        Directory directory = new Directory().with(addresses, new Location("dc", "rack"));
+        Directory directory = directory(addresses, replication, random);
         NodeId nodeId = directory.peerId(addresses.broadcastAddress);
         LockedRanges.Key key = LockedRanges.keyFor(epoch(random));
         // Initial placements, i.e. state before the sequence was initiated - what we want to return to
-        DataPlacements placements = placements(ranges(random), replication, random);
+        DataPlacements placements = placements(directory, ranges(random), replication, random);
         // Ranges locked by other operations
         LockedRanges locked = lockedRanges(placements, random);
         // state of metadata before starting the sequence
@@ -191,11 +192,11 @@ public class InProgressSequenceCancellationTest
 
 
         // PREPARE_LEAVE does not modify placements, so first transformation is START_LEAVE
-        DataPlacements afterStart = placements(ranges(random), replication, random);
-        PlacementDeltas startDeltas = deltas(placements, afterStart);
+        DataPlacements afterStart = placements(directory, ranges(random), replication, random);
+        PlacementDeltas startDeltas = deltas(before, placements, afterStart);
         // Placements after MID_LEAVE
-        DataPlacements afterMid = placements(ranges(random), replication, random);
-        PlacementDeltas midDeltas = deltas(afterStart, afterMid);
+        DataPlacements afterMid = placements(directory, ranges(random), replication, random);
+        PlacementDeltas midDeltas = deltas(before, afterStart, afterMid);
 
         UnbootstrapAndLeave plan = new UnbootstrapAndLeave(Epoch.EMPTY,
                                                            key,
@@ -241,11 +242,11 @@ public class InProgressSequenceCancellationTest
                                                              KeyspaceParams.simple(10).replication);
 
         NodeAddresses addresses = nodeAddresses(random);
-        Directory directory = new Directory().with(addresses, new Location("dc", "rack"));
+        Directory directory = directory(addresses, replication, random);
         NodeId nodeId = directory.peerId(addresses.broadcastAddress);
         LockedRanges.Key key = LockedRanges.keyFor(epoch(random));
         // Initial placements, i.e. state before the sequence was initiated - what we want to return to
-        DataPlacements placements = placements(ranges(random), replication, random);
+        DataPlacements placements = placements(directory, ranges(random), replication, random);
         // Ranges locked by other operations
         LockedRanges locked = lockedRanges(placements, random);
         // State of metadata before starting the sequence
@@ -270,11 +271,11 @@ public class InProgressSequenceCancellationTest
         before = before.transformer().join(replacedId).build().metadata;
 
         // PREPARE_REPLACE does not modify placements, so first transformation is START_REPLACE
-        DataPlacements afterStart = placements(ranges(random), replication, random);
-        PlacementDeltas startDeltas = deltas(placements, afterStart);
+        DataPlacements afterStart = placements(directory, ranges(random), replication, random);
+        PlacementDeltas startDeltas = deltas(before, placements, afterStart);
         // Placements after MID_REPLACE
-        DataPlacements afterMid = placements(ranges(random), replication, random);
-        PlacementDeltas midDeltas = deltas(afterStart, afterMid);
+        DataPlacements afterMid = placements(directory, ranges(random), replication, random);
+        PlacementDeltas midDeltas = deltas(before, afterStart, afterMid);
 
         BootstrapAndReplace plan = new BootstrapAndReplace(Epoch.EMPTY,
                                                            key,
@@ -301,6 +302,26 @@ public class InProgressSequenceCancellationTest
         // cancelling the sequence doesn't remove it from metadata, that's the job of the CancelInProgressSequence event
         assertNull(before.inProgressSequences.get(nodeId));
         assertEquals(plan, after.inProgressSequences.get(nodeId));
+    }
+
+    /*
+     * deltas are now NodeId based while placements are still endpoint based, so we need to have all endpoints
+     * in the placements registered in the directory
+     */
+    public static Directory directory(NodeAddresses addresses, Set<ReplicationParams> replication, Random random)
+    {
+        int totalRf = 0;
+        for (ReplicationParams params : replication)
+            totalRf += Integer.parseInt(params.options.get("replication_factor"));
+        Directory dir = new Directory().with(addresses, new Location("dc", "rack"));
+        Set<NodeAddresses> allEndpoints = new HashSet<>();
+        while (allEndpoints.size() < totalRf)
+            allEndpoints.add(nodeAddresses(random));
+
+        for (NodeAddresses address : allEndpoints)
+            if (!dir.isRegistered(address.broadcastAddress))
+                dir = dir.with(address, new Location("dc", "rack"));
+        return dir;
     }
 
     private void assertRelevantMetadata(ClusterMetadata first, ClusterMetadata second)

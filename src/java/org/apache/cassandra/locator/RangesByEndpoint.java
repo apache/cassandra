@@ -19,11 +19,14 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -33,6 +36,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.ReplicaNode;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -51,6 +56,32 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
     {
         Preconditions.checkNotNull(endpoint);
         return map.getOrDefault(endpoint, RangesAtEndpoint.empty(endpoint));
+    }
+
+    public static RangesByEndpoint fromNodeIds(ImmutableMultimap<NodeId, ReplicaNode> byNodeId, Function<NodeId, InetAddressAndPort> endpointLookup)
+    {
+        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
+        for (Map.Entry<NodeId, Collection<ReplicaNode>> entry : byNodeId.asMap().entrySet())
+        {
+            InetAddressAndPort ep = endpointLookup.apply(entry.getKey());
+            for (ReplicaNode replicaNode : entry.getValue())
+                builder.put(ep, replicaNode.toReplica(endpointLookup));
+        }
+        return builder.build();
+    }
+
+    public ImmutableMultimap<NodeId, ReplicaNode> byNodeId(Function<InetAddressAndPort, NodeId> nodeIdLookup)
+    {
+        ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
+        for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> entry : entrySet())
+        {
+            NodeId nodeId = nodeIdLookup.apply(entry.getKey());
+            assert nodeId != null : String.format("Could not find %s in metadata", entry.getKey());
+
+            for (Replica replica : entry.getValue())
+                builder.put(nodeId, ReplicaNode.fromReplica(replica, nodeIdLookup));
+        }
+        return builder.build();
     }
 
     public static class Builder extends ReplicaMultimap.Builder<InetAddressAndPort, RangesAtEndpoint.Builder>

@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -327,15 +328,16 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
         DataPlacements placements = metadata.placements();
+        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
         switch (next)
         {
             // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
             case FINISH_JOIN:
-                placements = midJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midJoin.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
             case MID_JOIN:
-                placements = startJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startJoin.inverseDelta().apply(endpointLookup, metadata.nextEpoch(), placements);
             case START_JOIN:
-                placements = toSplitRanges.invert().apply(metadata.nextEpoch(), placements);
+                placements = toSplitRanges.invert().apply(endpointLookup, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert join from " + next);
@@ -357,8 +359,9 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @VisibleForTesting
     public Pair<MovementMap, MovementMap> getMovementMaps(ClusterMetadata metadata)
     {
-        MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
-        MovementMap strictMovementMap = toStrict(movementMap, finishJoin.delta());
+        Function<NodeId, InetAddressAndPort> endpointLookup = metadata.directory::endpoint;
+        MovementMap movementMap = movementMap(endpointLookup, metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
+        MovementMap strictMovementMap = toStrict(endpointLookup, movementMap, finishJoin.delta());
         return Pair.create(movementMap, strictMovementMap);
     }
 
@@ -424,7 +427,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         }
     }
 
-    private static MovementMap movementMap(InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
+    private static MovementMap movementMap(Function<NodeId, InetAddressAndPort> endpointLookup, InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         // we need all original placements for the ranges to stream - after initial split these new ranges exist in placements
@@ -432,7 +435,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement oldPlacement = placements.get(params);
-            delta.writes.additions.flattenValues().forEach((destination) -> {
+            delta.writes.additions(endpointLookup).flattenValues().forEach((destination) -> {
                 assert destination.endpoint().equals(joining);
                 oldPlacement.reads.forRange(destination.range())
                                   .get()
@@ -444,11 +447,11 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         return movementMapBuilder.build();
     }
 
-    private static MovementMap toStrict(MovementMap completeMovementMap, PlacementDeltas finishDelta)
+    private static MovementMap toStrict(Function<NodeId, InetAddressAndPort> endpointLookup, MovementMap completeMovementMap, PlacementDeltas finishDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         completeMovementMap.forEach((params, byreplica) -> {
-            Set<Replica> strictCandidates = Iterables.toSet(finishDelta.get(params).writes.removals.flattenValues());
+            Set<Replica> strictCandidates = Iterables.toSet(finishDelta.get(params).writes.removals(endpointLookup).flattenValues());
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             for (Replica destination : byreplica.keySet())
             {

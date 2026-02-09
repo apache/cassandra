@@ -148,7 +148,6 @@ public class PrepareJoin implements Transformation
         }
 
         PlacementTransitionPlan transitionPlan = placementProvider.planForJoin(prev, nodeId, tokens, prev.schema.getKeyspaces());
-
         LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();
         LockedRanges.Key alreadyLockedBy = prev.lockedRanges.intersects(rangesToLock);
         if (!alreadyLockedBy.equals(LockedRanges.NOT_LOCKED))
@@ -168,10 +167,10 @@ public class PrepareJoin implements Transformation
                                                              startJoin, midJoin, finishJoin,
                                                              joinTokenRing, streamData);
         if (!prev.tokenMap.isEmpty())
-            assertPreExistingWriteReplica(prev.placements(), transitionPlan);
+            assertPreExistingWriteReplica(prev, transitionPlan);
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
-        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements());
+        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.directory::endpoint, prev.nextEpoch(), prev.placements());
         ClusterMetadata.Transformer proposed = prev.transformer()
                                                    .with(newLockedRanges)
                                                    .with(startingPlacements)
@@ -180,9 +179,9 @@ public class PrepareJoin implements Transformation
         return Transformation.success(proposed, rangesToLock);
     }
 
-    void assertPreExistingWriteReplica(DataPlacements placements, PlacementTransitionPlan transitionPlan)
+    void assertPreExistingWriteReplica(ClusterMetadata metadata, PlacementTransitionPlan transitionPlan)
     {
-        transitionPlan.assertPreExistingWriteReplica(placements);
+        transitionPlan.assertPreExistingWriteReplica(metadata);
     }
 
     public static abstract class Serializer<T extends PrepareJoin> implements AsymmetricMetadataSerializer<Transformation, T>

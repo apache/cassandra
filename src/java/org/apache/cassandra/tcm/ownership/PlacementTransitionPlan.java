@@ -21,8 +21,7 @@ package org.apache.cassandra.tcm.ownership;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
-import javax.annotation.Nullable;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -35,8 +34,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 /**
@@ -101,6 +102,14 @@ public class PlacementTransitionPlan
         return affectedRanges;
     }
 
+    public PlacementTransitionPlan withEndpointDeltas(Function<NodeId, InetAddressAndPort> endpointLookup)
+    {
+        return new PlacementTransitionPlan(toSplit.withEndpointDeltas(endpointLookup),
+                                           toMaximal.withEndpointDeltas(endpointLookup),
+                                           toFinal.withEndpointDeltas(endpointLookup),
+                                           toMerged.withEndpointDeltas(endpointLookup));
+    }
+
     private void compile()
     {
         PlacementDeltas.Builder addToWrites = PlacementDeltas.builder();
@@ -109,27 +118,27 @@ public class PlacementTransitionPlan
         LockedRanges.AffectedRangesBuilder affectedRanges = LockedRanges.AffectedRanges.builder();
 
         toSplit.forEach((replication, delta) -> {
-            delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
-            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.addedRanges().forEach(r -> affectedRanges.add(replication, r));
+            delta.reads.removedRanges().forEach(r -> affectedRanges.add(replication, r));
         });
 
         toMaximal.forEach((replication, delta) -> {
-            delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
-            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.addedRanges().forEach(r -> affectedRanges.add(replication, r));
+            delta.reads.removedRanges().forEach(r -> affectedRanges.add(replication, r));
             addToWrites.put(replication, delta.onlyWrites());
             moveReads.put(replication, delta.onlyReads());
         });
 
         toFinal.forEach((replication, delta) -> {
-            delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
-            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.addedRanges().forEach(r -> affectedRanges.add(replication, r));
+            delta.reads.removedRanges().forEach(r -> affectedRanges.add(replication, r));
             moveReads.put(replication, delta.onlyReads());
             removeFromWrites.put(replication, delta.onlyWrites());
         });
 
         toMerged.forEach((replication, delta) -> {
-            delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
-            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.addedRanges().forEach(r -> affectedRanges.add(replication, r));
+            delta.reads.removedRanges().forEach(r -> affectedRanges.add(replication, r));
             removeFromWrites.put(replication, delta);
         });
         this.addToWrites = addToWrites.build();
@@ -162,17 +171,14 @@ public class PlacementTransitionPlan
      * We split and merge ranges, so in the previous placements we could have full write replicas (a, b], (b, c], but then
      * add a full read replica (a, c].
      *
-     * @return null if everything is good, otherwise a Transformation.Result rejection containing information about the bad replica
      */
-    @Nullable
-    public void assertPreExistingWriteReplica(DataPlacements placements)
+    public void assertPreExistingWriteReplica(ClusterMetadata metadata)
     {
-        assertPreExistingWriteReplica(placements, toSplit, addToWrites(), moveReads(), removeFromWrites());
+        assertPreExistingWriteReplica(metadata.directory::endpoint, metadata.placements(), toSplit, addToWrites(), moveReads(), removeFromWrites());
     }
 
-    @Nullable
     @VisibleForTesting
-    protected void assertPreExistingWriteReplica(DataPlacements placements, PlacementDeltas... deltasInOrder)
+    protected void assertPreExistingWriteReplica(Function<NodeId, InetAddressAndPort> endpointLookup, DataPlacements placements, PlacementDeltas... deltasInOrder)
     {
         for (PlacementDeltas deltas : deltasInOrder)
         {
@@ -180,7 +186,7 @@ public class PlacementTransitionPlan
             {
                 ReplicationParams params = entry.getKey();
                 PlacementDeltas.PlacementDelta delta = entry.getValue();
-                for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> addedRead : delta.reads.additions.entrySet())
+                for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> addedRead : delta.reads.additions(endpointLookup).entrySet())
                 {
                     RangesAtEndpoint addedReadReplicas = addedRead.getValue();
                     RangesAtEndpoint existingWriteReplicas = placements.get(params).writes.byEndpoint().get(addedRead.getKey());
@@ -216,7 +222,7 @@ public class PlacementTransitionPlan
                     }
                 }
             }
-            placements = deltas.apply(Epoch.FIRST, placements);
+            placements = deltas.apply(endpointLookup, Epoch.FIRST, placements);
         }
     }
 }
