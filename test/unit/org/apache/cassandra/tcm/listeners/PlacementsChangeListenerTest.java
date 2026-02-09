@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -37,12 +38,15 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.MembershipUtils;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 
+import static org.apache.cassandra.tcm.sequences.InProgressSequenceCancellationTest.directory;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -55,6 +59,7 @@ public class PlacementsChangeListenerTest
     static Epoch e;
     static NodeId node1;
     static KeyspaceMetadata ks1;
+    static Directory dir;
 
     @BeforeClass
     public static void setupClass()
@@ -66,12 +71,13 @@ public class PlacementsChangeListenerTest
         node1 = new NodeId(1);
         ks1 = KeyspaceMetadata.create("ks1", KeyspaceParams.simple(1));
         CassandraRelevantProperties.TCM_SORT_REPLICA_GROUPS.setBoolean(false);
+        dir = directory(new NodeAddresses(InetAddressAndPort.getByNameUnchecked("127.0.0.1")), OwnershipUtils.replicationForRandomPlacements, random);
     }
 
     @Test
     public void testPlacementChange()
     {
-        DataPlacements before = OwnershipUtils.randomPlacements(random).withLastModified(e);
+        DataPlacements before = OwnershipUtils.randomPlacements(dir, random).withLastModified(e);
         DataPlacements.Builder builder = before.unbuild();
         before.forEach((params, placement) -> {
             Replica remove = placement.writes.byEndpoint().flattenValues().iterator().next();
@@ -98,7 +104,7 @@ public class PlacementsChangeListenerTest
     @Test
     public void testKeyspaceCountChange()
     {
-        DataPlacements placements = OwnershipUtils.randomPlacements(random).withLastModified(e);
+        DataPlacements placements = OwnershipUtils.randomPlacements(dir, random).withLastModified(e);
         KeyspaceMetadata ks2 = KeyspaceMetadata.create("ks2", KeyspaceParams.simple(1));
 
         // only keyspace counts are different
@@ -116,7 +122,7 @@ public class PlacementsChangeListenerTest
     @Test
     public void testKeyspaceParamsChange()
     {
-        DataPlacements placements = OwnershipUtils.randomPlacements(random).withLastModified(e);
+        DataPlacements placements = OwnershipUtils.randomPlacements(dir, random).withLastModified(e);
         KeyspaceMetadata ks1a = KeyspaceMetadata.create("ks1", KeyspaceParams.simple(2));
 
         // only keyspace params are different
@@ -134,7 +140,7 @@ public class PlacementsChangeListenerTest
     @Test
     public void testCMSMembershipChange()
     {
-        DataPlacements placements = OwnershipUtils.randomPlacements(random).withLastModified(e);
+        DataPlacements placements = OwnershipUtils.randomPlacements(dir, random).withLastModified(e);
         NodeId node2 = new NodeId(2);
 
         // only cms memberships are different

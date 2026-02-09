@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm.ownership;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -34,8 +35,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -51,6 +54,8 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeIdLookup;
 import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AsymmetricOrdering;
@@ -86,7 +91,7 @@ public class ReplicaGroups
     public final ImmutableList<Range<Token>> ranges;
     public final ImmutableList<VersionedEndpoints.ForRange> endpoints;
 
-    public ReplicaGroups(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
+    private ReplicaGroups(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
     {
         ImmutableList.Builder<Range<Token>> rangesBuilder = ImmutableList.builderWithExpectedSize(replicaGroups.size());
         ImmutableList.Builder<VersionedEndpoints.ForRange> endpointsBuilder = ImmutableList.builderWithExpectedSize(replicaGroups.size());
@@ -103,12 +108,19 @@ public class ReplicaGroups
         this.endpoints = endpointsBuilder.build();
     }
 
-    @VisibleForTesting
-    public List<Range<Token>> ranges()
+    private ReplicaGroups(ImmutableList<Range<Token>> ranges,
+                         ImmutableList<VersionedEndpoints.ForRange> endpoints)
     {
-        List<Range<Token>> ranges = new ArrayList<>(this.ranges);
-        ranges.sort(Range::compareTo);
-        return ranges;
+        this.ranges = ranges;
+        this.endpoints = endpoints;
+    }
+
+    /**
+     * returns a copy of ranges sorted by the right token (`ranges` in this class is sorted by the left)
+     */
+    public List<Range<Token>> sortedRanges()
+    {
+        return ImmutableList.sortedCopyOf(Range::compareTo, ranges);
     }
 
     @VisibleForTesting
@@ -155,11 +167,29 @@ public class ReplicaGroups
         return forRange(token).forToken(token);
     }
 
-    public Delta difference(ReplicaGroups next)
+    public Delta difference(NodeIdLookup idLookup, ReplicaGroups next)
     {
-        RangesByEndpoint oldMap = this.byEndpoint();
-        RangesByEndpoint newMap = next.byEndpoint();
-        return new Delta(diff(oldMap, newMap), diff(newMap, oldMap));
+        Multimap<NodeId, ReplicaNode> oldMap = this.byNodeId(idLookup);
+        Multimap<NodeId, ReplicaNode> newMap = next.byNodeId(idLookup);
+        return new NodeIdDelta(diff(oldMap, newMap), diff(newMap, oldMap));
+    }
+
+    private Multimap<NodeId, ReplicaNode> byNodeId(NodeIdLookup idLookup)
+    {
+        ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
+        for (int i = 0; i < endpoints.size(); i++)
+        {
+            Map<InetAddressAndPort, Replica> replica = endpoints.get(i).byEndpoint();
+            for (Map.Entry<InetAddressAndPort, Replica> entry : replica.entrySet())
+            {
+                InetAddressAndPort endpoint = entry.getKey();
+                NodeId nodeId = idLookup.peerId(endpoint);
+                if (nodeId == null)
+                    throw new IllegalStateException(String.format("Unknown endpoint %s in %s at %s", endpoint, idLookup, idLookup.lastModified()));
+                builder.put(nodeId, new ReplicaNode(nodeId, entry.getValue().range(), entry.getValue().isFull()));
+            }
+        }
+        return builder.build();
     }
 
     @VisibleForTesting
@@ -171,18 +201,18 @@ public class ReplicaGroups
         return builder.build();
     }
 
-    private RangesByEndpoint diff(RangesByEndpoint left, RangesByEndpoint right)
+    private static ImmutableMultimap<NodeId, ReplicaNode> diff(Multimap<NodeId, ReplicaNode> left, Multimap<NodeId, ReplicaNode> right)
     {
-        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
-        for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> endPointRanges : left.entrySet())
+        ImmutableMultimap.Builder<NodeId, ReplicaNode> builder = ImmutableMultimap.builder();
+        for (Map.Entry<NodeId, Collection<ReplicaNode>> endPointRanges : left.asMap().entrySet())
         {
-            InetAddressAndPort endpoint = endPointRanges.getKey();
-            RangesAtEndpoint leftRanges = endPointRanges.getValue();
-            RangesAtEndpoint rightRanges = right.get(endpoint);
-            for (Replica leftReplica : leftRanges)
+            NodeId nodeId = endPointRanges.getKey();
+            Collection<ReplicaNode> leftRanges = endPointRanges.getValue();
+            Collection<ReplicaNode> rightRanges = right.get(nodeId);
+            for (ReplicaNode leftRange : leftRanges)
             {
-                if (!rightRanges.contains(leftReplica))
-                    builder.put(endpoint, leftReplica);
+                if (!rightRanges.contains(leftRange))
+                    builder.put(nodeId, leftRange);
             }
         }
         return builder.build();
@@ -325,6 +355,20 @@ public class ReplicaGroups
         return newPlacement.build();
     }
 
+    public ReplicaGroups changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        ImmutableList.Builder<Range<Token>> newRanges = ImmutableList.builderWithExpectedSize(ranges.size());
+        ImmutableList.Builder<VersionedEndpoints.ForRange> newEndpoints = ImmutableList.builderWithExpectedSize(endpoints.size());
+        for (int i = 0; i < ranges.size(); i++)
+        {
+            Range<Token> range = ranges.get(i);
+            VersionedEndpoints.ForRange endpoint = endpoints.get(i);
+            newRanges.add(range);
+            newEndpoints.add(endpoint.changeIp(oldEndpoint, newEndpoint));
+        }
+        return new ReplicaGroups(newRanges.build(), newEndpoints.build());
+    }
+
     public static class Builder
     {
         private final Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups;
@@ -336,7 +380,7 @@ public class ReplicaGroups
 
         private Builder(int expectedSize)
         {
-            this(new HashMap<>(expectedSize));
+            this(Maps.newHashMapWithExpectedSize(expectedSize));
         }
 
         private Builder(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)

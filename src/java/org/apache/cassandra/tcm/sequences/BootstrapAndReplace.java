@@ -54,6 +54,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -184,11 +185,11 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startReplace.affectedEndpoints());
-        affectedEndpoints.addAll(midReplace.affectedEndpoints());
-        affectedEndpoints.addAll(finishReplace.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startReplace.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midReplace.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishReplace.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override
@@ -216,7 +217,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
                     if (streamData)
                     {
-                        MovementMap movements = movementMap(metadata.directory.endpoint(startReplace.replaced()), startReplace.delta());
+                        MovementMap movements = movementMap(startReplace.replaced(), startReplace.delta(), metadata.placements(), metadata.directory);
                         boolean dataAvailable = bootstrap(bootstrapTokens,
                                                           StorageService.INDEFINITE,
                                                           metadata,
@@ -323,10 +324,10 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
         {
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
             case FINISH_REPLACE:
-                placements = midReplace.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midReplace.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case MID_REPLACE:
             case START_REPLACE:
-                placements = startReplace.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startReplace.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert replacement from " + next);
@@ -352,17 +353,17 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
      *
      * keys in the map are the ranges the replacement node needs to stream, values are the potential endpoints.
      */
-    private static MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
+    private static MovementMap movementMap(NodeId beingReplaced, PlacementDeltas startDelta, DataPlacements placements, EndpointLookup endpointLookup)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        DataPlacements placements = ClusterMetadata.current().placements();
+        InetAddressAndPort beingReplacedEndpoint = endpointLookup.endpoint(beingReplaced);
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
-            delta.writes.additions.flattenValues().forEach((destination) -> {
+            delta.writes.additions(endpointLookup).flattenValues().forEach((destination) -> {
                 originalPlacements.reads.forRange(destination.range())
                                         .get().stream()
-                                        .filter(r -> !r.endpoint().equals(beingReplaced))
+                                        .filter(r -> !r.endpoint().equals(beingReplacedEndpoint))
                                         .forEach(source -> movements.put(destination, source));
             });
             movementMapBuilder.put(params, movements.build());

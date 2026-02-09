@@ -58,6 +58,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -190,11 +191,11 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        affectedEndpoints.addAll(startJoin.affectedEndpoints());
-        affectedEndpoints.addAll(midJoin.affectedEndpoints());
-        affectedEndpoints.addAll(finishJoin.affectedEndpoints());
-        return endpointsToIds(affectedEndpoints, directory);
+        Set<NodeId> affectedPeers = new HashSet<>();
+        affectedPeers.addAll(startJoin.affectedPeers(directory::peerId));
+        affectedPeers.addAll(midJoin.affectedPeers(directory::peerId));
+        affectedPeers.addAll(finishJoin.affectedPeers(directory::peerId));
+        return affectedPeers;
     }
 
     @Override
@@ -331,11 +332,11 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         {
             // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
             case FINISH_JOIN:
-                placements = midJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = midJoin.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case MID_JOIN:
-                placements = startJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
+                placements = startJoin.inverseDelta().apply(metadata.directory, metadata.nextEpoch(), placements);
             case START_JOIN:
-                placements = toSplitRanges.invert().apply(metadata.nextEpoch(), placements);
+                placements = toSplitRanges.invert().apply(metadata.directory, metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert join from " + next);
@@ -357,8 +358,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     @VisibleForTesting
     public Pair<MovementMap, MovementMap> getMovementMaps(ClusterMetadata metadata)
     {
-        MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
-        MovementMap strictMovementMap = toStrict(movementMap, finishJoin.delta());
+        MovementMap movementMap = movementMap(metadata.directory, metadata.directory.endpoint(startJoin.nodeId()), metadata.placements(), startJoin.delta());
+        MovementMap strictMovementMap = toStrict(metadata.directory, movementMap, finishJoin.delta());
         return Pair.create(movementMap, strictMovementMap);
     }
 
@@ -424,7 +425,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         }
     }
 
-    private static MovementMap movementMap(InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
+    private static MovementMap movementMap(EndpointLookup endpointLookup, InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         // we need all original placements for the ranges to stream - after initial split these new ranges exist in placements
@@ -432,7 +433,7 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement oldPlacement = placements.get(params);
-            delta.writes.additions.flattenValues().forEach((destination) -> {
+            delta.writes.additions(endpointLookup).flattenValues().forEach((destination) -> {
                 assert destination.endpoint().equals(joining);
                 oldPlacement.reads.forRange(destination.range())
                                   .get()
@@ -444,11 +445,11 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         return movementMapBuilder.build();
     }
 
-    private static MovementMap toStrict(MovementMap completeMovementMap, PlacementDeltas finishDelta)
+    private static MovementMap toStrict(EndpointLookup endpointLookup, MovementMap completeMovementMap, PlacementDeltas finishDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
         completeMovementMap.forEach((params, byreplica) -> {
-            Set<Replica> strictCandidates = Iterables.toSet(finishDelta.get(params).writes.removals.flattenValues());
+            Set<Replica> strictCandidates = Iterables.toSet(finishDelta.get(params).writes.removals(endpointLookup).flattenValues());
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             for (Replica destination : byreplica.keySet())
             {

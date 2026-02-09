@@ -80,6 +80,12 @@ public class CMSLookup
                     return override.right;
                 return lookup.endpoint(id);
             }
+
+            @Override
+            public Epoch lastModified()
+            {
+                return Epoch.max(lastModified, lookup.lastModified());
+            }
         };
     }
 

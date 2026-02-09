@@ -37,10 +37,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
+import org.apache.cassandra.tcm.membership.EndpointLookup;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
@@ -181,9 +184,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         return builder.build();
     }
 
-    public DataPlacements applyDelta(Epoch epoch, PlacementDeltas deltas)
+    public DataPlacements applyDelta(EndpointLookup endpointLookup, Epoch epoch, PlacementDeltas deltas)
     {
-        return deltas.apply(epoch, this);
+        return deltas.apply(endpointLookup, epoch, this);
     }
 
     public static DataPlacements empty()
@@ -193,7 +196,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
     public static Builder builder(int expectedSize)
     {
-        return new Builder(new HashMap<>(expectedSize));
+        return new Builder(Maps.newHashMapWithExpectedSize(expectedSize));
     }
 
     public static Builder builder(Map<ReplicationParams, DataPlacement> map)
@@ -209,6 +212,13 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     public String conciseToString()
     {
         return keys().stream().map(ReplicationParams::toString).collect(Collectors.joining(","));
+    }
+
+    public DataPlacements changeIp(InetAddressAndPort oldEndpoint, InetAddressAndPort newEndpoint)
+    {
+        Builder newPlacements = builder(size());
+        forEach((params, placement) -> newPlacements.with(params, placement.changeIp(oldEndpoint, newEndpoint)));
+        return newPlacements.build();
     }
 
     public static class Builder
@@ -308,7 +318,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             if (!Objects.equals(lv, rv))
             {
                 logger.warn("Values for key {} differ: {} != {}", k, lv, rv);
-                logger.warn("Difference: {}", lv.difference(rv));
+                logger.warn("Difference: {}", lv.difference(ClusterMetadata.current().directory, rv));
             }
         }
         for (ReplicationParams k : Sets.difference(l.keySet(), r.keySet()))

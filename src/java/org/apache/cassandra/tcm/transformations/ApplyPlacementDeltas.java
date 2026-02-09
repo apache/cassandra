@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -63,11 +64,11 @@ public abstract class ApplyPlacementDeltas implements Transformation
         return delta;
     }
 
-    public Set<InetAddressAndPort> affectedEndpoints()
+    public Set<NodeId> affectedPeers(Function<InetAddressAndPort, NodeId> nodeIdLookup)
     {
-        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
-        delta.forEach((replication, d) -> affectedEndpoints.addAll(d.affectedEndpoints()));
-        return affectedEndpoints;
+        Set<NodeId> affectedPeers = new HashSet<>();
+        delta.forEach((replication, d) -> affectedPeers.addAll(d.affectedPeers(nodeIdLookup)));
+        return affectedPeers;
     }
 
     @Override
@@ -82,7 +83,7 @@ public abstract class ApplyPlacementDeltas implements Transformation
         ClusterMetadata.Transformer next = prev.transformer();
 
         if (!delta.isEmpty())
-            next = next.with(delta.apply(prev.nextEpoch(), prev.placements()));
+            next = next.with(delta.apply(prev.directory, prev.nextEpoch(), prev.placements()));
 
         next = transform(prev, next);
 

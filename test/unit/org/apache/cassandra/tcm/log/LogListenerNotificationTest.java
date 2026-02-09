@@ -38,13 +38,17 @@ import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.extensions.IntValue;
 import org.apache.cassandra.tcm.listeners.LogListener;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 
 import static org.apache.cassandra.tcm.MetadataKeys.CORE_METADATA;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
+import static org.apache.cassandra.tcm.sequences.InProgressSequenceCancellationTest.directory;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -63,7 +67,8 @@ public class LogListenerNotificationTest
     {
         long seed = System.nanoTime();
         Random random = new Random(seed);
-        DataPlacements placements = randomPlacements(random);
+        Directory directory = directory(NodeAddresses.current(), OwnershipUtils.replicationForRandomPlacements, random);
+        DataPlacements placements = randomPlacements(directory, random);
 
         List<Entry> input = new ArrayList<>();
         Epoch epoch = Epoch.FIRST;
