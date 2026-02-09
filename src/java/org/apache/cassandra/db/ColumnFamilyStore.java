@@ -1704,6 +1704,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     /**
+     * addSStables variant that allows adding sstables for tracked tables without requiring tracked transfers during bootstrap
+     */
+    public void addSSTableForBootstrap(Collection<SSTableReader> sstables)
+    {
+        data.addSSTablesForBootstrap(sstables);
+        logger.debug("Adding sstables {}", sstables);
+        CompactionManager.instance.submitBackground(this);
+    }
+
+    /**
      * Calculate expected file size of SSTable after compaction.
      *
      * If operation type is {@code CLEANUP} and we're not dealing with an index sstable,

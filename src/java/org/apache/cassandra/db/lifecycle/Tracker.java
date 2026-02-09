@@ -289,6 +289,14 @@ public class Tracker
         addSSTablesInternal(sstables, false, true, true);
     }
 
+    /**
+     * addSStables variant for bootstrap. Doesn't validate tracked/untracked or absence of logOffsets data
+     */
+    public void addSSTablesForBootstrap(Collection<SSTableReader> sstables)
+    {
+        addSSTablesInternal(sstables, false, true, true);
+    }
+
     private void addSSTablesInternal(Collection<SSTableReader> sstables,
                                      boolean isInitialSSTables,
                                      boolean maybeIncrementallyBackup,

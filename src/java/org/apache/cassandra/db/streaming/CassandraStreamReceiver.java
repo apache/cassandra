@@ -268,7 +268,14 @@ public class CassandraStreamReceiver implements StreamReceiver
                 if (cfs.metadata().replicationType().isTracked() && session.streamOperation().isTrackable())
                     return;
 
-                cfs.addSSTables(readers);
+                if (session.streamOperation() == StreamOperation.BOOTSTRAP)
+                {
+                    cfs.addSSTableForBootstrap(readers);
+                }
+                else
+                {
+                    cfs.addSSTables(readers);
+                }
 
                 Consumer<Integer> onRowCacheInvalidation = invalidatedKeys -> {
                     logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
