@@ -134,7 +134,7 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
 
                 long partitionBase = it.dataPosition();
                 int blockCount = rowIndexEntry.blockCount();
-                if (blockCount > 0)
+                if (options.extendedVerification && blockCount > 0)
                 {
                     long expectedNextOffset = 0;
                     RowIndexEntry.IndexInfoRetriever indexInfoRetriever = rowIndexEntry.openWithIndex(it.indexFile());
@@ -172,7 +172,8 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
             if (!Objects.equals(key, sstable.getLast().getKey()))
                 throw new CorruptSSTableException(new IOException("Last partition does not match index"), it.toString());
         }
-        dataFile.reset();
+        if (options.extendedVerification)
+            dataFile.reset();
     }
 
     private void logDuplicates(DecoratedKey key, Row first, int duplicateRows, long minTimestamp, long maxTimestamp)
