@@ -167,6 +167,12 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         this.onDone = onDone;
     }
 
+    @VisibleForTesting
+    PaxosPropose(Proposal proposal, int participants, int required, OnDone onDone)
+    {
+        this(proposal, participants, required, false, onDone);
+    }
+
     /**
      * Submit the proposal for commit with all replicas, and return an object that can be waited on synchronously for the result,
      * or for the present status if the time elapses without a final result being reached.

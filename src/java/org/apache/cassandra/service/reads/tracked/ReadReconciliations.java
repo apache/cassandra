@@ -157,7 +157,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         return n;
     }
 
-    private static final class Coordinator
+    static class Coordinator
     {
         private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
@@ -355,12 +355,12 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return next;
         }
 
-        private boolean updateRemainingAndMaybeComplete(int mutationsDelta, int summariesDelta, int syncAcksDelta)
+        protected boolean updateRemainingAndMaybeComplete(int mutationsDelta, int summariesDelta, int syncAcksDelta)
         {
             return updateRemaining(mutationsDelta, summariesDelta, syncAcksDelta) == 0 && complete();
         }
 
-        private boolean complete()
+        protected boolean complete()
         {
             if (isDataNode())
                 MutationTrackingService.instance().localReads().acknowledgeReconcile(id, augmentingOffsets());

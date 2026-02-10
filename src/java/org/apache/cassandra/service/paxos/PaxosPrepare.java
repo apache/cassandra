@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -371,6 +372,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         this.withLatest = new ArrayList<>(participants.sizeOfConsensusQuorum);
         this.latestAccepted = this.latestCommitted = Committed.none(request.partitionKey, request.table);
         this.onDone = onDone;
+        this.haveTrackedDataResponseIfNeeded = request.read == null || !isTracked();
     }
 
     private boolean hasInProgressProposal()
@@ -438,8 +440,6 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     private static <R extends AbstractRequest<R>> void startTracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
     {
-        if (prepare.request.read == null)
-            prepare.haveTrackedDataResponseIfNeeded = true;
         Message<R> selfMessage = null;
         Message<R> summaryMessage = null;
         Id readId = Id.nextId();
@@ -504,7 +504,6 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     private static <R extends AbstractRequest<R>> void startUntracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
     {
-        prepare.haveTrackedDataResponseIfNeeded = true;
         Message<R> selfMessage = null;
 
         for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
@@ -1119,7 +1118,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             super(ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        private Request(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
+        @VisibleForTesting
+        Request(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
             super(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
