@@ -200,7 +200,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
      * Confirm that the presence/absence of a mutation id matches our expectations for the given keyspace/table/token. If
      * it doesn't, then we're not on the same epoch as the coordinator, or there's a bug.
      */
-    private ClusterMetadata checkReplicationMigration(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
+    protected ClusterMetadata checkReplicationMigration(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {
         IMutation mutation = message.payload;
         MutationRouting expected = mutation.id().isNone() ? MutationRouting.UNTRACKED : MutationRouting.TRACKED;

@@ -26,6 +26,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.ForwardedWrite;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 
 public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<CounterMutation>
@@ -33,6 +34,17 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
     public static final CounterMutationVerbHandler instance = new CounterMutationVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
+
+
+    /**
+     * CounterMutationVerbHandler only forwards counter writes, so we don't expect
+     * it to have a mutation id, or assert it does or doesn't
+     */
+    @Override
+    protected ClusterMetadata checkReplicationMigration(ClusterMetadata metadata, Message<CounterMutation> message, InetAddressAndPort respondTo)
+    {
+        return metadata;
+    }
 
     protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
