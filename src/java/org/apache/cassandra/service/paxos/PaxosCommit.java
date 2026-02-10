@@ -23,6 +23,8 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.agrona.collections.IntHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -470,13 +472,19 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         response(response != null, from);
     }
 
+    @VisibleForTesting
+    protected boolean isFromLocalDc(InetAddressAndPort endpoint)
+    {
+        return InOurDc.endpoints().test(endpoint);
+    }
+
     /**
      * Record a failure or success response if {@code from} contributes to our consistency.
      * If we have reached a final outcome of the commit, run {@code onDone}.
      */
     private void response(boolean success, InetAddressAndPort from)
     {
-        if (consistencyForCommit.isDatacenterLocal() && !InOurDc.endpoints().test(from))
+        if (consistencyForCommit.isDatacenterLocal() && !isFromLocalDc(from))
             return;
 
         long responses = responsesUpdater.addAndGet(this, success ? 0x1L : 0x100000000L);

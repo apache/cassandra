@@ -361,6 +361,14 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             callback.run();
     }
 
+    /**
+     * Check if the handler has completed (for testing purposes).
+     */
+    public boolean isComplete()
+    {
+        return condition.isSignalled();
+    }
+
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
