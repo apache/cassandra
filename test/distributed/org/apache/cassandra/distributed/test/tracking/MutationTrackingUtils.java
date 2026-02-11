@@ -59,8 +59,7 @@ public class MutationTrackingUtils
     public static class IgnoreReasons
     {
         public static final String NO_RANGE_MOVEMENTS = "NO_RANGE_MOVEMENTS";
-
-
+        public static final String NO_PER_PARTITION_RANGE_READ_LIMITS = "NO_PER_PARTITION_RANGE_READ_LIMITS";
     }
 
     public static byte[] encodeId(MutationId id)

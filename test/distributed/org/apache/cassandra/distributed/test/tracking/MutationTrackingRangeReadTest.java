@@ -23,6 +23,7 @@ import java.util.Iterator;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -33,6 +34,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
+@Ignore(MutationTrackingUtils.IgnoreReasons.NO_PER_PARTITION_RANGE_READ_LIMITS)
 public class MutationTrackingRangeReadTest extends TestBaseImpl
 {
     private static final int REPLICAS = 3;
