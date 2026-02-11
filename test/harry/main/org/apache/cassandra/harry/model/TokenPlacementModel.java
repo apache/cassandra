@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -387,14 +388,17 @@ public class TokenPlacementModel
         {
             Object[] args = new Object[replication.size() * 2];
             int i = 0;
+            boolean hasTransient = false;
             for (Map.Entry<String, DCReplicas> e : replication.entrySet())
             {
                 args[i * 2] = e.getKey();
                 args[i * 2 + 1] = e.getValue().toString();
+                if (e.getValue().transientCount > 0)
+                    hasTransient = true;
                 i++;
             }
 
-            return KeyspaceParams.nts(args);
+            return hasTransient ? KeyspaceParams.ntsTracked(args) : KeyspaceParams.nts(args);
         }
 
         private static Function<Lookup, Map<String, DCReplicas>> mapFunction(int dcs, int nodesPerDc, int transientsPerDc)
@@ -603,7 +607,8 @@ public class TokenPlacementModel
             Map<String, String> options = new HashMap<>();
             options.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
             options.put(SimpleStrategy.REPLICATION_FACTOR, dcReplicas().toString());
-            return KeyspaceParams.create(true, options);
+            ReplicationType replicationType = dcReplicas().transientCount > 0 ? ReplicationType.tracked : ReplicationType.untracked;
+            return KeyspaceParams.create(true, options, replicationType);
         }
 
         public ReplicatedRanges replicate(Range[] ranges, List<Node> nodes)
