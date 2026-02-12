@@ -431,6 +431,8 @@ public enum CassandraRelevantProperties
     OTCP_LARGE_MESSAGE_THRESHOLD("cassandra.otcp_large_message_threshold", convertToString(1024 * 64)),
     /** Enabled/disable TCP_NODELAY for intradc connections. Defaults is enabled. */
     OTC_INTRADC_TCP_NODELAY("cassandra.otc_intradc_tcp_nodelay", "true"),
+    OVERRIDE_COMPACTION_ENTITIES("cassandra.override_compaction.entities"),
+    OVERRIDE_COMPACTION_PARAMS("cassandra.override_compaction.params"),
     OVERRIDE_DECOMMISSION("cassandra.override_decommission"),
     PARENT_REPAIR_STATUS_CACHE_SIZE("cassandra.parent_repair_status_cache_size", "100000"),
     PARENT_REPAIR_STATUS_EXPIRY_SECONDS("cassandra.parent_repair_status_expiry_seconds", convertToString(TimeUnit.SECONDS.convert(1, TimeUnit.DAYS))),

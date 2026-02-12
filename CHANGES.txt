@@ -1,4 +1,5 @@
 5.1
+ * Allow overriding compaction strategy parameters during startup (CASSANDRA-21169)
  * Fix BigTableVerifier to only read a data file during extended verification (CASSANDRA-21150) 
  * Reduce memory allocation during transformation of BatchStatement to Mutation (CASSANDRA-21141)
  * Direct I/O support for compaction reads (CASSANDRA-19987)
