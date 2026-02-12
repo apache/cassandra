@@ -119,6 +119,13 @@ public class CursorCompactor extends CompactionInfo.Holder
         TableMetadata metadata = controller.cfs.metadata();
         if (unsupportedMetadata(metadata)) return false;
 
+        // TODO: Implement GarbageSkipper logic to support Materialized Views.
+        if (metadata.isView())
+        {
+            if (LOGGER.isDebugEnabled()) logDebugReason(metadata, "Materialized Views are not supported.");
+            return false;
+        }
+
         for (ISSTableScanner scanner : scanners.scanners)
         {
             // TODO: implement partial range reader
@@ -553,7 +560,7 @@ public class CursorCompactor extends CompactionInfo.Holder
             mergedRowDeletion = DeletionTime.LIVE;
         }
 
-        if (rowActiveDeletion.deletes(mergedRowInfo) || purger.shouldPurge(mergedRowInfo, nowInSec))
+        if (rowActiveDeletion.deletes(mergedRowInfo) || (mergedRowInfo.isExpiring() && !mergedRowInfo.isLive(nowInSec)) || purger.shouldPurge(mergedRowInfo, nowInSec))
         {
             mergedRowInfo = LivenessInfo.EMPTY;
         }
