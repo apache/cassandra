@@ -1,4 +1,5 @@
 5.1
+ * Allow overriding compaction strategy parameters during startup (CASSANDRA-21169)
  * Introduce created_at column to system_distributed.compression_dictionaries (CASSANDRA-21178)
  * Be able to detect and remove orphaned compression dictionaries (CASSANDRA-21157)
  * Fix BigTableVerifier to only read a data file during extended verification (CASSANDRA-21150) 

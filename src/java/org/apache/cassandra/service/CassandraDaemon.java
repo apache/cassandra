@@ -26,8 +26,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -44,6 +47,7 @@ import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,6 +120,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OVERRIDE_COMPACTION_ENTITIES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OVERRIDE_COMPACTION_PARAMS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
@@ -196,8 +202,8 @@ public class CassandraDaemon
     }
 
     @VisibleForTesting
-    public static Runnable SPECULATION_THRESHOLD_UPDATER = 
-        () -> 
+    public static Runnable SPECULATION_THRESHOLD_UPDATER =
+        () ->
         {
             try
             {
@@ -209,7 +215,7 @@ public class CassandraDaemon
                 JVMStabilityInspector.inspectThrowable(t);
             }
         };
-    
+
     static final CassandraDaemon instance = new CassandraDaemon();
 
     private volatile NativeTransportService nativeTransportService;
@@ -415,6 +421,8 @@ public class CassandraDaemon
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
         StorageService.instance.doAuthSetup();
 
+        // Apply overrides before re-enabling auto-compaction
+        setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
         // re-enable auto-compaction after replay, so correct disk boundaries are used
         enableAutoCompaction(Schema.instance.getKeyspaces());
 
@@ -427,7 +435,7 @@ public class CassandraDaemon
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
 
         // schedule periodic recomputation of speculative retry thresholds
-        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SPECULATION_THRESHOLD_UPDATER, 
+        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SPECULATION_THRESHOLD_UPDATER,
                                                                 DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
                                                                 DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
                                                                 NANOSECONDS);
@@ -562,6 +570,68 @@ public class CassandraDaemon
                 }
             }
         }
+    }
+
+    public static void setCompactionStrategyOverrides(Collection<String> keyspaces)
+    {
+        if (StringUtils.isBlank(OVERRIDE_COMPACTION_ENTITIES.getString()) || StringUtils.isBlank(OVERRIDE_COMPACTION_PARAMS.getString()))
+        {
+            return;
+        }
+
+        Map<String, List<String>> entitiesToChangeCompaction = parseEntititesToOverrideCompaction();
+        logger.info("Compaction strategy override is enabled via 'cassandra.override_compaction.params' for the following 'cassandra.override_compaction.entities': {}",
+                    entitiesToChangeCompaction);
+        String overrideParams = OVERRIDE_COMPACTION_PARAMS.getString();
+
+        for (String ksNme : keyspaces)
+        {
+            Keyspace keyspace = Keyspace.open(ksNme);
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+            {
+                for (final ColumnFamilyStore store : cfs.concatWithIndexes())
+                {
+                    List<String> tablesToOverrideCompaction = entitiesToChangeCompaction.get(ksNme);
+                    if (tablesToOverrideCompaction != null && (tablesToOverrideCompaction.isEmpty() || tablesToOverrideCompaction.contains(store.name)))
+                    {
+                        logger.info("Overriding compaction parameters for {}.{} with {}", store.getKeyspaceName(), store.name, overrideParams);
+                        cfs.setCompactionParametersJson(overrideParams);
+                    }
+                }
+            }
+        }
+    }
+
+    @VisibleForTesting
+    static Map<String, List<String>> parseEntititesToOverrideCompaction()
+    {
+        String entitiesCsv = OVERRIDE_COMPACTION_ENTITIES.getString();
+        if (StringUtils.isBlank(entitiesCsv))
+            return Collections.emptyMap();
+
+        // entititesCSV can be like "ks1,ks2,k3.tbl3,ks4.tbl1"
+        Map<String, List<String>> entitiesToChangeCompaction = new HashMap<>();
+        for (String entity : entitiesCsv.split(","))
+        {
+            String[] ksTable = entity.split("\\.");
+            String keyspace = ksTable[0].trim();
+            if (ksTable.length == 1)
+            {
+                entitiesToChangeCompaction.put(keyspace, new java.util.ArrayList<>());
+            }
+            else if (ksTable.length == 2)
+            {
+                // Empty list for a keyspace means all tables in that keyspace should be changed, so if we already have an entry for the keyspace with an empty list,
+                // we can skip adding specific tables for that keyspace as they are redundant.
+                List<String> existing = entitiesToChangeCompaction.get(keyspace);
+                if (existing == null || !existing.isEmpty())
+                {
+                    String table = ksTable[1].trim();
+                    entitiesToChangeCompaction.computeIfAbsent(keyspace, k -> new java.util.ArrayList<>()).add(table);
+                }
+            }
+        }
+        return entitiesToChangeCompaction;
     }
 
     public void setupVirtualKeyspaces()
