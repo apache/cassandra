@@ -8,3 +8,9 @@
 {"id":"e8557889-31ba-4a63-a19b-5fc03f9c490b","ts":"2026-02-09T12:26:15.687Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/tries/MapValuesTest.java","version":"1.0.0","taskID":"e440f3e9-1b44-4097-89b7-a0f399c56b39"}
 {"id":"71d3f15a-ae6c-49ff-a951-df97afd2b0d2","ts":"2026-02-09T12:26:25.981Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/tries/MapValuesTest.java","version":"1.0.0","taskID":"e440f3e9-1b44-4097-89b7-a0f399c56b39"}
 {"id":"667c0228-a7ab-44b9-96a7-5686cfa5ce78","ts":"2026-02-09T12:26:53.709Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/tries/MapValuesTest.java","version":"1.0.0","taskID":"e440f3e9-1b44-4097-89b7-a0f399c56b39"}
+
+{"id":"829cd48e-41a3-46ec-a630-329b5bb5e557","ts":"2026-02-10T15:04:40.930Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/tries/DeletionAwareTailTrieTest.java","version":"1.0.0","taskID":"267144c6-59c4-419c-9bb3-66cbce492796"}
+{"id":"ce719f06-00fb-433c-a9c1-a184701deb2c","ts":"2026-02-10T15:10:47.180Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/tries/DeletionAwareTailTrieTest.java","version":"1.0.0","taskID":"267144c6-59c4-419c-9bb3-66cbce492796"}
+{"id":"a18b802b-6563-409a-9b40-7e8e4f6e75e1","ts":"2026-02-10T15:12:02.587Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/tries/DeletionAwareTailTrieTest.java","version":"1.0.0","taskID":"267144c6-59c4-419c-9bb3-66cbce492796"}
+
+{"id":"cc79ee86-f683-4a5d-aa72-76768ce53780","ts":"2026-02-10T13:29:16.581Z","path":"/home/blambov/git/cassandra/test/unit/org/apache/cassandra/db/rows/TrieTombstoneMarkerTest.java","version":"1.0.0","taskID":"e440f3e9-1b44-4097-89b7-a0f399c56b39"}
