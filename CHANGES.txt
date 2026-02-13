@@ -1,4 +1,5 @@
 5.1
+ * Forbid nodes upgrading to a version which cannot read existing log entries (CASSANDRA-21174)
  * Introduce a check for minimum time to pass to train or import a compression dictionary from the last one (CASSANDRA-21179)
  * Allow overriding compaction strategy parameters during startup (CASSANDRA-21169)
  * Introduce created_at column to system_distributed.compression_dictionaries (CASSANDRA-21178)

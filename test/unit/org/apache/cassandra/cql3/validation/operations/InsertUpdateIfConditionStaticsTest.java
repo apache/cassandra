@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.Collection;
 
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,6 +28,7 @@ import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 
 /* InsertUpdateIfConditionCollectionsTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes
@@ -47,24 +47,18 @@ public class InsertUpdateIfConditionStaticsTest extends CQLTester
     }
 
     @Parameterized.Parameter(0)
-    public String clusterMinVersion;
+    public NodeVersion clusterMinVersion;
 
     @BeforeClass
-    public static void beforeClass()
+    public static void setUpClass()
     {
-        InsertUpdateIfConditionTest.beforeClass();
+        InsertUpdateIfConditionTest.setUpClass();
     }
 
     @Before
     public void before()
     {
         InsertUpdateIfConditionTest.beforeSetup(clusterMinVersion);
-    }
-
-    @AfterClass
-    public static void afterClass()
-    {
-        InsertUpdateIfConditionTest.afterClass();
     }
 
     /**
