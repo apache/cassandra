@@ -74,6 +74,22 @@ public class Register implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
+        // Ensure the joining node can read existing cluster metadata.
+        // Skip check for empty directory (first node in a new cluster).
+        if (!prev.directory.isEmpty())
+        {
+            Version clusterVersion = prev.directory.commonSerializationVersion;
+            Version newNodeVersion = version.serializationVersion();
+            if (newNodeVersion.isBefore(clusterVersion))
+            {
+                return new Rejected(INVALID,
+                                    String.format("Cannot register node: this node's metadata serialization version %s " +
+                                                  "is lower than the cluster's minimum required version %s. " +
+                                                  "Node would not be able to read cluster metadata.",
+                                                  newNodeVersion, clusterVersion));
+            }
+        }
+
         for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
         {
             NodeAddresses existingAddresses = entry.getValue();

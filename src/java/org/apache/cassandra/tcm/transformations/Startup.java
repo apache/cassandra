@@ -68,6 +68,19 @@ public class Startup implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
+        // Prevent downgrade to a version that cannot read cluster metadata.
+        // This protects against restarting a node with an older binary.
+        Version clusterVersion = prev.directory.commonSerializationVersion;
+        Version newNodeVersion = nodeVersion.serializationVersion();
+        if (newNodeVersion.isBefore(clusterVersion))
+        {
+            return new Rejected(INVALID,
+                                String.format("Cannot downgrade node: this node's metadata serialization version %s " +
+                                              "is lower than the cluster's minimum required version %s. " +
+                                              "Node would not be able to read cluster metadata.",
+                                              newNodeVersion, clusterVersion));
+        }
+
         ClusterMetadata.Transformer next = prev.transformer();
         if (!prev.directory.addresses.get(nodeId).equals(addresses))
         {

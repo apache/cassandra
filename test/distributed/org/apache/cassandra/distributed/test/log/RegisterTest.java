@@ -23,8 +23,11 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
 
+import com.google.common.collect.Sets;
+
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -34,10 +37,15 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.Transformation.Result;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -49,15 +57,33 @@ import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RegisterTest extends TestBaseImpl
 {
+    private static final Location TEST_LOCATION = new Location("datacenter1", "rack1");
+
+    private static ClusterMetadata createEmptyMetadata()
+    {
+        Keyspaces keyspaces = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet("datacenter1")));
+        DistributedSchema schema = new DistributedSchema(keyspaces);
+        return new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, schema);
+    }
+
+    private static ClusterMetadata register(String endpoint, NodeVersion version, ClusterMetadata metadata) throws UnknownHostException
+    {
+        return new Register(
+            new NodeAddresses(InetAddressAndPort.getByName(endpoint)),
+            TEST_LOCATION,
+            version
+        ).execute(metadata).success().metadata;
+    }
+
     @Test
     public void testRegistrationIdempotence() throws Throwable
     {
@@ -108,23 +134,24 @@ public class RegisterTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 try
                 {
-                    // Register a ghost node with V0 to fake-force V0 serialization. In a real world cluster we will always be upgrading from a smaller version.
+                    // Unregister to make directory empty
+                    ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId(),
+                                                                            EnumSet.allOf(NodeState.class),
+                                                                            ClusterMetadataService.instance().placementProvider()));
+
+                    // Register a ghost node with V0 (bypasses version check because directory is now empty).
+                    // In a real world cluster we will always be upgrading from a smaller version.
                     ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName(firstNodeEndpoint)),
-                                                                          ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId()),
+                                                                          TEST_LOCATION,
                                                                           new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V0)));
                     NodeId oldNode = ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByName(firstNodeEndpoint));
-                    // Fake an upgrade of this node and assert we continue to serialize so that the one which only
-                    // supports V0 can deserialize. In a real cluster it wouldn't happen exactly in this way (here the
-                    // min serialization version actually goes backwards from CURRENT to V0 when we upgrade, which would
-                    // not happen in a real cluster as we would never register like oldNode, with the current C* version
-                    // but an older metadata version
+
+                    // Register a node with upgraded version
                     CassandraVersion currentVersion = NodeVersion.CURRENT.cassandraVersion;
                     NodeVersion upgraded = new NodeVersion(new CassandraVersion(String.format("%d.%d.%d", currentVersion.major + 1, 0, 0)),
                                                             NodeVersion.CURRENT_METADATA_VERSION);
-                    ClusterMetadata metadata = ClusterMetadata.current();
-                    NodeId id = metadata.myNodeId();
-                    Startup startup = new Startup(id, metadata.directory.getNodeAddresses(id), upgraded);
-                    ClusterMetadataService.instance().commit(startup);
+                    ClusterMetadataService.instance().commit(new Register(NodeAddresses.current(), TEST_LOCATION, upgraded));
+
                     // Doesn't matter which specific Transformation we use here, we're testing that the serializer uses
                     // the correct lower bound
                     Transformation t = new Register(NodeAddresses.current(), new Location("DC", "RACK"), NodeVersion.CURRENT);
@@ -173,9 +200,15 @@ public class RegisterTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 try
                 {
-                    // Register a ghost node with V0 to fake-force V0 serialization. In a real world cluster we will always be upgrading from a smaller version.
+                    // Unregister to make directory empty
+                    ClusterMetadataService.instance().commit(new Unregister(ClusterMetadata.current().myNodeId(),
+                                                                            EnumSet.allOf(NodeState.class),
+                                                                            ClusterMetadataService.instance().placementProvider()));
+
+                    // Register a ghost node with V0 (bypasses version check because directory is now empty).
+                    // In a real world cluster we will always be upgrading from a smaller version.
                     ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName("127.0.0.10")),
-                                                                          ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId()),
+                                                                          TEST_LOCATION,
                                                                           new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V0)));
                 }
                 catch (UnknownHostException e)
@@ -187,8 +220,108 @@ public class RegisterTest extends TestBaseImpl
                 ClusterMetadata cm = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots().getSnapshot(ClusterMetadata.current().epoch);
                 cm.equals(ClusterMetadata.current());
             });
+        }
+    }
 
+    /**
+     * Tests that registering a new node with a serialization version lower than the cluster's
+     * commonSerializationVersion is rejected.
+     *
+     * Scenario:
+     * - Cluster has 1 node running at CURRENT_METADATA_VERSION (e.g., V8)
+     * - commonSerializationVersion = V8
+     * - A NEW node tries to register with V3
+     * - Should be REJECTED because V3 cannot read V8 metadata
+     */
+    @Test
+    public void testRegisterRejectsLowerSerializationVersion() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).createWithoutStarting())
+        {
+            cluster.get(1).startup();
+            cluster.get(1).runOnInstance(() -> {
+                try
+                {
+                    // Cluster's node1 is running at CURRENT_METADATA_VERSION (e.g., V8)
+                    // commonSerializationVersion = V8
 
+                    // Try to register a NEW node with a lower version (V3)
+                    NodeVersion lowerVersion = new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V3);
+                    Register register = new Register(
+                        new NodeAddresses(InetAddressAndPort.getByName("127.0.0.10")),
+                        ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId()),
+                        lowerVersion
+                    );
+
+                    Transformation.Result result = register.execute(ClusterMetadata.current());
+
+                    assertTrue("Registration should be rejected for node with lower serialization version",
+                               result.isRejected());
+                    assertTrue("Rejection message should mention serialization version",
+                               result.rejected().reason.contains("serialization version"));
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+    }
+
+    /**
+     * Tests that registering nodes with serialization version equal to or higher than
+     * the cluster's commonSerializationVersion is allowed.
+     *
+     * Scenario:
+     * - Create empty metadata and register a V3 node first (bypasses version check)
+     * - commonSerializationVersion = V3
+     * - Then register a V5 node - should succeed since V5 >= V3
+     * - Then register a V3 node - should succeed since V3 >= V3
+     */
+    @Test
+    public void testRegisterAllowsEqualOrHigherSerializationVersion() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).createWithoutStarting())
+        {
+            cluster.get(1).startup();
+            cluster.get(1).runOnInstance(() -> {
+                try
+                {
+                    // Create empty metadata and register V3 node first (bypasses version check because directory is empty)
+                    NodeVersion v3 = new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V3);
+                    ClusterMetadata metadata = register("127.0.0.10", v3, createEmptyMetadata());
+
+                    assertEquals("commonSerializationVersion should be V3",
+                                 Version.V3, metadata.directory.commonSerializationVersion);
+
+                    // Now register a V5 node - should succeed since V5 >= V3
+                    NodeVersion v5 = new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V5);
+                    Register registerV5 = new Register(
+                        new NodeAddresses(InetAddressAndPort.getByName("127.0.0.11")),
+                        TEST_LOCATION,
+                        v5
+                    );
+
+                    Result resultV5 = registerV5.execute(metadata);
+                    assertTrue("Registration should succeed for V5 node when cluster is at V3",
+                               resultV5.isSuccess());
+
+                    // Register another V3 node - should succeed since V3 >= V3
+                    Register registerV3 = new Register(
+                        new NodeAddresses(InetAddressAndPort.getByName("127.0.0.12")),
+                        TEST_LOCATION,
+                        v3
+                    );
+
+                    Result resultV3 = registerV3.execute(metadata);
+                    assertTrue("Registration should succeed for V3 node when cluster is at V3",
+                               resultV3.isSuccess());
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
         }
     }
 
