@@ -29,6 +29,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,9 @@ public class TableSnapshot
 
     private final String keyspaceName;
     private final String tableName;
+    // tableId may be null under some rare circumstance namely pre-2.1 table
+    // whose snapshot is loaded upon startup rather than created while the jvm is running
+    @Nullable
     private final UUID tableId;
     private final String tag;
     private final boolean ephemeral;
@@ -70,7 +75,8 @@ public class TableSnapshot
      * Unique identifier of a snapshot. Used
      * only to deduplicate snapshots internally,
      * not exposed externally.
-     *
+     * table_id may be empty for tables created prior to 2.1
+     * <p>
      * Format: "$ks:$table_name:$table_id:$tag"
      */
     public String getId()
@@ -224,7 +230,8 @@ public class TableSnapshot
                '}';
     }
 
-    static class Builder {
+    static class Builder
+    {
         private final String keyspaceName;
         private final String tableName;
         private final UUID tableId;
@@ -282,9 +289,9 @@ public class TableSnapshot
         }
     }
 
-    protected static String buildSnapshotId(String keyspaceName, String tableName, UUID tableId, String tag)
+    protected static String buildSnapshotId(String keyspaceName, String tableName, @Nullable UUID tableId, String tag)
     {
-        return String.format("%s:%s:%s:%s", keyspaceName, tableName, tableId, tag);
+        return String.format("%s:%s:%s:%s", keyspaceName, tableName, tableId == null ? "" : tableId, tag);
     }
 
     public static class SnapshotTrueSizeCalculator extends DirectorySizeCalculator
