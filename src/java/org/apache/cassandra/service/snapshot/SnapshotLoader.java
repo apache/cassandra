@@ -41,8 +41,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.Schema;
 
 import static org.apache.cassandra.db.Directories.SNAPSHOT_SUBDIR;
 import static org.apache.cassandra.service.snapshot.TableSnapshot.buildSnapshotId;
@@ -54,7 +57,9 @@ public class SnapshotLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotLoader.class);
 
-    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>.+)$");
+    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)" +
+                                                                "(-(?<tableId>[0-9a-f]{32}))?" +
+                                                                "/snapshots/(?<tag>.+)$");
 
     private final Collection<Path> dataDirectories;
 
@@ -149,7 +154,37 @@ public class SnapshotLoader
         {
             String keyspaceName = snapshotDirMatcher.group("keyspace");
             String tableName = snapshotDirMatcher.group("tableName");
-            UUID tableId = parseUUID(snapshotDirMatcher.group("tableId"));
+            final UUID tableId;
+            if (snapshotDirMatcher.group("tableId") == null)
+            {
+                logger.debug("Snapshot directory without tableId found (pre-2.1 format): {}", snapshotDir);
+                // If we don't have a tableId in folder name (e.g pre 2.1 created table)
+                // Then attempt to get tableId from CFS on startup
+                // falling back to null is fine as it still yields a unique result in buildSnapshotId for pre-2.1 table
+                if (Keyspace.isInitialized() && Schema.instance.getKeyspaceMetadata(keyspaceName) != null)
+                {
+                    ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspaceName, tableName);
+                    tableId = cfs != null && cfs.metadata.id != null
+                              ? cfs.metadata.id.asUUID()
+                              : null;
+
+                    if (tableId == null)
+                    {
+                        logger.warn("Snapshot directory without tableId found (pre-2.1 format) " +
+                                    "unable to initialize tableId from cfs defaulting to null {}", snapshotDir);
+                    }
+                }
+                else
+                {
+                    logger.warn("Snapshot directory without tableId found (pre-2.1 format) " +
+                                "Keyspace not initliazed or missing schema unable to initialize tableId default to null {}", snapshotDir);
+                    tableId = null;
+                }
+            }
+            else
+            {
+                tableId = parseUUID(snapshotDirMatcher.group("tableId"));
+            }
             String tag = snapshotDirMatcher.group("tag");
             String snapshotId = buildSnapshotId(keyspaceName, tableName, tableId, tag);
             TableSnapshot.Builder builder = snapshots.computeIfAbsent(snapshotId, k -> new TableSnapshot.Builder(keyspaceName, tableName, tableId, tag));

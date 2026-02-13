@@ -28,12 +28,15 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.File;
 import org.assertj.core.util.Lists;
 
@@ -66,6 +69,13 @@ public class SnapshotLoaderTest
 
     @ClassRule
     public static TemporaryFolder tmpDir = new TemporaryFolder();
+
+    @BeforeClass
+    public static void setup()
+    {
+        DatabaseDescriptor.daemonInitialization();
+        Keyspace.setInitialized();
+    }
 
     @Test
     public void testMatcher()
@@ -144,6 +154,7 @@ public class SnapshotLoaderTest
         snapshots = loader.loadSnapshots(KEYSPACE_2);
         assertThat(snapshots).hasSize(1);
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
+
     }
 
     @Test
@@ -192,7 +203,8 @@ public class SnapshotLoaderTest
         for (String dataDir : DATA_DIRS)
         {
             tag1Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1));
-            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE2_NAME, TABLE2_ID), Directories.SNAPSHOT_SUBDIR, TAG2));
+            // One table is an old pre 2.1 table folder structure
+            tag2Files.add(createDir(baseDir, dataDir, KEYSPACE_1, TABLE2_NAME, Directories.SNAPSHOT_SUBDIR, TAG2));
             tag3Files.add(createDir(baseDir, dataDir, KEYSPACE_2, tableDirName(TABLE3_NAME, TABLE3_ID), Directories.SNAPSHOT_SUBDIR, TAG3));
         }
 
@@ -219,7 +231,7 @@ public class SnapshotLoaderTest
         Set<TableSnapshot> snapshots = loader.loadSnapshots();
         assertThat(snapshots).hasSize(3);
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files, false));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, null,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files, false));
 
         // Verify snapshot loading for a specific keyspace
@@ -230,7 +242,7 @@ public class SnapshotLoaderTest
         snapshots = loader.loadSnapshots(KEYSPACE_1);
         assertThat(snapshots).hasSize(2);
         assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files, false));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, null,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
 
         loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
                                                   Paths.get(baseDir.toString(), DATA_DIR_2),
