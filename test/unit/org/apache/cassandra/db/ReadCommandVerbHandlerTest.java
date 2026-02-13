@@ -33,6 +33,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.filter.LocalReadSizeTooLargeException;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -168,6 +169,18 @@ public class ReadCommandVerbHandlerTest
                               .build());
     }
 
+    @Test
+    public void rejectExceptionSwallowedWithWarningTracking()
+    {
+        ReadCommand command = new RejectThrowingReadCommand(metadata);
+        handler.doVerb(Message.builder(READ_REQ, command)
+                              .from(peer())
+                              .withFlag(MessageFlag.TRACK_WARNINGS)
+                              .withId(messageId())
+                              .build());
+        // If we reach here without an exception, the RejectException was correctly swallowed
+    }
+
     private static int messageId()
     {
         return random.nextInt();
@@ -246,6 +259,34 @@ public class ReadCommandVerbHandlerTest
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
         {
             throw new TombstoneOverwhelmingException(1000, "test_query", metadata(), KEY, Clustering.EMPTY);
+        }
+    }
+
+    private static class RejectThrowingReadCommand extends SinglePartitionReadCommand
+    {
+        RejectThrowingReadCommand(TableMetadata metadata)
+        {
+            super(metadata.epoch,
+                  false,
+                  0,
+                  false,
+                  PotentialTxnConflicts.DISALLOW,
+                  metadata,
+                  FBUtilities.nowInSeconds(),
+                  ColumnFilter.all(metadata),
+                  RowFilter.none(),
+                  DataLimits.NONE,
+                  KEY,
+                  new ClusteringIndexSliceFilter(Slices.ALL, false),
+                  null,
+                  false,
+                  null);
+        }
+
+        @Override
+        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+        {
+            throw new LocalReadSizeTooLargeException("test read size too large");
         }
     }
 
