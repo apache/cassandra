@@ -270,12 +270,6 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
         return ByteBuffer.wrap(new byte[size]);
     }
 
-    protected static ResultSet driverQueryAll(String cql)
-    {
-        return JAVA_DRIVER_SESSION.execute(new SimpleStatement(cql)
-            .setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.ALL));
-    }
-
     private void assertWarningsCount(int expected)
     {
         assertThat(totalWarnings()).as("warnings").isEqualTo(expected);
