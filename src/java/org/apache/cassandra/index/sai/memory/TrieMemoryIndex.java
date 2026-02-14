@@ -148,8 +148,10 @@ public class TrieMemoryIndex extends MemoryIndex
             case CONTAINS_KEY:
             case CONTAINS_VALUE:
                 return exactMatch(expression, keyRange);
-            case RANGE:
             case LIKE_PREFIX:
+                //TODO: this needs to be handled cleaner way
+                expression.upper = null;
+            case RANGE:
                 KeyRangeIterator keyIterator = rangeMatch(expression, keyRange);
                 int keyCount = (int) keyIterator.getMaxKeys();
                 if (keyCount > MINIMUM_PRIORITY_QUEUE_SIZE)
@@ -336,7 +338,7 @@ public class TrieMemoryIndex extends MemoryIndex
         }
 
         Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
-        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, null, false).valueIterator();
+        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
 
         while (values.hasNext())
             cd.processContent(values.next());
