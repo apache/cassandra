@@ -3,10 +3,10 @@ NAME
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
-                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
-                [(-u <username> | --username <username>)] ring [(-r | --resolve-ip)]
-                [--] <keyspace>
+                [(-u <username> | --username <username>)] ring [(-pp | --print-port)]
+                [(-r | --resolve-ip)] [--] <keyspace>
 
 OPTIONS
         -h <host>, --host <host>

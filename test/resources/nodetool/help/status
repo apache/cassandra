@@ -3,11 +3,11 @@ NAME
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
-                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] status
-                [(-o <sort_order> | --order <sort_order>)] [(-r | --resolve-ip)]
-                [(-s <sort> | --sort <sort>)] [--] <keyspace>
+                [(-o <sort_order> | --order <sort_order>)] [(-pp | --print-port)]
+                [(-r | --resolve-ip)] [(-s <sort> | --sort <sort>)] [--] <keyspace>
 
 OPTIONS
         -h <host>, --host <host>

@@ -3,7 +3,7 @@ NAME
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
-                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] repair
                 [(-accord-only | --accord-only)]
@@ -85,9 +85,6 @@ OPTIONS
         -pl, --pull
             Use --pull to perform a one way repair where data is only streamed
             from a remote node to this node.
-
-        -pp, --print-port
-            Operate in 4.0 mode with hosts disambiguated by port number
 
         -pr, --partitioner-range
             Use -pr to repair only the first range returned by the partitioner

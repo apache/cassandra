@@ -3,10 +3,10 @@ NAME
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
-                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] gossipinfo
-                [(-r | --resolve-ip)]
+                [(-pp | --print-port)] [(-r | --resolve-ip)]
 
 OPTIONS
         -h <host>, --host <host>

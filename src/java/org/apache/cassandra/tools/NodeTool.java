@@ -23,8 +23,10 @@ import java.io.PrintWriter;
 import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 import javax.inject.Inject;
 import javax.management.InstanceNotFoundException;
@@ -46,6 +48,8 @@ import picocli.CommandLine;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
+import static org.apache.cassandra.tools.nodetool.PrintPortMixin.PRINT_PORT_LONG;
+import static org.apache.cassandra.tools.nodetool.PrintPortMixin.PRINT_PORT_SHORT;
 import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class NodeTool
@@ -56,6 +60,20 @@ public class NodeTool
     }
 
     private static final String HISTORYFILE = "nodetool.history";
+
+    /**
+     * Set of subcommand names that accept the {@code -pp/--print-port} options.
+     * These are the commands that declare the option via @Mixin and thus require
+     * relocating the option for backward compatibility in order to be recognized
+     * by picocli when specified before the subcommand name.
+     * <p>
+     * Both calls such as {@code ./nodetool --print-port status}, and
+     * {@code ./nodetool status --print-port} should work as expected.
+     */
+    private static final Set<String> COMMANDS_SUPPORTING_PRINT_PORT_OPTION = Set.of("status", "ring", "netstats",
+                                                                                    "gossipinfo", "getendpoints",
+                                                                                    "failuredetector", "describering",
+                                                                                    "describecluster");
 
     private final INodeProbeFactory nodeProbeFactory;
     private final Output output;
@@ -112,7 +130,7 @@ public class NodeTool
                        .setPosixClusteredShortOptionsAllowed(false);
 
             printHistory(args);
-            return commandLine.execute(args);
+            return commandLine.execute(relocatePrintPortOptionsForBackwardCompatibility(args));
         }
         catch (ConfigurationException e)
         {
@@ -218,6 +236,66 @@ public class NodeTool
         output.err.println("error: " + e.getMessage());
         output.err.println("-- StackTrace --");
         output.err.println(getStackTraceAsString(e));
+    }
+
+    /**
+     * Rewrites global {@code -pp/--print-port} options that have been moved
+     * to subcommands via @Mixin for backward compatibility. When a user types:
+     * <pre>
+     *   nodetool -pp status
+     *   nodetool --print-port status -r
+     * </pre>
+     * this method rewrites them to:
+     * <pre>
+     *   nodetool status -pp
+     *   nodetool status -r --print-port
+     * </pre>
+     * so that picocli assigns the option to the subcommand that declares it.
+     * <p>
+     * Options that appear after the subcommand name are left untouched:
+     * <pre>
+     *   nodetool status -pp -> unchanged
+     *   nodetool status -pp -r -> unchanged
+     * </pre>
+     */
+    static String[] relocatePrintPortOptionsForBackwardCompatibility(String[] args)
+    {
+        if (args == null || args.length < 2)
+            return args;
+
+        Set<String> relocatable = Set.of(PRINT_PORT_SHORT, PRINT_PORT_LONG);
+
+        int subcommandIdx = -1;
+        for (int i = 0; i < args.length; i++)
+        {
+            if (COMMANDS_SUPPORTING_PRINT_PORT_OPTION.contains(args[i]))
+            {
+                subcommandIdx = i;
+                break;
+            }
+        }
+
+        if (subcommandIdx < 0)
+            return args;
+
+        List<String> before = new ArrayList<>();
+        List<String> toRelocate = new ArrayList<>();
+        for (int i = 0; i < subcommandIdx; i++)
+        {
+            if (relocatable.contains(args[i]))
+                toRelocate.add(args[i]);
+            else
+                before.add(args[i]);
+        }
+
+        if (toRelocate.isEmpty())
+            return args;
+
+        List<String> result = new ArrayList<>(before);
+        result.addAll(Arrays.asList(args).subList(subcommandIdx, args.length));
+        result.addAll(toRelocate);
+
+        return result.toArray(new String[0]);
     }
 
     private enum CliLayout
