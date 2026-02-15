@@ -18,23 +18,14 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import picocli.CommandLine.ParentCommand;
+import picocli.CommandLine;
 
-/**
- * Abstract class for commands that display endpoints that can be disambiguated by port number. (e.g. gossipinfo, describecluster etc.).
- */
-abstract class WithPortDisplayAbstractCommand extends AbstractCommand
+public class PrintPortMixin
 {
-    @ParentCommand
-    private NodetoolCommand parent;
+    public static final String PRINT_PORT_SHORT = "-pp";
+    public static final String PRINT_PORT_LONG = "--print-port";
 
-    /** See {@link NodetoolCommand#printPort} option. */
-    protected boolean printPort;
-
-    @Override
-    protected boolean shouldConnect()
-    {
-        printPort = parent.printPort;
-        return true;
-    }
+    @CommandLine.Option(names = { PRINT_PORT_SHORT, PRINT_PORT_LONG },
+                        description = "Operate in 4.0 mode with hosts disambiguated by port number")
+    public boolean printPort = false;
 }

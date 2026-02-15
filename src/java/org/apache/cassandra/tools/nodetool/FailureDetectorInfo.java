@@ -25,14 +25,18 @@ import javax.management.openmbean.TabularData;
 import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 
 @Command(name = "failuredetector", description = "Shows the failure detector information for the cluster")
-public class FailureDetectorInfo extends WithPortDisplayAbstractCommand
+public class FailureDetectorInfo extends AbstractCommand
 {
+    @Mixin
+    private PrintPortMixin printPortMixin = new PrintPortMixin();
+
     @Override
     public void execute(NodeProbe probe)
     {
-        TabularData data = probe.getFailureDetectorPhilValues(printPort);
+        TabularData data = probe.getFailureDetectorPhilValues(printPortMixin.printPort);
         probe.output().out.printf("%10s,%16s%n", "Endpoint", "Phi");
         for (Object o : data.keySet())
         {
