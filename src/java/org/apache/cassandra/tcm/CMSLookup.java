@@ -24,8 +24,6 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
@@ -50,7 +48,6 @@ public class CMSLookup
     }
 
     private final Map<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides;
-    private final BiMap<InetAddressAndPort, InetAddressAndPort> addressMap;
     private final Epoch lastModified;
     private final State state;
 
@@ -58,13 +55,9 @@ public class CMSLookup
     {
         this.state = state;
         this.lastModified = epoch;
-        this.addressMap = HashBiMap.create(overrides.size());
         this.overrides = Maps.newHashMapWithExpectedSize(overrides.size());
         for (Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> e : overrides.entrySet())
-        {
             this.overrides.put(e.getKey(), e.getValue());
-            this.addressMap.put(e.getValue().left, e.getValue().right);
-        }
     }
 
     public boolean isUninitialized()
@@ -75,12 +68,6 @@ public class CMSLookup
     public boolean isActive()
     {
         return state == State.ACTIVE;
-    }
-
-    public InetAddressAndPort getAddressOverride(NodeId id)
-    {
-        Pair<InetAddressAndPort, InetAddressAndPort> override = overrides.get(id);
-        return override != null ? override.right : null;
     }
 
     public EndpointLookup asNodeLookup(EndpointLookup lookup)
@@ -146,7 +133,6 @@ public class CMSLookup
                "state=" + state +
                ", epoch=" + lastModified +
                ", overrides=" + overrides +
-               ", addressMap=" + addressMap +
                '}';
     }
 
