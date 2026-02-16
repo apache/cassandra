@@ -207,7 +207,7 @@ public class CrossClusterNodesTest
     {
         EndpointState foreignNodeEpState = fakeState();
         foreignNodeEpState.addApplicationState(JSON_PAYLOAD, getPayloadWithForeignNode());
-        Map<InetAddressAndPort, EndpointState> pollutedEpStateMap = new HashMap<>()
+        Map<InetAddressAndPort, EndpointState> pollutedEpStateMap = new HashMap<InetAddressAndPort, EndpointState>()
         {{
             put(remoteHostAddress, nodeEpState);
             put(InetAddressAndPort.getByName("127.0.0.3"), foreignNodeEpState);
@@ -240,7 +240,7 @@ public class CrossClusterNodesTest
     {
         EndpointState foreignNodeEpState = fakeState();
         foreignNodeEpState.addApplicationState(JSON_PAYLOAD, getPayloadWithForeignNode());
-        Map<InetAddressAndPort, EndpointState> pollutedEpStateMap = new HashMap<>()
+        Map<InetAddressAndPort, EndpointState> pollutedEpStateMap = new HashMap<InetAddressAndPort, EndpointState>()
         {{
             put(remoteHostAddress, nodeEpState);
             put(InetAddressAndPort.getByName("127.0.0.3"), foreignNodeEpState);
@@ -312,7 +312,7 @@ public class CrossClusterNodesTest
     {
         EndpointState foreignNodeEpState = fakeState();
         foreignNodeEpState.addApplicationState(JSON_PAYLOAD, getPayloadWithForeignNode());
-        Map<InetAddressAndPort, EndpointState> pollutedEpStateMap = new HashMap<>()
+        Map<InetAddressAndPort, EndpointState> pollutedEpStateMap = new HashMap<InetAddressAndPort, EndpointState>()
         {{
             put(InetAddressAndPort.getByName("127.0.0.3"), foreignNodeEpState);
         }};
@@ -341,7 +341,7 @@ public class CrossClusterNodesTest
 
     private static VersionedValue getPayloadWith(String key, String value)
     {
-        Map<String, Object> payload = new HashMap<>()
+        Map<String, Object> payload = new HashMap<String, Object>()
         {{
             put(key, value);
         }};
