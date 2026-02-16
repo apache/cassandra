@@ -355,13 +355,20 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                         builder = builder.withOverride(confirmed, prev, next);
                     }
                 }
+
+                if (!builder.hasOverrides())
+                {
+                    logger.info("No overrides required for CMS members");
+                    return replayed;
+                }
+
                 if (replayed.initCMSLookup(builder.build()))
                 {
                     ClusterMetadataService.instance().log().addListener(new CMSLookup.LogListener());
                     return replayed;
                 }
-
-                throw new RuntimeException("Could not initialize CMS lookup");
+                else
+                    throw new RuntimeException("Could not initialize CMS lookup");
             }
         }
         else

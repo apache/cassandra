@@ -22,9 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,23 +40,21 @@ public class CMSLookup
 
     public enum State { PRE_INIT, ACTIVE, RETIRED };
 
-    public final static CMSLookup NO_OP = new CMSLookup(State.PRE_INIT, Epoch.EMPTY, new HashMap<>());
+    public final static CMSLookup NO_OP = new CMSLookup(State.PRE_INIT, Epoch.EMPTY, ImmutableMap.of());
     public static InitialBuilder builder(ClusterMetadata metadata)
     {
         return new InitialBuilder(metadata);
     }
 
-    private final Map<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides;
+    private final ImmutableMap<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides;
     private final Epoch lastModified;
     private final State state;
 
-    private CMSLookup(State state, Epoch epoch, Map<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides)
+    private CMSLookup(State state, Epoch epoch, ImmutableMap<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> overrides)
     {
         this.state = state;
         this.lastModified = epoch;
-        this.overrides = Maps.newHashMapWithExpectedSize(overrides.size());
-        for (Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> e : overrides.entrySet())
-            this.overrides.put(e.getKey(), e.getValue());
+        this.overrides = overrides;
     }
 
     public boolean isUninitialized()
@@ -98,8 +95,8 @@ public class CMSLookup
             return this;
 
         // Filters from the override list those which are no longer necessary as a transformation has now
-        // replaced the old address with the new one for that node id
-        Predicate<Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>>> overrideNowEnacted = entry -> {
+        // replaced the old address with a new one for that node id
+        Predicate<Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>>> overrideRequired = entry -> {
             NodeId nodeId = entry.getKey();
             if (!Objects.equals(prev.directory.getNodeAddresses(nodeId), next.directory.getNodeAddresses(nodeId)))
             {
@@ -115,13 +112,21 @@ public class CMSLookup
             return true;
         };
 
-        logger.debug("Current endpoint overrides: {}", overrides);
-        Map<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> nextOverrides
-            = overrides.entrySet()
-                       .stream()
-                       .filter(overrideNowEnacted)
-                       .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        logger.debug("Proposed endpoint overrides: {}", nextOverrides);
+        logger.info("Current endpoint overrides: {}", overrides);
+        ImmutableMap.Builder<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> builder = ImmutableMap.builder();
+        for (Map.Entry<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> override : overrides.entrySet())
+        {
+            if(overrideRequired.test(override))
+                builder.put(override.getKey(), override.getValue());
+        }
+
+        ImmutableMap<NodeId, Pair<InetAddressAndPort, InetAddressAndPort>> nextOverrides = builder.build();
+        if (nextOverrides.equals(overrides))
+        {
+            logger.info("No changes to endpoint overrides detected");
+            return this;
+        }
+        logger.info("Proposed endpoint overrides: {}", nextOverrides);
         State state = nextOverrides.isEmpty() ? State.RETIRED : State.ACTIVE;
         return new CMSLookup(state, next.epoch, nextOverrides);
     }
@@ -153,9 +158,16 @@ public class CMSLookup
             return this;
         }
 
+        public boolean hasOverrides()
+        {
+            return !overrides.isEmpty();
+        }
+
         public CMSLookup build()
         {
-            return new CMSLookup(State.ACTIVE, epoch, overrides);
+            if (overrides.isEmpty())
+                throw new IllegalStateException("No overrides detected");
+            return new CMSLookup(State.ACTIVE, epoch, ImmutableMap.copyOf(overrides));
         }
     }
 
