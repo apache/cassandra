@@ -44,6 +44,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
+
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -1237,7 +1239,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return ImmutableSet.copyOf(seedsInShadowRound);
     }
 
-    long getLastProcessedMessageAt()
+    @VisibleForTesting
+    public long getLastProcessedMessageAt()
     {
         return lastProcessedMessageAt;
     }
@@ -1383,6 +1386,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
+        if (!Gossiper.maybeBelongsInCluster(addr, localState))
+        {
+            logger.error("Not sending ECHO to {} which doesn't belong in this cluster", addr);
+        }
+
         localState.markDead();
 
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
@@ -1576,6 +1584,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
             EndpointState remoteState = entry.getValue();
+
+            // Cross-cluster safety checks
+            if (!maybeBelongsInCluster(ep, remoteState))
+            {
+                logger.error("Cannot apply state locally for {} because it doesn't seem to belong in this cluster {}", ep, remoteState);
+                continue;
+            }
+
             if (!hasMajorVersion3OrUnknownNodes())
                 remoteState.removeMajorVersion3LegacyApplicationStates();
 
@@ -2612,5 +2628,71 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
         }
         return mismatches;
+    }
+
+    /**
+     * If available checks for cluster and partitioner name to match. Useful to avoid accidental cross cluster node joins.
+     *
+     * @param nodeAddress The address of the node we're checking against
+     * @param epState     The state Gossip sent us
+     * @return            False if any of the 2 are present and don't match. Otherwise defaults to True
+     */
+    public static boolean maybeBelongsInCluster(InetAddressAndPort nodeAddress, EndpointState epState)
+    {
+        if (nodeAddress!= null && epState != null)
+        {
+            Map<String, Object> jsonMap = ApplicationState.deserializeJsonPayload(epState.getApplicationState(ApplicationState.JSON_PAYLOAD));
+            if (jsonMap != null)
+            {
+                String auxValue = (String) jsonMap.get(ApplicationState.JsonPayload.CLUSTER_NAME.name());
+                if (auxValue != null && !auxValue.equals(DatabaseDescriptor.getClusterName()))
+                {
+                    logger.error("Gossip from {} rejected, its cluster name {} doesn't match the local one {} triggered at {}",
+                                 nodeAddress,
+                                 auxValue,
+                                 DatabaseDescriptor.getClusterName(),
+                                 ExceptionUtils.getStackTrace(new Exception("Cross cluster node detected")));
+                    return false;
+                }
+
+                auxValue = (String) jsonMap.get(ApplicationState.JsonPayload.PARTITIONER_NAME.name());
+                if (auxValue != null && !auxValue.equals(DatabaseDescriptor.getPartitionerName()))
+                {
+                    logger.error("Gossip from {} rejected, its partitioner name {} doesn't match the local one {} triggered at {}",
+                                 nodeAddress,
+                                 auxValue,
+                                 DatabaseDescriptor.getPartitionerName(),
+                                 ExceptionUtils.getStackTrace(new Exception("Cross cluster node detected")));
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Modifies and removes nodes from the map that joined in err and are foreign to this cluster
+     *
+     * @param epStateMap
+     * @return The purged map
+     */
+    public static Map<InetAddressAndPort, EndpointState> removeForeignClusterNodes(Map<InetAddressAndPort, EndpointState> epStateMap)
+    {
+        if (epStateMap == null)
+            return null;
+
+        Iterator<Map.Entry<InetAddressAndPort, EndpointState>> it = epStateMap.entrySet().iterator();
+        while (it.hasNext())
+        {
+            Entry<InetAddressAndPort, EndpointState> entry = it.next();
+            if (!maybeBelongsInCluster(entry.getKey(), entry.getValue()))
+            {
+                logger.error("Ignoring Gossip from node {} because its state has info from other clusters {}", entry.getKey(), entry.getValue());
+                it.remove();
+            }
+        }
+
+        return epStateMap;
     }
 }
