@@ -7676,6 +7676,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public boolean getForceOptimizedIndexStatusFormat()
+    {
+        return DatabaseDescriptor.getForceOptimizedIndexStatusFormat();
+    }
+
+    @Override
+    public void setForceOptimizedIndexStatusFormat(boolean value)
+    {
+        DatabaseDescriptor.setForceOptimizedIndexStatusFormat(value);
+    }
+
+    @Override
     public void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
     {
         DatabaseDescriptor.setPaxosRepairRaceWait(paxosRepairRaceWait);

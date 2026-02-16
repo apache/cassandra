@@ -5264,6 +5264,16 @@ public class DatabaseDescriptor
         conf.sai_options.prioritize_over_legacy_index = value;
     }
 
+    public static boolean getForceOptimizedIndexStatusFormat()
+    {
+        return conf.force_optimized_index_status_format;
+    }
+
+    public static void setForceOptimizedIndexStatusFormat(boolean value)
+    {
+        conf.force_optimized_index_status_format = value;
+    }
+
     public static RepairRetrySpec getRepairRetrySpec()
     {
         return conf == null ? new RepairRetrySpec() : conf.repair.retries;

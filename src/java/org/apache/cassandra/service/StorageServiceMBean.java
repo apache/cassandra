@@ -1322,6 +1322,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     boolean getPrioritizeSAIOverLegacyIndex();
     void setPrioritizeSAIOverLegacyIndex(boolean value);
 
+    boolean getForceOptimizedIndexStatusFormat();
+    void setForceOptimizedIndexStatusFormat(boolean value);
+
     void setPaxosRepairRaceWait(boolean paxosRepairCoordinatorWait);
 
     boolean getPaxosRepairRaceWait();
