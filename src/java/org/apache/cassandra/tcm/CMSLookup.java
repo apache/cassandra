@@ -178,6 +178,11 @@ public class CMSLookup
         {
             logger.debug("Reevaluating CMSLookup from {} at epoch {}", prev.epoch,  next.epoch);
             next.refreshCMSLookup(prev, fromSnapshot);
+            if (next.cmsLookup.state == State.RETIRED)
+            {
+                logger.info("CMSLookup state is RETIRED, removing log listener");
+                ClusterMetadataService.instance().log().removeListener(this);
+            }
         }
     }
 }

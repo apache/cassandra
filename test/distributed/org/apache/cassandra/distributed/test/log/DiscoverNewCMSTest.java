@@ -197,6 +197,11 @@ public class DiscoverNewCMSTest extends TestBaseImpl
                 assertEquals("Check failed on instance " + inst.config().num(), peer.right, fromInst);
             }
         }
+
+        cluster.schemaChange("Create keyspace ks1 with replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+        cluster.schemaChange("Create keyspace ks2 with replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+        cluster.schemaChange("Create keyspace ks3 with replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+
     }
 
     private boolean allAddressChangesEnacted(Cluster cluster)
