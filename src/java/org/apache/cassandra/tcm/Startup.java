@@ -351,8 +351,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     InetAddressAndPort next = confirmedCMS.get(confirmed);
                     if (!next.equals(prev))
                     {
-                        logger.info("Added override for {}, ({} -> {})", confirmed, previousCMS.get(confirmed), confirmedCMS.get(confirmed));
-                        builder = builder.withOverride(confirmed, previousCMS.get(confirmed), confirmedCMS.get(confirmed));
+                        logger.info("Added override for {}, ({} -> {})", confirmed, prev, next);
+                        builder = builder.withOverride(confirmed, prev, next);
                     }
                 }
                 if (replayed.initCMSLookup(builder.build()))
