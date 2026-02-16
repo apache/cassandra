@@ -90,7 +90,7 @@ public enum ApplicationState
 
     private static final ObjectMapper jsonMapper = new ObjectMapper();
 
-    public static final Map<String, Object> initialJsonPayload = new HashMap<>()
+    public static final Map<String, Object> initialJsonPayload = new HashMap<String, Object>()
     {{
         put(JsonPayload.CLUSTER_NAME.name(), DatabaseDescriptor.getClusterName());
         put(JsonPayload.PARTITIONER_NAME.name(), DatabaseDescriptor.getPartitionerName());
