@@ -364,6 +364,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
                 if (replayed.initCMSLookup(builder.build()))
                 {
+                    logger.info("Adding CMS lookup log listener");
                     ClusterMetadataService.instance().log().addListener(new CMSLookup.LogListener());
                     return replayed;
                 }
