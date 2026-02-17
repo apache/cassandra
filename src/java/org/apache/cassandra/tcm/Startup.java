@@ -294,6 +294,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         Set<InetAddressAndPort> candidates = new HashSet<>(previousCMS.values());
         candidates.add(newAddress);
+        candidates.addAll(DatabaseDescriptor.getSeeds());
 
         int maxRounds = 5;
         int currentRound = 0;
