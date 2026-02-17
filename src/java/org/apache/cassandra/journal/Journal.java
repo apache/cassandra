@@ -349,7 +349,6 @@ public class Journal<K, V> implements Shutdownable
             segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
             compactor.shutdown();
             compactor.awaitTermination(1, TimeUnit.MINUTES);
-            closeAllSegments();
             flusher.shutdown();
             closeAllSegments();
             releaser.shutdown();
