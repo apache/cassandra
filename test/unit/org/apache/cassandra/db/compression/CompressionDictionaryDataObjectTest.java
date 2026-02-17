@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -27,7 +28,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CompressionDictionaryHelper;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,6 +40,7 @@ public class CompressionDictionaryDataObjectTest
     private static final String KEYSPACE = "ks";
     private static final String TABLE = "tb";
     private static final String TABLE_ID = UUID.randomUUID().toString();
+    private static final Instant now = Instant.now();
     private static final CompressionDictionary COMPRESSION_DICTIONARY = CompressionDictionaryHelper.INSTANCE.trainDictionary(KEYSPACE, TABLE);
     private static final CompressionDictionaryDataObject VALID_OBJECT = createValidObject();
 
@@ -56,6 +57,7 @@ public class CompressionDictionaryDataObjectTest
         assertEquals(VALID_OBJECT.kind, dataObject.kind);
         assertEquals(VALID_OBJECT.dictChecksum, dataObject.dictChecksum);
         assertEquals(VALID_OBJECT.dictLength, dataObject.dictLength);
+        assertEquals(VALID_OBJECT.createdAt, dataObject.createdAt);
     }
 
     @Test
@@ -71,6 +73,7 @@ public class CompressionDictionaryDataObjectTest
         assertEquals(COMPRESSION_DICTIONARY.kind().name(), dataObject.kind);
         assertEquals(COMPRESSION_DICTIONARY.checksum(), dataObject.dictChecksum);
         assertEquals(COMPRESSION_DICTIONARY.rawDictionary().length, dataObject.dictLength);
+        assertEquals(COMPRESSION_DICTIONARY.createdAt(), dataObject.createdAt);
     }
 
     @Test
@@ -81,7 +84,8 @@ public class CompressionDictionaryDataObjectTest
                                                                                             TABLE_ID,
                                                                                             COMPRESSION_DICTIONARY.dictId(),
                                                                                             COMPRESSION_DICTIONARY.checksum(),
-                                                                                            COMPRESSION_DICTIONARY.rawDictionary().length);
+                                                                                            COMPRESSION_DICTIONARY.rawDictionary().length,
+                                                                                            now);
 
         CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromLightweightCompressionDictionary(lightweight);
 
@@ -93,6 +97,7 @@ public class CompressionDictionaryDataObjectTest
         assertEquals(COMPRESSION_DICTIONARY.dictId().kind.name(), compositeData.get(CompressionDictionaryDetailsTabularData.KIND_NAME));
         assertEquals(COMPRESSION_DICTIONARY.checksum(), compositeData.get(CompressionDictionaryDetailsTabularData.CHECKSUM_NAME));
         assertEquals(COMPRESSION_DICTIONARY.rawDictionary().length, compositeData.get(CompressionDictionaryDetailsTabularData.SIZE_NAME));
+        assertEquals(now.toString(), compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME));
     }
 
     @Test
@@ -100,13 +105,10 @@ public class CompressionDictionaryDataObjectTest
     {
         assertInvalid(modifier -> modifier.withKeyspace(null), "Keyspace not specified.");
         assertInvalid(modifier -> modifier.withTable(null), "Table not specified.");
-        assertInvalid(modifier -> modifier.withTableId(null), "Table id not specified");
+        assertInvalid(modifier -> modifier.withTableId(null), "Table id not specified.");
         assertInvalid(modifier -> modifier.withDictId(-1), "Provided dictionary id must be positive but it is '-1'.");
         assertInvalid(modifier -> modifier.withDict(null), "Provided dictionary byte array is null or empty.");
-        assertInvalid(modifier -> modifier.withDict(new byte[0]), "Provided dictionary byte array is null or empty.");
-        assertInvalid(modifier -> modifier.withDict(new byte[((int) FileUtils.ONE_MIB) + 1]),
-                      "Imported dictionary can not be larger than 1048576 bytes, but it is 1048577 bytes.");
-        assertInvalid(modifier -> modifier.withKind(null), "Provided kind is null.");
+        assertInvalid(modifier -> modifier.withDict(new byte[0]), "Provided dictionary byte array is null or empty.");assertInvalid(modifier -> modifier.withKind(null), "Provided kind is null.");
         assertInvalid(modifier -> modifier.withKind("NONSENSE"), "There is no such dictionary kind like 'NONSENSE'. Available kinds: [ZSTD]");
         assertInvalid(modifier -> modifier.withDictLength(0), "Size has to be strictly positive number, it is '0'.");
         assertInvalid(modifier -> modifier.withDictLength(-10), "Size has to be strictly positive number, it is '-10'.");
@@ -116,6 +118,7 @@ public class CompressionDictionaryDataObjectTest
         assertInvalid(builder -> builder.withDictChecksum(VALID_OBJECT.dictChecksum + 1),
                       "Computed checksum of dictionary to import (" + VALID_OBJECT.dictChecksum +
                       ") is different from checksum specified on input (" + (VALID_OBJECT.dictChecksum + 1) + ").");
+        assertInvalid(modifier -> modifier.withCreatedAt(null), "The creation date not specified.");
     }
 
     private void assertInvalid(Consumer<DataObjectModifier> action, String expectedExceptionMessage)
@@ -130,6 +133,7 @@ public class CompressionDictionaryDataObjectTest
 
     private static CompressionDictionaryDataObject createValidObject()
     {
+
         return new CompressionDictionaryDataObject("ks",
                                                    "tb",
                                                    TABLE_ID,
@@ -139,7 +143,8 @@ public class CompressionDictionaryDataObjectTest
                                                    CompressionDictionary.calculateChecksum((byte) CompressionDictionary.Kind.ZSTD.ordinal(),
                                                                                            123,
                                                                                            COMPRESSION_DICTIONARY.rawDictionary()),
-                                                   COMPRESSION_DICTIONARY.rawDictionary().length);
+                                                   COMPRESSION_DICTIONARY.rawDictionary().length,
+                                                   now);
     }
 
     private static class DataObjectModifier
@@ -152,6 +157,7 @@ public class CompressionDictionaryDataObjectTest
         private String kind;
         private int dictChecksum;
         private int dictLength;
+        private Instant createdAt;
 
         public DataObjectModifier(CompressionDictionaryDataObject from)
         {
@@ -163,11 +169,12 @@ public class CompressionDictionaryDataObjectTest
             withKind(from.kind);
             withDictChecksum(from.dictChecksum);
             withDictLength(from.dictLength);
+            withCreatedAt(from.createdAt);
         }
 
         public CompressionDictionaryDataObject build()
         {
-            return new CompressionDictionaryDataObject(keyspace, table, tableId, dictId, dict, kind, dictChecksum, dictLength);
+            return new CompressionDictionaryDataObject(keyspace, table, tableId, dictId, dict, kind, dictChecksum, dictLength, createdAt);
         }
 
         public DataObjectModifier withKeyspace(String keyspace)
@@ -215,6 +222,12 @@ public class CompressionDictionaryDataObjectTest
         public DataObjectModifier withDictLength(int dictLength)
         {
             this.dictLength = dictLength;
+            return this;
+        }
+
+        private DataObjectModifier withCreatedAt(Instant createdAt)
+        {
+            this.createdAt = createdAt;
             return this;
         }
     }

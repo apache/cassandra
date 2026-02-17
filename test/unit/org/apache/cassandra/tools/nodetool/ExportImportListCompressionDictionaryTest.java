@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.nio.file.Files;
+import java.time.Instant;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -92,7 +93,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 pair.left.dict,
                                                                 pair.left.kind,
                                                                 pair.left.dictChecksum,
-                                                                pair.left.dictLength), pair.right);
+                                                                pair.left.dictLength,
+                                                                Instant.now()), pair.right);
 
         ToolResult result = invokeNodetool("compressiondictionary", "import", pair.right.absolutePath());
         assertTrue(result.getStderr().contains("Unable to import dictionary JSON: Table abc.def does not exist or does not support dictionary compression"));
@@ -168,10 +170,11 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         ToolResult result = invokeNodetool("compressiondictionary", "list", keyspace(), table);
         result.assertOnExitCode();
         assertTrue(result.getStdout()
-                         .contains(format("%s %s %s %s %s %s",
+                         .contains(format("%s %s %s %s %s %s %s",
                                           keyspace(), table, dataObject.dictId,
                                           dataObject.kind, dataObject.dictChecksum,
-                                          dataObject.dictLength)));
+                                          dataObject.dictLength,
+                                          dataObject.createdAt.toString())));
     }
 
     private void rewriteTable(String table, Pair<CompressionDictionaryDataObject, File> pair) throws Throwable
@@ -183,7 +186,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
                                                                 pair.left.dict,
                                                                 pair.left.kind,
                                                                 pair.left.dictChecksum,
-                                                                pair.left.dictLength),
+                                                                pair.left.dictLength,
+                                                                pair.left.createdAt),
                             pair.right);
     }
 

@@ -59,6 +59,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -206,6 +207,7 @@ public final class SystemDistributedKeyspace
                                                               "dict blob," +
                                                               "dict_length int," +
                                                               "dict_checksum int," +
+                                                              "created_at timestamp," +
                                                               "PRIMARY KEY ((keyspace_name, table_name), table_id, dict_id)) " +
                                                               "WITH CLUSTERING ORDER BY (table_id DESC, dict_id DESC)"; // in order to retrieve the latest dictionary; the contract is the newer the dictionary the larger the dict_id
 
@@ -426,7 +428,7 @@ public final class SystemDistributedKeyspace
                                                   CompressionDictionary dictionary)
     {
         byte[] dict = dictionary.rawDictionary();
-        String query = "INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum) VALUES ('%s', '%s', '%s', '%s', %s, ?, %s, %s)";
+        String query = "INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum, created_at) VALUES ('%s', '%s', '%s', '%s', %s, ?, %s, %s, ?)";
         String fmtQuery = format(query,
                                  SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                  COMPRESSION_DICTIONARIES,
@@ -439,7 +441,7 @@ public final class SystemDistributedKeyspace
                                  dictionary.checksum());
         noThrow(fmtQuery,
                 () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.ONE,
-                                             Collections.singletonList(ByteBuffer.wrap(dict))));
+                                             List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli()))));
     }
 
     /**
@@ -454,7 +456,7 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static CompressionDictionary retrieveLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
+        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
@@ -479,7 +481,7 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static LightweightCompressionDictionary retrieveLightweightLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_checksum, dict_length FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_checksum, dict_length, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
@@ -505,7 +507,7 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static CompressionDictionary retrieveCompressionDictionary(String keyspaceName, String tableName, String tableId, long dictionaryId)
     {
-        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s";
+        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId, dictionaryId);
         try
         {
@@ -529,7 +531,7 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s'";
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s'";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
     }
@@ -543,7 +545,7 @@ public final class SystemDistributedKeyspace
     @Nullable
     public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries()
     {
-        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum FROM %s.%s";
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at FROM %s.%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES);
         return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
     }

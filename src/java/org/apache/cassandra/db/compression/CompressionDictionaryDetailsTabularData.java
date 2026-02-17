@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.time.Instant;
 import java.util.Arrays;
 
 import javax.management.openmbean.ArrayType;
@@ -33,7 +34,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
-import org.apache.cassandra.io.util.FileUtils;
 
 import static java.lang.String.format;
 
@@ -63,7 +63,7 @@ public class CompressionDictionaryDetailsTabularData
     public static final String KIND_NAME = "Kind";
     public static final String CHECKSUM_NAME = "Checksum";
     public static final String SIZE_NAME = "Size";
-
+    public static final String CREATED_AT_NAME = "CreatedAt";
 
     private static final String[] ITEM_NAMES = new String[]{ KEYSPACE_NAME,
                                                              TABLE_NAME,
@@ -72,7 +72,8 @@ public class CompressionDictionaryDetailsTabularData
                                                              DICT_NAME,
                                                              KIND_NAME,
                                                              CHECKSUM_NAME,
-                                                             SIZE_NAME };
+                                                             SIZE_NAME,
+                                                             CREATED_AT_NAME };
 
     private static final String[] ITEM_DESCS = new String[]{ "keyspace",
                                                              "table",
@@ -81,7 +82,8 @@ public class CompressionDictionaryDetailsTabularData
                                                              "dictionary_bytes",
                                                              "kind",
                                                              "checksum",
-                                                             "size" };
+                                                             "size",
+                                                             "created_at" };
 
     private static final String TYPE_NAME = "DictionaryDetails";
     private static final String ROW_DESC = "DictionaryDetails";
@@ -100,7 +102,8 @@ public class CompressionDictionaryDetailsTabularData
                                          new ArrayType<String[]>(SimpleType.BYTE, true), // dict bytes
                                          SimpleType.STRING, // kind
                                          SimpleType.INTEGER, // checksum
-                                         SimpleType.INTEGER }; // size of dict bytes
+                                         SimpleType.INTEGER, // size of dict bytes
+                                         SimpleType.STRING }; // created_at
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
             TABULAR_TYPE = new TabularType(TYPE_NAME, ROW_DESC, COMPOSITE_TYPE, ITEM_NAMES);
@@ -133,6 +136,7 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.dictId.kind.name(),
                                             dictionary.checksum,
                                             dictionary.size,
+                                            dictionary.createdAt.toString()
                                             });
         }
         catch (OpenDataException e)
@@ -166,6 +170,7 @@ public class CompressionDictionaryDetailsTabularData
                                             dictionary.kind().name(),
                                             dictionary.checksum(),
                                             dictionary.rawDictionary().length,
+                                            dictionary.createdAt().toString(),
                                             });
         }
         catch (OpenDataException e)
@@ -196,7 +201,8 @@ public class CompressionDictionaryDetailsTabularData
                                             dataObject.dict,
                                             dataObject.kind,
                                             dataObject.dictChecksum,
-                                            dataObject.dictLength
+                                            dataObject.dictLength,
+                                            dataObject.createdAt.toString()
                                             });
         }
         catch (OpenDataException e)
@@ -221,7 +227,8 @@ public class CompressionDictionaryDetailsTabularData
                                                    (byte[]) compositeData.get(CompressionDictionaryDetailsTabularData.DICT_NAME),
                                                    (String) compositeData.get(CompressionDictionaryDetailsTabularData.KIND_NAME),
                                                    (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.CHECKSUM_NAME),
-                                                   (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.SIZE_NAME));
+                                                   (Integer) compositeData.get(CompressionDictionaryDetailsTabularData.SIZE_NAME),
+                                                   Instant.parse((String) compositeData.get(CompressionDictionaryDetailsTabularData.CREATED_AT_NAME)));
     }
 
     public static class CompressionDictionaryDataObject
@@ -234,6 +241,7 @@ public class CompressionDictionaryDetailsTabularData
         public final String kind;
         public final int dictChecksum;
         public final int dictLength;
+        public final Instant createdAt;
 
         @JsonCreator
         public CompressionDictionaryDataObject(@JsonProperty("keyspace") String keyspace,
@@ -243,7 +251,8 @@ public class CompressionDictionaryDetailsTabularData
                                                @JsonProperty("dict") byte[] dict,
                                                @JsonProperty("kind") String kind,
                                                @JsonProperty("dictChecksum") int dictChecksum,
-                                               @JsonProperty("dictLength") int dictLength)
+                                               @JsonProperty("dictLength") int dictLength,
+                                               @JsonProperty("createdAt") Instant createdAt)
         {
             this.keyspace = keyspace;
             this.table = table;
@@ -253,6 +262,7 @@ public class CompressionDictionaryDetailsTabularData
             this.kind = kind;
             this.dictChecksum = dictChecksum;
             this.dictLength = dictLength;
+            this.createdAt = createdAt;
 
             validate();
         }
@@ -269,6 +279,7 @@ public class CompressionDictionaryDetailsTabularData
          *     <li>dictLength is bigger than 0</li>
          *     <li>dictLength has to be equal to dict's length</li>
          *     <li>dictChecksum has to be equal to checksum computed as part of this method</li>
+         *     <li>creation date is not null</li>
          * </ul>
          */
         private void validate()
@@ -278,15 +289,11 @@ public class CompressionDictionaryDetailsTabularData
             if (table == null)
                 throw new IllegalArgumentException("Table not specified.");
             if (tableId == null)
-                throw new IllegalArgumentException("Table id not specified");
+                throw new IllegalArgumentException("Table id not specified.");
             if (dictId <= 0)
                 throw new IllegalArgumentException("Provided dictionary id must be positive but it is '" + dictId + "'.");
             if (dict == null || dict.length == 0)
                 throw new IllegalArgumentException("Provided dictionary byte array is null or empty.");
-            if (dict.length > FileUtils.ONE_MIB)
-                throw new IllegalArgumentException("Imported dictionary can not be larger than " +
-                                                   FileUtils.ONE_MIB + " bytes, but it is " +
-                                                   dict.length + " bytes.");
             if (kind == null)
                 throw new IllegalArgumentException("Provided kind is null.");
 
@@ -305,6 +312,8 @@ public class CompressionDictionaryDetailsTabularData
                 throw new IllegalArgumentException("Size has to be strictly positive number, it is '" + dictLength + "'.");
             if (dict.length != dictLength)
                 throw new IllegalArgumentException("The length of the provided dictionary array (" + dict.length + ") is not equal to provided length value (" + dictLength + ").");
+            if (createdAt == null)
+                throw new IllegalArgumentException("The creation date not specified.");
 
             int checksumOfDictionaryToImport = CompressionDictionary.calculateChecksum((byte) dictionaryKind.ordinal(), dictId, dict);
             if (checksumOfDictionaryToImport != dictChecksum)

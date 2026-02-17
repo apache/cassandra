@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.compress.ZstdCompressorBase;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SelfRefCounted;
@@ -45,21 +47,24 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     private final ConcurrentHashMap<Integer, ZstdDictCompress> zstdDictCompressPerLevel = new ConcurrentHashMap<>();
     private final AtomicReference<ZstdDictDecompress> dictDecompress = new AtomicReference<>();
     private volatile Ref<ZstdCompressionDictionary> selfRef;
+    private final Instant createdAt;
 
     @VisibleForTesting
     public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary)
     {
         this(dictId,
              rawDictionary,
-             CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, rawDictionary));
+             CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, rawDictionary),
+             FBUtilities.now());
     }
 
-    public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary, int checksum)
+    public ZstdCompressionDictionary(DictId dictId, byte[] rawDictionary, int checksum, Instant createdAt)
     {
         this.dictId = dictId;
         this.rawDictionary = rawDictionary;
         this.checksum = checksum;
         this.selfRef = null;
+        this.createdAt = createdAt;
     }
 
     @Override
@@ -84,6 +89,12 @@ public class ZstdCompressionDictionary implements CompressionDictionary, SelfRef
     public int checksum()
     {
         return checksum;
+    }
+
+    @Override
+    public Instant createdAt()
+    {
+        return createdAt;
     }
 
     @Override
