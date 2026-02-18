@@ -296,14 +296,13 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         candidates.add(newAddress);
         candidates.addAll(DatabaseDescriptor.getSeeds());
 
-        int maxRounds = 5;
-        int currentRound = 0;
-        long roundTimeNanos = Math.min(TimeUnit.SECONDS.toNanos(4),
-                                       DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / maxRounds);
         // TODO a non-CMS node only needs to be able to contact a single CMS member to commit its STARTUP
         int quorum = (previousCMS.size() / 2) + 1;
+        int rounds = DatabaseDescriptor.getDiscoveryRounds();
+        long roundTimeNanos = DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / rounds;
+        int currentRound = 0;
         logger.info("Running survey and discovery for CMS nodes {} (quorum = {})", previousCMS, quorum);
-        while (confirmedCMS.size() < quorum && currentRound < maxRounds)
+        while (confirmedCMS.size() < quorum && currentRound < rounds)
         {
             logger.info("In round {} sending survey to {}", currentRound, candidates);
             Collection<Pair<InetAddressAndPort, NodeId>> surveyed =
@@ -327,7 +326,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 // the cluster via the seeds & discovery meshing. Otherwise, if every node has a new address the non-CMS
                 // members have no way to discover the CMS and it has no way to know the new places to push updates to.
                 logger.info("Running discovery round; either CMS quorum was not confirmed or this is the only CMS member");
-                Discovery.DiscoveredNodes nodes = Discovery.instance.discover(5, true);
+                Discovery.DiscoveredNodes nodes = Discovery.instance.discover(DatabaseDescriptor.getDiscoveryRounds(), true);
                 candidates.addAll(nodes.nodes());
                 logger.info("Rediscovery completed, discovered nodes: {}", nodes);
             }
