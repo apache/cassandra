@@ -25,7 +25,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -90,7 +90,7 @@ public class Discovery
 
     public final IVerbHandler<NoPayload> requestHandler;
     private final Set<InetAddressAndPort> discovered = new ConcurrentSkipListSet<>();
-    private final AtomicReference<State> state = new AtomicReference<>(State.NOT_STARTED);
+    private final AtomicBoolean inProgress = new AtomicBoolean(false);
 
     // These two have to be suppliers because during simulation we can send out discovery requests
     // rather early, before other node has initialized either MessagingService or DatabaseDescriptor.
@@ -123,10 +123,8 @@ public class Discovery
 
     public DiscoveredNodes discover(int rounds, boolean allPeers)
     {
-        boolean res = state.compareAndSet(State.NOT_STARTED, State.IN_PROGRESS);
-        if (!res)
-            res = state.compareAndSet(State.FINISHED, State.IN_PROGRESS);
-        assert res : String.format("Can not start discovery as it is in state %s", state.get());
+        boolean res = inProgress.compareAndSet(false, true);
+        assert res : "Cannot start discovery as it is already running";
 
         long discoveryTimeout = DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
         long roundTimeNanos = discoveryTimeout / rounds;
@@ -158,8 +156,8 @@ public class Discovery
                 Uninterruptibles.sleepUninterruptibly(sleeptimeNanos, TimeUnit.NANOSECONDS);
         }
 
-        res = state.compareAndSet(State.IN_PROGRESS, State.FINISHED);
-        assert res : String.format("Can not finish discovery as it is in state %s", state.get());
+        res = inProgress.compareAndSet(true, false);
+        assert res : "Cannot finish discovery as it is already complete";
         return last;
     }
 
@@ -304,13 +302,5 @@ public class Discovery
                 size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(ep, version);
             return size;
         }
-    }
-
-    private enum State
-    {
-        NOT_STARTED,
-        IN_PROGRESS,
-        FINISHED,
-        FOUND_CMS
     }
 }
