@@ -296,7 +296,10 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         candidates.add(newAddress);
         candidates.addAll(DatabaseDescriptor.getSeeds());
 
-        // TODO a non-CMS node only needs to be able to contact a single CMS member to commit its STARTUP
+        // Technically, if this node it not a CMS member it only needs to be able to contact a single peer which is a
+        // CMS member to submit its STARTUP transformation. However, if this node is a CMS member, it will need to
+        // confirm a majority of the other members in order to join the consensus group with them in order to commit its
+        // own STARTUP. For simplicity we try to confirm a majority of CMS members before proceeding in either case.
         int quorum = (previousCMS.size() / 2) + 1;
         int rounds = DatabaseDescriptor.getDiscoveryRounds();
         long roundTimeNanos = DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / rounds;
