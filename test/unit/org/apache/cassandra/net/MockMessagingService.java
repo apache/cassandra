@@ -18,6 +18,8 @@
 package org.apache.cassandra.net;
 
 import java.net.UnknownHostException;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -37,12 +39,16 @@ public class MockMessagingService
     {
     }
 
+    private static final List<MatcherResponse> matcherResponses = new CopyOnWriteArrayList<>();
+
     /**
      * Creates a MatcherResponse based on specified matcher.
      */
     public static MatcherResponse when(Matcher matcher)
     {
-        return new MatcherResponse(matcher);
+        MatcherResponse matcherResponse = new MatcherResponse(matcher);
+        matcherResponses.add(matcherResponse);
+        return matcherResponse;
     }
 
     /**
@@ -53,6 +59,11 @@ public class MockMessagingService
     {
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
+        for (MatcherResponse matcher : matcherResponses)
+        {
+            matcher.close();
+        }
+        matcherResponses.clear();
     }
 
     /**
