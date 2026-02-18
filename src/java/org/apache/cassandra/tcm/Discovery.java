@@ -118,7 +118,7 @@ public class Discovery
 
     public DiscoveredNodes discover()
     {
-        return discover(5, false);
+        return discover(DatabaseDescriptor.getDiscoveryRounds(), false);
     }
 
     public DiscoveredNodes discover(int rounds, boolean allPeers)
@@ -128,9 +128,9 @@ public class Discovery
             res = state.compareAndSet(State.FINISHED, State.IN_PROGRESS);
         assert res : String.format("Can not start discovery as it is in state %s", state.get());
 
-        long deadline = nanoTime() + DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
-        long roundTimeNanos = Math.min(TimeUnit.SECONDS.toNanos(4),
-                                       DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / rounds);
+        long discoveryTimeout = DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS);
+        long roundTimeNanos = discoveryTimeout / rounds;
+        long deadline = discoveryTimeout + nanoTime();
         DiscoveredNodes last = null;
         int lastCount = discovered.size();
         int unchangedFor = -1;
