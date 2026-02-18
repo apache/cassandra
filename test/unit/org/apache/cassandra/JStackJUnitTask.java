@@ -20,7 +20,6 @@ package org.apache.cassandra;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.reflect.Field;
 
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.taskdefs.ExecuteWatchdog;
@@ -77,6 +76,7 @@ public class JStackJUnitTask extends JUnitTask
                 ProcessBuilder pb = new ProcessBuilder("jstack","-l", String.valueOf(pid));
                 try
                 {
+                    pb.redirectErrorStream(true);
                     Process p = pb.start();
                     try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream())))
                     {
@@ -100,22 +100,15 @@ public class JStackJUnitTask extends JUnitTask
 
         private long getPid(Process process)
         {
-            if (process.getClass().getName().equals("java.lang.UNIXProcess"))
+            try
             {
-                try
-                {
-                    Field f = process.getClass().getDeclaredField("pid");
-                    f.setAccessible(true);
-                    long pid = f.getLong(process);
-                    f.setAccessible(false);
-                    return pid;
-                }
-                catch (IllegalAccessException | NoSuchFieldException e)
-                {
-                    System.err.println("Could not get PID");
-                }
+                return process.pid();
             }
-            return -1;
+            catch (UnsupportedOperationException e)
+            {
+                System.err.println("Could not get PID");
+                return -1;
+            }
         }
     }
 
