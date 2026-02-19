@@ -98,6 +98,8 @@ Options:
   Collect coverage data
 `--encoding=ENCODING`::
   Specify a non-default encoding for output. (Default: utf-8)
+`--mode=MODE`::
+  Specify the output display format. Valid values are `tabular` (default), `csv`, and `json`.
 `--cqlshrc=CQLSHRC`::
   Specify an alternative cqlshrc file location.
 `--credentials=CREDENTIALS`::
