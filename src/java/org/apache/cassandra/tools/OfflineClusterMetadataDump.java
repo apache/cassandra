@@ -66,7 +66,7 @@ import static com.google.common.base.Throwables.getStackTraceAsString;
  * Offline tool to dump cluster metadata from local SSTables.
  * <p>
  * This is an emergency recovery tool for debugging when a Cassandra instance cannot
- * start due to TCM issues. It reads the local_metadata_log and metadata_snapshots
+ * start due to cluster metadata issues. It reads the local_metadata_log and metadata_snapshots
  * tables from the system keyspace to reconstruct and display the cluster metadata state.
  * <p>
  * <b>NOTE: This tool is for offline use only. Do not run on a live cluster.</b>
@@ -74,23 +74,23 @@ import static com.google.common.base.Throwables.getStackTraceAsString;
  * Usage:
  * <pre>
  * # Dump cluster metadata as binary (default)
- * tcmdump metadata --data-dir /path/to/data
+ * offlineclustermetadatadump metadata --data-dir /path/to/data
  *
  * # Dump cluster metadata as toString output
- * tcmdump metadata --data-dir /path/to/data --to-string
+ * offlineclustermetadatadump metadata --data-dir /path/to/data --to-string
  *
  * # Dump local log entries
- * tcmdump log --data-dir /path/to/data --from-epoch 1 --to-epoch 50
+ * offlineclustermetadatadump log --data-dir /path/to/data --from-epoch 1 --to-epoch 50
  *
  * # Dump distributed log (CMS nodes)
- * tcmdump distributed-log --data-dir /path/to/data
+ * offlineclustermetadatadump distributed-log --data-dir /path/to/data
  * </pre>
  */
-@Command(name = "tcmdump",
+@Command(name = "offlineclustermetadatadump",
 mixinStandardHelpOptions = true,
-description = "Offline tool to dump Transactional Cluster Metadata from local SSTables. NOTE: For offline use only.",
-subcommands = { TCMDump.MetadataCommand.class, TCMDump.LogCommand.class, TCMDump.DistributedLogCommand.class })
-public class TCMDump implements Runnable
+description = "Offline tool to dump cluster metadata from local SSTables. NOTE: For offline use only.",
+subcommands = { OfflineClusterMetadataDump.MetadataCommand.class, OfflineClusterMetadataDump.LogCommand.class, OfflineClusterMetadataDump.DistributedLogCommand.class })
+public class OfflineClusterMetadataDump implements Runnable
 {
     private static final Output output = Output.CONSOLE;
 
@@ -98,7 +98,7 @@ public class TCMDump implements Runnable
     {
         Util.initDatabaseDescriptor();
 
-        CommandLine cli = new CommandLine(TCMDump.class).setExecutionExceptionHandler((ex, cmd, parseResult) -> {
+        CommandLine cli = new CommandLine(OfflineClusterMetadataDump.class).setExecutionExceptionHandler((ex, cmd, parseResult) -> {
             err(ex);
             return 2;
         });
@@ -207,7 +207,7 @@ public class TCMDump implements Runnable
          */
         protected void setupTempDirectory() throws IOException
         {
-            tempDir = Files.createTempDirectory("tcmdump");
+            tempDir = Files.createTempDirectory("offlinedump");
             DatabaseDescriptor.getRawConfig().data_file_directories = new String[]{ tempDir.resolve("data").toString() };
             DatabaseDescriptor.getRawConfig().commitlog_directory = tempDir.resolve("commitlog").toString();
             DatabaseDescriptor.getRawConfig().hints_directory = tempDir.resolve("hints").toString();

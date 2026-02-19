@@ -44,12 +44,12 @@ import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Integration tests for TCMDump tool that verify gap detection and metadata output.
+ * Integration tests for OfflineClusterMetadataDump tool that verify gap detection and metadata output.
  * <p>
  * These tests write entries directly to the system keyspace storage and then
- * call TCMDump.BaseCommand.getLogState() directly to verify gap detection behavior.
+ * call OfflineClusterMetadataDump.BaseCommand.getLogState() directly to verify gap detection behavior.
  */
-public class TCMDumpIntegrationTest extends OfflineToolUtils
+public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
 {
     private SystemKeyspaceStorage storage;
     private MetadataSnapshots snapshotManager;
@@ -91,7 +91,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(5));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Verify gap is detected and reported
@@ -116,7 +116,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(8));  // Gap: skipping 6, 7
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Verify multiple gaps are detected
@@ -144,7 +144,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(5));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Gap warnings should not appear
@@ -164,7 +164,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
     {
         // Don't write any entries - log is empty
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
 
         // Should return empty log state
         assertThat(logState.isEmpty()).isTrue();
@@ -178,7 +178,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(1));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // No gap warnings
@@ -198,7 +198,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(5));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Should detect gap at beginning (expected 1 but found 3)
@@ -223,7 +223,7 @@ public class TCMDumpIntegrationTest extends OfflineToolUtils
 
         // Get log state up to epoch 5
         TestOutput testOutput = new TestOutput();
-        LogState logState = TCMDump.BaseCommand.getLogState(storage, snapshotManager, 5L, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, 5L, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // No gaps
