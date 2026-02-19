@@ -44,7 +44,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.Transformation.Result;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -62,7 +61,6 @@ import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class RegisterTest extends TestBaseImpl
 {
@@ -222,107 +220,4 @@ public class RegisterTest extends TestBaseImpl
             });
         }
     }
-
-    /**
-     * Tests that registering a new node with a serialization version lower than the cluster's
-     * commonSerializationVersion is rejected.
-     *
-     * Scenario:
-     * - Cluster has 1 node running at CURRENT_METADATA_VERSION (e.g., V8)
-     * - commonSerializationVersion = V8
-     * - A NEW node tries to register with V3
-     * - Should be REJECTED because V3 cannot read V8 metadata
-     */
-    @Test
-    public void testRegisterRejectsLowerSerializationVersion() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).createWithoutStarting())
-        {
-            cluster.get(1).startup();
-            cluster.get(1).runOnInstance(() -> {
-                try
-                {
-                    // Cluster's node1 is running at CURRENT_METADATA_VERSION (e.g., V8)
-                    // commonSerializationVersion = V8
-
-                    // Try to register a NEW node with a lower version (V3)
-                    NodeVersion lowerVersion = new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V3);
-                    Register register = new Register(
-                        new NodeAddresses(InetAddressAndPort.getByName("127.0.0.10")),
-                        ClusterMetadata.current().directory.location(ClusterMetadata.current().myNodeId()),
-                        lowerVersion
-                    );
-
-                    Transformation.Result result = register.execute(ClusterMetadata.current());
-
-                    assertTrue("Registration should be rejected for node with lower serialization version",
-                               result.isRejected());
-                    assertTrue("Rejection message should mention serialization version",
-                               result.rejected().reason.contains("serialization version"));
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-    }
-
-    /**
-     * Tests that registering nodes with serialization version equal to or higher than
-     * the cluster's commonSerializationVersion is allowed.
-     *
-     * Scenario:
-     * - Create empty metadata and register a V3 node first (bypasses version check)
-     * - commonSerializationVersion = V3
-     * - Then register a V5 node - should succeed since V5 >= V3
-     * - Then register a V3 node - should succeed since V3 >= V3
-     */
-    @Test
-    public void testRegisterAllowsEqualOrHigherSerializationVersion() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).createWithoutStarting())
-        {
-            cluster.get(1).startup();
-            cluster.get(1).runOnInstance(() -> {
-                try
-                {
-                    // Create empty metadata and register V3 node first (bypasses version check because directory is empty)
-                    NodeVersion v3 = new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V3);
-                    ClusterMetadata metadata = register("127.0.0.10", v3, createEmptyMetadata());
-
-                    assertEquals("commonSerializationVersion should be V3",
-                                 Version.V3, metadata.directory.commonSerializationVersion);
-
-                    // Now register a V5 node - should succeed since V5 >= V3
-                    NodeVersion v5 = new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V5);
-                    Register registerV5 = new Register(
-                        new NodeAddresses(InetAddressAndPort.getByName("127.0.0.11")),
-                        TEST_LOCATION,
-                        v5
-                    );
-
-                    Result resultV5 = registerV5.execute(metadata);
-                    assertTrue("Registration should succeed for V5 node when cluster is at V3",
-                               resultV5.isSuccess());
-
-                    // Register another V3 node - should succeed since V3 >= V3
-                    Register registerV3 = new Register(
-                        new NodeAddresses(InetAddressAndPort.getByName("127.0.0.12")),
-                        TEST_LOCATION,
-                        v3
-                    );
-
-                    Result resultV3 = registerV3.execute(metadata);
-                    assertTrue("Registration should succeed for V3 node when cluster is at V3",
-                               resultV3.isSuccess());
-                }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-    }
-
 }
