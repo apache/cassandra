@@ -606,6 +606,8 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private List<Symbol> multiColumnPartitionQueryColumns()
         {
             List<Symbol> allowedColumns = searchableNonPartitionColumns;
+            if (hasMultiNodeMultiColumnAllowFilteringWithLocalWritesIssue())
+                allowedColumns = nonPkIndexedColumns;
             if (IGNORED_ISSUES.contains(KnownIssue.SAI_AND_VECTOR_COLUMNS) && !indexes.isEmpty())
                 allowedColumns = allowedColumns.stream().filter(s -> !s.type().isVector()).collect(Collectors.toList());
             return allowedColumns;
