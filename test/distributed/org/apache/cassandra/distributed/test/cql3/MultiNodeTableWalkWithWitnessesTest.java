@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.distributed.test.cql3;
 
-import java.util.List;
-
 import accord.utils.RandomSource;
-import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.TableMetadata;
@@ -35,13 +32,6 @@ public class MultiNodeTableWalkWithWitnessesTest extends MultiNodeTableWalkWithM
 
         // Enable transient replication replication
         c.set("transient_replication_enabled", "true");
-    }
-
-    @Override
-    protected List<CreateIndexDDL.Indexer> supportedIndexers()
-    {
-        // TODO (expected): Implement supported indexers for witnesses
-        return List.of();
     }
 
     protected class MultiNodeState extends State
