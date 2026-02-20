@@ -59,7 +59,7 @@
 /** CONSTANTS for both the pipeline and scripting **/
 import groovy.transform.Field
 @Field List<String> archsSupported   = ["amd64", "arm64"]
-@Field List<String> pythonsSupported = ["3.8", "3.11"]
+@Field List<String> pythonsSupported = ["3.8", "3.11", "3.12", "3.13"]
 @Field String       pythonDefault    = "3.8"
 /** CONSTANTS end **********************************/
 
@@ -124,7 +124,7 @@ pipeline {
   }
   post {
     failure {
-      echo "ERROR pipeline failed – not all tests were run"
+      echo "ERROR pipeline failed – not all tests were run"
     }
     always {
       sendNotifications()
