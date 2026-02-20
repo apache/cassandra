@@ -40,6 +40,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
@@ -51,6 +53,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -67,6 +70,7 @@ import org.apache.cassandra.db.guardrails.NoOpGenerator;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -78,6 +82,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -154,8 +159,22 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         }
     };
 
+    private static int PASSWORD_UPDATE_MIN_INTERVAL_MS = CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt();
+    // in-memory protection against excessive loadRoleWithWritetimeStatement queries
+    private static Cache<String, Boolean> recentPasswordUpdates = Caffeine.newBuilder()
+                                        .expireAfterWrite(PASSWORD_UPDATE_MIN_INTERVAL_MS, TimeUnit.MILLISECONDS)
+                                        .build();
+
+    @VisibleForTesting
+    public static synchronized void updatePasswordUpdateMinInterval(int newInterval)
+    {
+        recentPasswordUpdates = Caffeine.newBuilder().expireAfterWrite(newInterval, TimeUnit.MILLISECONDS).build();
+        PASSWORD_UPDATE_MIN_INTERVAL_MS = newInterval;
+    }
+
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
+    private SelectStatement loadRoleWithWritetimeStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
@@ -281,6 +300,10 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
+
+        loadRoleWithWritetimeStatement = (SelectStatement) prepare("SELECT writetime(salted_hash) AS salted_hash_writetime from %s.%s WHERE role = ?",
+                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                   AuthKeyspace.ROLES);
     }
 
 
@@ -339,6 +362,9 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     {
+        if (options.getPassword().isPresent())
+            enforcePasswordUpdateRateLimit(performer, role.getRoleName());
+
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
         String assignments = optionsToAssignments(options.getOptions());
@@ -704,7 +730,40 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                       .collect(Collectors.joining(","));
     }
 
+    /**
+     * Rate limit password updates on each role.
+     * @throws OverloadedException if the password was changed within ROLE_PASSWORD_UPDATE_INTERVAL
+     */
+    private void enforcePasswordUpdateRateLimit(AuthenticatedUser performer, String roleName)
+    {
+        if (PASSWORD_UPDATE_MIN_INTERVAL_MS <= 0)
+            return;
 
+        if (Boolean.TRUE != recentPasswordUpdates.getIfPresent(roleName))
+        {
+            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRoleRead(roleName),
+                                                                 Collections.singletonList(ByteBufferUtil.bytes(roleName)));
+
+            ResultMessage.Rows rows = select(loadRoleWithWritetimeStatement, options);
+            boolean hasRecentPasswordUpdates = !rows.result.isEmpty();
+            if (hasRecentPasswordUpdates)
+            {
+                UntypedResultSet.Row row = UntypedResultSet.create(rows.result).one();
+
+                hasRecentPasswordUpdates = row.has("salted_hash_writetime")
+                                           && PASSWORD_UPDATE_MIN_INTERVAL_MS >= (Clock.Global.currentTimeMillis() - TimeUnit.MICROSECONDS.toMillis(row.getLong("salted_hash_writetime")));
+            }
+            if (!hasRecentPasswordUpdates)
+            {
+                recentPasswordUpdates.put(roleName, Boolean.TRUE);
+                logger.info(String.format("Password changing for role %s by %s", roleName, performer.getName()));
+                return;
+            }
+        }
+        String failure = String.format("Password for role %s can only be changed every %sms.", roleName, PASSWORD_UPDATE_MIN_INTERVAL_MS);
+        logger.warn(String.format("%s [performer: %s]", failure, performer.getName()));
+        throw new OverloadedException(failure);
+    }
 
     private static String hashpw(String password)
     {
