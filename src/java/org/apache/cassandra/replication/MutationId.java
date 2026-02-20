@@ -127,8 +127,9 @@ public class MutationId extends ShortMutationId
         if (buffer.remaining() < 16)
             throw new IllegalStateException();
 
-        long logId = buffer.getLong();
-        long sequenceId = buffer.getLong();
+        int pos = buffer.position();
+        long logId = buffer.getLong(pos);
+        long sequenceId = buffer.getLong(pos + 8);
 
         if (logId == MutationId.none().logId() && sequenceId == MutationId.none().sequenceId())
             return MutationId.none();

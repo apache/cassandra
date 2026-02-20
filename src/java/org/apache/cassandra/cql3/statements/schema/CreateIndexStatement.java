@@ -155,9 +155,6 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire(MATERIALIZED_VIEWS_NOT_SUPPORTED);
 
-        if (keyspace.replicationStrategy.hasTransientReplicas())
-            throw new InvalidRequestException(TRANSIENTLY_REPLICATED_KEYSPACE_NOT_SUPPORTED);
-
         // guardrails to limit number of secondary indexes per table.
         Guardrails.secondaryIndexesPerTable.guard(table.indexes.size() + 1,
                                                   Strings.isNullOrEmpty(indexName)
