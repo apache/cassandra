@@ -21,8 +21,8 @@ import platform
 import sys
 from glob import glob
 
-if sys.version_info < (3, 6) or sys.version_info >= (3, 12):
-    sys.exit("\ncqlsh requires Python 3.6-3.11\n")
+if sys.version_info < (3, 6) or sys.version_info >= (3, 14):
+    sys.exit("\ncqlsh requires Python 3.6-3.13\n")
 
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
@@ -56,7 +56,7 @@ if cql_zip:
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
 # the driver needs dependencies
-third_parties = ('pure_sasl-', 'wcwidth-')
+third_parties = ('pure_sasl-', 'wcwidth-', 'pyasyncore-')
 
 for lib in third_parties:
     lib_zip = find_zip(lib)

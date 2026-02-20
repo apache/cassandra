@@ -300,6 +300,7 @@ echo "Running container ${container_name} ${docker_id} using image ${image_name}
 
 docker exec --user root ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_create_user.sh cassandra $(id -u) $(id -g)" | tee -a ${logfile}
 docker exec --user root ${container_name} update-alternatives --set python /usr/bin/python${python_version} | tee -a ${logfile}
+docker exec --user root ${container_name} update-alternatives --set python3 /usr/bin/python${python_version} | tee -a ${logfile}
 
 if [ -n "${DTEST_TMPDIR_LOCAL}" ] && [[ "${target}" =~ ^dtest-upgrade ]] ; then
     # prepopulate a tmp ccm repository directory, if running dtest-upgrade tests
