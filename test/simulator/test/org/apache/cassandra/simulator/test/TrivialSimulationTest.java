@@ -55,7 +55,8 @@ public class TrivialSimulationTest extends SimulationTestBase
                  (config) -> config
                              .threadCount(10)
                              .nodes(3, 3)
-                             .dcs(1, 1));
+                             .dcs(1, 1),
+                 DEFAULT_ITERATIONS);
     }
 
     @Test
@@ -80,13 +81,13 @@ public class TrivialSimulationTest extends SimulationTestBase
                          });
                      }
                  }),
-                 () -> {});
+                 () -> {}, DEFAULT_ITERATIONS);
     }
 
     @Test
     public void identityHashMapTest()
     {
         simulate(arr(() -> new IdentityHashMap<>().put(1, 1)),
-                 () -> {});
+                 () -> {}, DEFAULT_ITERATIONS);
     }
 }

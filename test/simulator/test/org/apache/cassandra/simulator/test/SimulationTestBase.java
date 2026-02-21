@@ -28,6 +28,9 @@ import java.util.function.Predicate;
 
 import com.google.common.collect.Iterators;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -64,6 +67,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_ITERATIONS;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
@@ -76,6 +80,9 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class SimulationTestBase
 {
+    private static final Logger logger = LoggerFactory.getLogger(SimulationTestBase.class);
+    public static final int DEFAULT_ITERATIONS = SIMULATOR_ITERATIONS.getInt();
+
     static abstract class DTestClusterSimulation implements Simulation
     {
         final SimulatedSystems simulated;
@@ -141,14 +148,22 @@ public class SimulationTestBase
                                 Function<DTestClusterSimulation, ActionList> test,
                                 Consumer<ClusterSimulation.Builder<DTestClusterSimulation>> configure) throws IOException
     {
+        simulate(init, test, configure, 1);
+    }
+
+    public static void simulate(Function<DTestClusterSimulation, ActionList> init,
+                                Function<DTestClusterSimulation, ActionList> test,
+                                Consumer<ClusterSimulation.Builder<DTestClusterSimulation>> configure,
+                                int iterations) throws IOException
+    {
         SimulationRunner.beforeAll();
         long seed = System.currentTimeMillis();
-        RandomSource random = new RandomSource.Default();
-        random.reset(seed);
         class Factory extends ClusterSimulation.Builder<DTestClusterSimulation>
         {
             public ClusterSimulation<DTestClusterSimulation> create(long seed) throws IOException
             {
+                RandomSource random = new RandomSource.Default();
+                random.reset(seed);
                 return new ClusterSimulation<>(random, seed, 1, this,
                                                (c) -> {},
                                                (simulated, scheduler, cluster, options) -> new DTestClusterSimulation(simulated, scheduler, cluster) {
@@ -168,16 +183,21 @@ public class SimulationTestBase
 
         Factory factory = new Factory();
         configure.accept(factory);
-        try (ClusterSimulation<?> cluster = factory.create(seed))
+        for (int i = 0; i < iterations; i++)
         {
-            try
+            long currentSeed = seed + i;
+            logger.info("Running iteration {} of {} with seed {}L", i + 1, iterations, currentSeed);
+            try (ClusterSimulation<?> cluster = factory.create(currentSeed))
             {
-                cluster.simulation.run();
-            }
-            catch (Throwable t)
-            {
-                throw new AssertionError(String.format("Failed on seed %s", Long.toHexString(seed)),
-                                         t);
+                try
+                {
+                    cluster.simulation.run();
+                }
+                catch (Throwable t)
+                {
+                    throw new AssertionError(String.format("Failed on seed 0x%s (base seed 0x%s + %d)",
+                                                           Long.toHexString(currentSeed), Long.toHexString(seed), i), t);
+                }
             }
         }
     }
@@ -185,16 +205,41 @@ public class SimulationTestBase
     public static void simulate(IIsolatedExecutor.SerializableRunnable run,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
-        simulate(new IIsolatedExecutor.SerializableRunnable[]{run},
-                 check);
+        simulate(new IIsolatedExecutor.SerializableRunnable[]{run}, check, 1);
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable run,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                int iterations)
+    {
+        simulate(new IIsolatedExecutor.SerializableRunnable[]{run}, check, iterations);
     }
 
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
+        simulate(runnables, check, 1);
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                int iterations)
+    {
+        long seed = System.currentTimeMillis();
+        for (int i = 0; i < iterations; i++)
+        {
+            long currentSeed = seed + i;
+            logger.info("Running iteration {} of {} with seed {}L", i + 1, iterations, currentSeed);
+            simulate(runnables, check, currentSeed);
+        }
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                long seed)
+    {
         Failures failures = new Failures();
         RandomSource random = new RandomSource.Default();
-        long seed = System.currentTimeMillis();
         System.out.println("Using seed: " + seed);
         random.reset(seed);
         SimulatedTime time = new SimulatedTime(1, random, 1577836800000L /*Jan 1st UTC*/, new LongRange(1, 100, MILLISECONDS, NANOSECONDS),

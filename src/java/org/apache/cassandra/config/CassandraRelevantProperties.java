@@ -480,6 +480,7 @@ public enum CassandraRelevantProperties
     SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR("cassandra.serialization.emptytype.nonempty_behavior"),
     SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
+    SIMULATOR_ITERATIONS("simulator.iterations", "3"),
     SIZE_RECORDER_INTERVAL("cassandra.size_recorder_interval", "300"),
 
     /**

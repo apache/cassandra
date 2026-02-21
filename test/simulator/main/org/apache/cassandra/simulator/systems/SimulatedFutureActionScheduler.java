@@ -67,6 +67,7 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
     final int nodeCount;
     final RandomSource random;
     final SimulatedTime time;
+    final KindOfSequence kind;
 
     // TODO (feature): should we produce more than two simultaneous partitions?
     final BitSet isInDropPartition = new BitSet();
@@ -86,6 +87,7 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
 
     public SimulatedFutureActionScheduler(KindOfSequence kind, int nodeCount, RandomSource random, SimulatedTime time, NetworkConfig network, SchedulerConfig scheduler)
     {
+        this.kind = kind;
         this.nodeCount = nodeCount;
         this.random = random;
         this.time = time;
@@ -195,5 +197,10 @@ public class SimulatedFutureActionScheduler implements FutureActionScheduler, To
         topology = newTopology;
         if (oldTopology == null || (newTopology.quorumRf < oldTopology.quorumRf && newTopology.quorumRf < isInDropPartition.cardinality()))
             recompute();
+    }
+
+    public KindOfSequence getKind()
+    {
+        return kind;
     }
 }
