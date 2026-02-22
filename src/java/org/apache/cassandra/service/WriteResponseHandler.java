@@ -64,9 +64,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     public void onResponse(Message<T> m)
     {
         InetAddressAndPort from = m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from();
-        Map<ParamType, Object> params;
-
-        params = m != null ? m.header.params() : MessageParams.capture();
+        Map<ParamType, Object> params = m != null ? m.header.params() : MessageParams.capture();
 
         if (WriteWarningContext.isSupported(params.keySet()))
             getWarningContext().updateCounters(params, from);
