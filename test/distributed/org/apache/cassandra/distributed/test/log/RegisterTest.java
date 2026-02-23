@@ -23,11 +23,8 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.EnumSet;
 
-import com.google.common.collect.Sets;
-
 import org.junit.Test;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -37,14 +34,10 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
-import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -65,22 +58,6 @@ import static org.junit.Assert.assertEquals;
 public class RegisterTest extends TestBaseImpl
 {
     private static final Location TEST_LOCATION = new Location("datacenter1", "rack1");
-
-    private static ClusterMetadata createEmptyMetadata()
-    {
-        Keyspaces keyspaces = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet("datacenter1")));
-        DistributedSchema schema = new DistributedSchema(keyspaces);
-        return new ClusterMetadata(Murmur3Partitioner.instance, Directory.EMPTY, schema);
-    }
-
-    private static ClusterMetadata register(String endpoint, NodeVersion version, ClusterMetadata metadata) throws UnknownHostException
-    {
-        return new Register(
-            new NodeAddresses(InetAddressAndPort.getByName(endpoint)),
-            TEST_LOCATION,
-            version
-        ).execute(metadata).success().metadata;
-    }
 
     @Test
     public void testRegistrationIdempotence() throws Throwable
@@ -127,7 +104,6 @@ public class RegisterTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(1)
                                         .createWithoutStarting())
         {
-            final String firstNodeEndpoint = "127.0.0.10";
             cluster.get(1).startup();
             cluster.get(1).runOnInstance(() -> {
                 try
@@ -139,10 +115,10 @@ public class RegisterTest extends TestBaseImpl
 
                     // Register a ghost node with V0 (bypasses version check because directory is now empty).
                     // In a real world cluster we will always be upgrading from a smaller version.
-                    ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName(firstNodeEndpoint)),
+                    ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName("127.0.0.100")),
                                                                           TEST_LOCATION,
                                                                           new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V0)));
-                    NodeId oldNode = ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByName(firstNodeEndpoint));
+                    NodeId oldNode = ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByName("127.0.0.100"));
 
                     // Register a node with upgraded version
                     CassandraVersion currentVersion = NodeVersion.CURRENT.cassandraVersion;
@@ -205,7 +181,7 @@ public class RegisterTest extends TestBaseImpl
 
                     // Register a ghost node with V0 (bypasses version check because directory is now empty).
                     // In a real world cluster we will always be upgrading from a smaller version.
-                    ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName("127.0.0.10")),
+                    ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName("127.0.0.100")),
                                                                           TEST_LOCATION,
                                                                           new NodeVersion(NodeVersion.CURRENT.cassandraVersion, Version.V0)));
                 }

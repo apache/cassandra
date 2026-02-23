@@ -34,17 +34,17 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SchemaTransformation;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
-import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
+import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.addr;
@@ -137,11 +137,15 @@ public class ClusterMetadataTest
     private static void newTransformationHelper(Transformation transformation)
     {
         NodeId v4Node = null;
+        NodeAddresses v4Addresses = null;
         for (int i = 1; i <= 4; i++)
         {
-            NodeId nodeId = ClusterMetadataTestHelper.register(addr(i), "dc0", "rack0", new NodeVersion(CassandraVersion.CASSANDRA_5_0, i == 4 ? Version.V4 : Version.V5));
-            if (i == 4)
+            NodeId nodeId = ClusterMetadataTestHelper.register(addr(i), "dc0", "rack0", new NodeVersion(CassandraVersion.CASSANDRA_5_0, i == 1 ? Version.V4 : Version.V5));
+            if (i == 1)
+            {
                 v4Node = nodeId;
+                v4Addresses = new NodeAddresses(addr(i));
+            }
             ClusterMetadataTestHelper.join(i, i);
         }
 
@@ -154,7 +158,8 @@ public class ClusterMetadataTest
         {
             assertTrue(e.getMessage().contains("Transformation rejected"));
         }
-        ClusterMetadataService.instance().commit(new Assassinate(v4Node, new UniformRangePlacement()));
+        // "upgrade" v4Node and the transformation should become committable
+        ClusterMetadataService.instance().commit(new Startup(v4Node, v4Addresses, new NodeVersion(CassandraVersion.CASSANDRA_5_0, Version.V5)));
         ClusterMetadataService.instance().commit(transformation);
     }
 
