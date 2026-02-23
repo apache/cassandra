@@ -151,13 +151,8 @@ import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
@@ -1203,13 +1198,6 @@ public class Util
 
         for (SSTableReader reader : cfs.getLiveSSTables())
             assertEquals(0, ((SSTableReaderWithFilter) reader).getFilterOffHeapSize());
-    }
-
-    public static void setUpgradeFromVersion(String version)
-    {
-        InetAddressAndPort ep = InetAddressAndPort.getByNameUnchecked("127.0.0.10");
-        Register.register(new NodeAddresses(ep),
-                          new NodeVersion(new CassandraVersion(version), Version.OLD));
     }
 
     /**

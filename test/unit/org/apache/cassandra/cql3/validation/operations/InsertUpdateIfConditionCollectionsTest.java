@@ -22,17 +22,16 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 
 /* InsertUpdateIfConditionCollectionsTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes
@@ -46,30 +45,22 @@ public class InsertUpdateIfConditionCollectionsTest extends CQLTester
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
-        ServerTestUtils.daemonInitialization();
-
         return InsertUpdateIfConditionTest.data();
     }
 
     @Parameterized.Parameter(0)
-    public String clusterMinVersion;
+    public NodeVersion clusterMinVersion;
 
     @BeforeClass
-    public static void beforeClass()
+    public static void setUpClass()
     {
-        InsertUpdateIfConditionTest.beforeClass();
+        InsertUpdateIfConditionTest.setUpClass();
     }
 
     @Before
     public void before()
     {
         InsertUpdateIfConditionTest.beforeSetup(clusterMinVersion);
-    }
-
-    @AfterClass
-    public static void afterClass()
-    {
-        InsertUpdateIfConditionTest.afterClass();
     }
 
     /**
