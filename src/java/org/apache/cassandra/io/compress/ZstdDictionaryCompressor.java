@@ -39,7 +39,8 @@ import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.utils.concurrent.Ref;
 
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateTrainingParameter;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateDurationBasedTrainingParameter;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateSizeBasedTrainingParameter;
 
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
@@ -77,12 +78,15 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     {
         int level = getOrDefaultCompressionLevel(options);
         validateCompressionLevel(level);
-        validateTrainingParameter(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
-                                  options.getOrDefault(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
-                                                       DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE));
-        validateTrainingParameter(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
-                                  options.getOrDefault(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
-                                                       DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE));
+        validateSizeBasedTrainingParameter(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                           options.getOrDefault(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
+                                                                DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE));
+        validateSizeBasedTrainingParameter(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                           options.getOrDefault(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                                                                DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE));
+        validateDurationBasedTrainingParameter(TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                                               options.getOrDefault(TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                                                                    DEFAULT_TRAINING_MIN_FREQUENCY));
         return getOrCreate(level, null);
     }
 
@@ -119,7 +123,8 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     {
         super(level, Set.of(COMPRESSION_LEVEL_OPTION_NAME,
                             TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
-                            TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME));
+                            TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
+                            TRAINING_MIN_FREQUENCY_PARAMETER_NAME));
         this.dictionary = dictionary;
         this.dictionaryRef = dictionaryRef;
     }
