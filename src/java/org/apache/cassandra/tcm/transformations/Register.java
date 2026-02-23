@@ -85,8 +85,10 @@ public class Register implements Transformation
                 return new Rejected(INVALID,
                                     String.format("Cannot register node: this node's metadata serialization version %s " +
                                                   "is lower than the cluster's minimum required version %s. " +
-                                                  "Node would not be able to read cluster metadata.",
-                                                  newNodeVersion, clusterVersion));
+                                                  "Node would not be able to read cluster metadata. " +
+                                                  "Please upgrade the node to a Cassandra version that supports " +
+                                                  "metadata serialization version %s or higher before joining the cluster.",
+                                                  newNodeVersion, clusterVersion, clusterVersion));
             }
         }
 
