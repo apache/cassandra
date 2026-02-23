@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.compress;
 
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -41,6 +42,11 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
     String TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME = "training_max_total_sample_size";
     String DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE = "10MiB";
 
+    String TRAINING_MIN_FREQUENCY_PARAMETER_NAME = "min_training_frequency";
+    // 0m means there is no limit how often we can train, if this is set to e.g. 1h, that means
+    // that once we train a dictionary for given table, then we can train again after at least 1 hour.
+    String DEFAULT_TRAINING_MIN_FREQUENCY = "0m";
+
     /**
      * Validates value of a parameter for training purposes. The value to validate should
      * be accepted by {@link DataStorageSpec.IntKibibytesBound}. This method is used upon validation
@@ -49,11 +55,32 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
      * @param parameterName name of a parameter to validate
      * @param resolvedValue value to validate
      */
-    static void validateTrainingParameter(String parameterName, String resolvedValue)
+    static void validateSizeBasedTrainingParameter(String parameterName, String resolvedValue)
     {
         try
         {
             new DataStorageSpec.IntKibibytesBound(resolvedValue).toBytes();
+        }
+        catch (Throwable t)
+        {
+            throw new ConfigurationException(format("Unable to set value to parameter %s: %s. Reason: %s",
+                                                    parameterName, resolvedValue, t.getMessage()));
+        }
+    }
+
+    /**
+     * Validates value of a parameter for training purposes. The value to validate should
+     * be accepted by {@link DurationSpec.IntMinutesBound}. This method is used upon validation of input parameters
+     * in the implementation of dictionary compressor.
+     *
+     * @param parameterName name of a parameter to validate
+     * @param resolvedValue value to validate
+     */
+    static void validateDurationBasedTrainingParameter(String parameterName, String resolvedValue)
+    {
+        try
+        {
+            new DurationSpec.IntMinutesBound(resolvedValue).toMinutes();
         }
         catch (Throwable t)
         {

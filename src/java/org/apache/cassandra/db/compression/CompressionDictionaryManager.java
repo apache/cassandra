@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.compression;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,20 +35,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
 
 public class CompressionDictionaryManager implements CompressionDictionaryManagerMBean,
                                                      ICompressionDictionaryCache,
@@ -219,6 +225,12 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
         CompressionDictionaryTrainingConfig trainingConfig = createTrainingConfig(parameters);
 
+        LightweightCompressionDictionary dictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
+                                                                                                                               columnFamilyStore.getTableName(),
+                                                                                                                               columnFamilyStore.metadata.id.toLongString());
+
+        checkTrainingFrequency(dictionary);
+
         // SSTable-based training: sample from existing SSTables
         Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
         if (sstables.isEmpty())
@@ -319,10 +331,15 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         CompressionDictionary.DictId dictId = new CompressionDictionary.DictId(kind, dataObject.dictId);
 
         LightweightCompressionDictionary latestCompressionDictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
-        if (latestCompressionDictionary != null && latestCompressionDictionary.dictId.id > dictId.id)
+        if (latestCompressionDictionary != null)
         {
-            throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
-                                                      dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
+            if (latestCompressionDictionary.dictId.id > dictId.id)
+            {
+                throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
+                                                          dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
+            }
+
+            checkTrainingFrequency(latestCompressionDictionary);
         }
 
         handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum));
@@ -392,6 +409,46 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                                                    parameters.get(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME),
                                                    TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
                                                    DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE);
+    }
+
+    private DurationSpec.IntMinutesBound getCompressionDictionaryMinTrainingFrequency(CompressionParams compressionParams)
+    {
+        String resolvedValue = compressionParams.getOtherOptions().getOrDefault(TRAINING_MIN_FREQUENCY_PARAMETER_NAME, DEFAULT_TRAINING_MIN_FREQUENCY);
+
+        try
+        {
+            return new DurationSpec.IntMinutesBound(resolvedValue);
+        }
+        catch (Throwable t)
+        {
+            throw new IllegalArgumentException(String.format("Invalid value for %s: %s. Reason: %s",
+                                                             TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                                                             resolvedValue,
+                                                             t.getMessage()));
+        }
+    }
+
+    private void checkTrainingFrequency(LightweightCompressionDictionary lastDictionary)
+    {
+        Instant lastTraining = lastDictionary == null ? null : lastDictionary.createdAt;
+        DurationSpec.IntMinutesBound minTrainingFrequency = getCompressionDictionaryMinTrainingFrequency(columnFamilyStore.metadata().params.compression);
+
+        // if there is no dictionary trained so far or min frequency is 0 - that is we can train as often as we want -
+        // then do not check if we can
+        if (lastTraining != null && minTrainingFrequency.toMinutes() != 0)
+        {
+            Instant now = FBUtilities.now();
+            int minTrainingFrequencyMinutes = minTrainingFrequency.toMinutes();
+            if (lastTraining.isAfter(now.minus(minTrainingFrequencyMinutes, ChronoUnit.MINUTES)))
+            {
+                Instant nextEarliestTraining = lastTraining.plus(minTrainingFrequencyMinutes, ChronoUnit.MINUTES);
+                throw new IllegalArgumentException(format("The next training or importing can occur only at least after %s from the last training which happened at %s. " +
+                                                          "You can train again no earlier than at %s.",
+                                                          minTrainingFrequency,
+                                                          lastTraining,
+                                                          nextEarliestTraining));
+            }
+        }
     }
 
     private int internalTrainingParameterResolution(CompressionParams compressionParams,
