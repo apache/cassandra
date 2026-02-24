@@ -37,6 +37,7 @@ public abstract class AbstractCompressionProvider
 
     protected final boolean fallbackToDefaultProvider;
     private final Map<String, String> properties;
+    private String algorithmName;
 
     public AbstractCompressionProvider(Map<String, String> args)
     {
@@ -89,49 +90,47 @@ public abstract class AbstractCompressionProvider
      * @return A new ICompressor instance
      * @throws IllegalStateException if the compressor cannot be created
      */
-    public abstract ICompressor createCompressor(Map<String, String> options) throws IllegalStateException;
+    public abstract ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options) throws IllegalStateException;
 
     /**
-     * Returns the name of the compressor supported by this provider.
+     * Returns the fully qualified class name of the compressor algorithm.
+     * CompressorRegistry holds mapping between compressor name and provider, and compressor name is stored in the provider
+     * for reverse lookup, to figure out the in-built compressor the provider supports when a provider is available
      *
-     * <p>This should match the simple class name of the compressor that this
-     * provider creates (e.g., "DeflateCompressor", "ZstdCompressor").</p>
-     *
-     * @return The name of the supported compressor, or empty string if none
+     * @return the compressor algorithm class name, or null if not set
      */
-    public abstract String getSupportedCompressorName();
-
-    /**
-     * Gets an appropriate compressor, either from the provider specified in the yaml file or the base compressor.
-     * 
-     * <p>This method implements the main logic for compressor selection:</p>
-     *   If this is the default provider, return the base compressor
-     *   If this is plugin provider and it supports the base compressor type, try to create our compressor
-     *   If creation fails and fallback is enabled, return the base compressor
-     *   If creation fails and fallback is disabled, throw an exception
-     * 
-     * @param baseCompressor The fallback compressor to use if this provider fails
-     * @param options Configuration options for compressor creation
-     * @return An ICompressor instance, either newly created or the base compressor
-     * @throws IllegalStateException if compressor creation fails and fallback is disabled
-     */
-    public ICompressor getCompressor(ICompressor baseCompressor, Map<String, String> options)
+    public String getAlgorithmName()
     {
-        if (getProviderName().equals(DefaultCompressionProvider.class.getName()))
-            return baseCompressor;
+        return algorithmName;
+    }
+
+    /**
+     * Returns the simple class name of the compressor algorithm.
+     *
+     * @return the simple class name of the compressor algorithm, or null if not found
+     */
+    public String getAlgorithmSimpleName()
+    {
         try
         {
-            if ((!getSupportedCompressorName().isEmpty()) && baseCompressor.getClass().getSimpleName().equals(getSupportedCompressorName()))
-                return createCompressor(options);
+            Class<?> klass = Class.forName(algorithmName);
+            return klass.getSimpleName();
         }
-        catch (IllegalStateException e)
+        catch (ClassNotFoundException e)
         {
-		    logger.warn("{} failed to create compressor: {}", getProviderName(), e.getMessage());
+            e.printStackTrace();
         }
-        if (fallbackToDefaultProvider)
-            return baseCompressor;
-        throw new IllegalStateException(String.format(
-            "Failed to create compressor for provider %s. Fallback to default provider is disabled.",
-            getProviderSimpleName()));
+        //It shouldn't get here since algorithmName should be set to a valid compressor class, but return null just in case
+        return null;
+    }
+
+    /**
+     * Sets the fully qualified class name of the compressor algorithm.
+     *
+     * @param name the fully qualified class name to set
+     */
+    public void setAlgorithmName(String name)
+    {
+        algorithmName = name;
     }
 }

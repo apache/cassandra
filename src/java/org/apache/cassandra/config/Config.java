@@ -86,7 +86,6 @@ public class Config
     public ParameterizedClass authenticator;
     public ParameterizedClass authorizer;
     public ParameterizedClass role_manager;
-    public ParameterizedClass compression_provider;
     public ParameterizedClass crypto_provider;
     public ParameterizedClass network_authorizer;
     public ParameterizedClass cidr_authorizer;
@@ -1549,4 +1548,15 @@ public class Config
      * 6.0 and later.
      */
     public volatile boolean gossip_quarantine_disabled = false;
+
+    public static class CompressionProviderOptions
+    {
+        public LinkedHashMap<String, ParameterizedClass> configurations;
+
+        public CompressionProviderOptions()
+        {
+        }
+    }
+    public CompressionProviderOptions compression_provider;
+
 }

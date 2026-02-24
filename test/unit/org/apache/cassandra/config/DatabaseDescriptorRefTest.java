@@ -237,6 +237,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.FSWriteError",
     "org.apache.cassandra.io.MessageVersionProvider",
     "org.apache.cassandra.io.compress.AbstractCompressionProvider",
+    "org.apache.cassandra.io.compress.CompressorRegistry",
     "org.apache.cassandra.io.compress.DefaultCompressionProvider",
     "org.apache.cassandra.io.compress.ICompressor",
     "org.apache.cassandra.io.compress.ICompressor$Uses",

@@ -2688,6 +2688,8 @@ compression_dictionary_training_sampling_rate: 0.01
 # If this section is commented out, Cassandra uses DefaultCompressionProvider
 # with built-in compressor implementation.
 #compression_provider:
-#  - class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider
-#    parameters:
-#      - fallback_to_default_provider: "true"
+#  configurations:
+#    LZ4Compressor:
+#      class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider
+#      parameters:
+#        fallback_to_default_provider: "true"
