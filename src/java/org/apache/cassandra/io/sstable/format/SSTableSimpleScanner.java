@@ -35,6 +35,7 @@ import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.config.Config.DiskAccessMode;
 import static org.apache.cassandra.io.sstable.format.SSTableReader.PartitionPositionBounds;
 
 /// Simple SSTable scanner that reads sequentially through an SSTable without using the index.
@@ -71,11 +72,12 @@ implements ISSTableScanner
     /// The ranges can be constructed by [SSTableReader#getPositionsForRanges] and similar methods as done by the
     /// various [SSTableReader#getScanner] variations.
     public SSTableSimpleScanner(SSTableReader sstable,
-                                Collection<PartitionPositionBounds> boundsList)
+                                Collection<PartitionPositionBounds> boundsList,
+                                DiskAccessMode diskAccessMode)
     {
         assert sstable != null;
 
-        this.dfile = sstable.openDataReaderForScan();
+        this.dfile = sstable.openDataReaderForScan(diskAccessMode);
         this.sstable = sstable;
         this.tableMetadata = sstable.metadata();
         this.sizeInBytes = boundsList.stream().mapToLong(ppb -> ppb.upperPosition - ppb.lowerPosition).sum();

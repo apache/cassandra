@@ -369,18 +369,24 @@ public class UnfilteredSerializer
             size += Columns.serializer.serializedSubsetSize(row.columns(), header.columns(isStatic));
 
         SearchIterator<ColumnMetadata, ColumnMetadata> si = helper.iterator(isStatic);
-        return row.accumulate((data, v) -> {
-            ColumnMetadata column = si.next(data.column());
-            assert column != null;
-
-            if (data.column.isSimple())
-                return v + Cell.serializer.serializedSize((Cell<?>) data, column, pkLiveness, header);
-            else
-                return v + sizeOfComplexColumn((ComplexColumnData) data, column, hasComplexDeletion, pkLiveness, header);
-        }, size);
+        helper.si = si;
+        helper.pkLiveness = pkLiveness;
+        helper.hasComplexDeletion = hasComplexDeletion;
+        return row.accumulate(UnfilteredSerializer::serializedColumnDataSize, helper, size);
     }
 
-    private long sizeOfComplexColumn(ComplexColumnData data, ColumnMetadata column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header)
+    private static long serializedColumnDataSize(SerializationHelper helper, ColumnData data, long v)
+    {
+        ColumnMetadata column = helper.si.next(data.column());
+        assert column != null;
+
+        if (data.column.isSimple())
+            return v + Cell.serializer.serializedSize((Cell<?>) data, column, helper.pkLiveness, helper.header);
+        else
+            return v + sizeOfComplexColumn((ComplexColumnData) data, column, helper.hasComplexDeletion, helper.pkLiveness, helper.header);
+    }
+
+    private static long sizeOfComplexColumn(ComplexColumnData data, ColumnMetadata column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header)
     {
         long size = 0;
 

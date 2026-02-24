@@ -293,7 +293,9 @@ public class RandomAccessReaderTest
         final File f = writeFile(params);
         FileHandle.Builder builder = new FileHandle.Builder(f).bufferType(params.bufferType)
                                                               .bufferSize(params.bufferSize);
-        builder.mmapped(params.mmappedRegions);
+        if (params.mmappedRegions)
+            builder.mmapped();
+
         try (FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {
@@ -510,21 +512,6 @@ public class RandomAccessReaderTest
         testSkipBytes(params, numberOfExpectationsInBufferSize + 1);
     }
 
-    public void testSkipBytesNonPositive() throws IOException
-    {
-        Parameters params = new Parameters(8192, 4096);
-        final File f = writeFile(params);
-        FileHandle.Builder builder = new FileHandle.Builder(f).bufferType(params.bufferType)
-                                                                     .bufferSize(params.bufferSize)
-                                                                     .mmapped(params.mmappedRegions);
-        try (FileHandle fh = builder.complete();
-             RandomAccessReader reader = fh.createReader())
-        {
-            assertEquals(0, reader.skipBytes(0));
-            assertEquals(0, reader.skipBytes(-1));
-        }
-    }
-
     @Test(expected = IOException.class)
     public void testSkipBytesClosed() throws IOException
     {
@@ -544,8 +531,11 @@ public class RandomAccessReaderTest
     {
         final File f = writeFile(params);
         FileHandle.Builder builder = new FileHandle.Builder(f).bufferType(params.bufferType)
-                                                              .bufferSize(params.bufferSize)
-                                                              .mmapped(params.mmappedRegions);
+                                                              .bufferSize(params.bufferSize);
+
+        if (params.mmappedRegions)
+            builder.mmapped();
+
         try (FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {

@@ -86,10 +86,11 @@ public class Sjk extends AbstractCommand
         {
             // Consume all arguments and pass them to SJK.
             assert commandSpec.userObject() instanceof Sjk;
-            if (args.isEmpty())
-                return true;
+            Sjk sjk = (Sjk) commandSpec.userObject();
 
-            ((Sjk) commandSpec.userObject()).args.add(args.pop());
+            while (!args.isEmpty())
+                sjk.args.add(args.pop());
+
             return true;
         }
     }

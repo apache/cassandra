@@ -22,6 +22,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
 
 import javax.annotation.Nullable;
@@ -34,6 +35,7 @@ import com.google.common.hash.Hashing;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
@@ -118,6 +120,14 @@ public interface CompressionDictionary
     {
         return dictId().kind;
     }
+
+    /**
+     * Returns a date of creation of this dictionary. By creation, we mean when
+     * the compression object was instantiated.
+     *
+     * @return when was this dictionary created.
+     */
+    Instant createdAt();
 
     /**
      * Returns a reference from lazily initialized reference counter.
@@ -261,14 +271,18 @@ public interface CompressionDictionary
         int size = row.getInt("dict_length");
         String keyspaceName = row.getString("keyspace_name");
         String tableName = row.getString("table_name");
+        String tableId = row.getString("table_id");
+        Instant createdAt = row.getTimestamp("created_at").toInstant();
 
         try
         {
             return new LightweightCompressionDictionary(keyspaceName,
                                                         tableName,
+                                                        tableId,
                                                         new DictId(CompressionDictionary.Kind.valueOf(kindStr), dictId),
                                                         checksum,
-                                                        size);
+                                                        size,
+                                                        createdAt);
         }
         catch (IllegalArgumentException ex)
         {
@@ -283,6 +297,7 @@ public interface CompressionDictionary
         byte[] dict = row.getByteArray("dict");
         int storedLength = row.getInt("dict_length");
         int storedChecksum = row.getInt("dict_checksum");
+        Instant createdAt = row.getTimestamp("created_at").toInstant();
 
         try
         {
@@ -303,7 +318,7 @@ public interface CompressionDictionary
                                                               kindStr, dictId, storedChecksum, calculatedChecksum));
             }
 
-            return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"), storedChecksum);
+            return kind.createDictionary(new DictId(kind, dictId), row.getByteArray("dict"), storedChecksum, createdAt);
         }
         catch (IllegalArgumentException ex)
         {
@@ -328,9 +343,9 @@ public interface CompressionDictionary
         ZSTD
         {
             @Override
-            public CompressionDictionary createDictionary(DictId dictId, byte[] dict, int checksum)
+            public CompressionDictionary createDictionary(DictId dictId, byte[] dict, int checksum, Instant createdAt)
             {
-                return new ZstdCompressionDictionary(dictId, dict, checksum);
+                return new ZstdCompressionDictionary(dictId, dict, checksum, createdAt);
             }
 
             @Override
@@ -362,7 +377,21 @@ public interface CompressionDictionary
          * @param checksum checksum of this dictionary
          * @return a compression dictionary instance
          */
-        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum);
+        public CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum)
+        {
+            return createDictionary(dictId, dict, checksum, FBUtilities.now());
+        }
+
+        /**
+         * Creates a compression dictionary instance for this kind
+         *
+         * @param dictId the dictionary identifier
+         * @param dict the raw dictionary bytes
+         * @param checksum checksum of this dictionary
+         * @param createdAt creation date of to-be-constructed dictionary
+         * @return a compression dictionary instance
+         */
+        public abstract CompressionDictionary createDictionary(CompressionDictionary.DictId dictId, byte[] dict, int checksum, Instant createdAt);
 
         /**
          * Creates a dictionary compressor for this kind
@@ -430,21 +459,41 @@ public interface CompressionDictionary
     {
         public final String keyspaceName;
         public final String tableName;
+        public final String tableId;
         public final DictId dictId;
         public final int checksum;
         public final int size;
+        public final Instant createdAt;
 
         public LightweightCompressionDictionary(String keyspaceName,
                                                 String tableName,
+                                                String tableId,
                                                 DictId dictId,
                                                 int checksum,
-                                                int size)
+                                                int size,
+                                                Instant createdAt)
         {
             this.keyspaceName = keyspaceName;
             this.tableName = tableName;
+            this.tableId = tableId;
             this.dictId = dictId;
             this.checksum = checksum;
             this.size = size;
+            this.createdAt = createdAt;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "LightweightCompressionDictionary{" +
+                   "keyspaceName='" + keyspaceName + '\'' +
+                   ", tableName='" + tableName + '\'' +
+                   ", tableId='" + tableId + '\'' +
+                   ", dictId=" + dictId +
+                   ", checksum=" + checksum +
+                   ", size=" + size +
+                   ", createdAt=" + createdAt +
+                   '}';
         }
     }
 }

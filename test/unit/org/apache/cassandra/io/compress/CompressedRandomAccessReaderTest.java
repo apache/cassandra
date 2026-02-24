@@ -44,6 +44,7 @@ import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.SyncUtil;
 
+import static org.apache.cassandra.config.Config.DiskAccessMode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -62,40 +63,40 @@ public class CompressedRandomAccessReaderTest
     public void testResetAndTruncate() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(FileUtils.createTempFile("normal", "1"), false, false, 10, 0);
-        testResetAndTruncate(FileUtils.createTempFile("normal", "2"), false, false, CompressionParams.DEFAULT_CHUNK_LENGTH, 0);
+        testResetAndTruncate(FileUtils.createTempFile("normal", "1"), false, DiskAccessMode.standard, 10);
+        testResetAndTruncate(FileUtils.createTempFile("normal", "2"), false, DiskAccessMode.standard, CompressionParams.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
     public void testResetAndTruncateCompressed() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(FileUtils.createTempFile("compressed", "1"), true, false, 10, 0);
-        testResetAndTruncate(FileUtils.createTempFile("compressed", "2"), true, false, CompressionParams.DEFAULT_CHUNK_LENGTH, 0);
+        testResetAndTruncate(FileUtils.createTempFile("compressed", "1"), true, DiskAccessMode.standard, 10);
+        testResetAndTruncate(FileUtils.createTempFile("compressed", "2"), true, DiskAccessMode.standard, CompressionParams.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
     public void testResetAndTruncateCompressedMmap() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(FileUtils.createTempFile("compressed_mmap", "1"), true, true, 10, 0);
-        testResetAndTruncate(FileUtils.createTempFile("compressed_mmap", "2"), true, true, CompressionParams.DEFAULT_CHUNK_LENGTH, 0);
+        testResetAndTruncate(FileUtils.createTempFile("compressed_mmap", "1"), true, DiskAccessMode.mmap, 10);
+        testResetAndTruncate(FileUtils.createTempFile("compressed_mmap", "2"), true, DiskAccessMode.mmap, CompressionParams.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
     public void testResetAndTruncateCompressedUncompressedChunks() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks", "1"), true, false, 10, 3);
-        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks", "2"), true, false, CompressionParams.DEFAULT_CHUNK_LENGTH, 3);
+        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks", "1"), true, DiskAccessMode.standard, 10);
+        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks", "2"), true, DiskAccessMode.standard, CompressionParams.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
     public void testResetAndTruncateCompressedUncompressedChunksMmap() throws IOException
     {
         // test reset in current buffer or previous one
-        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks_mmap", "1"), true, true, 10, 3);
-        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks_mmap", "2"), true, true, CompressionParams.DEFAULT_CHUNK_LENGTH, 3);
+        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks_mmap", "1"), true, DiskAccessMode.mmap, 10);
+        testResetAndTruncate(FileUtils.createTempFile("compressed_uchunks_mmap", "2"), true, DiskAccessMode.mmap, CompressionParams.DEFAULT_CHUNK_LENGTH);
     }
 
     @Test
@@ -177,13 +178,16 @@ public class CompressedRandomAccessReaderTest
         }
     }
 
-    private static void testResetAndTruncate(File f, boolean compressed, boolean usemmap, int junkSize, double minCompressRatio) throws IOException
+    private static void testResetAndTruncate(File f, boolean compressed, DiskAccessMode diskAccessMode, int junkSize) throws IOException
     {
         final String filename = f.absolutePath();
         writeSSTable(f, compressed ? CompressionParams.snappy() : null, junkSize);
 
         try (CompressionMetadata compressionMetadata = compressed ? CompressionMetadata.open(new File(filename + ".metadata"), f.length(), true) : null;
-             FileHandle fh = new FileHandle.Builder(f).mmapped(usemmap).withCompressionMetadata(compressionMetadata).complete();
+             FileHandle fh = new FileHandle.Builder(f)
+                             .withCompressionMetadata(compressionMetadata)
+                             .withDiskAccessMode(diskAccessMode)
+                             .complete();
              RandomAccessReader reader = fh.createReader())
         {
             String expected = "The quick brown fox jumps over the lazy dog";

@@ -110,7 +110,7 @@ dictionaries to maintain optimal compression ratios.
 
 Before dictionary compression can provide optimal results, a compression
 dictionary must be trained on representative data samples. Cassandra
-supports both manual and automatic training approaches.
+supports manual training approach for now.
 
 ==== Manual Dictionary Training
 
@@ -140,20 +140,6 @@ nodetool compressiondictionary train --force <keyspace> <table>
 
 This can be useful for testing or when you want to train a dictionary from
 limited data during initial setup.
-
-==== Automatic Dictionary Training
-
-Enable automatic training in `cassandra.yaml`:
-
-[source,yaml]
-----
-compression_dictionary_training_auto_train_enabled: true
-compression_dictionary_training_sampling_rate: 0.01  # 1% of writes
-----
-
-When enabled, Cassandra automatically samples write operations and
-trains dictionaries in the background based on the configured sampling
-rate (range: 0.01-1, where 0.01 = 1% of writes).
 
 === Dictionary Storage and Distribution
 
@@ -298,13 +284,6 @@ next access.
 
 === Training Configuration
 
-* `compression_dictionary_training_auto_train_enabled` (default: `false`):
-Enable automatic background dictionary training. When enabled, Cassandra
-samples writes and trains dictionaries automatically.
-* `compression_dictionary_training_sampling_rate` (default: `0.01`):
-Sampling rate for automatic training, range 0.01-1 where 0.01 = 1% of
-writes. Lower values reduce training overhead but may miss data patterns.
-
 Example configuration:
 
 [source,yaml]
@@ -314,10 +293,6 @@ compression_dictionary_refresh_interval: 3600
 compression_dictionary_refresh_initial_delay: 10
 compression_dictionary_cache_size: 10
 compression_dictionary_cache_expire: 3600
-
-# Automatic training
-compression_dictionary_training_auto_train_enabled: false
-compression_dictionary_training_sampling_rate: 0.01
 ----
 
 === CQL training parameters:
@@ -407,11 +382,6 @@ typically minimal (default 64KB per dictionary × cache size).
 `nodetool compressiondictionary train` samples SSTable chunk data and
 performs CPU-intensive dictionary training. Consider running training
 during off-peak hours.
-* *Automatic Training Impact*: When
-`compression_dictionary_training_auto_train_enabled` is true, write
-operations are sampled based on `compression_dictionary_training_sampling_rate`.
-This adds minimal overhead but should be monitored in write-intensive
-workloads.
 * *Dictionary Refresh*: The dictionary refresh process
 (`compression_dictionary_refresh_interval`) checks for new dictionaries
 cluster-wide. The default 1-hour interval balances freshness with
@@ -433,6 +403,8 @@ There are these four commands for now related to compression dictionaries:
 * export - a user can export a compression dictionary of a keyspace and a table, either the last one or
 by a specific id, to a file.
 * import - a user can import a compression dictionary, exported by above command, from a file to a cluster.
+* cleanup - removes orphaned dictionaries. These are the ones for which a table they were trained for does not exist anymore (it was dropped).
+A user can inspect which dictionaries are orphaned by `-d / --dry` flag without deleting them.
 
 For `train` subcommand, it is possible to specify:
 

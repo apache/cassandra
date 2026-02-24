@@ -48,6 +48,7 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
@@ -297,6 +298,16 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         }
 
         public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
+        {
+            return new FailingISSTableScanner();
+        }
+
+        public ISSTableScanner getScanner(DiskAccessMode diskAccessMode)
+        {
+            return new FailingISSTableScanner();
+        }
+
+        public ISSTableScanner getScanner(Collection<Range<Token>> ranges, DiskAccessMode diskAccessMode)
         {
             return new FailingISSTableScanner();
         }

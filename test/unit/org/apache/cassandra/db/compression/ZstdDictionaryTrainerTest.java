@@ -49,7 +49,6 @@ public class ZstdDictionaryTrainerTest
 
     private CompressionDictionaryTrainingConfig testConfig;
     private ZstdDictionaryTrainer trainer;
-    private Consumer<CompressionDictionary> mockCallback;
     private AtomicReference<CompressionDictionary> callbackResult;
 
     @BeforeClass
@@ -64,13 +63,12 @@ public class ZstdDictionaryTrainerTest
         testConfig = CompressionDictionaryTrainingConfig.builder()
                                                         .maxDictionarySize(1024)          // Small for testing
                                                         .maxTotalSampleSize(10 * 1024)    // 10KB total
-                                                        .samplingRate(1)                  // 100% sampling for predictable tests
                                                         .build();
 
         callbackResult = new AtomicReference<>();
-        mockCallback = callbackResult::set;
+        Consumer<CompressionDictionary> mockCallback = callbackResult::set;
 
-        trainer = new ZstdDictionaryTrainer(TEST_KEYSPACE, TEST_TABLE, COMPRESSION_LEVEL, testConfig.samplingRate);
+        trainer = new ZstdDictionaryTrainer(TEST_KEYSPACE, TEST_TABLE, COMPRESSION_LEVEL);
         trainer.setDictionaryTrainedListener(mockCallback);
     }
 
@@ -109,7 +107,7 @@ public class ZstdDictionaryTrainerTest
     public void testTrainerStart()
     {
         // Auto start depends on configuration - test both scenarios
-        boolean started = trainer.start(false, testConfig);
+        boolean started = trainer.start(testConfig);
         if (started)
         {
             assertThat(trainer.getTrainingState().getStatus())
@@ -127,7 +125,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainerStartManual()
     {
-        assertThat(trainer.start(true, testConfig))
+        assertThat(trainer.start(testConfig))
         .as("Manual training should start successfully")
         .isTrue();
         assertThat(trainer.getTrainingState().getStatus())
@@ -141,25 +139,22 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainerStartMultipleTimes()
     {
-        assertThat(trainer.start(true, testConfig))
+        assertThat(trainer.start(testConfig))
         .as("First start (manual training) should succeed")
         .isTrue();
         Object firstTrainer = trainer.trainer();
         assertThat(firstTrainer).isNotNull();
-        assertThat(trainer.start(true, testConfig))
+        assertThat(trainer.start(testConfig))
         .as("Second start (manual training) should suceed and reset")
         .isTrue();
         Object secondTrainer = trainer.trainer();
         assertThat(secondTrainer).isNotNull().isNotSameAs(firstTrainer);
-        assertThat(trainer.start(false, testConfig))
-        .as("Third start (not manual training) should fail")
-        .isFalse();
     }
 
     @Test
     public void testTrainerCloseIdempotent()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         trainer.close();
         trainer.close(); // Should not throw
         trainer.close(); // Should not throw
@@ -172,7 +167,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainerReset()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         addSampleData(1000); // Add some samples
 
         assertThat(trainer.getTrainingState().getSampleCount())
@@ -194,10 +189,10 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testStartAfterClose()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         trainer.close();
 
-        assertThat(trainer.start(true, testConfig))
+        assertThat(trainer.start(testConfig))
         .as("Should not start after close")
         .isFalse();
         assertThat(trainer.getTrainingState().getStatus())
@@ -206,54 +201,9 @@ public class ZstdDictionaryTrainerTest
     }
 
     @Test
-    public void testShouldSample()
-    {
-        trainer.start(true, testConfig);
-        // With sampling rate 1 (100%), should always return true
-        for (int i = 0; i < 10; i++)
-        {
-            assertThat(trainer.shouldSample())
-            .as("Should sample with rate 1")
-            .isTrue();
-        }
-    }
-
-    @Test
-    public void testShouldSampleWithLowRate()
-    {
-        // Test with lower sampling rate
-        CompressionDictionaryTrainingConfig lowSamplingConfig =
-        CompressionDictionaryTrainingConfig.builder()
-                                           .maxDictionarySize(1024)
-                                           .maxTotalSampleSize(10 * 1024)
-                                           .samplingRate(0.001f) // 0.1% sampling
-                                           .build();
-
-        try (ZstdDictionaryTrainer lowSamplingTrainer = new ZstdDictionaryTrainer(TEST_KEYSPACE, TEST_TABLE, COMPRESSION_LEVEL, lowSamplingConfig.samplingRate))
-        {
-            lowSamplingTrainer.setDictionaryTrainedListener(mockCallback);
-            // With very low sampling rate, should mostly return false
-            int sampleCount = 0;
-            int iterations = 1000;
-            for (int i = 0; i < iterations; i++)
-            {
-                if (lowSamplingTrainer.shouldSample())
-                {
-                    sampleCount++;
-                }
-            }
-
-            // Should be roughly 0.1% (1 out of 1000), allow some variance
-            assertThat(sampleCount)
-            .as("Sample rate should be low")
-            .isLessThan(iterations / 10);
-        }
-    }
-
-    @Test
     public void testAddSample()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
 
         assertThat(trainer.getTrainingState().getSampleCount())
         .as("Initial sample count should be 0")
@@ -291,7 +241,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testAddSampleAfterClose()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         trainer.close();
 
         ByteBuffer sample = ByteBuffer.wrap(SAMPLE_DATA.getBytes());
@@ -308,7 +258,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testAddNullSample()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         trainer.addSample(null); // Should not throw
 
         assertThat(trainer.getTrainingState().getStatus())
@@ -322,7 +272,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testAddEmptySample()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         ByteBuffer empty = ByteBuffer.allocate(0);
         trainer.addSample(empty); // Should not throw
 
@@ -337,7 +287,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testIsReady()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         assertThat(trainer.isReady())
         .as("Should not be ready initially")
         .isFalse();
@@ -362,7 +312,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryWithInsufficientSampleCount()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
 
         // Add sufficient data size but only 5 samples (less than minimum 11)
         for (int i = 0; i < 5; i++)
@@ -395,7 +345,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryWithSufficientSampleCount()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
 
         // Add 15 samples with sufficient total size
         for (int i = 0; i < 15; i++)
@@ -416,7 +366,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryAsync() throws Exception
     {
-        Future<CompressionDictionary> future = startTraining(true, false, testConfig);
+        Future<CompressionDictionary> future = startTraining(false, testConfig);
         CompressionDictionary dictionary = future.get(5, TimeUnit.SECONDS);
 
         assertThat(dictionary).as("Dictionary should not be null").isNotNull();
@@ -431,7 +381,7 @@ public class ZstdDictionaryTrainerTest
     public void testTrainDictionaryAsyncForce() throws Exception
     {
         // Don't add enough samples
-        Future<CompressionDictionary> future = startTraining(true, true, testConfig, 512);
+        Future<CompressionDictionary> future = startTraining(true, testConfig, 512);
         CompressionDictionary dictionary = future.get(1, TimeUnit.SECONDS);
         assertThat(dictionary)
         .as("Forced async training should produce dictionary")
@@ -442,7 +392,7 @@ public class ZstdDictionaryTrainerTest
     public void testTrainDictionaryAsyncForceFailsWithNoData() throws Exception
     {
         AtomicReference<CompressionDictionary> dictRef = new AtomicReference<>();
-        Future<CompressionDictionary> result = startTraining(true, true, testConfig, 0)
+        Future<CompressionDictionary> result = startTraining(true, testConfig, 0)
                                                           .addCallback((dict, t) -> dictRef.set(dict));
 
         assertThat(result.isDone() && result.cause() != null)
@@ -459,7 +409,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testDictionaryTrainedListener()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         addSampleData(testConfig.acceptableTotalSampleSize);
 
         // Train dictionary synchronously - callback should be called
@@ -524,88 +474,6 @@ public class ZstdDictionaryTrainerTest
     }
 
     @Test
-    public void testUpdateSamplingRate()
-    {
-        trainer.start(true, testConfig);
-
-        // Test updating to different valid sampling rates
-        trainer.updateSamplingRate(0.1f);
-
-        // With sampling rate 10 (10%), should mostly return false
-        int sampleCount = 0;
-        int iterations = 1000;
-        for (int i = 0; i < iterations; i++)
-        {
-            if (trainer.shouldSample())
-            {
-                sampleCount++;
-            }
-        }
-
-        // Should be roughly 10% (1 out of 10), allow some variance
-        assertThat(sampleCount)
-        .as("Sample rate should be approximately 10%")
-        .isGreaterThan(iterations / 20) // at least 5%
-        .isLessThan(iterations / 5);    // at most 20%
-
-        // Test updating to 100% sampling
-        trainer.updateSamplingRate(1.0f);
-
-        // Should always sample now
-        for (int i = 0; i < 10; i++)
-        {
-            assertThat(trainer.shouldSample())
-            .as("Should always sample with rate 1")
-            .isTrue();
-        }
-    }
-
-    @Test
-    public void testUpdateSamplingRateValidation()
-    {
-        trainer.start(true, testConfig);
-
-        // Test invalid sampling rates
-        assertThatThrownBy(() -> trainer.updateSamplingRate(0f))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Sampling rate has to be between (0.0;1], it is 0.0");
-
-        assertThatThrownBy(() -> trainer.updateSamplingRate(-1f))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Sampling rate has to be between (0.0;1], it is -1.0");
-
-        assertThatThrownBy(() -> trainer.updateSamplingRate(-100f))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Sampling rate has to be between (0.0;1], it is -100.0");
-    }
-
-    @Test
-    public void testUpdateSamplingRateBeforeStart()
-    {
-        // Should be able to update sampling rate even before start
-        trainer.updateSamplingRate(0.2f);
-
-        trainer.start(true, testConfig);
-
-        // Verify the updated rate is used after start
-        int sampleCount = 0;
-        int iterations = 1000;
-        for (int i = 0; i < iterations; i++)
-        {
-            if (trainer.shouldSample())
-            {
-                sampleCount++;
-            }
-        }
-
-        // Should be roughly 20% (1 out of 5), allow some variance
-        assertThat(sampleCount)
-        .as("Sample rate should be approximately 20%")
-        .isGreaterThan(iterations / 10) // at least 10%
-        .isLessThan(iterations / 2);    // at most 50%
-    }
-
-    @Test
     public void testTrainDictionaryNotInitialized()
     {
         // Try to train without starting
@@ -619,7 +487,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryClosed()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
         addSampleData(testConfig.acceptableTotalSampleSize);
         trainer.close();
 
@@ -633,7 +501,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryInsufficientSampleSize()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
 
         // Add enough samples (15) but with insufficient total size
         for (int i = 0; i < 15; i++)
@@ -664,7 +532,7 @@ public class ZstdDictionaryTrainerTest
     @Test
     public void testTrainDictionaryInsufficientBothSampleCountAndSize()
     {
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
 
         // Add only 3 samples with small size
         for (int i = 0; i < 3; i++)
@@ -689,9 +557,9 @@ public class ZstdDictionaryTrainerTest
         .hasMessageContaining("Use --force to train anyway");
     }
 
-    private Future<CompressionDictionary> startTraining(boolean manualTraining, boolean forceTrain, CompressionDictionaryTrainingConfig config, int sampleSize) throws Exception
+    private Future<CompressionDictionary> startTraining(boolean forceTrain, CompressionDictionaryTrainingConfig config, int sampleSize) throws Exception
     {
-        trainer.start(manualTraining, config);
+        trainer.start(config);
         if (sampleSize > 0)
         {
             addSampleData(sampleSize);
@@ -713,9 +581,9 @@ public class ZstdDictionaryTrainerTest
         return future;
     }
 
-    private Future<CompressionDictionary> startTraining(boolean manualTraining, boolean forceTrain, CompressionDictionaryTrainingConfig config) throws Exception
+    private Future<CompressionDictionary> startTraining(boolean forceTrain, CompressionDictionaryTrainingConfig config) throws Exception
     {
-        return startTraining(manualTraining, forceTrain, config, config.acceptableTotalSampleSize);
+        return startTraining(forceTrain, config, config.acceptableTotalSampleSize);
     }
 
     private void addSampleData(int totalSize)
@@ -742,7 +610,7 @@ public class ZstdDictionaryTrainerTest
         .isEqualTo(0);
 
         // Start training
-        trainer.start(true, testConfig);
+        trainer.start(testConfig);
 
         // Add some samples
         byte[] sampleBytes = SAMPLE_DATA.getBytes();

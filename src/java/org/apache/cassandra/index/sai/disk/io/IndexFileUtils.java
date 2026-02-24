@@ -84,9 +84,16 @@ public class IndexFileUtils
     public IndexInput openBlockingInput(File file)
     {
         FileHandle fileHandle = new FileHandle.Builder(file).complete();
-        RandomAccessReader randomReader = fileHandle.createReader();
-
-        return IndexInputReader.create(randomReader, fileHandle::close);
+        try
+        {
+            RandomAccessReader randomReader = fileHandle.createReader();
+            return IndexInputReader.create(randomReader, fileHandle::close);
+        }
+        catch (Throwable t)
+        {
+            fileHandle.close();
+            throw t;
+        }
     }
 
     public static ChecksumIndexInput getBufferedChecksumIndexInput(IndexInput indexInput)

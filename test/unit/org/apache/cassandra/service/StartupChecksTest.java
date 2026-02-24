@@ -529,4 +529,13 @@ public class StartupChecksTest
             assertTrue(e.getMessage().contains(message));
         }
     }
+
+    @Test
+    public void testFindDirectIOUnsupportedLocationsSkipsNonExistentDirs()
+    {
+        // Non-existent directories should be skipped, not added to unsupported list
+        List<String> unsupported = StartupChecks.findDirectIOUnsupportedLocations(
+            new String[] { "/this/path/does/not/exist/for/testing" });
+        assertThat(unsupported).isEmpty();
+    }
 }

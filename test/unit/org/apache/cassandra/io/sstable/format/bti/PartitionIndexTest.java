@@ -101,7 +101,7 @@ public class PartitionIndexTest
     }
 
     @Parameterized.Parameter(value = 0)
-    public static Config.DiskAccessMode accessMode = Config.DiskAccessMode.standard;
+    public static Config.DiskAccessMode diskAccessMode = Config.DiskAccessMode.standard;
 
     @BeforeClass
     public static void beforeClass()
@@ -878,7 +878,7 @@ public class PartitionIndexTest
     {
         return new FileHandle.Builder(file)
                .bufferSize(PageAware.PAGE_SIZE)
-               .mmapped(accessMode == Config.DiskAccessMode.mmap)
+               .withDiskAccessMode(diskAccessMode)
                .withChunkCache(ChunkCache.instance);
     }
 

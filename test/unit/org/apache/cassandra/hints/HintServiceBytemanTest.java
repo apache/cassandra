@@ -104,21 +104,23 @@ public class HintServiceBytemanTest
     public void testListPendingHints() throws InterruptedException, ExecutionException, TimeoutException
     {
         HintsService.instance.resumeDispatch();
-        MockMessagingSpy spy = sendHintsAndResponses(metadata, 20000, -1);
-        Awaitility.await("For the hints file to flush")
-                  .atMost(Duration.ofMillis(DatabaseDescriptor.getHintsFlushPeriodInMS() * 2L))
-                  .until(() -> !HintsService.instance.getPendingHints().isEmpty());
+        try(MockMessagingSpy spy = sendHintsAndResponses(metadata, 20000, -1))
+        {
+            Awaitility.await("For the hints file to flush")
+                      .atMost(Duration.ofMillis(DatabaseDescriptor.getHintsFlushPeriodInMS() * 2L))
+                      .until(() -> !HintsService.instance.getPendingHints().isEmpty());
 
-        List<PendingHintsInfo> pendingHints = HintsService.instance.getPendingHintsInfo();
-        assertEquals(1, pendingHints.size());
-        PendingHintsInfo info = pendingHints.get(0);
-        assertEquals(StorageService.instance.getLocalHostUUID(), info.hostId);
-        assertEquals(1, info.totalFiles);
-        assertEquals(info.oldestTimestamp, info.newestTimestamp); // there is 1 descriptor with only 1 timestamp
+            List<PendingHintsInfo> pendingHints = HintsService.instance.getPendingHintsInfo();
+            assertEquals(1, pendingHints.size());
+            PendingHintsInfo info = pendingHints.get(0);
+            assertEquals(StorageService.instance.getLocalHostUUID(), info.hostId);
+            assertEquals(1, info.totalFiles);
+            assertEquals(info.oldestTimestamp, info.newestTimestamp); // there is 1 descriptor with only 1 timestamp
 
-        // JDK21 genZGC uncovered some flakiness / hanging here waiting on Condition
-        spy.interceptMessageOut(20000).get(60, TimeUnit.SECONDS);
-        spy.printMessageCounts();
-        assertEquals(Collections.emptyList(), HintsService.instance.getPendingHints());
+            // JDK21 genZGC uncovered some flakiness / hanging here waiting on Condition
+            spy.interceptMessageOut(20000).get(60, TimeUnit.SECONDS);
+            spy.printMessageCounts();
+            assertEquals(Collections.emptyList(), HintsService.instance.getPendingHints());
+        }
     }
 }

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
@@ -59,6 +57,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private final String keyspaceName;
     private final String tableName;
+    private final String tableId;
     private final ColumnFamilyStore columnFamilyStore;
     private volatile boolean mbeanRegistered;
     private volatile boolean isEnabled;
@@ -73,12 +72,13 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     {
         this.keyspaceName = columnFamilyStore.keyspace.getName();
         this.tableName = columnFamilyStore.getTableName();
+        this.tableId = columnFamilyStore.metadata().id.toLongString();
         this.columnFamilyStore = columnFamilyStore;
 
         this.isEnabled = columnFamilyStore.metadata().params.compression.isDictionaryCompressionEnabled();
         this.cache = new CompressionDictionaryCache();
         this.eventHandler = new CompressionDictionaryEventHandler(columnFamilyStore, cache);
-        this.scheduler = new CompressionDictionaryScheduler(keyspaceName, tableName, cache, isEnabled);
+        this.scheduler = new CompressionDictionaryScheduler(keyspaceName, tableName, tableId, cache, isEnabled);
         if (isEnabled)
         {
             // Initialize components
@@ -88,7 +88,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
             scheduler.scheduleRefreshTask();
 
-            trainer.start(false, createTrainingConfig());
+            trainer.start(createTrainingConfig());
         }
 
         if (registerBookkeeping && isEnabled)
@@ -148,7 +148,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             // Start trainer if it exists
             if (trainer != null)
             {
-                trainer.start(false, createTrainingConfig());
+                trainer.start(createTrainingConfig());
             }
             return;
         }
@@ -162,21 +162,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         {
             logger.warn("Failed to close CompressionDictionaryManager on disabling " +
                         "dictionary-based compression for table {}.{}", keyspaceName, tableName);
-        }
-    }
-
-    /**
-     * Adds a sample to the dictionary trainer for learning compression patterns.
-     * Samples are randomly selected to avoid bias and improve dictionary quality.
-     *
-     * @param sample the sample data to potentially add for training
-     */
-    public void addSample(ByteBuffer sample)
-    {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        if (dictionaryTrainer != null && dictionaryTrainer.shouldSample())
-        {
-            dictionaryTrainer.addSample(sample);
         }
     }
 
@@ -252,7 +237,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
                     keyspaceName, tableName, sstables.size());
 
-        trainer.start(true, trainingConfig);
+        trainer.start(trainingConfig);
         scheduler.scheduleSSTableBasedTraining(trainer, sstables, trainingConfig, force);
     }
 
@@ -270,7 +255,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     @Override
     public TabularData listCompressionDictionaries()
     {
-        List<LightweightCompressionDictionary> dictionaries = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(keyspaceName, tableName);
+        List<LightweightCompressionDictionary> dictionaries = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(keyspaceName, tableName, tableId);
         TabularDataSupport tableData = new TabularDataSupport(CompressionDictionaryDetailsTabularData.TABULAR_TYPE);
 
         if (dictionaries == null)
@@ -289,21 +274,21 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     @Override
     public CompositeData getCompressionDictionary()
     {
-        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName);
+        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (compressionDictionary == null)
             return null;
 
-        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, tableId, compressionDictionary);
     }
 
     @Override
     public CompositeData getCompressionDictionary(long dictId)
     {
-        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, dictId);
+        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, tableId, dictId);
         if (compressionDictionary == null)
             return null;
 
-        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, tableId, compressionDictionary);
     }
 
     @Override
@@ -333,7 +318,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
         CompressionDictionary.DictId dictId = new CompressionDictionary.DictId(kind, dataObject.dictId);
 
-        LightweightCompressionDictionary latestCompressionDictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName);
+        LightweightCompressionDictionary latestCompressionDictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (latestCompressionDictionary != null && latestCompressionDictionary.dictId.id > dictId.id)
         {
             throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
@@ -389,7 +374,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
                .builder()
                .maxDictionarySize(getCompressionDictionaryTrainingMaxDictionarySize(compressionParams, parameters))
                .maxTotalSampleSize(getCompressionDictionaryTrainingMaxTotalSampleSize(compressionParams, parameters))
-               .samplingRate(DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate())
                .chunkSize(compressionParams.chunkLength())
                .build();
     }
@@ -438,7 +422,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             return;
         }
 
-        SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, dictionary);
+        SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, tableId, dictionary);
         cache.add(dictionary);
     }
 

@@ -34,6 +34,12 @@ SYNOPSIS
                 [(-u <username> | --username <username>)] compressiondictionary import
                 [--] <dictionaryPath>
 
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary cleanup
+                [(-d | --dry)]
+
 OPTIONS
         -h <host>, --host <host>
             Node hostname or ip address
@@ -82,3 +88,9 @@ COMMANDS
             dictionary is returned.
         import
             Import local dictionary to Cassandra.
+        cleanup
+            Clean up orphaned dictionaries by deleting them from system_distributed.
+            compression_dictionaries table, these are ones for which a table they were
+            trained for was dropped.
+
+            With --dry option, Only display orphaned dictionaries, do not remove them.

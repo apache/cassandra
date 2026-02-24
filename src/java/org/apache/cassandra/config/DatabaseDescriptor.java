@@ -223,6 +223,8 @@ public class DatabaseDescriptor
 
     private static DiskAccessMode commitLogWriteDiskAccessMode;
 
+    private static DiskAccessMode compactionReadDiskAccessMode;
+
     private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
@@ -674,6 +676,21 @@ public class DatabaseDescriptor
             indexAccessMode = conf.disk_access_mode;
         }
         logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+
+        if (DiskAccessMode.auto == conf.compaction_read_disk_access_mode)
+        {
+            compactionReadDiskAccessMode = conf.disk_access_mode;
+        }
+        else if (DiskAccessMode.direct == conf.compaction_read_disk_access_mode)
+        {
+            compactionReadDiskAccessMode = DiskAccessMode.direct;
+        }
+        else
+        {
+            throw new IllegalArgumentException("Unsupported disk access mode for compaction_read_disk_access_mode " +
+                                               "(options: direct/auto) " + conf.compaction_read_disk_access_mode);
+        }
+        logger.info("compaction_read_disk_access_mode resolved to: {}", compactionReadDiskAccessMode);
 
         /* phi convict threshold for FailureDetector */
         if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
@@ -1253,9 +1270,6 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(ex.getMessage());
         }
-
-        if (conf.compression_dictionary_training_sampling_rate <= 0.0f || conf.compression_dictionary_training_sampling_rate > 1.0f)
-            throw new ConfigurationException("Sampling rate has to be between (0.0;1], it is " + conf.compression_dictionary_training_sampling_rate);
     }
 
     @VisibleForTesting
@@ -1786,7 +1800,7 @@ public class DatabaseDescriptor
 
                 File commitLogLocationDir = new File(commitLogLocation);
                 PathUtils.createDirectoriesIfNotExists(commitLogLocationDir.toPath());
-                directIOSupported = FileUtils.getBlockSize(commitLogLocationDir) > 0;
+                directIOSupported = FileUtils.isDirectIOSupported(commitLogLocationDir);
             }
             catch (IOError | ConfigurationException ex)
             {
@@ -3314,6 +3328,18 @@ public class DatabaseDescriptor
         conf.commitlog_segment_size = new DataStorageSpec.IntMebibytesBound(sizeMebibytes);
     }
 
+    public static DiskAccessMode getCompactionReadDiskAccessMode()
+    {
+        return compactionReadDiskAccessMode;
+    }
+
+    @VisibleForTesting
+    public static void setCompactionReadDiskAccessMode(DiskAccessMode scanDiskAccessMode)
+    {
+        compactionReadDiskAccessMode = scanDiskAccessMode;
+        conf.compaction_read_disk_access_mode = scanDiskAccessMode;
+    }
+
     /**
      * Return commitlog disk access mode.
      */
@@ -4449,17 +4475,6 @@ public class DatabaseDescriptor
     public static int getCompressionDictionaryCacheExpireSeconds()
     {
         return conf.compression_dictionary_cache_expire.toSeconds();
-    }
-
-    public static boolean getCompressionDictionaryTrainingAutoTrainEnabled()
-    {
-        return conf.compression_dictionary_training_auto_train_enabled;
-    }
-
-
-    public static float getCompressionDictionaryTrainingSamplingRate()
-    {
-        return conf.compression_dictionary_training_sampling_rate;
     }
 
     public static int getStreamingKeepAlivePeriod()
@@ -5977,6 +5992,16 @@ public class DatabaseDescriptor
     public static void setPrioritizeSAIOverLegacyIndex(boolean value)
     {
         conf.sai_options.prioritize_over_legacy_index = value;
+    }
+
+    public static boolean getForceOptimizedIndexStatusFormat()
+    {
+        return conf.force_optimized_index_status_format;
+    }
+
+    public static void setForceOptimizedIndexStatusFormat(boolean value)
+    {
+        conf.force_optimized_index_status_format = value;
     }
 
     public static RepairRetrySpec getRepairRetrySpec()

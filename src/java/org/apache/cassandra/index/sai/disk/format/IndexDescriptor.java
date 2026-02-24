@@ -269,7 +269,7 @@ public class IndexDescriptor
             if (logger.isTraceEnabled())
                 logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
 
-            return new FileHandle.Builder(file).mmapped(true).complete();
+            return new FileHandle.Builder(file).mmapped().complete();
         }
         catch (Throwable t)
         {
@@ -291,7 +291,7 @@ public class IndexDescriptor
             if (logger.isTraceEnabled())
                 logger.trace(logMessage("Opening file handle for {} ({})"), file, FBUtilities.prettyPrintMemory(file.length()));
 
-            return new FileHandle.Builder(file).mmapped(true).complete();
+            return new FileHandle.Builder(file).mmapped().complete();
         }
         catch (Throwable t)
         {

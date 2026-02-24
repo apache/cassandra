@@ -428,6 +428,7 @@ public class Config
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
     public DiskAccessMode commitlog_disk_access_mode = DiskAccessMode.legacy;
+    public DiskAccessMode compaction_read_disk_access_mode = DiskAccessMode.auto;
     @Replaces(oldName = "periodic_commitlog_sync_lag_block_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound periodic_commitlog_sync_lag_block;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
@@ -522,10 +523,6 @@ public class Config
     public volatile DurationSpec.IntSecondsBound compression_dictionary_refresh_initial_delay = new DurationSpec.IntSecondsBound("10s"); // 10 seconds default
     public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
-
-    // Dictionary training settings
-    public volatile boolean compression_dictionary_training_auto_train_enabled = false;
-    public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 
@@ -940,6 +937,13 @@ public class Config
     public volatile boolean drop_truncate_table_enabled = true;
     public volatile boolean drop_keyspace_enabled = true;
     public volatile boolean secondary_indexes_enabled = true;
+
+    /**
+     * If we encounter a Gossip bug where {@link org.apache.cassandra.gms.Gossiper#getMinVersion} is
+     * unable to accurately report a minimum version for the cluster, optionally force the optimized
+     * index status format added in CASSANDRA-20058.
+     */
+    public volatile boolean force_optimized_index_status_format = false;
 
     public volatile String default_secondary_index = CassandraIndex.NAME;
     public volatile boolean default_secondary_index_enabled = true;

@@ -56,7 +56,6 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     public void configureDatabaseDescriptor()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.compression_dictionary_training_sampling_rate = 1.0f;
         config.flush_compression = Config.FlushCompression.table;
         DatabaseDescriptor.setConfig(config);
     }

@@ -22,6 +22,8 @@ import java.util.BitSet;
 
 import com.google.common.primitives.Longs;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 /**
  * This is a very fast, non-cryptographic hash suitable for general hash-based
  * lookup. See http://murmurhash.googlepages.com/ for more details.
@@ -245,6 +247,10 @@ public class MurmurHash
         return k;
     }
 
+
+    // inline mostly to help JIT with escape analysis and long[] heap allocation elimination
+    // by default this method is not inlined as too big
+    @Inline
     public static void hash3_x64_128(ByteBuffer key, int offset, int length, long seed, long[] result)
     {
         final int nblocks = length >> 4; // Process as 128-bit blocks.

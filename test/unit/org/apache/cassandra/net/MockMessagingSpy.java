@@ -20,7 +20,7 @@ package org.apache.cassandra.net;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,7 +50,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  * @see MatcherResponse
  * @see MockMessagingService
  */
-public class MockMessagingSpy
+public class MockMessagingSpy implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(MockMessagingSpy.class);
 
@@ -73,7 +73,9 @@ public class MockMessagingSpy
     private final BlockingQueue<Message<?>> interceptedMessages = newBlockingQueue();
     private final BlockingQueue<Message<?>> deliveredResponses = newBlockingQueue();
 
-    private static final Executor executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    final ExecutorService responseExecutor = Executors.newFixedThreadPool(5);
+
 
     /**
      * Returns a future with the first mocked incoming message that has been created and delivered.
@@ -184,6 +186,13 @@ public class MockMessagingSpy
         int count = mockedMessageResponses.incrementAndGet();
         debugLog("mockedMessageResponseCount: {}. Responding to intercepted message: {}", count, response);
         deliveredResponses.add(response);
+    }
+
+    @Override
+    public void close()
+    {
+        executor.shutdown();
+        responseExecutor.shutdown();
     }
 
     private static class CapturedResultsFuture<T> extends AbstractFuture<List<T>> implements Runnable

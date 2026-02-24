@@ -95,6 +95,33 @@ public final class Marker extends Term.NonTerminal
         }
     }
 
+    // an optimized version without allocating interim Terminal objects
+    @Override
+    public ByteBuffer bindAndGet(QueryOptions options)
+    {
+        try
+        {
+            ByteBuffer bytes = options.getValue(bindIndex);
+            if (bytes == null)
+                return null;
+
+            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return ByteBufferUtil.UNSET_BYTE_BUFFER;
+
+            if (receiver.type instanceof MultiElementType<?>)
+            {
+                return MultiElements.Value.fromSerialized(bytes, (MultiElementType<?>) receiver.type).get();
+            }
+
+            receiver.type.validate(bytes);
+            return bytes;
+        }
+        catch (MarshalException e)
+        {
+            throw new InvalidRequestException(e.getMessage(), e);
+        }
+    }
+
     public boolean isByteArrayGetSupported(QueryOptions options)
     {
         return options.isByteArrayValuesGetSupported();

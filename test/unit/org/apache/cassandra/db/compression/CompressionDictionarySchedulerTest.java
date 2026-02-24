@@ -61,18 +61,19 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                                    "WITH compression = {'class': 'ZstdDictionaryCompressor'}");
-        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
-
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
-        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cfs.metadata.id.toLongString(), cache, true);
 
-        Set<SSTableReader> sstables = new HashSet<>();
-        CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
+        try (CompressionDictionaryManager manager = cfs.compressionDictionaryManager())
+        {
+            Set<SSTableReader> sstables = new HashSet<>();
+            CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
 
-        // Should not throw, but task will complete quickly with no SSTables
-        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
-        spinUntilTrue(() -> !scheduler.isManualTrainingRunning());
-        assertThat(manager.getCurrent()).isNull();
+            // Should not throw, but task will complete quickly with no SSTables
+            scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
+            spinUntilTrue(() -> !scheduler.isManualTrainingRunning());
+            assertThat(manager.getCurrent()).isNull();
+        }
     }
 
     @Test
@@ -80,27 +81,28 @@ public class CompressionDictionarySchedulerTest extends CQLTester
     {
         String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, data text) " +
                                    "WITH compression = {'class': 'ZstdDictionaryCompressor', 'chunk_length_in_kb': '4'}");
-        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cache, true);
-
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        scheduler = new CompressionDictionaryScheduler(KEYSPACE, table, cfs.metadata.id.toLongString(), cache, true);
+
         cfs.disableAutoCompaction();
-        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+        try (CompressionDictionaryManager manager = cfs.compressionDictionaryManager())
+        {
+            createSSTables();
 
-        createSSTables();
+            Set<SSTableReader> sstables = cfs.getLiveSSTables();
+            assertThat(sstables).isNotEmpty();
 
-        Set<SSTableReader> sstables = cfs.getLiveSSTables();
-        assertThat(sstables).isNotEmpty();
+            CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
+            manager.trainer().start(config);
 
-        CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
-        manager.trainer().start(true, config);
+            assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
+            scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
 
-        assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
-        scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
-
-        // Task should be scheduled
-        assertThat(scheduler.isManualTrainingRunning()).isTrue();
-        // A dictionary should be trained
-        spinUntilTrue(() -> manager.getCurrent() != null);
+            // Task should be scheduled
+            assertThat(scheduler.isManualTrainingRunning()).isTrue();
+            // A dictionary should be trained
+            spinUntilTrue(() -> manager.getCurrent() != null);
+        }
     }
 
     private void createSSTables()
@@ -122,7 +124,6 @@ public class CompressionDictionarySchedulerTest extends CQLTester
                .builder()
                .maxDictionarySize(new DataStorageSpec.IntKibibytesBound(DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE).toBytes())
                .maxTotalSampleSize(new DataStorageSpec.IntKibibytesBound(DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE).toBytes())
-               .samplingRate(1.0f)
                .chunkSize(cfs.metadata().params.compression.chunkLength())
                .build();
     }

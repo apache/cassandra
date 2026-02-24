@@ -58,7 +58,7 @@ public class UpdateParameters
     protected final long timestamp;
     private final int ttl;
 
-    private final DeletionTime deletionTime;
+    private DeletionTime deletionTime;
 
     // Holds data for operations that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
@@ -81,8 +81,6 @@ public class UpdateParameters
         this.nowInSec = nowInSec;
         this.timestamp = timestamp;
         this.ttl = ttl;
-
-        this.deletionTime = DeletionTime.build(timestamp, nowInSec);
 
         this.prefetchedRows = prefetchedRows;
 
@@ -128,7 +126,7 @@ public class UpdateParameters
 
     public void addRowDeletion()
     {
-        addRowDeletion(Row.Deletion.regular(deletionTime));
+        addRowDeletion(Row.Deletion.regular(deletionTime()));
     }
 
     private void addRowDeletion(Row.Deletion deletion)
@@ -266,11 +264,12 @@ public class UpdateParameters
 
     public void setComplexDeletionTime(ColumnMetadata column)
     {
-        builder.addComplexDeletion(column, deletionTime);
+        builder.addComplexDeletion(column, deletionTime());
     }
 
     public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
+        DeletionTime deletionTime = deletionTime();
         builder.addComplexDeletion(column, DeletionTime.build(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
     }
 
@@ -283,7 +282,9 @@ public class UpdateParameters
 
     public DeletionTime deletionTime()
     {
-        return deletionTime;
+         if (deletionTime == null)
+             deletionTime = DeletionTime.build(timestamp, nowInSec);
+         return deletionTime;
     }
 
     public RangeTombstone makeRangeTombstone(ClusteringComparator comparator, Clustering<?> clustering)
@@ -293,7 +294,7 @@ public class UpdateParameters
 
     public RangeTombstone makeRangeTombstone(Slice slice)
     {
-        return new RangeTombstone(slice, deletionTime);
+        return new RangeTombstone(slice, deletionTime());
     }
 
     public byte[] nextTimeUUIDAsBytes()

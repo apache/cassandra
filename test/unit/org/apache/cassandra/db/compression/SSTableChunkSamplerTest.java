@@ -195,7 +195,6 @@ public class SSTableChunkSamplerTest extends CQLTester
 
         // Create a mock trainer that is not ready to sample
         ICompressionDictionaryTrainer trainer = mock(ICompressionDictionaryTrainer.class, RETURNS_DEEP_STUBS);
-        when(trainer.shouldSample()).thenReturn(false);
         when(trainer.getTrainingState().getStatus()).thenReturn(ICompressionDictionaryTrainer.TrainingStatus.NOT_STARTED);
 
         // Should throw IllegalStateException when trainer is not ready
