@@ -1398,6 +1398,15 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Gets the names of all tables for the given keyspace */
     public List<String> getTablesForKeyspace(String keyspace);
 
+    /**
+     * Validates that system.peers and system.peers_v2 are consistent with ClusterMetadata,
+     * inserting missing peer entries and removing stale ones. This runs automatically on
+     * startup but can be triggered manually if a discrepancy is suspected.
+     * <p>
+     * Note: mutates data in system.peers and system.peers_v2.
+     */
+    public void validateAndRepairPeersMetadata();
+
     /** Mutates the repaired state of all SSTables for the given SSTables */
     public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables);
 }
