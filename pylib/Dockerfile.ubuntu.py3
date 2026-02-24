@@ -14,5 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-FROM ubuntu:bionic
-RUN apt-get update && apt-get install -y python3-minimal && update-alternatives --install /usr/bin/python python /usr/bin/python3.6 1
+FROM ubuntu:focal
+RUN apt-get update && apt-get install -y python3-minimal && update-alternatives --install /usr/bin/python python /usr/bin/python3 1
