@@ -124,7 +124,7 @@ public class RegisterTest extends TestBaseImpl
                     CassandraVersion currentVersion = NodeVersion.CURRENT.cassandraVersion;
                     NodeVersion upgraded = new NodeVersion(new CassandraVersion(String.format("%d.%d.%d", currentVersion.major + 1, 0, 0)),
                                                             NodeVersion.CURRENT_METADATA_VERSION);
-                    ClusterMetadataService.instance().commit(new Register(NodeAddresses.current(), TEST_LOCATION, upgraded));
+                    ClusterMetadataService.instance().commit(new Register(new NodeAddresses(InetAddressAndPort.getByName("127.0.0.200")), TEST_LOCATION, upgraded));
 
                     // Doesn't matter which specific Transformation we use here, we're testing that the serializer uses
                     // the correct lower bound
