@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.cql3.ColumnSpecification;
 import org.awaitility.Awaitility;
 import org.junit.BeforeClass;
 import org.junit.Test;
