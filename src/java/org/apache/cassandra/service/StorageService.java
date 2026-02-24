@@ -103,6 +103,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.SystemPeersValidator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -858,6 +859,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
+
+        if (CassandraRelevantProperties.SYNC_SYSTEM_PEERS_TABLES_AT_STARTUP.getBoolean())
+            SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
         try
         {
@@ -5800,6 +5804,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public List<String> getTablesForKeyspace(String keyspace)
     {
         return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    @Override
+    public void validateAndRepairPeersMetadata()
+    {
+        SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
     }
 
     @Override
