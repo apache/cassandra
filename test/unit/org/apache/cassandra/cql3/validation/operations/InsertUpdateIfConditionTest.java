@@ -74,6 +74,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // This intentionally shadows CQLTester::setUpClass, in order to initialize the ClusterMetadataService
         // without automatically registering the first node. This is so the directory can be setup to mimic a
         // mid-upgrade cluster with nodes on both old and new versions.
+        prePrepareServer();
         ServerTestUtils.prepareServerNoRegister();
         ServerTestUtils.markCMS();  // CQLTester::afterTest will reset the CMS & ClusterMetadata to this state
     }
