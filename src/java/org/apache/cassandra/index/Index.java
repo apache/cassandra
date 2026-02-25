@@ -890,6 +890,15 @@ public interface Index
         {
             return true;
         }
+
+        /**
+         * Whether this index group supports sharding when flushing memtables, e.g. level 0 of UCS.
+         * @return true iff all indexes in the group support L0 sharding.
+         */
+        default boolean supportsL0Shards()
+        {
+            return true;
+        }
     }
 
     /**

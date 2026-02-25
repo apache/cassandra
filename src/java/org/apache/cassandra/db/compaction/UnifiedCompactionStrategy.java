@@ -270,7 +270,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     {
         ShardManager shardManager = getShardManager();
         double flushDensity = cfs.metric.flushSizeOnDisk.get() * shardManager.shardSetCoverage() / shardManager.localSpaceCoverage();
-        ShardTracker boundaries = shardManager.boundaries(controller.getNumShards(flushDensity));
+        boolean supportsSharding = sstableLevel > 0 || indexGroups.stream().allMatch(Index.Group::supportsL0Shards);
+        int numShards = supportsSharding ? controller.getNumShards(flushDensity) : 1;
+        ShardTracker boundaries = shardManager.boundaries(numShards);
         return new ShardedMultiWriter(cfs,
                                       descriptor,
                                       keyCount,

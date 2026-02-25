@@ -703,6 +703,15 @@ public class StorageAttachedIndex implements Index
         return () -> valid;
     }
 
+    /**
+     * Vector indexes do not supporrt L0 shards due to the cost associated with resharding at flush time.
+     * @return true iff the index supports sharding at L0.
+     */
+    public boolean supportsL0Shards()
+    {
+        return !indexTermType.isVector();
+    }
+
     public boolean hasClustering()
     {
         return baseCfs.getComparator().size() > 0;

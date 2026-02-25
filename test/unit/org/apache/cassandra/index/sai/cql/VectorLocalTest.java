@@ -511,6 +511,29 @@ public class VectorLocalTest extends VectorTester
         }
     }
 
+    @Test
+    public void flushSuccessfullyVectorIndexToShardedSSTable()
+    {
+        // UCS is configured to use 2 static shards
+        createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, v vector<float, %d>) WITH compaction = {\n" +
+                                  "    'class': 'UnifiedCompactionStrategy',\n" +
+                                  "    'base_shard_count': '2',\n" +
+                                  "    'min_sstable_size' : '0MiB', \n" +
+                                  "    'sstable_growth' : '1'\n" +
+                                  "}", word2vec.dimension()));
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+
+        int vectorCount = 100;
+        List<float[]> vectors = IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
+
+        int pk = 0;
+        for (float[] vector : vectors)
+            execute("INSERT INTO %s (k, v) VALUES (?," + vectorString(vector) + ")", pk++);
+
+        flush();
+    }
+
     private UntypedResultSet search(String stringValue, float[] queryVector, int limit)
     {
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = '" + stringValue + "' ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);

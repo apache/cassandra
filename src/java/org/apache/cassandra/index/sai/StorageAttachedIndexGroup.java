@@ -382,6 +382,17 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         return complete;
     }
 
+    @Override
+    public boolean supportsL0Shards()
+    {
+        for (StorageAttachedIndex index : indexes)
+            if (!index.supportsL0Shards())
+                return false;
+
+        // All indexes must support L0 sharding for the flush to shard at L0
+        return true;
+    }
+
     /**
      * open index files by checking number of {@link SSTableContext} and {@link SSTableIndex},
      * so transient open files during validation and files that are still open for in-flight requests will not be tracked.
