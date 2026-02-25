@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -53,6 +54,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -203,6 +205,8 @@ public class Move extends MultiStepOperation<Epoch>
                 try
                 {
                     ClusterMetadata metadata = ClusterMetadata.current();
+                    List<Long> epochsWeAreRegainingRangesFor = AccordService.instance().topology().epochsWeAreRegainingRangesFor(AccordService.instance().topology().current(), AccordTopology.createAccordTopology(applyTo(metadata).success().metadata));
+                    AccordService.instance().topology().blockUntilAllEpochsRetired(epochsWeAreRegainingRangesFor);
                     logger.info("Moving {} from {} to {}.",
                                 metadata.directory.endpoint(startMove.nodeId()),
                                 metadata.tokenMap.tokens(startMove.nodeId()),

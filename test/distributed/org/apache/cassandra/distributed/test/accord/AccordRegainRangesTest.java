@@ -1,0 +1,114 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.distributed.test.accord;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+import accord.local.CommandStore;
+import accord.local.PreLoadContext;
+import accord.primitives.AbstractRanges;
+import accord.primitives.Ranges;
+
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.service.accord.AccordService.getBlocking;
+import static com.google.common.collect.Iterables.getOnlyElement;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+public class AccordRegainRangesTest extends AccordTestBase
+{
+    private static final Logger logger = LoggerFactory.getLogger(AccordRegainRangesTest.class);
+
+    @Override
+    protected Logger logger()
+    {
+        return logger;
+    }
+
+    @BeforeClass
+    public static void setupClass() throws IOException
+    {
+        AccordTestBase.setupCluster(builder -> builder
+                                               .withoutVNodes()
+                                               .withConfig(config ->
+                                                           config
+                                                           .set("accord.shard_durability_target_splits", "1")
+                                                           .set("accord.shard_durability_cycle", "20s")
+                                                           .with(Feature.NETWORK, Feature.GOSSIP)), 6);
+    }
+
+    @Test
+    public void regainRangesTest() throws Throwable
+    {
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+        test(ddls, cluster -> {
+            cluster.coordinator(2).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
+            SimpleQueryResult result = cluster.coordinator(2).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
+
+            String originalToken = cluster.get(2).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
+
+            long token = (Long) result.toObjectArrays()[0][0];
+
+            assert(token < Long.parseLong(originalToken));
+
+            long epoch = cluster.get(2).callOnInstance(() -> {
+                long priorEpoch = AccordService.instance().topology().epoch();
+                StorageService.instance.move(Long.toString(token - 1000));
+                return priorEpoch;
+            });
+
+            cluster.coordinator(3).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 5);
+
+
+            cluster.get(2).runOnInstance(() -> {
+                StorageService.instance.move(originalToken);
+            });
+
+            // Ensure no overlapping safeToRead ranges
+            cluster.get(2).runOnInstance(() -> {
+                assert (AccordService.instance().topology().active().minEpoch() > epoch);
+                Ranges range = Ranges.EMPTY;
+                for (CommandStore commandStore : AccordService.instance().node().commandStores().all()) {
+                    Ranges safeToReadRanges = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "No overlapping safeToReadRanges", safeCommandStore -> {
+                        Ranges mergedRanges = Ranges.EMPTY;
+                        for (Ranges r : safeCommandStore.safeToReadAt().values())
+                            mergedRanges = mergedRanges.union(AbstractRanges.UnionMode.MERGE_ADJACENT, r);
+                        return mergedRanges;
+                    }));
+
+                    assert(range.overlapping(safeToReadRanges).isEmpty());
+                    range = range.union(AbstractRanges.UnionMode.MERGE_ADJACENT, safeToReadRanges);
+                }
+            });
+        });
+    }
+
+}
+
