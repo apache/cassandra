@@ -22,23 +22,21 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.JsonUtils;
@@ -47,10 +45,6 @@ import org.apache.cassandra.utils.Pair;
 import static java.lang.String.format;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 
 public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
 {
@@ -80,7 +74,7 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
         alterDictTable("1m");
 
         // we can train again as 1 minute from the last training has passed
-        Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MINUTES);
+        backdateLastDictionaryCreatedAt(tableId);
         trainDict();
         assertDicts(3, tableId);
 
@@ -101,7 +95,7 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
     private String getTableId()
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace(), tableName);
-        Assert.assertNotNull(cfs);
+        assertThat(cfs).isNotNull();
         return cfs.metadata.id.toLongString();
     }
 
@@ -128,11 +122,30 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
 
     private void assertDicts(int expectedDicts, String tableId)
     {
-        List<CompressionDictionary.LightweightCompressionDictionary> dicts = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries();
-        assertNotNull(dicts);
-        assertEquals(expectedDicts, dicts.size());
+        List<LightweightCompressionDictionary> dicts = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries();
+        assertThat(dicts).isNotNull().hasSize(expectedDicts);
         for (int i = 0; i < expectedDicts; i++)
-            assertEquals(tableId, dicts.get(i).tableId);
+            assertThat(dicts.get(i).tableId).isEqualTo(tableId);
+    }
+
+    // instead of explicit waiting, just overwrite created_at directly in the table
+    private void backdateLastDictionaryCreatedAt(String tableId)
+    {
+        List<LightweightCompressionDictionary> dicts = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries();
+        assertThat(dicts).isNotNull();
+        assertThat(dicts).isNotEmpty();
+
+        LightweightCompressionDictionary latest = dicts.get(0);
+        long pastTimeMillis = Instant.now().minus(2, ChronoUnit.MINUTES).toEpochMilli();
+
+        execute(format("UPDATE %s.%s SET created_at = %d WHERE keyspace_name = '%s' AND table_name = '%s' AND table_id = '%s' AND dict_id = %d",
+                       SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                       SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                       pastTimeMillis,
+                       keyspace(),
+                       tableName,
+                       tableId,
+                       latest.dictId.id));
     }
 
     private void trainDict()
@@ -156,7 +169,7 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
 
         // Test training command with --force since we have limited test data
         ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", "--force", keyspace(), tableName);
-        Assert.assertEquals(1, result.getExitCode());
+        assertThat(result.getExitCode()).isEqualTo(1);
 
         assertThat(result.getStderr())
         .as("Should indicate training can not be triggered")
@@ -173,20 +186,20 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
                          "You can train again no earlier than at (.*).";
         Matcher matcher = Pattern.compile(pattern).matcher(failingMessage);
 
-        assertTrue(matcher.matches());
+        assertThat(matcher.matches()).isTrue();
 
         DurationSpec.IntMinutesBound frequencySpec = new DurationSpec.IntMinutesBound(matcher.group(1));
         Instant lastTraining = Instant.parse(matcher.group(2));
         Instant earliestNextTraining = Instant.parse(matcher.group(3));
 
-        assertTrue(earliestNextTraining.isAfter(lastTraining));
-        assertFalse(earliestNextTraining.minus(frequencySpec.toMinutes(), ChronoUnit.MINUTES).isBefore(lastTraining));
+        assertThat(earliestNextTraining).isAfter(lastTraining);
+        assertThat(earliestNextTraining.minus(frequencySpec.toMinutes(), ChronoUnit.MINUTES)).isAfterOrEqualTo(lastTraining);
     }
 
     private void assertFailingImport(File file)
     {
         ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "import", file.absolutePath());
-        Assert.assertEquals(1, result.getExitCode());
+        assertThat(result.getExitCode()).isEqualTo(1);
     }
 
     private void assertSuccessfulImport(File file)
@@ -221,8 +234,8 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
 
         CompressionDictionaryDataObject dataObject = JsonUtils.deserializeFromJsonFile(CompressionDictionaryDataObject.class, dictionaryFile);
 
-        assertTrue(dictionaryFile.exists());
-        assertTrue(dictionaryFile.length() > 0);
+        assertThat(dictionaryFile.exists()).isTrue();
+        assertThat(dictionaryFile.length()).isGreaterThan(0);
 
         return Pair.create(dataObject, dictionaryFile);
     }
