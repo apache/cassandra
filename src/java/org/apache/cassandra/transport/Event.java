@@ -36,7 +36,8 @@ public abstract class Event
         TOPOLOGY_CHANGE(ProtocolVersion.V3),
         STATUS_CHANGE(ProtocolVersion.V3),
         SCHEMA_CHANGE(ProtocolVersion.V3),
-        TRACE_COMPLETE(ProtocolVersion.V4);
+        TRACE_COMPLETE(ProtocolVersion.V4),
+        GO_AWAY(ProtocolVersion.V5);
 
         public final ProtocolVersion minimumVersion;
 
@@ -66,6 +67,8 @@ public abstract class Event
                 return StatusChange.deserializeEvent(cb, version);
             case SCHEMA_CHANGE:
                 return SchemaChange.deserializeEvent(cb, version);
+            case GO_AWAY:
+                return GoAway.deserializeEvent(cb, version);
         }
         throw new AssertionError();
     }
@@ -440,6 +443,49 @@ public abstract class Event
                 && Objects.equal(keyspace, scc.keyspace)
                 && Objects.equal(name, scc.name)
                 && Objects.equal(argTypes, scc.argTypes);
+        }
+    }
+    public static class GoAway extends Event
+    {
+        public static final GoAway instance = new GoAway();
+
+        private GoAway()
+        {
+            super(Type.GO_AWAY);
+        }
+
+        private static GoAway deserializeEvent(ByteBuf cb, ProtocolVersion version)
+        {
+            return new GoAway();
+        }
+
+        @Override
+        protected void serializeEvent(ByteBuf dest, ProtocolVersion version)
+        {
+        }
+
+        @Override
+        protected int eventSerializedSize(ProtocolVersion version)
+        {
+            return 0;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "GO_AWAY";
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(type);
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            return other instanceof GoAway;
         }
     }
 }

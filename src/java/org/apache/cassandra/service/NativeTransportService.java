@@ -130,6 +130,11 @@ public class NativeTransportService
         Dispatcher.shutdown();
     }
 
+    public void broadcastGoAway()
+    {
+        server.broadcastGoAway();
+    }
+
     /**
      * @return intend to use epoll based event looping
      */

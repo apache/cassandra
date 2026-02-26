@@ -225,6 +225,12 @@ public class Server implements CassandraDaemon.Server
         connectionTracker.disconnectByUser(userPredicate);
     }
 
+    public void broadcastGoAway()
+    {
+        EventMessage message = new EventMessage(Event.GoAway.instance);
+        connectionTracker.allChannels.writeAndFlush(message);
+    }
+
     public static class Builder
     {
         private EventLoopGroup workerGroup;

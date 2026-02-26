@@ -3838,6 +3838,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.debug(msg);
             transientMode = Optional.of(Mode.DRAINING);
 
+            if (daemon != null && daemon.nativeTransportService() != null && daemon.nativeTransportService().getServer().countConnectedClients() > 0)
+            {
+                logger.info("Broadcasting GO_AWAY signal to native clients");
+                daemon.nativeTransportService().broadcastGoAway();
+                try
+                {
+                    logger.info("Waiting for grace period for clients to disconnect gracefully");
+                    Thread.sleep(DatabaseDescriptor.getNativeTransportGracefulShutdownTimeoutSeconds());
+                }
+                catch (InterruptedException e)
+                {
+                    Thread.currentThread().interrupt();
+                    logger.warn("Graceful disconnect wait interrupted");
+                }
+            }
+
             try
             {
                 /* not clear this is reasonable time, but propagated from prior embedded behaviour */

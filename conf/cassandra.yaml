@@ -516,6 +516,9 @@ commit_failure_policy: stop
 #
 # Default value ("auto") is 1/256th of the heap or 10MiB, whichever is greater
 # Min unit: MiB
+#
+# Time in seconds server waits for acknowledgement of GO_AWAY event from clients
+# native_transport_graceful_shutdown_timeout_seconds = 5
 prepared_statements_cache_size:
 
 # Maximum size of the key cache in memory.

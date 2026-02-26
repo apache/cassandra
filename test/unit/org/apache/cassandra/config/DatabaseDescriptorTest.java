@@ -214,6 +214,22 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testNativeTransportGracefulShutdownTimeout() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        int originalValue =  config.native_transport_graceful_shutdown_timeout_seconds;
+        try {
+            DatabaseDescriptor.setNativeTransportGracefulShutdownTimeoutSeconds(10);
+            assertEquals(DatabaseDescriptor.getNativeTransportGracefulShutdownTimeoutSeconds(), 10);
+            assertEquals("Default value of native_transport_graceful_shutdown_timeout_seconds must be 5", originalValue, 5);
+        }
+        finally
+        {
+            DatabaseDescriptor.setNativeTransportGracefulShutdownTimeoutSeconds(originalValue);
+        }
+    }
+
+    @Test
     public void testRpcAddress()
     {
         Config testConfig = DatabaseDescriptor.loadConfig();

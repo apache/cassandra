@@ -2257,6 +2257,15 @@ public class DatabaseDescriptor
         return conf.max_security_label_length;
     }
 
+    public static int getNativeTransportGracefulShutdownTimeoutSeconds() {
+        return conf.native_transport_graceful_shutdown_timeout_seconds;
+    }
+
+    public static void setNativeTransportGracefulShutdownTimeoutSeconds(int timeout)
+    {
+        conf.native_transport_graceful_shutdown_timeout_seconds = timeout;
+    }
+
     public static int getMaxValueSize()
     {
         return Ints.saturatedCast(conf.max_value_size.toMebibytes() * 1024L * 1024);

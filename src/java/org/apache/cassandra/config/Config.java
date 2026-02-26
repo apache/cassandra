@@ -112,6 +112,8 @@ public class Config
     public int max_comment_length = 128;
     public int max_security_label_length = 48;
 
+    public int native_transport_graceful_shutdown_timeout_seconds = 5;
+
     /* Hashing strategy Random or OPHF */
     public String partitioner;
 
