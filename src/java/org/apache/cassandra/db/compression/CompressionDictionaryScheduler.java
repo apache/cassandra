@@ -18,10 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,9 +29,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.utils.concurrent.Ref;
 
 /**
  * Manages scheduled tasks for compression dictionary operations.
@@ -89,20 +84,21 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
     @Override
     public void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
-                                             Set<SSTableReader> sstables,
+                                             ColumnFamilyStore.RefViewFragment refViewFragment,
                                              CompressionDictionaryTrainingConfig config,
                                              boolean force)
     {
         if (!manualTrainingInProgress.compareAndSet(false, true))
         {
+            refViewFragment.close();
             throw new IllegalStateException("Training already in progress for table " + keyspaceName + '.' + tableName);
         }
 
         logger.info("Starting SSTable-based dictionary training for {}.{} from {} SSTables",
-                    keyspaceName, tableName, sstables.size());
+                    keyspaceName, tableName, refViewFragment.sstables.size());
 
         // Run the SSTableSamplingTask asynchronously
-        SSTableSamplingTask task = new SSTableSamplingTask(sstables, trainer, config, force);
+        SSTableSamplingTask task = new SSTableSamplingTask(refViewFragment, trainer, config, force);
         ScheduledExecutors.nonPeriodicTasks.submit(task);
     }
 
@@ -166,41 +162,20 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
      */
     private class SSTableSamplingTask implements Runnable
     {
-        private final Set<SSTableReader> sstables;
+        private final ColumnFamilyStore.RefViewFragment refViewFragment;
         private final ICompressionDictionaryTrainer trainer;
         private final CompressionDictionaryTrainingConfig config;
-        private final List<Ref<SSTableReader>> sstableRefs;
         private final boolean force;
 
-        private SSTableSamplingTask(Set<SSTableReader> sstables,
+        private SSTableSamplingTask(ColumnFamilyStore.RefViewFragment refViewFragment,
                                     ICompressionDictionaryTrainer trainer,
                                     CompressionDictionaryTrainingConfig config,
                                     boolean force)
         {
+            this.refViewFragment = refViewFragment;
             this.trainer = trainer;
             this.config = config;
             this.force = force;
-
-            // Acquire references to all SSTables to prevent deletion during sampling
-            this.sstableRefs = new ArrayList<>();
-            Set<SSTableReader> referencedSSTables = new HashSet<>();
-
-            for (SSTableReader sstable : sstables)
-            {
-                Ref<SSTableReader> ref = sstable.tryRef();
-                if (ref != null)
-                {
-                    sstableRefs.add(ref);
-                    referencedSSTables.add(sstable);
-                }
-                else
-                {
-                    logger.debug("Couldn't acquire reference to SSTable {}. It may have been removed.",
-                                 sstable.descriptor);
-                }
-            }
-
-            this.sstables = referencedSSTables;
         }
 
         @Override
@@ -208,18 +183,11 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
         {
             try
             {
-                if (sstables.isEmpty())
-                {
-                    logger.warn("No SSTables available for sampling in {}.{}", keyspaceName, tableName);
-                    cancelManualTraining();
-                    return;
-                }
-
                 logger.info("Sampling chunks from {} SSTables for {}.{}",
-                            sstables.size(), keyspaceName, tableName);
+                            refViewFragment.sstables.size(), keyspaceName, tableName);
 
                 // Sample chunks from SSTables and add to trainer
-                SSTableChunkSampler.sampleFromSSTables(sstables, trainer, config);
+                SSTableChunkSampler.sampleFromSSTables(refViewFragment.sstables, trainer, config);
 
                 logger.info("Completed sampling for {}.{}, now training dictionary",
                             keyspaceName, tableName);
@@ -247,11 +215,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             }
             finally
             {
-                // Release all SSTable references
-                for (Ref<SSTableReader> ref : sstableRefs)
-                {
-                    ref.release();
-                }
+                refViewFragment.close();
             }
         }
     }

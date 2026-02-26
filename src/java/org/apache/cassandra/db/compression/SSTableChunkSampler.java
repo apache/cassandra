@@ -91,7 +91,7 @@ public class SSTableChunkSampler
      * @param trainer  the trainer to add samples to
      * @param config   the training configuration with sample size limits
      */
-    public static void sampleFromSSTables(Set<SSTableReader> sstables,
+    public static void sampleFromSSTables(List<SSTableReader> sstables,
                                           ICompressionDictionaryTrainer trainer,
                                           CompressionDictionaryTrainingConfig config) throws IOException
     {
@@ -125,7 +125,7 @@ public class SSTableChunkSampler
     /**
      * Builds SSTableChunkInfo objects for all SSTables and logs statistics.
      */
-    static List<SSTableChunkInfo> buildSSTableInfos(Set<SSTableReader> sstables,
+    static List<SSTableChunkInfo> buildSSTableInfos(List<SSTableReader> sstables,
                                                     CompressionDictionaryTrainingConfig config)
     {
         List<SSTableChunkInfo> sstableInfos = new ArrayList<>();

@@ -208,6 +208,8 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
         result.assertOnCleanExit();
     }
 
+    private static int batch = 1;
+
     private void createSSTables()
     {
         for (int file = 0; file < 10; file++)
@@ -215,13 +217,15 @@ public class CompressionDictionaryTrainingFrequencyTest extends CQLTester
             int batchSize = 1000;
             for (int i = 0; i < batchSize; i++)
             {
-                int index = i + file * batchSize;
+                int index = batch * (i + file * batchSize);
                 executeFormattedQuery(format("INSERT INTO %s.%s (id, data) VALUES (?, ?)", keyspace(), tableName),
                                       index, "test data " + index);
             }
 
             flush();
         }
+
+        batch++;
     }
 
     private Pair<CompressionDictionaryDataObject, File> export() throws Throwable

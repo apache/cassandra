@@ -18,9 +18,7 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Set;
-
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
 
 /**
  * Interface for managing scheduled tasks for compression dictionary operations.
@@ -41,13 +39,13 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
      * Schedules SSTable-based training that samples from existing SSTables.
      *
      * @param trainer the trainer to use
-     * @param sstables the set of SSTables to sample from
+     * @param refViewFragment the view of SSTables to sample from
      * @param config the training configuration
      * @param force force the dictionary training even if there are not enough samples
      * @throws IllegalStateException if training is already in progress
      */
     void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
-                                      Set<SSTableReader> sstables,
+                                      RefViewFragment refViewFragment,
                                       CompressionDictionaryTrainingConfig config,
                                       boolean force);
 

@@ -22,7 +22,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
@@ -39,7 +38,8 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
@@ -53,6 +53,7 @@ import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRA
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
+import static org.apache.cassandra.schema.SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary;
 
 public class CompressionDictionaryManager implements CompressionDictionaryManagerMBean,
                                                      ICompressionDictionaryCache,
@@ -225,32 +226,38 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
         CompressionDictionaryTrainingConfig trainingConfig = createTrainingConfig(parameters);
 
-        LightweightCompressionDictionary dictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
-                                                                                                                               columnFamilyStore.getTableName(),
-                                                                                                                               columnFamilyStore.metadata.id.toLongString());
+        LightweightCompressionDictionary dictionary = retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
+                                                                                                     columnFamilyStore.getTableName(),
+                                                                                                     columnFamilyStore.metadata.id.toLongString());
 
         checkTrainingFrequency(dictionary);
 
         // SSTable-based training: sample from existing SSTables
-        Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
-        if (sstables.isEmpty())
+
+        // this is not closed here but in training runnable when finished
+        // also, if view is empty, and we throw just below because of it then
+        // there is nothing to "release" so close is not necessary
+        ColumnFamilyStore.RefViewFragment refViewFragment = columnFamilyStore.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
+
+        if (refViewFragment.sstables.isEmpty())
         {
             logger.info("No SSTables available for training in table {}.{}, flushing memtable first",
                         keyspaceName, tableName);
             columnFamilyStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-            sstables = columnFamilyStore.getLiveSSTables();
 
-            if (sstables.isEmpty())
+            refViewFragment = columnFamilyStore.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
+
+            if (refViewFragment.sstables.isEmpty())
             {
                 throw new IllegalStateException("No SSTables available for training in table " + keyspaceName + '.' + tableName + " after flush");
             }
         }
 
         logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
-                    keyspaceName, tableName, sstables.size());
+                    keyspaceName, tableName, refViewFragment.sstables.size());
 
         trainer.start(trainingConfig);
-        scheduler.scheduleSSTableBasedTraining(trainer, sstables, trainingConfig, force);
+        scheduler.scheduleSSTableBasedTraining(trainer, refViewFragment, trainingConfig, force);
     }
 
     @Override
@@ -330,7 +337,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
         CompressionDictionary.DictId dictId = new CompressionDictionary.DictId(kind, dataObject.dictId);
 
-        LightweightCompressionDictionary latestCompressionDictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
+        LightweightCompressionDictionary latestCompressionDictionary = retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (latestCompressionDictionary != null)
         {
             if (latestCompressionDictionary.dictId.id > dictId.id)

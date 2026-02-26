@@ -234,6 +234,8 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
         .contains(table);
     }
 
+    private static int batch = 1;
+
     private void createSSTables()
     {
         for (int file = 0; file < 10; file++)
@@ -241,11 +243,13 @@ public class ExportImportListCompressionDictionaryTest extends CQLTester
             int batchSize = 1000;
             for (int i = 0; i < batchSize; i++)
             {
-                int index = i + file * batchSize;
+                int index = batch * (i + file * batchSize);
                 execute("INSERT INTO %s (id, data) VALUES (?, ?)", index, "test data " + index);
             }
 
             flush();
         }
+
+        batch++;
     }
 }
