@@ -23,6 +23,7 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -108,7 +109,23 @@ public class VariableSpecifications
         ColumnIdentifier bindMarkerName = variableNames.get(bindIndex);
         // Use the user name, if there is one
         if (bindMarkerName != null)
+        {
+            for (int i = 0; i < bindIndex; i++)
+            {
+                ColumnIdentifier prevName = variableNames.get(i);
+                if (prevName != null && prevName.equals(bindMarkerName))
+                {
+                    ColumnSpecification prevSpec = specs.get(i);
+                    if (prevSpec != null && !prevSpec.type.isCompatibleWith(spec.type))
+                    {
+                        throw new InvalidRequestException(
+                            String.format("Bind variable '%s' is used for columns of incompatible types: %s and %s",
+                                bindMarkerName, prevSpec.type.asCQL3Type(), spec.type.asCQL3Type()));
+                    }
+                }
+            }
             spec = new ColumnSpecification(spec.ksName, spec.cfName, bindMarkerName, spec.type);
+        }
         specs.set(bindIndex, spec);
     }
 
