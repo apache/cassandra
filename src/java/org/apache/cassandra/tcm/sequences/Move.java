@@ -21,7 +21,6 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -41,9 +40,7 @@ import accord.topology.EpochReady;
 import accord.topology.Topology;
 import accord.topology.TopologyException;
 import accord.topology.TopologyManager;
-import accord.topology.TopologyNotReadyException;
 import accord.topology.TopologyRetiredException;
-import accord.utils.Invariants;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
