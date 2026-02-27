@@ -2761,11 +2761,7 @@ storage_compatibility_mode: NONE
 # repair as anti-compaction during repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
 # then set the ratio to 0.0
-# repair_disk_headroom_reject_ratio: 0.2;
-
-# This is the deprecated config which was used to safeguard incremental repairs. Use repair_disk_headroom_reject_ratio
-# instead as it safeguards against all repairs.
-# incremental_repair_disk_headroom_reject_ratio: 0.2;
+# repair_disk_headroom_reject_ratio: 0.2
 
 # Configuration for Auto Repair Scheduler.
 #
