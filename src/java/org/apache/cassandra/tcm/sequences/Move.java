@@ -240,7 +240,7 @@ public class Move extends MultiStepOperation<Epoch>
                             {
                                 try
                                 {
-                                    if (AccordService.instance().topology().active().get(waitingForEpoch).retired().containsAll(waitingForRange))
+                                    if (epoch >= waitingForEpoch && AccordService.instance().topology().active().get(waitingForEpoch).retired().containsAll(waitingForRange))
                                         condition.signal();
                                 }
                                 catch (TopologyRetiredException e)
