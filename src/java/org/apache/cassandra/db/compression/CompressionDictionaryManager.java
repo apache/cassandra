@@ -471,7 +471,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             else
                 resolvedValue = userSuppliedValue;
 
-            return new DataStorageSpec.IntKibibytesBound(resolvedValue).toBytes();
+            return new DataStorageSpec.IntBytesBound(resolvedValue).toBytes();
         }
         catch (Throwable t)
         {

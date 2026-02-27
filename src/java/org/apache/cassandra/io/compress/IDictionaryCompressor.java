@@ -59,7 +59,7 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
     {
         try
         {
-            new DataStorageSpec.IntKibibytesBound(resolvedValue).toBytes();
+            new DataStorageSpec.IntBytesBound(resolvedValue).toBytes();
         }
         catch (Throwable t)
         {

@@ -182,7 +182,7 @@ public class CompressionDictionaryCommandGroup
             {
                 try
                 {
-                    new DataStorageSpec.IntKibibytesBound(trainingMaxDictionarySize).toBytes();
+                    new DataStorageSpec.IntBytesBound(trainingMaxDictionarySize).toBytes();
                 }
                 catch (Throwable t)
                 {
@@ -195,7 +195,7 @@ public class CompressionDictionaryCommandGroup
             {
                 try
                 {
-                    new DataStorageSpec.IntKibibytesBound(trainingMaxTotalSampleSize).toBytes();
+                    new DataStorageSpec.IntBytesBound(trainingMaxTotalSampleSize).toBytes();
                 }
                 catch (Throwable t)
                 {

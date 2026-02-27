@@ -234,6 +234,33 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         .hasMessageContaining("No SSTables available for training");
     }
 
+    @Test
+    public void testMaxBoundForTrainingParameters()
+    {
+        String table = createTable(getTableCql());
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+
+        assertThatThrownBy(() -> manager.train(false, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, "5GiB",
+                                                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)))
+        .as("Should fail when " + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + " is bigger than " + Integer.MAX_VALUE)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid value for training_max_dictionary_size: 5GiB");
+
+        assertThatThrownBy(() -> manager.train(false, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, "5GiB")))
+        .as("Should fail when " + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + " is bigger than " + Integer.MAX_VALUE)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid value for " + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + ": 5GiB");
+    }
+
+    @Test
+    public void testInvalidTableCreation()
+    {
+        assertThatThrownBy(() -> createTable(getTableCqlWithInvalidTotalMaxSampleSize())).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> createTable(getTableCqlWithInvalidMaxDictionarySize())).isInstanceOf(RuntimeException.class);
+    }
+
     private String getTableCqlWithChunkLength()
     {
         return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
@@ -251,6 +278,26 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
                "WITH compression = {" +
                "'class': 'ZstdDictionaryCompressor'," +
                '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + "'," +
+               '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '\'' +
+               '}';
+    }
+
+    private String getTableCqlWithInvalidTotalMaxSampleSize()
+    {
+        return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+               "WITH compression = {" +
+               "'class': 'ZstdDictionaryCompressor'," +
+               '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + "'," +
+               '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '5GiB'" +
+               '}';
+    }
+
+    private String getTableCqlWithInvalidMaxDictionarySize()
+    {
+        return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+               "WITH compression = {" +
+               "'class': 'ZstdDictionaryCompressor'," +
+               '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '5GiB'," +
                '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '\'' +
                '}';
     }

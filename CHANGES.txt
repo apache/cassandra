@@ -1,4 +1,5 @@
 5.1
+ * Harden the possible range of values for max dictionary size and max total sample size for dictionary training (CASSANDRA-21194)
  * Implement a guardrail ensuring that minimum training frequency parameter is provided in ZstdDictionaryCompressor (CASSANDRA-21192)
  * Replace manual referencing with ColumnFamilyStore.selectAndReference when training a dictionary (CASSANDRA-21188)
  * Forbid nodes upgrading to a version which cannot read existing log entries (CASSANDRA-21174)
