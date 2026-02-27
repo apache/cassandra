@@ -28,12 +28,22 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.TopologyListener;
+import accord.primitives.Ranges;
 import accord.topology.EpochReady;
+import accord.topology.Topology;
+import accord.topology.TopologyException;
+import accord.topology.TopologyManager;
+import accord.topology.TopologyNotReadyException;
+import accord.topology.TopologyRetiredException;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -75,6 +85,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -86,6 +97,7 @@ import static org.apache.cassandra.tcm.Transformation.Kind.MID_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_MOVE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class Move extends MultiStepOperation<Epoch>
 {
@@ -205,8 +217,49 @@ public class Move extends MultiStepOperation<Epoch>
                 try
                 {
                     ClusterMetadata metadata = ClusterMetadata.current();
-                    List<Long> epochsWeAreRegainingRangesFor = AccordService.instance().topology().epochsWeAreRegainingRangesFor(AccordService.instance().topology().current(), AccordTopology.createAccordTopology(applyTo(metadata).success().metadata));
-                    AccordService.instance().topology().blockUntilAllEpochsRetired(epochsWeAreRegainingRangesFor);
+                    TopologyManager.RegainingEpochRange regainingEpochRange = AccordService.instance().topology().epochAndRangeToBeRetired(AccordService.instance().topology().current(), AccordTopology.createAccordTopology(applyTo(metadata).success().metadata));
+                    if (regainingEpochRange != null)
+                    {
+                        Condition condition = newOneTimeCondition();
+
+                        class waitForEpochAndRangeRetirement implements TopologyListener
+                        {
+                            final Condition condition;
+                            final long waitingForEpoch;
+                            final Ranges waitingForRange;
+
+                            public waitForEpochAndRangeRetirement(Condition condition, long waitingForEpoch, Ranges waitingForRange)
+                            {
+                                this.condition = condition;
+                                this.waitingForEpoch = waitingForEpoch;
+                                this.waitingForRange = waitingForRange;
+                            }
+
+                            @Override
+                            public void onEpochRetired(Ranges ranges, long epoch, @Nullable Topology topology)
+                            {
+                                try
+                                {
+                                    if (AccordService.instance().topology().active().get(waitingForEpoch).retired().containsAll(waitingForRange))
+                                        condition.signal();
+                                }
+                                catch (TopologyRetiredException e)
+                                {
+                                    condition.signal();
+                                }
+                                catch (TopologyException e)
+                                {
+                                    logger.info("Topology exception: ", e);
+                                }
+                            }
+                        }
+
+                        waitForEpochAndRangeRetirement wait = new waitForEpochAndRangeRetirement(condition, regainingEpochRange.epoch(), regainingEpochRange.range());
+                        AccordService.instance().topology().addListener(wait);
+                        condition.awaitThrowUncheckedOnInterrupt();
+                        AccordService.instance().topology().removeListener(wait);
+                    }
+
                     logger.info("Moving {} from {} to {}.",
                                 metadata.directory.endpoint(startMove.nodeId()),
                                 metadata.tokenMap.tokens(startMove.nodeId()),

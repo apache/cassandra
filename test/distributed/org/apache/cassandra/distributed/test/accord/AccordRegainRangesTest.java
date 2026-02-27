@@ -22,19 +22,27 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import accord.api.RoutingKey;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
+import accord.topology.TopologyException;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static accord.primitives.Range.range;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import org.junit.BeforeClass;
@@ -86,14 +94,21 @@ public class AccordRegainRangesTest extends AccordTestBase
 
             cluster.coordinator(3).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 5);
 
-
             cluster.get(2).runOnInstance(() -> {
                 StorageService.instance.move(originalToken);
             });
 
             // Ensure no overlapping safeToRead ranges
             cluster.get(2).runOnInstance(() -> {
-                assert (AccordService.instance().topology().active().minEpoch() > epoch);
+                RoutingKey start = TokenKey.parse(TableId.fromString("tid:11"), String.valueOf(token), Murmur3Partitioner.instance);
+                RoutingKey end = TokenKey.parse(TableId.fromString("tid:11"), originalToken, Murmur3Partitioner.instance);
+                Ranges regainedRange = Ranges.of(TokenRange.create(start, end));
+                try
+                {
+                    assert (AccordService.instance().topology().active().get(epoch).retired().containsAll(regainedRange));
+                } catch (TopologyException e) {
+                    assert(false);
+                }
                 Ranges range = Ranges.EMPTY;
                 for (CommandStore commandStore : AccordService.instance().node().commandStores().all()) {
                     Ranges safeToReadRanges = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "No overlapping safeToReadRanges", safeCommandStore -> {
