@@ -1764,7 +1764,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         register(DatabaseDescriptor.getLocalAddressReconnectionHelper());
 
         ClusterMetadata metadata = ClusterMetadata.current();
-        if (mergeLocalStates && metadata.myNodeId() != null)
+        if (mergeLocalStates && metadata.myNodeId() != NodeId.UNREGISTERED)
             mergeNodeToGossip(metadata.myNodeId(), metadata);
 
         shutdownAnnounced.set(false);
@@ -2280,6 +2280,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         taskLock.lock();
         try
         {
+            if (nodeId == NodeId.UNREGISTERED)
+                return;
+
             boolean isLocal = nodeId.equals(metadata.myNodeId());
             IPartitioner partitioner = metadata.tokenMap.partitioner();
             NodeAddresses addresses = metadata.directory.getNodeAddresses(nodeId);

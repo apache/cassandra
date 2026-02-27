@@ -467,7 +467,7 @@ public class Directory implements MetadataValue<Directory>
 
     public NodeState peerState(NodeId peer)
     {
-        return states.get(peer);
+        return peer == NodeId.UNREGISTERED ? null : states.get(peer);
     }
 
     public NodeVersion version(NodeId peer)

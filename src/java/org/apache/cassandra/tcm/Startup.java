@@ -186,7 +186,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         NodeId nodeId = ClusterMetadata.current().myNodeId();
         UUID currentHostId = SystemKeyspace.getLocalHostId();
-        if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
+        if (nodeId != NodeId.UNREGISTERED && !Objects.equals(nodeId.toUUID(), currentHostId))
         {
             if (currentHostId == null)
             {

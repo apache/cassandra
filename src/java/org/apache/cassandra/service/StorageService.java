@@ -2057,16 +2057,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // creation and initialization of cluster metadata service. Metadata collector does accept
         // null localhost ID values, it's just that TokenMetadata was created earlier.
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.peerId(getBroadcastAddressAndPort()) == null)
-            return null;
-        return metadata.directory.peerId(getBroadcastAddressAndPort()).toUUID();
+        if (metadata == null || metadata.myNodeId() == NodeId.UNREGISTERED)
+        {
+            // this condition is to prevent accessing the tables when the node is not started yet, and in particular,
+            // when it is not going to be started at all (e.g. when running some unit tests or client tools).
+            if ((DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized()) && CommitLog.instance.isStarted())
+                return SystemKeyspace.getLocalHostId();
+            else
+                return null;
+        }
+        return metadata.myNodeId().toUUID();
     }
 
     public Map<String, String> getHostIdMap()
     {
         return getEndpointToHostId();
     }
-
 
     public Map<String, String> getEndpointToHostId()
     {

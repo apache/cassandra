@@ -109,7 +109,7 @@ public class Register implements Transformation
         if (isReplacingSameAddress())
         {
             NodeId self = ClusterMetadata.current().myNodeId();
-            if (self == null)
+            if (self == NodeId.UNREGISTERED)
                 throw new IllegalStateException("Tried to replace same address, but node does not seem to be registered");
 
             return self;

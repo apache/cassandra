@@ -127,6 +127,7 @@ public class ClusterMetadata
     private volatile Map<ReplicationParams, RangesAtEndpoint> localRangesAllSettled = null;
     private static final RangesAtEndpoint EMPTY_LOCAL_RANGES = RangesAtEndpoint.empty(FBUtilities.getBroadcastAddressAndPort());
     private DataPlacement cmsDataPlacement;
+    private final NodeId localNodeId;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -224,6 +225,11 @@ public class ClusterMetadata
         this.accordStaleReplicas = accordStaleReplicas;
         this.cmsMembership = cmsMembership;
         this.cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership);
+
+        InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
+        this.localNodeId = directory.allAddresses().contains(broadcastAddress)
+                           ? directory.peerId(broadcastAddress)
+                           : NodeId.UNREGISTERED;
     }
 
     public Set<NodeId> fullCMSMemberIds()
@@ -1234,13 +1240,13 @@ public class ClusterMetadata
 
     public NodeId myNodeId()
     {
-        return directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+        return localNodeId;
     }
 
     public NodeState myNodeState()
     {
         NodeId nodeId = myNodeId();
-        if (myNodeId() != null)
+        if (nodeId != NodeId.UNREGISTERED)
             return directory.peerState(nodeId);
         return null;
     }

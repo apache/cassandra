@@ -117,7 +117,7 @@ public class ClusterMetadataService
                                             trace);
         instance = newInstance;
         RegistrationStatus.instance.onInitialized();
-        if (newInstance.metadata().myNodeId() != null)
+        if (newInstance.metadata().myNodeId() != NodeId.UNREGISTERED)
             RegistrationStatus.instance.onRegistration();
         trace = new RuntimeException("Previously initialized trace");
         DatabaseDescriptor.applyLocator();

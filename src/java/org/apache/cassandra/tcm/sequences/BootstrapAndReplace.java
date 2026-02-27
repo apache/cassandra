@@ -451,6 +451,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
     public static void gossipStateToHibernate(ClusterMetadata metadata, NodeId nodeId)
     {
+        if (nodeId == NodeId.UNREGISTERED)
+            return;
         // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
         List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
         VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
@@ -462,6 +464,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
     public static void gossipStateToNormal(ClusterMetadata metadata, NodeId nodeId)
     {
+        if (nodeId == NodeId.UNREGISTERED)
+            return;
         List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
         VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
         Collection<Token> tokens = metadata.tokenMap.tokens(nodeId);

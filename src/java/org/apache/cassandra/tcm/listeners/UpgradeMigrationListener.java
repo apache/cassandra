@@ -50,7 +50,7 @@ public class UpgradeMigrationListener implements ChangeListener
         else if (prev.epoch.equals(Epoch.FIRST) && !next.directory.isEmpty())
         {
             NodeId localId = next.myNodeId();
-            if (localId != null)
+            if (localId != NodeId.UNREGISTERED)
             {
                 // assigning the local node id is done in Epoch.FIRST in one of two scenarios:
                 // * during an upgrade from gossip, as all pre-existing nodes will have an id assigned
