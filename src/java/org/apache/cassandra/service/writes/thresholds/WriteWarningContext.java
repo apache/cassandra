@@ -24,8 +24,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.schema.TableId;
 
 /**
  * Accumulates write warning information from replica responses.
@@ -49,7 +49,7 @@ public class WriteWarningContext
     /**
      * Update counters from replica response parameters. Writes never abort, so this always returns without throwing.
      */
-    public void updateCounters(Map<ParamType, Object> params, InetAddressAndPort from)
+    public void updateCounters(Map<ParamType, Object> params)
     {
         for (Map.Entry<ParamType, Object> entry : params.entrySet())
         {
@@ -65,15 +65,12 @@ public class WriteWarningContext
             }
 
             if (counter != null)
-                counter.addWarning(from, ((Number) entry.getValue()).longValue());
+                counter.addWarning(((Map<TableId, Long>) entry.getValue()));
         }
     }
 
     public WriteWarningsSnapshot snapshot()
     {
-        return WriteWarningsSnapshot.create(
-        writeSize.snapshot(),
-        writeTombstone.snapshot()
-        );
+        return WriteWarningsSnapshot.create(writeSize.snapshot(), writeTombstone.snapshot());
     }
 }

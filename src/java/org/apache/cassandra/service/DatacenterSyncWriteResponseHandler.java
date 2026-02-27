@@ -88,7 +88,7 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
             Map<ParamType, Object> params = message != null ? message.header.params() : MessageParams.capture();
 
             if (WriteWarningContext.isSupported(params.keySet()))
-                getWarningContext().updateCounters(params, from);
+                getWarningContext().updateCounters(params);
 
             String dataCenter = message == null
                                 ? locator.local().datacenter

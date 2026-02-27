@@ -67,7 +67,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
         Map<ParamType, Object> params = m != null ? m.header.params() : MessageParams.capture();
 
         if (WriteWarningContext.isSupported(params.keySet()))
-            getWarningContext().updateCounters(params, from);
+            getWarningContext().updateCounters(params);
 
         replicaPlan.collectSuccess(from);
         if (responsesUpdater.decrementAndGet(this) == 0)

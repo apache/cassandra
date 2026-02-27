@@ -17,18 +17,15 @@
  */
 package org.apache.cassandra.service.writes.thresholds;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
-import com.google.common.collect.ImmutableSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 import org.junit.Test;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
-
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.thresholds.ThresholdCounter;
+import org.apache.cassandra.schema.TableId;
 
 import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.create;
 import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.empty;
@@ -39,23 +36,23 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class WriteWarningsSnapshotTest
 {
-    private static final InetAddressAndPort REPLICA1 = address(127, 0, 0, 1);
-    private static final InetAddressAndPort REPLICA2 = address(127, 0, 0, 2);
-    private static final InetAddressAndPort REPLICA3 = address(127, 0, 0, 3);
+    private static final TableId TABLE1 = TableId.fromUUID(new UUID(0, 1));
+    private static final TableId TABLE2 = TableId.fromUUID(new UUID(0, 2));
+    private static final TableId TABLE3 = TableId.fromUUID(new UUID(0, 3));
 
     @Test
     public void testEmptySnapshot()
     {
         WriteWarningsSnapshot snapshot = empty();
         assertThat(snapshot.isEmpty()).isTrue();
-        assertThat(snapshot.writeSize).isEqualTo(ThresholdCounter.empty());
-        assertThat(snapshot.writeTombstone).isEqualTo(ThresholdCounter.empty());
+        assertThat(snapshot.writeSize).isEqualTo(WriteThresholdCounter.empty());
+        assertThat(snapshot.writeTombstone).isEqualTo(WriteThresholdCounter.empty());
     }
 
     @Test
     public void testCreateWithEmptyCounters()
     {
-        WriteWarningsSnapshot snapshot = create(ThresholdCounter.empty(), ThresholdCounter.empty());
+        WriteWarningsSnapshot snapshot = create(WriteThresholdCounter.empty(), WriteThresholdCounter.empty());
         assertThat(snapshot).isEqualTo(empty());
         assertThat(snapshot.isEmpty()).isTrue();
     }
@@ -63,9 +60,8 @@ public class WriteWarningsSnapshotTest
     @Test
     public void testCreateWithNonEmptyCounters()
     {
-        ThresholdCounter sizeCounter = new ThresholdCounter(ImmutableSet.of(REPLICA1), 1024);
-        ThresholdCounter tombstoneCounter = new ThresholdCounter(ImmutableSet.of(REPLICA2), 500);
-
+        WriteThresholdCounter sizeCounter = WriteThresholdCounter.create(map(TABLE1, 1024L));
+        WriteThresholdCounter tombstoneCounter = WriteThresholdCounter.create(map(TABLE2, 500L));
         WriteWarningsSnapshot snapshot = create(sizeCounter, tombstoneCounter);
 
         assertThat(snapshot.isEmpty()).isFalse();
@@ -84,8 +80,8 @@ public class WriteWarningsSnapshotTest
     @Test
     public void testMergeEmptyWithNonEmpty()
     {
-        ThresholdCounter sizeCounter = new ThresholdCounter(ImmutableSet.of(REPLICA1), 2048);
-        WriteWarningsSnapshot nonEmpty = create(sizeCounter, ThresholdCounter.empty());
+        WriteThresholdCounter sizeCounter = WriteThresholdCounter.create(map(TABLE1, 2048L));
+        WriteWarningsSnapshot nonEmpty = create(sizeCounter, WriteThresholdCounter.empty());
 
         WriteWarningsSnapshot result1 = empty().merge(nonEmpty);
         WriteWarningsSnapshot result2 = nonEmpty.merge(empty());
@@ -97,9 +93,8 @@ public class WriteWarningsSnapshotTest
     @Test
     public void testMergeWithNull()
     {
-        ThresholdCounter sizeCounter = new ThresholdCounter(ImmutableSet.of(REPLICA1), 2048);
-        WriteWarningsSnapshot snapshot = create(sizeCounter, ThresholdCounter.empty());
-
+        WriteThresholdCounter sizeCounter = WriteThresholdCounter.create(map(TABLE1, 2048L));
+        WriteWarningsSnapshot snapshot = create(sizeCounter, WriteThresholdCounter.empty());
         WriteWarningsSnapshot result = snapshot.merge(null);
 
         assertThat(result).isEqualTo(snapshot);
@@ -112,94 +107,76 @@ public class WriteWarningsSnapshotTest
     }
 
     @Test
-    public void testMergeNonOverlappingReplicas()
+    public void testMergeNonOverlappingTables()
     {
         WriteWarningsSnapshot snapshot1 = create(
-            new ThresholdCounter(ImmutableSet.of(REPLICA1), 1024),
-            new ThresholdCounter(ImmutableSet.of(REPLICA1), 100)
+            WriteThresholdCounter.create(map(TABLE1, 1024L)),
+            WriteThresholdCounter.create(map(TABLE1, 100L))
         );
 
         WriteWarningsSnapshot snapshot2 = create(
-            new ThresholdCounter(ImmutableSet.of(REPLICA2), 2048),
-            new ThresholdCounter(ImmutableSet.of(REPLICA2), 200)
+            WriteThresholdCounter.create(map(TABLE2, 2048L)),
+            WriteThresholdCounter.create(map(TABLE2, 200L))
         );
 
         WriteWarningsSnapshot merged = snapshot1.merge(snapshot2);
 
-        // Should combine replica sets and take max values
-        assertThat(merged.writeSize.instances).isEqualTo(ImmutableSet.of(REPLICA1, REPLICA2));
-        assertThat(merged.writeSize.maxValue).isEqualTo(2048); // max of 1024 and 2048
-        assertThat(merged.writeTombstone.instances).isEqualTo(ImmutableSet.of(REPLICA1, REPLICA2));
-        assertThat(merged.writeTombstone.maxValue).isEqualTo(200); // max of 100 and 200
+        assertThat(merged.writeSize.tableValues).containsEntry(TABLE1, 1024L);
+        assertThat(merged.writeSize.tableValues).containsEntry(TABLE2, 2048L);
+        assertThat(merged.writeTombstone.tableValues).containsEntry(TABLE1, 100L);
+        assertThat(merged.writeTombstone.tableValues).containsEntry(TABLE2, 200L);
     }
 
     @Test
-    public void testMergeOverlappingReplicas()
+    public void testMergeOverlappingTablesTakesMax()
     {
         WriteWarningsSnapshot snapshot1 = create(
-            new ThresholdCounter(ImmutableSet.of(REPLICA1, REPLICA2), 3000),
-            ThresholdCounter.empty()
+            WriteThresholdCounter.create(map(TABLE1, 3000L)),
+            WriteThresholdCounter.empty()
         );
 
         WriteWarningsSnapshot snapshot2 = create(
-            new ThresholdCounter(ImmutableSet.of(REPLICA2, REPLICA3), 4000),
-            ThresholdCounter.empty()
+            WriteThresholdCounter.create(map(TABLE1, 4000L)),
+            WriteThresholdCounter.empty()
         );
 
         WriteWarningsSnapshot merged = snapshot1.merge(snapshot2);
 
-        // Should combine all unique replicas and take max value
-        assertThat(merged.writeSize.instances).isEqualTo(ImmutableSet.of(REPLICA1, REPLICA2, REPLICA3));
-        assertThat(merged.writeSize.maxValue).isEqualTo(4000); // max of 3000 and 4000
+        assertThat(merged.writeSize.tableValues).containsEntry(TABLE1, 4000L);
+        assertThat(merged.writeSize.tableValues).hasSize(1);
     }
 
     @Test
     public void testMergeDifferentThresholdTypes()
     {
         WriteWarningsSnapshot snapshot1 = create(
-            new ThresholdCounter(ImmutableSet.of(REPLICA1), 5000),
-            ThresholdCounter.empty()
+            WriteThresholdCounter.create(map(TABLE1, 5000L)),
+            WriteThresholdCounter.empty()
         );
 
         WriteWarningsSnapshot snapshot2 = create(
-            ThresholdCounter.empty(),
-            new ThresholdCounter(ImmutableSet.of(REPLICA2), 300)
+            WriteThresholdCounter.empty(),
+            WriteThresholdCounter.create(map(TABLE2, 300L))
         );
 
         WriteWarningsSnapshot merged = snapshot1.merge(snapshot2);
 
-        assertThat(merged.writeSize.instances).isEqualTo(ImmutableSet.of(REPLICA1));
-        assertThat(merged.writeSize.maxValue).isEqualTo(5000);
-        assertThat(merged.writeTombstone.instances).isEqualTo(ImmutableSet.of(REPLICA2));
-        assertThat(merged.writeTombstone.maxValue).isEqualTo(300);
+        assertThat(merged.writeSize.tableValues).containsEntry(TABLE1, 5000L);
+        assertThat(merged.writeTombstone.tableValues).containsEntry(TABLE2, 300L);
     }
 
     @Test
     public void testWriteSizeWarnMessage()
     {
-        String message = writeSizeWarnMessage(3, 1048576);
-        assertThat(message).isEqualTo("3 nodes detected write to large partition; estimated size is 1048576 bytes (see write_size_warn_threshold)");
-    }
-
-    @Test
-    public void testWriteSizeWarnMessageSingleNode()
-    {
-        String message = writeSizeWarnMessage(1, 2048);
-        assertThat(message).isEqualTo("1 nodes detected write to large partition; estimated size is 2048 bytes (see write_size_warn_threshold)");
+        String message = writeSizeWarnMessage(1048576L);
+        assertThat(message).isEqualTo("Write to large partition; estimated size is 1048576 bytes (see write_size_warn_threshold)");
     }
 
     @Test
     public void testWriteTombstoneWarnMessage()
     {
-        String message = writeTombstoneWarnMessage(2, 500);
-        assertThat(message).isEqualTo("2 nodes detected write to partition with many tombstones; estimated count is 500 (see write_tombstone_warn_threshold)");
-    }
-
-    @Test
-    public void testWriteTombstoneWarnMessageSingleNode()
-    {
-        String message = writeTombstoneWarnMessage(1, 1000);
-        assertThat(message).isEqualTo("1 nodes detected write to partition with many tombstones; estimated count is 1000 (see write_tombstone_warn_threshold)");
+        String message = writeTombstoneWarnMessage(500L);
+        assertThat(message).isEqualTo("Write to partition with many tombstones; estimated count is 500 (see write_tombstone_warn_threshold)");
     }
 
     @Test
@@ -214,51 +191,47 @@ public class WriteWarningsSnapshotTest
         qt().forAll(all(), all(), all()).check((a, b, c) -> a.merge(b).merge(c).equals(a.merge(b.merge(c))));
     }
 
-    private static InetAddressAndPort address(int a, int b, int c, int d)
-    {
-        try
-        {
-            InetAddress address = InetAddress.getByAddress(new byte[]{ (byte) a, (byte) b, (byte) c, (byte) d });
-            return InetAddressAndPort.getByAddress(address);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
     private static Gen<WriteWarningsSnapshot> all()
     {
         Gen<Boolean> isEmpty = SourceDSL.booleans().all();
         Gen<WriteWarningsSnapshot> nonEmpty = nonEmpty();
-        Gen<WriteWarningsSnapshot> gen = rs ->
-            isEmpty.generate(rs) ? empty() : nonEmpty.generate(rs);
+        Gen<WriteWarningsSnapshot> gen = rs -> isEmpty.generate(rs) ? empty() : nonEmpty.generate(rs);
         return gen.describedAs(WriteWarningsSnapshot::toString);
     }
 
     private static Gen<WriteWarningsSnapshot> nonEmpty()
     {
-        Gen<ThresholdCounter> counter = counter();
-        Gen<WriteWarningsSnapshot> gen = rs -> {
-            ThresholdCounter writeSize = counter.generate(rs);
-            ThresholdCounter writeTombstone = counter.generate(rs);
+        Gen<WriteThresholdCounter> counter = counter();
+        Gen<WriteWarningsSnapshot> gen = rs ->
+        {
+            WriteThresholdCounter writeSize = counter.generate(rs);
+            WriteThresholdCounter writeTombstone = counter.generate(rs);
             return create(writeSize, writeTombstone);
         };
         return gen.assuming(snapshot -> !snapshot.isEmpty()).describedAs(WriteWarningsSnapshot::toString);
     }
 
-    private static Gen<ThresholdCounter> counter()
+    private static Gen<WriteThresholdCounter> counter()
     {
         Gen<Boolean> isEmpty = SourceDSL.booleans().all();
         Constraint maxValue = Constraint.between(1, Long.MAX_VALUE);
-        Gen<ImmutableSet<InetAddressAndPort>> instances = SourceDSL.arbitrary()
-                                                                   .pick(ImmutableSet.of(REPLICA1),
-                                                                         ImmutableSet.of(REPLICA2),
-                                                                         ImmutableSet.of(REPLICA3),
-                                                                         ImmutableSet.of(REPLICA1, REPLICA2));
-        Gen<ThresholdCounter> gen = rs ->
-            isEmpty.generate(rs) ? ThresholdCounter.empty()
-                                 : new ThresholdCounter(instances.generate(rs), rs.next(maxValue));
-        return gen.describedAs(ThresholdCounter::toString);
+        Gen<WriteThresholdCounter> gen = rs ->
+        {
+            if (isEmpty.generate(rs))
+                return WriteThresholdCounter.empty();
+            Map<TableId, Long> values = new HashMap<>();
+            values.put(TABLE1, rs.next(maxValue));
+            if (rs.next(Constraint.between(0, 1)) == 1)
+                values.put(TABLE2, rs.next(maxValue));
+            return WriteThresholdCounter.create(values);
+        };
+        return gen.describedAs(WriteThresholdCounter::toString);
+    }
+
+    private static Map<TableId, Long> map(TableId t1, long v1)
+    {
+        Map<TableId, Long> m = new HashMap<>();
+        m.put(t1, v1);
+        return m;
     }
 }

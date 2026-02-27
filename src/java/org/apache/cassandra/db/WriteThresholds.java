@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -58,10 +60,10 @@ public class WriteThresholds
             return;
 
         long sizeWarnBytes = sizeWarnThreshold != null ? sizeWarnThreshold.toBytes() : -1;
-
         DecoratedKey key = mutation.key();
-        boolean warnedSize = false;
-        boolean warnedTombstone = false;
+
+        Map<TableId, Long> sizeWarnings = new HashMap<>();
+        Map<TableId, Long> tombstoneWarnings = new HashMap<>();
 
         for (TableId tableId : mutation.getTableIds())
         {
@@ -70,31 +72,34 @@ public class WriteThresholds
                 continue;
 
             TableMetadata metadata = cfs.metadata();
-            if (sizeWarnBytes != -1 && !warnedSize)
+            if (sizeWarnBytes != -1)
             {
                 long estimatedSize = cfs.topPartitions.topSizes().getEstimate(key);
                 if (estimatedSize > sizeWarnBytes)
                 {
-                    MessageParams.add(ParamType.WRITE_SIZE_WARN, estimatedSize);
+                    sizeWarnings.put(tableId, estimatedSize);
                     noSpamLogger.warn("Write to {} partition {} triggered size warning; " +
                                       "estimated size is {} bytes, threshold is {} bytes (see write_size_warn_threshold)",
                                       metadata, metadata.partitionKeyType.toCQLString(key.getKey()), estimatedSize, sizeWarnBytes);
-                    warnedSize = true;
                 }
             }
 
-            if (tombstoneWarnThreshold != -1 && !warnedTombstone)
+            if (tombstoneWarnThreshold != -1)
             {
                 long estimatedTombstones = cfs.topPartitions.topTombstones().getEstimate(key);
                 if (estimatedTombstones > tombstoneWarnThreshold)
                 {
-                    MessageParams.add(ParamType.WRITE_TOMBSTONE_WARN, (int) estimatedTombstones);
+                    tombstoneWarnings.put(tableId, estimatedTombstones);
                     noSpamLogger.warn("Write to {} partition {} triggered tombstone warning; " +
                                       "estimated tombstone count is {}, threshold is {} (see write_tombstone_warn_threshold)",
                                       metadata, metadata.partitionKeyType.toCQLString(key.getKey()), estimatedTombstones, tombstoneWarnThreshold);
-                    warnedTombstone = true;
                 }
             }
         }
+
+        if (!sizeWarnings.isEmpty())
+            MessageParams.add(ParamType.WRITE_SIZE_WARN, sizeWarnings);
+        if (!tombstoneWarnings.isEmpty())
+            MessageParams.add(ParamType.WRITE_TOMBSTONE_WARN, tombstoneWarnings);
     }
 }

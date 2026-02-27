@@ -20,21 +20,17 @@ package org.apache.cassandra.service.writes.thresholds;
 
 import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.service.thresholds.ThresholdCounter;
-
 /**
  * Immutable snapshot of write warnings. Simpler than WarningsSnapshot since writes never abort (warnings only).
  */
 public class WriteWarningsSnapshot
 {
-    private static final WriteWarningsSnapshot EMPTY = new WriteWarningsSnapshot(ThresholdCounter.empty(), ThresholdCounter.empty());
+    private static final WriteWarningsSnapshot EMPTY = new WriteWarningsSnapshot(WriteThresholdCounter.empty(), WriteThresholdCounter.empty());
 
-    public final ThresholdCounter writeSize;
-    public final ThresholdCounter writeTombstone;
+    public final WriteThresholdCounter writeSize;
+    public final WriteThresholdCounter writeTombstone;
 
-    private WriteWarningsSnapshot(ThresholdCounter writeSize, ThresholdCounter writeTombstone)
+    private WriteWarningsSnapshot(WriteThresholdCounter writeSize, WriteThresholdCounter writeTombstone)
     {
         this.writeSize = writeSize;
         this.writeTombstone = writeTombstone;
@@ -45,7 +41,7 @@ public class WriteWarningsSnapshot
         return EMPTY;
     }
 
-    public static WriteWarningsSnapshot create(ThresholdCounter writeSize, ThresholdCounter writeTombstone)
+    public static WriteWarningsSnapshot create(WriteThresholdCounter writeSize, WriteThresholdCounter writeTombstone)
     {
         if (writeSize.isEmpty() && writeTombstone.isEmpty())
             return EMPTY;
@@ -61,28 +57,28 @@ public class WriteWarningsSnapshot
     {
         if (other == null || other == EMPTY)
             return this;
+        if (this == EMPTY)
+            return other;
         return WriteWarningsSnapshot.create(writeSize.merge(other.writeSize), writeTombstone.merge(other.writeTombstone));
     }
 
-    @VisibleForTesting
-    public static String writeSizeWarnMessage(int nodes, long bytes)
+    public static String writeSizeWarnMessage(long bytes)
     {
-        return String.format("%d nodes detected write to large partition; estimated size is %d bytes (see write_size_warn_threshold)",
-                             nodes, bytes);
+        return String.format("Write to large partition; estimated size is %d bytes (see write_size_warn_threshold)", bytes);
     }
 
-    @VisibleForTesting
-    public static String writeTombstoneWarnMessage(int nodes, long tombstones)
+    public static String writeTombstoneWarnMessage(long tombstones)
     {
-        return String.format("%d nodes detected write to partition with many tombstones; estimated count is %d (see write_tombstone_warn_threshold)",
-                             nodes, tombstones);
+        return String.format("Write to partition with many tombstones; estimated count is %d (see write_tombstone_warn_threshold)", tombstones);
     }
 
     @Override
     public boolean equals(Object o)
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         WriteWarningsSnapshot that = (WriteWarningsSnapshot) o;
         return Objects.equals(writeSize, that.writeSize) && Objects.equals(writeTombstone, that.writeTombstone);
     }

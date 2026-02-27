@@ -17,143 +17,99 @@
  */
 package org.apache.cassandra.service.writes.thresholds;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-
-import com.google.common.collect.ImmutableSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 import org.junit.Test;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.thresholds.ThresholdCounter;
+import org.apache.cassandra.schema.TableId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class WarnCounterTest
 {
-    private static final InetAddressAndPort REPLICA1 = address(127, 0, 0, 1);
-    private static final InetAddressAndPort REPLICA2 = address(127, 0, 0, 2);
-    private static final InetAddressAndPort REPLICA3 = address(127, 0, 0, 3);
+    private static final TableId TABLE1 = TableId.fromUUID(new UUID(0, 1));
+    private static final TableId TABLE2 = TableId.fromUUID(new UUID(0, 2));
+    private static final TableId TABLE3 = TableId.fromUUID(new UUID(0, 3));
 
     @Test
-    public void testAddWarningSingleReplica()
+    public void testAddWarningSingleTable()
     {
         WarnCounter counter = new WarnCounter();
-        counter.addWarning(REPLICA1, 1024);
+        counter.addWarning(map(TABLE1, 1024L));
 
-        ThresholdCounter snapshot = counter.snapshot();
-        assertThat(snapshot.instances).isEqualTo(ImmutableSet.of(REPLICA1));
-        assertThat(snapshot.maxValue).isEqualTo(1024);
+        WriteThresholdCounter snapshot = counter.snapshot();
+        assertThat(snapshot.tableValues).containsEntry(TABLE1, 1024L);
+        assertThat(snapshot.tableValues).hasSize(1);
     }
 
     @Test
-    public void testAddWarningMultipleReplicas()
+    public void testAddWarningMultipleTables()
     {
         WarnCounter counter = new WarnCounter();
-        counter.addWarning(REPLICA1, 1024);
-        counter.addWarning(REPLICA2, 2048);
-        counter.addWarning(REPLICA3, 512);
+        counter.addWarning(map(TABLE1, 1024L, TABLE2, 2048L));
 
-        ThresholdCounter snapshot = counter.snapshot();
-        assertThat(snapshot.instances).isEqualTo(ImmutableSet.of(REPLICA1, REPLICA2, REPLICA3));
-        assertThat(snapshot.maxValue).isEqualTo(2048); // Max value
+        WriteThresholdCounter snapshot = counter.snapshot();
+        assertThat(snapshot.tableValues).containsEntry(TABLE1, 1024L);
+        assertThat(snapshot.tableValues).containsEntry(TABLE2, 2048L);
     }
 
     @Test
-    public void testAddWarningSameReplicaMultipleTimes()
+    public void testMaxValueTrackedPerTable()
     {
         WarnCounter counter = new WarnCounter();
-        counter.addWarning(REPLICA1, 1024);
-        counter.addWarning(REPLICA1, 2048);
-        counter.addWarning(REPLICA1, 512);
+        counter.addWarning(map(TABLE1, 1024L));
+        counter.addWarning(map(TABLE1, 2048L));
+        counter.addWarning(map(TABLE1, 512L));
 
-        ThresholdCounter snapshot = counter.snapshot();
-        // Replica should only be added once
-        assertThat(snapshot.instances).isEqualTo(ImmutableSet.of(REPLICA1));
-        // Max value should be taken
-        assertThat(snapshot.maxValue).isEqualTo(2048);
+        WriteThresholdCounter snapshot = counter.snapshot();
+        assertThat(snapshot.tableValues).containsEntry(TABLE1, 2048L);
     }
 
     @Test
-    public void testMaxValueTracking()
+    public void testMaxValueIndependentPerTable()
     {
         WarnCounter counter = new WarnCounter();
+        counter.addWarning(map(TABLE1, 1000L, TABLE2, 500L));
+        counter.addWarning(map(TABLE1, 500L, TABLE2, 1000L));
 
-        // Add in increasing order
-        counter.addWarning(REPLICA1, 100);
-        assertThat(counter.snapshot().maxValue).isEqualTo(100);
-
-        counter.addWarning(REPLICA2, 500);
-        assertThat(counter.snapshot().maxValue).isEqualTo(500);
-
-        counter.addWarning(REPLICA3, 1000);
-        assertThat(counter.snapshot().maxValue).isEqualTo(1000);
-
-        // Add smaller value, should not change max
-        counter.addWarning(REPLICA1, 200);
-        assertThat(counter.snapshot().maxValue).isEqualTo(1000);
+        WriteThresholdCounter snapshot = counter.snapshot();
+        assertThat(snapshot.tableValues).containsEntry(TABLE1, 1000L);
+        assertThat(snapshot.tableValues).containsEntry(TABLE2, 1000L);
     }
 
     @Test
-    public void testMaxValueTrackingDecreasingOrder()
+    public void testNewTableAddedOnSubsequentCall()
     {
         WarnCounter counter = new WarnCounter();
+        counter.addWarning(map(TABLE1, 1024L));
+        counter.addWarning(map(TABLE2, 2048L));
 
-        // Add in decreasing order
-        counter.addWarning(REPLICA1, 1000);
-        assertThat(counter.snapshot().maxValue).isEqualTo(1000);
-
-        counter.addWarning(REPLICA2, 500);
-        assertThat(counter.snapshot().maxValue).isEqualTo(1000);
-
-        counter.addWarning(REPLICA3, 100);
-        assertThat(counter.snapshot().maxValue).isEqualTo(1000);
-    }
-
-    @Test
-    public void testMaxValueWithZero()
-    {
-        WarnCounter counter = new WarnCounter();
-        counter.addWarning(REPLICA1, 0);
-
-        ThresholdCounter snapshot = counter.snapshot();
-        assertThat(snapshot.instances).isEqualTo(ImmutableSet.of(REPLICA1));
-        assertThat(snapshot.maxValue).isEqualTo(0);
-    }
-
-    @Test
-    public void testMaxValueWithLargeLong()
-    {
-        WarnCounter counter = new WarnCounter();
-        counter.addWarning(REPLICA1, Long.MAX_VALUE);
-        counter.addWarning(REPLICA2, Long.MAX_VALUE - 1);
-
-        ThresholdCounter snapshot = counter.snapshot();
-        assertThat(snapshot.maxValue).isEqualTo(Long.MAX_VALUE);
+        WriteThresholdCounter snapshot = counter.snapshot();
+        assertThat(snapshot.tableValues).containsEntry(TABLE1, 1024L);
+        assertThat(snapshot.tableValues).containsEntry(TABLE2, 2048L);
     }
 
     @Test
     public void testSnapshotIsImmutable()
     {
         WarnCounter counter = new WarnCounter();
-        counter.addWarning(REPLICA1, 1024);
+        counter.addWarning(map(TABLE1, 1024L));
 
-        ThresholdCounter snapshot1 = counter.snapshot();
-        assertThat(snapshot1.instances).isEqualTo(ImmutableSet.of(REPLICA1));
-        assertThat(snapshot1.maxValue).isEqualTo(1024);
+        WriteThresholdCounter snapshot1 = counter.snapshot();
 
-        // Add more warnings
-        counter.addWarning(REPLICA2, 2048);
+        counter.addWarning(map(TABLE1, 2048L));
+        counter.addWarning(map(TABLE2, 512L));
 
-        ThresholdCounter snapshot2 = counter.snapshot();
+        WriteThresholdCounter snapshot2 = counter.snapshot();
 
-        // First snapshot should not be affected
-        assertThat(snapshot1.instances).isEqualTo(ImmutableSet.of(REPLICA1));
-        assertThat(snapshot1.maxValue).isEqualTo(1024);
+        // snapshot1 should not be affected by subsequent addWarning calls
+        assertThat(snapshot1.tableValues).containsEntry(TABLE1, 1024L);
+        assertThat(snapshot1.tableValues).doesNotContainKey(TABLE2);
 
-        // Second snapshot should have both
-        assertThat(snapshot2.instances).isEqualTo(ImmutableSet.of(REPLICA1, REPLICA2));
-        assertThat(snapshot2.maxValue).isEqualTo(2048);
+        assertThat(snapshot2.tableValues).containsEntry(TABLE1, 2048L);
+        assertThat(snapshot2.tableValues).containsEntry(TABLE2, 512L);
     }
 
     @Test
@@ -161,42 +117,32 @@ public class WarnCounterTest
     {
         WarnCounter counter = new WarnCounter();
 
-        ThresholdCounter snapshot = counter.snapshot();
-        assertThat(snapshot.instances).isEmpty();
-        assertThat(snapshot.maxValue).isEqualTo(0); // Default value
+        WriteThresholdCounter snapshot = counter.snapshot();
+        assertThat(snapshot.isEmpty()).isTrue();
+        assertThat(snapshot.tableValues).isEmpty();
     }
 
     @Test
-    public void testConcurrentModification()
+    public void testEmptyMapDoesNothing()
     {
         WarnCounter counter = new WarnCounter();
+        counter.addWarning(new HashMap<>());
 
-        // Simulate concurrent warnings from multiple replicas
-        counter.addWarning(REPLICA1, 1000);
-        counter.addWarning(REPLICA2, 2000);
-        counter.addWarning(REPLICA3, 1500);
-
-        // Get snapshot while adding more
-        ThresholdCounter snapshot1 = counter.snapshot();
-        counter.addWarning(REPLICA1, 3000);
-        ThresholdCounter snapshot2 = counter.snapshot();
-
-        // Both snapshots should be valid
-        assertThat(snapshot1.instances).hasSize(3);
-        assertThat(snapshot2.instances).hasSize(3);
-        assertThat(snapshot2.maxValue).isEqualTo(3000);
+        assertThat(counter.snapshot().isEmpty()).isTrue();
     }
 
-    private static InetAddressAndPort address(int a, int b, int c, int d)
+    private static Map<TableId, Long> map(TableId t1, long v1)
     {
-        try
-        {
-            InetAddress address = InetAddress.getByAddress(new byte[]{ (byte) a, (byte) b, (byte) c, (byte) d });
-            return InetAddressAndPort.getByAddress(address);
-        }
-        catch (UnknownHostException e)
-        {
-            throw new AssertionError(e);
-        }
+        Map<TableId, Long> m = new HashMap<>();
+        m.put(t1, v1);
+        return m;
+    }
+
+    private static Map<TableId, Long> map(TableId t1, long v1, TableId t2, long v2)
+    {
+        Map<TableId, Long> m = new HashMap<>();
+        m.put(t1, v1);
+        m.put(t2, v2);
+        return m;
     }
 }

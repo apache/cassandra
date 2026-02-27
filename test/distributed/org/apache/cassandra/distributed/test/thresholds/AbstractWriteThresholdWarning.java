@@ -240,24 +240,19 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
     }
 
     @Test
-    public void warningMessageContainsNodeCount()
+    public void warningMessageContainsTableIdentifier()
     {
-        // Populate TopPartitionTracker on all nodes
         populateTopPartitions(1, getWarnThreshold() * 2);
-
         enable(true);
 
-        // Write to the top partition
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(
-            "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)",
-            ConsistencyLevel.ALL, bytes(512));
+        "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)",
+        ConsistencyLevel.ALL, bytes(512));
 
-        // Verify warning message format
-        assertWarnings(result.warnings());
         List<String> warnings = result.warnings();
-        assertThat(warnings).isNotEmpty();
-        // Warning should mention "3 nodes" (all 3 replicas warned)
-        assertThat(warnings.get(0)).contains("3 nodes");
+        assertThat(warnings).hasSize(1);
+        // Warning must identify the specific table that breached the threshold
+        assertThat(warnings.get(0)).contains(KEYSPACE + ".tbl");
     }
 
     protected static void enable(boolean value)

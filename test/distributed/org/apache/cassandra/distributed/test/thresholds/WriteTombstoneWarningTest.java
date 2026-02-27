@@ -90,7 +90,8 @@ public class WriteTombstoneWarningTest extends AbstractWriteThresholdWarning
     {
         assertThat(warnings).hasSize(1);
         assertThat(warnings.get(0))
-            .contains("nodes detected write to partition with many tombstones")
+            .contains(KEYSPACE + ".tbl")
+            .contains("many tombstones")
             .contains("estimated count is")
             .contains("write_tombstone_warn_threshold");
     }

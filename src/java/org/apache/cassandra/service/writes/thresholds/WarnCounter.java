@@ -18,29 +18,28 @@
 
 package org.apache.cassandra.service.writes.thresholds;
 
-import java.util.Collections;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.thresholds.ThresholdCounter;
+import org.apache.cassandra.schema.TableId;
 
 public class WarnCounter
 {
-    final Set<InetAddressAndPort> warnings = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    final AtomicLong maxWarningValue = new AtomicLong();
+    private final ConcurrentHashMap<TableId, AtomicLong> tableValues = new ConcurrentHashMap<>();
 
-    void addWarning(InetAddressAndPort from, long value)
+    void addWarning(Map<TableId, Long> incoming)
     {
-        // call add last so concurrent reads see empty even if values > 0; if done in different order then
-        // size=1 could have values == 0
-        maxWarningValue.accumulateAndGet(value, Math::max);
-        warnings.add(from);
+        for (Map.Entry<TableId, Long> entry : incoming.entrySet())
+            tableValues.computeIfAbsent(entry.getKey(), k -> new AtomicLong())
+                       .accumulateAndGet(entry.getValue(), Math::max);
     }
 
-    public ThresholdCounter snapshot()
+    public WriteThresholdCounter snapshot()
     {
-        return ThresholdCounter.create(warnings, maxWarningValue);
+        Map<TableId, Long> copy = new ConcurrentHashMap<>();
+        for (Map.Entry<TableId, AtomicLong> entry : tableValues.entrySet())
+            copy.put(entry.getKey(), entry.getValue().get());
+        return WriteThresholdCounter.create(copy);
     }
 }

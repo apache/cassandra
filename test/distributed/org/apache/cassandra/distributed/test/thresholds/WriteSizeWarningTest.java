@@ -109,7 +109,8 @@ public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
     {
         assertThat(warnings).hasSize(1);
         assertThat(warnings.get(0))
-            .contains("nodes detected write to large partition")
+            .contains(KEYSPACE + ".tbl")
+            .contains("large partition")
             .contains("estimated size is")
             .contains("bytes")
             .contains("write_size_warn_threshold");
