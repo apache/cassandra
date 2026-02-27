@@ -254,7 +254,9 @@ public final class CopyTableStatement extends AlterSchemaStatement
                                                  .sum();
             Guardrails.tables.guard(totalUserTables + 1, targetTableName, false, state);
         }
-        validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
+        TableParams paramsForValidation = attrs.asNewTableParams(keyspaceName);
+        validateDefaultTimeToLive(paramsForValidation);
+        validateMinimumTrainingFrequencyForDictionaryCompressor(paramsForValidation);
     }
 
     public final static class Raw extends CQLStatement.Raw

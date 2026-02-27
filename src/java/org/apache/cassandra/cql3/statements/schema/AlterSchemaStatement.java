@@ -51,6 +51,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
 import static org.apache.cassandra.schema.KeyspaceMetadata.validateKeyspaceName;
 
 abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
@@ -233,6 +235,18 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
             && !SchemaConstants.isSystemKeyspace(keyspaceName)
             && TimeWindowCompactionStrategy.class.isAssignableFrom(params.compaction.klass()))
             Guardrails.zeroTTLOnTWCSEnabled.ensureEnabled(state);
+    }
+
+    protected void validateMinimumTrainingFrequencyForDictionaryCompressor(TableParams params)
+    {
+        if (!SchemaConstants.isSystemKeyspace(keyspaceName) &&
+            params.compression.isDictionaryCompressionEnabled() &&
+            DEFAULT_TRAINING_MIN_FREQUENCY.equals(params.compression.getOtherOptions()
+                                                                    .getOrDefault(TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                                                                                  DEFAULT_TRAINING_MIN_FREQUENCY)))
+        {
+            Guardrails.unsetTrainingMinFrequency.ensureEnabled(state);
+        }
     }
 
     private void grantPermissionsOnResource(IResource resource, AuthenticatedUser user)

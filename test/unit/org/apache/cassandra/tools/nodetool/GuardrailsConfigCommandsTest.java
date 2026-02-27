@@ -213,6 +213,8 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "secondary_indexes_enabled                        true\n"  +
     "simplestrategy_enabled                           true\n"  +
     "uncompressed_tables_enabled                      true\n"  +
+    "unset_training_min_frequency_enabled             true\n"  +
+    "unset_training_min_frequency_warned              true\n"  +
     "user_timestamps_enabled                          true\n"  +
     "vector_type_enabled                              true\n"  +
     "zero_ttl_on_twcs_enabled                         true\n"  +
