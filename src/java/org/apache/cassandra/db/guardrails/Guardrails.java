@@ -38,7 +38,9 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
+import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.JsonUtils;
@@ -681,6 +683,20 @@ public final class Guardrails implements GuardrailsMBean
                    "Executing a query on secondary indexes without partition key restriction might degrade performance",
                    state -> CONFIG_PROVIDER.getOrCreate(state).getNonPartitionRestrictedQueryEnabled(),
                    "Non-partition key restricted query");
+
+    public static EnableFlag unsetTrainingMinFrequency =
+    new EnableFlag("unset_training_min_frequency_enabled",
+                   format("If there is not %s used in dictionary-based compressor options, then there " +
+                          "is no limit how frequently a user can train, which might inflate " +
+                          "the size of dictionary set in %s.%s unnecessarily, or might be detrimental " +
+                          "to the quality of compression. Consider to set minimum frequency training to a value not equal to %s.",
+                          IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                          SystemDistributedKeyspace.NAME,
+                          SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                          IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyWarned(),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
+                   "unset minimum frequency of training for dictionary compressor");
 
     private Guardrails()
     {
@@ -1812,6 +1828,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setIntersectFilteringQueryEnabled(boolean value)
     {
         DEFAULT_CONFIG.setIntersectFilteringQueryEnabled(value);
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyWarned(boolean value)
+    {
+        DEFAULT_CONFIG.setUnsetTrainingMinFrequencyWarned(value);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyWarned()
+    {
+        return DEFAULT_CONFIG.getUnsetTrainingMinFrequencyWarned();
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyEnabled(boolean value)
+    {
+        DEFAULT_CONFIG.setUnsetTrainingMinFrequencyEnabled(value);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyEnabled()
+    {
+        return DEFAULT_CONFIG.getUnsetTrainingMinFrequencyEnabled();
     }
 
     private static String toCSV(Set<String> values)

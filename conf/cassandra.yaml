@@ -2674,6 +2674,14 @@ max_security_label_length: 48
 # specify an index implementation via USING.
 #default_secondary_index_enabled: true
 
+# Whether a user will be warned when a table is compressed by dictionary compressor
+# and training_min_frequency is set to 0m (or unset).
+#unset_training_min_frequency_warned: true
+
+# Whether a query is allowed when a user wants to create or alter a table which is
+# compressed by dictionary compressor and training_min_frequency is set to 0m (or unset).
+#unset_training_min_frequency_enabled: true
+
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
 # Uncomment the startup checks and configure them appropriately to cover your needs.

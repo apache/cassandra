@@ -1338,6 +1338,36 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.vector_type_enabled = x);
     }
 
+    @Override
+    public void setUnsetTrainingMinFrequencyWarned(boolean enabled)
+    {
+        updatePropertyWithLogging("unset_training_min_frequency_warned",
+                                  enabled,
+                                  () -> config.unset_training_min_frequency_warned,
+                                  x -> config.unset_training_min_frequency_warned = x);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyWarned()
+    {
+        return config.unset_training_min_frequency_warned;
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("unset_training_min_frequency_enabled",
+                                  enabled,
+                                  () -> config.unset_training_min_frequency_enabled,
+                                  x -> config.unset_training_min_frequency_enabled = x);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyEnabled()
+    {
+        return config.unset_training_min_frequency_enabled;
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
