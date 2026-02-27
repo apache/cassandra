@@ -176,7 +176,7 @@ public class ClusterMetadataService
         // The node is a full member of the CMS if it has started participating in reads for distributed metadata table (which
         // implies it is a write replica as well). In other words, it's a fully joined member of the replica set responsible for
         // the distributed metadata table.
-        if (metadata.epoch.isEqualOrBefore(Epoch.FIRST) || ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+        if (metadata.epoch.isEqualOrBefore(Epoch.FIRST) || metadata.isCMSMember())
             return LOCAL;
 
         return REMOTE;
@@ -1103,6 +1103,6 @@ public class ClusterMetadataService
 
     public enum State
     {
-        LOCAL, REMOTE, GOSSIP, RESET
+        LOCAL, REMOTE, GOSSIP, RESET, OFFLINE_TOOL
     }
 }

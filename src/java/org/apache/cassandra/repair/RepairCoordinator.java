@@ -81,7 +81,6 @@ import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
@@ -402,7 +401,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         //calculation multiple times
         Iterable<Range<Token>> keyspaceLocalRanges = getLocalReplicas.apply(state.keyspace).ranges();
         boolean isMeta = Keyspace.open(state.keyspace).getMetadata().params.replication.isMeta();
-        boolean isCMS = ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort());
+        boolean isCMS = ClusterMetadata.current().isCMSMember();
         for (Range<Token> range : state.options.getRanges())
         {
             EndpointsForRange allForRange = ctx.repair().getNeighbors(state.keyspace, keyspaceLocalRanges, range);

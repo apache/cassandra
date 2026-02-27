@@ -670,7 +670,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         "Cluster Metadata Service:\n" +
         "Members: /127.0.0.1:" + storagePort + ",/127.0.0.2:" + storagePort + ",/127.0.0.3:" + storagePort + '\n' +
         "Needs reconfiguration: false\n" +
-        "Service State: LOCAL\n" +
+        "Service State: " + ClusterMetadataService.State.OFFLINE_TOOL + '\n' +
         "Epoch: 2\n" +
         "Replication factor: ReplicationParams{class=org.apache.cassandra.locator.MetaStrategy, datacenter1=3}\n";
         assertThat(result.getStdout()).isEqualTo(expectedOutput);

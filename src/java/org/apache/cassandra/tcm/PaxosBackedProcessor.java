@@ -66,7 +66,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     @Override
     protected boolean acceptCommit(ClusterMetadata metadata)
     {
-        return metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort());
+        return metadata.isCMSMember();
     }
 
     @Override

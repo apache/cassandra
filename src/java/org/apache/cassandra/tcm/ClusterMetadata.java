@@ -237,13 +237,20 @@ public class ClusterMetadata
         return cmsMembership.fullMembers();
     }
 
+    public boolean isCMSMember()
+    {
+        if (epoch.isEqualOrBefore(Epoch.FIRST))
+            return isCMSMember(FBUtilities.getBroadcastAddressAndPort());
+
+        return fullCMSMemberIds().contains(localNodeId);
+    }
+
     public boolean isCMSMember(InetAddressAndPort endpoint)
     {
-        if (epoch.isAfter(Epoch.FIRST))
-            return fullCMSMembers().contains(endpoint);
+        if (epoch.isEqualOrBefore(Epoch.FIRST))
+            return cmsDataPlacement.reads.byEndpoint().keySet().contains(endpoint);
 
-        // special case to handle initialization of the CMS for the first time
-        return cmsDataPlacement.reads.byEndpoint().keySet().contains(endpoint);
+        return fullCMSMembers().contains(endpoint);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()

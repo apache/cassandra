@@ -402,7 +402,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                           DatabaseDescriptor.getPartitioner().getClass().getCanonicalName(),
                                                           metadata.partitioner.getClass().getCanonicalName()));
 
-        if (!metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+        if (!metadata.isCMSMember())
             throw new IllegalStateException("When reinitializing with cluster metadata, we must be in the CMS");
 
         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());

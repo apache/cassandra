@@ -609,7 +609,7 @@ public class CMSOfflineTool implements Runnable
             output.out.printf("Cluster Metadata Service:%n");
             output.out.printf("Members: %s%n", members);
             output.out.printf("Needs reconfiguration: %s%n", needsReconfiguration(metadata));
-            output.out.printf("Service State: %s%n", ClusterMetadataService.state(metadata));
+            output.out.printf("Service State: %s%n", ClusterMetadataService.State.OFFLINE_TOOL);
             output.out.printf("Epoch: %s%n", metadata.epoch.getEpoch());
             output.out.printf("Replication factor: %s%n", ReplicationParams.meta(metadata).toString());
         }

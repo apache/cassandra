@@ -34,7 +34,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
@@ -80,7 +79,7 @@ public class CMSPlacementAfterReplacementTest extends TestBaseImpl
         IInvokableInstance nodeToRemove = cluster.get(2);
         cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
         cluster.get(2).runOnInstance(() -> {
-            assertTrue(ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort()));
+            assertTrue(ClusterMetadata.current().isCMSMember());
         });
         nodeToRemove.shutdown().get();
         IInvokableInstance replacingNode = addInstance(cluster, nodeToRemove.config(),
