@@ -33,6 +33,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -55,6 +56,7 @@ import static org.apache.cassandra.tcm.CMSOperations.SERVICE_STATE;
                          CMSAdmin.Snapshot.class,
                          CMSAdmin.Unregister.class,
                          CMSAdmin.AbortInitialization.class,
+                         CMSAdmin.DumpClusterMetadata.class,
                          CMSAdmin.DumpDirectory.class,
                          CMSAdmin.DumpLog.class,
                          CMSAdmin.ResumeDropAccordTable.class })
@@ -166,7 +168,7 @@ public class CMSAdmin extends AbstractCommand
                 if (!rf.contains(":"))
                 {
                     if (args.size() > 1)
-                        throw new IllegalArgumentException("Simple placement can only specify a single replication factor accross all data centers");
+                        throw new IllegalArgumentException("Simple placement can only specify a single replication factor across all data centers");
                     int parsedRf;
                     try
                     {
@@ -301,62 +303,45 @@ public class CMSAdmin extends AbstractCommand
     @Command(name = "dump", description = "Dumps cluster metadata into a file")
     public static class DumpClusterMetadata extends AbstractCommand
     {
+        @ArgGroup(exclusive = false, multiplicity = "0..1")
+        DumpOptions dumpOptions;
 
-        @Option(names = { "-e", "--epoch" }, paramLabel = "Epoch",
-        description = "Epoch at which cluster metadata should be dumped")
-        private Long epoch;
+        static class DumpOptions
+        {
+            @Option(names = { "-e", "--epoch" }, paramLabel = "Epoch",
+            description = "Epoch at which cluster metadata should be dumped", required = true)
+            Long epoch;
 
-        @Option(names = { "-te", "--transform-epoch" }, paramLabel = "Transform Epoch",
-        description = "Force metadata to given X epoch while dumping")
-        private Long transformEpoch;
+            @Option(names = { "-te", "--transform-epoch" }, paramLabel = "Transform Epoch",
+            description = "Force metadata to given X epoch while dumping", required = true)
+            Long transformEpoch;
 
-        @Option(names = { "-sv", "--serialization-version" }, paramLabel = "Serialization Version",
-        description = "Serialization Version")
-        private Version version;
+            @Option(names = { "-sv", "--serialization-version" }, paramLabel = "Serialization Version",
+            description = "Serialization Version", required = true)
+            Version version;
+        }
 
+        @Override
         protected void execute(NodeProbe probe)
         {
-            if (epoch == null && transformEpoch == null && version == null)
+            try
             {
-                try
+                if (dumpOptions == null)
                 {
                     String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata();
                     printCMSDumpLocation(probe, fileLocation);
                 }
-                catch (IOException e)
+                else
                 {
-                    throw new RuntimeException(e);
-                }
-            }
-            else if (epoch != null && transformEpoch != null && version != null)
-            {
-                try
-                {
-                    String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata(epoch,
-                                                                                            transformEpoch,
-                                                                                            version.name());
+                    String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata(dumpOptions.epoch,
+                                                                                            dumpOptions.transformEpoch,
+                                                                                            dumpOptions.version.name());
                     printCMSDumpLocation(probe, fileLocation);
                 }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
             }
-            else
+            catch (IOException e)
             {
-                List<String> invalidArgs = new ArrayList<>(2);
-                if (null == epoch)
-                    invalidArgs.add("epoch");
-
-                if (null == transformEpoch)
-                    invalidArgs.add("transform-epoch");
-
-                if (null == version)
-                    invalidArgs.add("version");
-
-                throw  new IllegalArgumentException("The three aguments epoch, transform-epoch and version " +
-                                                    "should be specified together. Arguments " +
-                                                    String.join(",", invalidArgs) + " must be passed.");
+                throw new RuntimeException(e);
             }
         }
 
