@@ -23,6 +23,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2014,6 +2015,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (rateLimiter == null)
             rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
+        boolean useSeparateSnapshotDir = DatabaseDescriptor.hasSnapshotDirectory();
+
         Set<SSTableReader> snapshottedSSTables = new LinkedHashSet<>();
         for (ColumnFamilyStore cfs : concatWithIndexes())
         {
@@ -2022,10 +2025,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    ssTable.createLinks(snapshotDirectory.path(), rateLimiter); // hard links
+
+                    if (useSeparateSnapshotDir)
+                    {
+                        // Copy files to separate snapshot directory instead of hardlinking
+                        copySSTableToDirectory(ssTable, snapshotDirectory, rateLimiter);
+                    }
+                    else
+                    {
+                        ssTable.createLinks(snapshotDirectory.path(), rateLimiter); // hard links
+                    }
 
                     if (logger.isTraceEnabled())
-                        logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
+                        logger.trace("Snapshot for {} keyspace data file {} created in {} (mode={})",
+                                     keyspace, ssTable.getFilename(), snapshotDirectory,
+                                     useSeparateSnapshotDir ? "copy" : "hardlink");
                     snapshottedSSTables.add(ssTable);
                 }
             }
@@ -2258,7 +2272,50 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
         List<File> snapshotDirs = getDirectories().getCFDirectories();
-        Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter);
+        Directories.clearSnapshot(snapshotName, snapshotDirs, clearSnapshotRateLimiter, true);
+    }
+
+    /**
+     * Copies all components of an SSTable to the given directory.
+     * Used instead of hardlinks when snapshot_directory is configured,
+     * since hardlinks cannot cross filesystem boundaries.
+     */
+    private static void copySSTableToDirectory(SSTableReader ssTable, File targetDirectory,
+                                               RateLimiter rateLimiter)
+    {
+        if (!targetDirectory.exists())
+            targetDirectory.tryCreateDirectories();
+
+        try
+        {
+            Descriptor descriptor = ssTable.descriptor;
+            for (Component component : ssTable.getComponents())
+            {
+                File sourceFile = new File(descriptor.filenameFor(component));
+                File targetFile = new File(targetDirectory, sourceFile.name());
+
+                if (!sourceFile.exists())
+                    continue;
+
+                if (targetFile.exists())
+                {
+                    logger.trace("Snapshot file already exists, skipping: {}", targetFile);
+                    continue;
+                }
+
+                if (rateLimiter != null)
+                    rateLimiter.acquire();
+
+                Files.copy(sourceFile.toPath(), targetFile.toPath(), StandardCopyOption.COPY_ATTRIBUTES);
+
+                if (logger.isTraceEnabled())
+                    logger.trace("Copied SSTable component {} to {}", sourceFile, targetFile);
+            }
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, targetDirectory);
+        }
     }
     /**
      *
