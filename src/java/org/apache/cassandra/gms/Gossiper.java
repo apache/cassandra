@@ -1409,6 +1409,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public void realMarkAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
         checkProperThreadForStateMutation();
+        if (!Gossiper.maybeBelongsInCluster(addr, localState))
+        {
+            logger.error("Not marking {} alive because it doesn't belong in this cluster", addr);
+            return;
+        }
         if (logger.isTraceEnabled())
             logger.trace("marking as alive {}", addr);
         localState.markAlive();
