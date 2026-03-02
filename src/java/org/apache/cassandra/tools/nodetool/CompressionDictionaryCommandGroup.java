@@ -182,13 +182,7 @@ public class CompressionDictionaryCommandGroup
             {
                 try
                 {
-                    DataStorageSpec.IntKibibytesBound maxDictSizeBound = new DataStorageSpec.IntKibibytesBound(trainingMaxDictionarySize);
-
-                    if (maxDictSizeBound.toBytesInLong() == 0)
-                        throw new IllegalArgumentException("can not be equal to 0 bytes.");
-
-                    if (maxDictSizeBound.toBytesInLong() > Integer.MAX_VALUE)
-                        throw new IllegalArgumentException("can not be bigger than " + Integer.MAX_VALUE + " bytes.");
+                    new DataStorageSpec.IntBytesBound(trainingMaxDictionarySize).toBytes();
                 }
                 catch (Throwable t)
                 {
@@ -201,13 +195,7 @@ public class CompressionDictionaryCommandGroup
             {
                 try
                 {
-                    DataStorageSpec.IntKibibytesBound maxTotalSampleSizeBound = new DataStorageSpec.IntKibibytesBound(trainingMaxTotalSampleSize);
-
-                    if (maxTotalSampleSizeBound.toBytesInLong() == 0)
-                        throw new IllegalArgumentException("can not be equal to 0 bytes.");
-
-                    if (maxTotalSampleSizeBound.toBytesInLong() > Integer.MAX_VALUE)
-                        throw new IllegalArgumentException("can not be bigger than " + Integer.MAX_VALUE + " bytes.");
+                    new DataStorageSpec.IntBytesBound(trainingMaxTotalSampleSize).toBytes();
                 }
                 catch (Throwable t)
                 {

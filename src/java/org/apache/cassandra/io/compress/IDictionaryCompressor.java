@@ -59,14 +59,7 @@ public interface IDictionaryCompressor<T extends CompressionDictionary>
     {
         try
         {
-            DataStorageSpec.IntKibibytesBound bound = new DataStorageSpec.IntKibibytesBound(resolvedValue);
-            bound.toBytes();
-
-            if (bound.toBytesInLong() == 0)
-                throw new IllegalArgumentException("can not be equal to 0 bytes.");
-
-            if (bound.toBytesInLong() > Integer.MAX_VALUE)
-                throw new IllegalArgumentException("can not be bigger than " + Integer.MAX_VALUE + " bytes.");
+            new DataStorageSpec.IntBytesBound(resolvedValue).toBytes();
         }
         catch (Throwable t)
         {

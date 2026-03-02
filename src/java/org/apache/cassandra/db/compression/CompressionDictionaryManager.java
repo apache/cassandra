@@ -464,15 +464,7 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             else
                 resolvedValue = userSuppliedValue;
 
-            DataStorageSpec.IntKibibytesBound bound = new DataStorageSpec.IntKibibytesBound(resolvedValue);
-
-            if (bound.toBytesInLong() == 0)
-                throw new IllegalArgumentException("can not be equal to 0 bytes.");
-
-            if (bound.toBytesInLong() > Integer.MAX_VALUE)
-                throw new IllegalArgumentException("can not be bigger than " + Integer.MAX_VALUE + " bytes.");
-
-            return bound.toBytes();
+            return new DataStorageSpec.IntBytesBound(resolvedValue).toBytes();
         }
         catch (Throwable t)
         {
