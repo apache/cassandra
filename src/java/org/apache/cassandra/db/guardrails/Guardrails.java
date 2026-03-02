@@ -686,14 +686,13 @@ public final class Guardrails implements GuardrailsMBean
 
     public static EnableFlag unsetTrainingMinFrequency =
     new EnableFlag("unset_training_min_frequency_enabled",
-                   format("If there is not %s used in dictionary-based compressor options, then there " +
-                          "is no limit how frequently a user can train, which might inflate " +
-                          "the size of dictionary set in %s.%s unnecessarily, or might be detrimental " +
-                          "to the quality of compression. Consider to set minimum frequency training to a value not equal to %s.",
+                   format("Table uses ZstdDictionaryCompressor without %s set. Unlimited training frequency may degrade " +
+                          "compression quality and accumulate dictionaries in %s.%s. " +
+                          "Consider to set %s to a non-zero value.",
                           IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
                           SystemDistributedKeyspace.NAME,
                           SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
-                          IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY),
+                          IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME),
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyWarned(),
                    state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
                    "unset minimum frequency of training for dictionary compressor");

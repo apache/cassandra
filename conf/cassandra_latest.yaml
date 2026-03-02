@@ -2439,11 +2439,11 @@ default_secondary_index: sai
 default_secondary_index_enabled: true
 
 # Whether a user will be warned when a table is compressed by dictionary compressor
-# and training_min_frequency is set to 0m (or unset).
+# and training_min_frequency is set to 0m (the default when unset).
 #unset_training_min_frequency_warned: true
 
 # Whether a query is allowed when a user wants to create or alter a table which is
-# compressed by dictionary compressor and training_min_frequency is set to 0m (or unset).
+# compressed by dictionary compressor and training_min_frequency is set to 0m (the default when unset).
 #unset_training_min_frequency_enabled: true
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them

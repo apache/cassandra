@@ -1172,7 +1172,7 @@ public interface GuardrailsMBean
     /**
      *
      * @return true if a user will be warned when training compression dictionaries for tables backed by
-     * dictionary compressor as frequently as needed, without any limits, false otherse.
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
      */
     boolean getUnsetTrainingMinFrequencyWarned();
 
@@ -1187,7 +1187,7 @@ public interface GuardrailsMBean
     /**
      *
      * @return true if it is possible to train compression dictionaries for tables backed by
-     * dictionary compressor as frequently as needed, without any limits, false otherse.
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
      */
     boolean getUnsetTrainingMinFrequencyEnabled();
 }
