@@ -182,6 +182,12 @@ public class CompactionTask extends AbstractCompactionTask
 
             maybeNotifyIndexersAboutRowsInFullyExpiredSSTables(fullyExpiredSSTables);
 
+            if (!fullyExpiredSSTables.isEmpty())
+            {
+                logger.debug("Compaction {} dropping expired sstables: {}", transaction.opId().toString(), fullyExpiredSSTables);
+                fullyExpiredSSTables.forEach(transaction::obsolete);
+            }
+
             Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
             Collection<SSTableReader> newSStables;
 

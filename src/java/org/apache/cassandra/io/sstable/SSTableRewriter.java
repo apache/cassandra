@@ -255,10 +255,13 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 continue;
             }
 
-            DecoratedKey newStart = latest.firstKeyBeyond(lowerbound);
-            assert newStart != null;
-            SSTableReader replacement = latest.cloneWithNewStart(newStart, runOnClose);
-            transaction.update(replacement, true);
+            if (!transaction.isObsolete(latest))
+            {
+                DecoratedKey newStart = latest.firstKeyBeyond(lowerbound);
+                assert newStart != null;
+                SSTableReader replacement = latest.cloneWithNewStart(newStart, runOnClose);
+                transaction.update(replacement, true);
+            }
         }
     }
 
