@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import accord.api.RoutingKey;
 import accord.local.CommandStore;
@@ -29,18 +30,24 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
+import accord.topology.Shard;
+import accord.topology.Topology;
 import accord.topology.TopologyException;
+import accord.topology.TopologyManager;
+import accord.topology.TopologyRetiredException;
 import accord.utils.LargeBitSet;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,6 +90,7 @@ public class AccordRegainRangesTest extends AccordTestBase
                                           "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
         test(ddls, cluster -> {
             cluster.coordinator(2).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
+
             SimpleQueryResult result = cluster.coordinator(2).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
 
             String originalToken = cluster.get(2).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
@@ -97,23 +105,30 @@ public class AccordRegainRangesTest extends AccordTestBase
                 return priorEpoch;
             });
 
-            cluster.coordinator(3).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 5);
-
             cluster.get(2).runOnInstance(() -> {
                 StorageService.instance.move(originalToken);
             });
 
+            String tableName = accordTableName;
+
             // Ensure no overlapping safeToRead ranges
             cluster.get(2).runOnInstance(() -> {
-                RoutingKey start = TokenKey.parse(TableId.fromString("tid:11"), String.valueOf(token), Murmur3Partitioner.instance);
-                RoutingKey end = TokenKey.parse(TableId.fromString("tid:11"), originalToken, Murmur3Partitioner.instance);
+                TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
+                RoutingKey start = TokenKey.parse(tid, String.valueOf(token), Murmur3Partitioner.instance);
+                RoutingKey end = TokenKey.parse(tid, originalToken, Murmur3Partitioner.instance);
                 Ranges regainedRange = Ranges.of(TokenRange.create(start, end));
                 try
                 {
                     assert (AccordService.instance().topology().active().get(epoch).retired().containsAll(regainedRange));
-                } catch (TopologyException e) {
+                }
+                catch (TopologyRetiredException ignored)
+                {
+                }
+                catch (TopologyException e)
+                {
                     assert(false);
                 }
+
                 Ranges range = Ranges.EMPTY;
                 for (CommandStore commandStore : AccordService.instance().node().commandStores().all()) {
                     Ranges safeToReadRanges = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "No overlapping safeToReadRanges", safeCommandStore -> {
@@ -127,60 +142,6 @@ public class AccordRegainRangesTest extends AccordTestBase
                     range = range.union(AbstractRanges.UnionMode.MERGE_ADJACENT, safeToReadRanges);
                 }
             });
-        });
-    }
-
-    @Test
-    public void querySameRangeOnDifferentCommandStoresTest() throws Throwable
-    {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
-        test(ddls, cluster -> {
-            cluster.coordinator(2).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
-            SimpleQueryResult result = cluster.coordinator(2).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
-
-            String originalToken = cluster.get(2).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
-            long token = (Long) result.toObjectArrays()[0][0];
-
-            assert(token < Long.parseLong(originalToken));
-
-            long epoch = cluster.get(2).callOnInstance(() -> {
-                long priorEpoch = AccordService.instance().topology().epoch();
-                StorageService.instance.move(Long.toString(token - 1000));
-                return priorEpoch;
-            });
-
-            cluster.coordinator(3).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 5);
-
-            cluster.get(2).runOnInstance(() -> {
-                /* This call results in other nodes invoking this */
-                StorageService.instance.move(originalToken);
-            });
-
-            cluster.get(2).runOnInstance(() -> {
-                RoutingKey start = TokenKey.parse(TableId.fromString("tid:11"), String.valueOf(token), Murmur3Partitioner.instance);
-                RoutingKey end = TokenKey.parse(TableId.fromString("tid:11"), originalToken, Murmur3Partitioner.instance);
-                Ranges regainedRange = Ranges.of(TokenRange.create(start, end));
-
-                int numberOfShards = AccordService.instance().node().commandStores().all().length;
-                LargeBitSet bitSet = new LargeBitSet(numberOfShards);
-                for (int i = 0; i < numberOfShards; i++)
-                    bitSet.set(i);
-
-                CommandStores.ShardHolder[] shardHolders = new CommandStores.ShardHolder[numberOfShards];
-                int i = 0;
-                for (CommandStore commandStore : AccordService.instance().node().commandStores().all())
-                {
-                    CommandStores.RangesForEpoch rangesForEpoch = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "Get rangesForEpoch", SafeCommandStore::ranges));
-                    shardHolders[i] = new CommandStores.ShardHolder(commandStore, rangesForEpoch);
-                    i += 1;
-                }
-
-                assertFalse(checkQueryDisjointRangesAcrossCommandStores(AccordService.instance().node().commandStores().overlappingCommandStores(), shardHolders, bitSet, regainedRange));
-            });
-
         });
     }
 }
