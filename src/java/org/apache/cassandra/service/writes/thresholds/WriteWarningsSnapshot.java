@@ -36,11 +36,6 @@ public class WriteWarningsSnapshot
         this.writeTombstone = writeTombstone;
     }
 
-    public static WriteWarningsSnapshot empty()
-    {
-        return EMPTY;
-    }
-
     public static WriteWarningsSnapshot create(WriteThresholdCounter writeSize, WriteThresholdCounter writeTombstone)
     {
         if (writeSize.isEmpty() && writeTombstone.isEmpty())

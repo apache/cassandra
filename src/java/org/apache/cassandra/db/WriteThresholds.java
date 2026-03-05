@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -43,8 +44,10 @@ public class WriteThresholds
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     /**
-     * Check write thresholds for all partition updates in a mutation.
-     * This method iterates through all partition updates in the mutation.
+     * Check write thresholds for a mutation by comparing the estimated partition size and tombstone count
+     * from {@link TopPartitionTracker} against configured warn thresholds. If a threshold is breached,
+     * a warning is logged and the corresponding {@link ParamType} is added to {@link MessageParams}
+     * for propagation back to the coordinator.
      *
      * @param mutation the mutation containing one or more partition updates
      */

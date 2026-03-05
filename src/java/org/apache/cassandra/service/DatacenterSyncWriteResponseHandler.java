@@ -27,7 +27,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
@@ -36,7 +35,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
@@ -84,15 +82,22 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     {
         try
         {
-            InetAddressAndPort from = message == null ? FBUtilities.getBroadcastAddressAndPort() : message.from();
-            Map<ParamType, Object> params = message != null ? message.header.params() : MessageParams.capture();
+            Map<ParamType, Object> params;
+            String dataCenter;
+
+            if (message != null)
+            {
+                params = message.header.params();
+                dataCenter = locator.location(message.from()).datacenter;
+            }
+            else
+            {
+                params = MessageParams.capture();
+                dataCenter = locator.local().datacenter;
+            }
 
             if (WriteWarningContext.isSupported(params.keySet()))
                 getWarningContext().updateCounters(params);
-
-            String dataCenter = message == null
-                                ? locator.local().datacenter
-                                : locator.location(from).datacenter;
 
             responses.get(dataCenter).getAndDecrement();
             acks.incrementAndGet();

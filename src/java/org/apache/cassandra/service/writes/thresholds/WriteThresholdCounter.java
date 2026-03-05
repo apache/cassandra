@@ -18,19 +18,20 @@
 
 package org.apache.cassandra.service.writes.thresholds;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.schema.TableId;
 
 public class WriteThresholdCounter
 {
-    private static final WriteThresholdCounter EMPTY = new WriteThresholdCounter(Collections.emptyMap());
-    public final Map<TableId, Long> tableValues;
+    private static final WriteThresholdCounter EMPTY = new WriteThresholdCounter(ImmutableMap.of());
+    public final ImmutableMap<TableId, Long> tableValues;
 
-    private WriteThresholdCounter(Map<TableId, Long> tableValues)
+    private WriteThresholdCounter(ImmutableMap<TableId, Long> tableValues)
     {
         this.tableValues = tableValues;
     }
@@ -49,19 +50,19 @@ public class WriteThresholdCounter
     {
         if (snapshot.isEmpty())
             return EMPTY;
-        return new WriteThresholdCounter(new HashMap<>(snapshot));
+        return new WriteThresholdCounter(ImmutableMap.copyOf(snapshot));
     }
 
     public WriteThresholdCounter merge(WriteThresholdCounter other)
     {
         if (other == EMPTY)
             return this;
-        if(this == EMPTY)
+        if (this == EMPTY)
             return other;
         Map<TableId, Long> merged = new HashMap<>(tableValues);
         for (Map.Entry<TableId, Long> entry : other.tableValues.entrySet())
             merged.merge(entry.getKey(), entry.getValue(), Math::max);
-        return new WriteThresholdCounter(merged);
+        return new WriteThresholdCounter(ImmutableMap.copyOf(merged));
     }
 
     @Override

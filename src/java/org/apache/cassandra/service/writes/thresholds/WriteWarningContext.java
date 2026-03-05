@@ -51,22 +51,13 @@ public class WriteWarningContext
      */
     public void updateCounters(Map<ParamType, Object> params)
     {
-        for (Map.Entry<ParamType, Object> entry : params.entrySet())
-        {
-            WarnCounter counter = null;
-            switch (entry.getKey())
-            {
-                case WRITE_SIZE_WARN:
-                    counter = writeSize;
-                    break;
-                case WRITE_TOMBSTONE_WARN:
-                    counter = writeTombstone;
-                    break;
-            }
+        Object value = params.get(ParamType.WRITE_SIZE_WARN);
+        if (value != null)
+            writeSize.addWarning((Map<TableId, Long>) value);
 
-            if (counter != null)
-                counter.addWarning(((Map<TableId, Long>) entry.getValue()));
-        }
+        value = params.get(ParamType.WRITE_TOMBSTONE_WARN);
+        if (value != null)
+            writeTombstone.addWarning((Map<TableId, Long>) value);
     }
 
     public WriteWarningsSnapshot snapshot()

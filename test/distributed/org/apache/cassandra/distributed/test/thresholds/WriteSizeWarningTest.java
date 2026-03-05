@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.test.thresholds;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.List;
 
 import org.junit.BeforeClass;
@@ -70,28 +69,8 @@ public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
     protected void populateTopPartitions(int pk, long sizeBytes)
     {
         CLUSTER.stream().forEach(node -> node.runOnInstance(() -> {
-            // Get the DecoratedKey for the partition
             var key = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(pk));
-
-            // Get the ColumnFamilyStore
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
-
-            // If topPartitions is null, create it using reflection
-            if (cfs.topPartitions == null)
-            {
-                try
-                {
-                    Field field = ColumnFamilyStore.class.getDeclaredField("topPartitions");
-                    field.setAccessible(true);
-                    field.set(cfs, new org.apache.cassandra.metrics.TopPartitionTracker(cfs.metadata()));
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException("Failed to initialize topPartitions for testing", e);
-                }
-            }
-
-            // Populate TopPartitionTracker with the partition size
             cfs.topPartitions.topSizes().track(key, sizeBytes);
         }));
     }

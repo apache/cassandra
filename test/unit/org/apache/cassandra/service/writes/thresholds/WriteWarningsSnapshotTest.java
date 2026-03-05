@@ -28,7 +28,6 @@ import org.quicktheories.impl.Constraint;
 import org.apache.cassandra.schema.TableId;
 
 import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.create;
-import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.empty;
 import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.writeSizeWarnMessage;
 import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.writeTombstoneWarnMessage;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,24 +37,7 @@ public class WriteWarningsSnapshotTest
 {
     private static final TableId TABLE1 = TableId.fromUUID(new UUID(0, 1));
     private static final TableId TABLE2 = TableId.fromUUID(new UUID(0, 2));
-    private static final TableId TABLE3 = TableId.fromUUID(new UUID(0, 3));
-
-    @Test
-    public void testEmptySnapshot()
-    {
-        WriteWarningsSnapshot snapshot = empty();
-        assertThat(snapshot.isEmpty()).isTrue();
-        assertThat(snapshot.writeSize).isEqualTo(WriteThresholdCounter.empty());
-        assertThat(snapshot.writeTombstone).isEqualTo(WriteThresholdCounter.empty());
-    }
-
-    @Test
-    public void testCreateWithEmptyCounters()
-    {
-        WriteWarningsSnapshot snapshot = create(WriteThresholdCounter.empty(), WriteThresholdCounter.empty());
-        assertThat(snapshot).isEqualTo(empty());
-        assertThat(snapshot.isEmpty()).isTrue();
-    }
+    private static final WriteWarningsSnapshot EMPTY_SNAPSHOT = create(WriteThresholdCounter.empty(), WriteThresholdCounter.empty());
 
     @Test
     public void testCreateWithNonEmptyCounters()
@@ -67,27 +49,6 @@ public class WriteWarningsSnapshotTest
         assertThat(snapshot.isEmpty()).isFalse();
         assertThat(snapshot.writeSize).isEqualTo(sizeCounter);
         assertThat(snapshot.writeTombstone).isEqualTo(tombstoneCounter);
-    }
-
-    @Test
-    public void testMergeEmptyWithEmpty()
-    {
-        WriteWarningsSnapshot result = empty().merge(empty());
-        assertThat(result).isEqualTo(empty());
-        assertThat(result.isEmpty()).isTrue();
-    }
-
-    @Test
-    public void testMergeEmptyWithNonEmpty()
-    {
-        WriteThresholdCounter sizeCounter = WriteThresholdCounter.create(map(TABLE1, 2048L));
-        WriteWarningsSnapshot nonEmpty = create(sizeCounter, WriteThresholdCounter.empty());
-
-        WriteWarningsSnapshot result1 = empty().merge(nonEmpty);
-        WriteWarningsSnapshot result2 = nonEmpty.merge(empty());
-
-        assertThat(result1).isEqualTo(nonEmpty);
-        assertThat(result2).isEqualTo(nonEmpty);
     }
 
     @Test
@@ -195,7 +156,7 @@ public class WriteWarningsSnapshotTest
     {
         Gen<Boolean> isEmpty = SourceDSL.booleans().all();
         Gen<WriteWarningsSnapshot> nonEmpty = nonEmpty();
-        Gen<WriteWarningsSnapshot> gen = rs -> isEmpty.generate(rs) ? empty() : nonEmpty.generate(rs);
+        Gen<WriteWarningsSnapshot> gen = rs -> isEmpty.generate(rs) ? EMPTY_SNAPSHOT : nonEmpty.generate(rs);
         return gen.describedAs(WriteWarningsSnapshot::toString);
     }
 

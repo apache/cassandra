@@ -5516,6 +5516,8 @@ public class DatabaseDescriptor
 
     public static void setWriteThresholdsEnabled(boolean enabled)
     {
+        if (enabled && !conf.top_partitions_enabled)
+            logger.warn("Write thresholds require top partitions tracking to be enabled");
         logger.info("updating write_thresholds_enabled to {}", enabled);
         conf.write_thresholds_enabled = enabled;
     }
@@ -5528,6 +5530,7 @@ public class DatabaseDescriptor
 
     public static void setWriteSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
+        validateWriteSizeThreshold(value, conf.min_tracked_partition_size);
         logger.info("updating write_size_warn_threshold to {}", value);
         conf.write_size_warn_threshold = value;
     }
@@ -5539,6 +5542,7 @@ public class DatabaseDescriptor
 
     public static void setWriteTombstoneWarnThreshold(int threshold)
     {
+        validateWriteTombstoneThresholdRange(threshold, conf.min_tracked_partition_tombstone_count);
         logger.info("updating write_tombstone_warn_threshold to {}", threshold);
         conf.write_tombstone_warn_threshold = threshold;
     }

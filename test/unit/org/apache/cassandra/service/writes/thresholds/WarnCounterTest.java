@@ -31,7 +31,6 @@ public class WarnCounterTest
 {
     private static final TableId TABLE1 = TableId.fromUUID(new UUID(0, 1));
     private static final TableId TABLE2 = TableId.fromUUID(new UUID(0, 2));
-    private static final TableId TABLE3 = TableId.fromUUID(new UUID(0, 3));
 
     @Test
     public void testAddWarningSingleTable()

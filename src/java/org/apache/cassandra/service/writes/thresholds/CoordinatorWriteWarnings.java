@@ -118,7 +118,6 @@ public class CoordinatorWriteWarnings
             ClientWarn.instance.warn(msg);
             logger.warn(msg);
             cfs.metric.writeSizeWarnings.mark();
-            cfs.metric.writeSize.update(entry.getValue());
         }
 
         for (Map.Entry<TableId, Long> entry : snapshot.writeTombstone.tableValues.entrySet())

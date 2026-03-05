@@ -19,8 +19,9 @@
 package org.apache.cassandra.service.writes.thresholds;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -39,7 +40,7 @@ public class WriteThresholdMapSerializer implements IVersionedSerializer<Map<Tab
         for (Map.Entry<TableId, Long> entry : t.entrySet())
         {
             entry.getKey().serialize(out);
-            out.writeLong(entry.getValue());
+            out.writeUnsignedVInt(entry.getValue());
         }
     }
 
@@ -47,15 +48,21 @@ public class WriteThresholdMapSerializer implements IVersionedSerializer<Map<Tab
     public Map<TableId, Long> deserialize(DataInputPlus in, int version) throws IOException
     {
         int size = in.readUnsignedVInt32();
-        Map<TableId, Long> result = new HashMap<>(size);
+        Map<TableId, Long> result = Maps.newHashMapWithExpectedSize(size);
         for (int i = 0; i < size; i++)
-            result.put(TableId.deserialize(in), in.readLong());
+            result.put(TableId.deserialize(in), in.readUnsignedVInt());
         return result;
     }
 
     @Override
     public long serializedSize(Map<TableId, Long> t, int version)
     {
-        return TypeSizes.sizeofUnsignedVInt(t.size()) + (long) t.size() * 24;
+        long size = TypeSizes.sizeofUnsignedVInt(t.size());
+        for(Map.Entry<TableId, Long> entry : t.entrySet())
+        {
+            size += entry.getKey().serializedSize();
+            size += TypeSizes.sizeofUnsignedVInt(entry.getValue());
+        }
+        return size;
     }
 }

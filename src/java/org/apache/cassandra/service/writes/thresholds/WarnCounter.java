@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.schema.TableId;
 
 public class WarnCounter
@@ -37,9 +39,10 @@ public class WarnCounter
 
     public WriteThresholdCounter snapshot()
     {
-        Map<TableId, Long> copy = new ConcurrentHashMap<>();
+        ImmutableMap.Builder<TableId, Long> builder = ImmutableMap.builder();
         for (Map.Entry<TableId, AtomicLong> entry : tableValues.entrySet())
-            copy.put(entry.getKey(), entry.getValue().get());
-        return WriteThresholdCounter.create(copy);
+            builder.put(entry.getKey(), entry.getValue().get());
+
+        return WriteThresholdCounter.create(builder.build());
     }
 }
