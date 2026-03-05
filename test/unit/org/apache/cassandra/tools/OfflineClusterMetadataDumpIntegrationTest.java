@@ -52,7 +52,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
 {
     private SystemKeyspaceStorage storage;
-    private MetadataSnapshots snapshotManager;
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -70,8 +69,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
         if (cfs != null)
             cfs.truncateBlockingWithoutSnapshot();
 
-        snapshotManager = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
-        storage = new SystemKeyspaceStorage(() -> snapshotManager);
+        storage = new SystemKeyspaceStorage(() -> MetadataSnapshots.NO_OP);
     }
 
     private Entry entry(long epoch)
@@ -91,7 +89,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(5));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Verify gap is detected and reported
@@ -116,7 +114,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(8));  // Gap: skipping 6, 7
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Verify multiple gaps are detected
@@ -144,7 +142,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(5));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Gap warnings should not appear
@@ -164,7 +162,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
     {
         // Don't write any entries - log is empty
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, null, testOutput.getOutput());
 
         // Should return empty log state
         assertThat(logState.isEmpty()).isTrue();
@@ -178,7 +176,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(1));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // No gap warnings
@@ -198,7 +196,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
         storage.append(entry(5));
 
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, null, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, null, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // Should detect gap at beginning (expected 1 but found 3)
@@ -223,7 +221,7 @@ public class OfflineClusterMetadataDumpIntegrationTest extends OfflineToolUtils
 
         // Get log state up to epoch 5
         TestOutput testOutput = new TestOutput();
-        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, snapshotManager, 5L, testOutput.getOutput());
+        LogState logState = OfflineClusterMetadataDump.BaseCommand.getLogState(storage, MetadataSnapshots.NO_OP, null, 5L, testOutput.getOutput());
         String stderr = testOutput.getStderr();
 
         // No gaps

@@ -122,6 +122,7 @@ public class OfflineClusterMetadataDump implements Runnable
     /**
      * Base class with common options and methods shared by all subcommands.
      */
+    @Command(mixinStandardHelpOptions = true)
     static abstract class BaseCommand implements Runnable
     {
         @Option(names = { "-d", "--data-dir" }, description = "Data directory containing system keyspace")
@@ -295,6 +296,7 @@ public class OfflineClusterMetadataDump implements Runnable
         {
             Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.METADATA_KEYSPACE_NAME);
 
+            // Find and import SSTables for distributed_metadata_log
             String logTablePath = findTablePath(DistributedMetadataLogKeyspace.TABLE_NAME, SchemaConstants.METADATA_KEYSPACE_NAME);
             if (logTablePath != null)
             {
@@ -360,47 +362,33 @@ public class OfflineClusterMetadataDump implements Runnable
         }
 
         /**
-         * Gets the log state from the given storage, detecting and logging gaps in epochs.
+         * Gets log state from the given reader, detecting and logging gaps in epochs.
+         *
+         * @param reader the log reader to read entries from
+         * @param snapshotManager snapshot manager (use NO_OP for log listing commands)
+         * @param startEpoch if provided, start reading from this epoch (for --from-epoch)
+         * @param targetEpoch if provided, stop reading at this epoch (for --to-epoch or --epoch)
+         * @param out output for warnings
          */
         @VisibleForTesting
-        static LogState getLogState(SystemKeyspaceStorage storage,
+        static LogState getLogState(LogReader reader,
                                     MetadataSnapshots snapshotManager,
+                                    Long startEpoch,
                                     Long targetEpoch,
                                     Output out)
         {
-            ClusterMetadata base = snapshotManager.getLatestSnapshot();
-            Epoch baseEpoch = base == null ? Epoch.EMPTY : base.epoch;
             Epoch endEpoch = targetEpoch != null ? Epoch.create(targetEpoch) : Epoch.create(Long.MAX_VALUE);
+            ClusterMetadata base = snapshotManager.getSnapshotBefore(endEpoch);
 
+            Epoch baseEpoch = base != null
+                              ? base.epoch
+                              : startEpoch != null ? Epoch.create(startEpoch).previousEpoch() : Epoch.EMPTY;
             try
             {
-                LogReader.EntryHolder entryHolder = storage.getEntries(baseEpoch, endEpoch);
-                ImmutableList.Builder<Entry> entries = ImmutableList.builder();
-                Epoch prevEpoch = baseEpoch;
-                List<String> gaps = new ArrayList<>();
+                LogReader.EntryHolder entryHolder = reader.getEntries(baseEpoch, endEpoch);
+                ImmutableList<Entry> entryList = processEntriesWithGapDetection(entryHolder, baseEpoch, out);
 
-                for (Entry e : (Iterable<Entry>) entryHolder::iterator)
-                {
-                    if (!prevEpoch.nextEpoch().is(e.epoch))
-                    {
-                        gaps.add(String.format("Gap detected: expected epoch %d but found %d",
-                                               prevEpoch.getEpoch() + 1, e.epoch.getEpoch()));
-                    }
-                    prevEpoch = e.epoch;
-                    entries.add(e);
-                }
-
-                if (!gaps.isEmpty())
-                {
-                    out.err.println("WARNING: Found " + gaps.size() + " gap(s) in the epoch sequence:");
-                    for (String gap : gaps)
-                    {
-                        out.err.println("  " + gap);
-                    }
-                    out.err.println("Proceeding with available epochs...");
-                }
-
-                ImmutableList<Entry> entryList = entries.build();
+                // Warn if there's a gap between snapshot and first entry
                 ClusterMetadata effectiveBase = base;
                 if (effectiveBase != null && !entryList.isEmpty() && !entryList.get(0).epoch.isDirectlyAfter(effectiveBase.epoch))
                 {
@@ -418,17 +406,60 @@ public class OfflineClusterMetadataDump implements Runnable
             }
         }
 
-        protected void dumpLogEntries(LogState logState, Long fromEpoch, Long toEpoch)
+        /**
+         * Validates that the from-epoch is not greater than to-epoch.
+         */
+        protected void validateEpochRange(Long fromEpoch, Long toEpoch)
         {
-            Epoch from = fromEpoch != null ? Epoch.create(fromEpoch) : Epoch.EMPTY;
-            Epoch to = toEpoch != null ? Epoch.create(toEpoch) : Epoch.create(Long.MAX_VALUE);
+            if (fromEpoch != null && toEpoch != null && fromEpoch > toEpoch)
+            {
+                throw new IllegalArgumentException(
+                    String.format("--from-epoch (%d) must be less than or equal to --to-epoch (%d)",
+                                  fromEpoch, toEpoch));
+            }
+        }
 
+        /**
+         * Processes entries from an EntryHolder, detecting and reporting gaps in epochs.
+         */
+        @VisibleForTesting
+        static ImmutableList<Entry> processEntriesWithGapDetection(LogReader.EntryHolder entryHolder,
+                                                                   Epoch startEpoch,
+                                                                   Output out)
+        {
+            ImmutableList.Builder<Entry> entries = ImmutableList.builder();
+            Epoch prevEpoch = startEpoch;
+            List<String> gaps = new ArrayList<>();
+
+            for (Entry e : (Iterable<Entry>) entryHolder::iterator)
+            {
+                if (!prevEpoch.nextEpoch().is(e.epoch))
+                {
+                    gaps.add(String.format("Gap detected: expected epoch %d but found %d",
+                                           prevEpoch.getEpoch() + 1, e.epoch.getEpoch()));
+                }
+                prevEpoch = e.epoch;
+                entries.add(e);
+            }
+
+            if (!gaps.isEmpty())
+            {
+                out.err.println("WARNING: Found " + gaps.size() + " gap(s) in the epoch sequence:");
+                for (String gap : gaps)
+                {
+                    out.err.println("  " + gap);
+                }
+                out.err.println("Proceeding with available epochs...");
+            }
+
+            return entries.build();
+        }
+
+        protected void dumpLogEntries(LogState logState)
+        {
             for (Entry entry : logState.entries)
             {
-                if (!entry.epoch.isBefore(from) && !entry.epoch.isAfter(to))
-                {
-                    output.out.println(entry.toString());
-                }
+                output.out.println(entry.toString());
             }
         }
     }
@@ -458,7 +489,7 @@ public class OfflineClusterMetadataDump implements Runnable
 
             MetadataSnapshots snapshotManager = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
             SystemKeyspaceStorage storage = new SystemKeyspaceStorage(() -> snapshotManager);
-            LogState logState = getLogState(storage, snapshotManager, targetEpoch, output);
+            LogState logState = getLogState(storage, snapshotManager, null, targetEpoch, output);
 
             if (logState.isEmpty())
             {
@@ -510,11 +541,11 @@ public class OfflineClusterMetadataDump implements Runnable
         {
             importSystemKeyspaceSSTables();
 
-            MetadataSnapshots snapshotManager = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
-            SystemKeyspaceStorage storage = new SystemKeyspaceStorage(() -> snapshotManager);
-            LogState logState = getLogState(storage, snapshotManager, null, output);
+            validateEpochRange(fromEpoch, toEpoch);
+            SystemKeyspaceStorage storage = new SystemKeyspaceStorage(() -> MetadataSnapshots.NO_OP);
+            LogState logState = getLogState(storage, MetadataSnapshots.NO_OP, fromEpoch, toEpoch, output);
 
-            dumpLogEntries(logState, fromEpoch, toEpoch);
+            dumpLogEntries(logState);
         }
     }
 
@@ -541,12 +572,13 @@ public class OfflineClusterMetadataDump implements Runnable
         {
             importDistributedLogSSTables();
 
-            MetadataSnapshots snapshotManager = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
+            validateEpochRange(fromEpoch, toEpoch);
             DistributedMetadataLogKeyspace.DistributedTableLogReader reader =
-                new DistributedMetadataLogKeyspace.DistributedTableLogReader(ConsistencyLevel.NODE_LOCAL, () -> snapshotManager);
-            LogState logState = reader.getLogState(Epoch.EMPTY);
+                new DistributedMetadataLogKeyspace.DistributedTableLogReader(ConsistencyLevel.NODE_LOCAL,
+                                                                             () -> MetadataSnapshots.NO_OP);
+            LogState logState = getLogState(reader, MetadataSnapshots.NO_OP, fromEpoch, toEpoch, output);
 
-            dumpLogEntries(logState, fromEpoch, toEpoch);
+            dumpLogEntries(logState);
         }
     }
 }

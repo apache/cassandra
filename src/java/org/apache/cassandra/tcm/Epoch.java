@@ -118,6 +118,16 @@ public class Epoch implements Comparable<Epoch>, Serializable
         return new Epoch(epoch + 1);
     }
 
+    public Epoch previousEpoch()
+    {
+        if (this == UPGRADE_GOSSIP || this == UPGRADE_STARTUP)
+            return this;
+        if (this == EMPTY || this == FIRST)
+            return EMPTY;
+
+        return new Epoch(epoch - 1);
+    }
+
     @Override
     public int compareTo(Epoch other)
     {
