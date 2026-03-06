@@ -24,6 +24,7 @@ import java.util.List;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -46,10 +47,10 @@ public class WriteTombstoneWarningTest extends AbstractWriteThresholdWarning
 
         // Setup write tombstone threshold after cluster init
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
-            DatabaseDescriptor.setWriteTombstoneWarnThreshold((int) WARN_THRESHOLD_COUNT);
-            // Set minimum tracked partition tombstone count to ensure partitions are tracked
-            // This should be lower than the test value (2000) to allow tracking
+            // Set minimum tracked count first, before the threshold (validation requires threshold >= min)
             DatabaseDescriptor.setMinTrackedPartitionTombstoneCount(100);
+            DatabaseDescriptor.setWriteTombstoneWarnThreshold((int) WARN_THRESHOLD_COUNT);
+            DatabaseDescriptor.setCoordinatorWriteWarnInterval(new DurationSpec.LongMillisecondsBound("0ms"));
         }));
     }
 

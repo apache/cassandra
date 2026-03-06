@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
+
 import org.apache.cassandra.schema.TableId;
 
 import static org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot.create;

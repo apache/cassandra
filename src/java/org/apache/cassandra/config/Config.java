@@ -581,6 +581,7 @@ public class Config
 
     public volatile boolean write_thresholds_enabled = false;
     public volatile DataStorageSpec.LongBytesBound write_size_warn_threshold = null;
+    public volatile DurationSpec.LongMillisecondsBound coordinator_write_warn_interval = new DurationSpec.LongMillisecondsBound("1000ms");
     public volatile int write_tombstone_warn_threshold = -1;
 
     public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;

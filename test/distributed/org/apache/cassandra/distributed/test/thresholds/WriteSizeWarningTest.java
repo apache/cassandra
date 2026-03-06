@@ -22,11 +22,10 @@ import java.io.IOException;
 import java.util.List;
 
 import org.junit.BeforeClass;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -42,7 +41,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
 {
     private static final long WARN_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5MB
-    private static final Logger log = LoggerFactory.getLogger(WriteSizeWarningTest.class);
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -56,6 +54,7 @@ public class WriteSizeWarningTest extends AbstractWriteThresholdWarning
             // This should be lower than the test value (10MB) to allow tracking
             DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound(1, MEBIBYTES));
             DatabaseDescriptor.setWriteThresholdsEnabled(true);
+            DatabaseDescriptor.setCoordinatorWriteWarnInterval(new DurationSpec.LongMillisecondsBound("0ms"));
         }));
     }
 

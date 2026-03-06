@@ -65,8 +65,8 @@ public class WriteThresholds
         long sizeWarnBytes = sizeWarnThreshold != null ? sizeWarnThreshold.toBytes() : -1;
         DecoratedKey key = mutation.key();
 
-        Map<TableId, Long> sizeWarnings = new HashMap<>();
-        Map<TableId, Long> tombstoneWarnings = new HashMap<>();
+        Map<TableId, Long> sizeWarnings = null;
+        Map<TableId, Long> tombstoneWarnings = null;
 
         for (TableId tableId : mutation.getTableIds())
         {
@@ -80,6 +80,8 @@ public class WriteThresholds
                 long estimatedSize = cfs.topPartitions.topSizes().getEstimate(key);
                 if (estimatedSize > sizeWarnBytes)
                 {
+                    if (sizeWarnings == null)
+                        sizeWarnings = new HashMap<>();
                     sizeWarnings.put(tableId, estimatedSize);
                     noSpamLogger.warn("Write to {} partition {} triggered size warning; " +
                                       "estimated size is {} bytes, threshold is {} bytes (see write_size_warn_threshold)",
@@ -92,6 +94,8 @@ public class WriteThresholds
                 long estimatedTombstones = cfs.topPartitions.topTombstones().getEstimate(key);
                 if (estimatedTombstones > tombstoneWarnThreshold)
                 {
+                    if (tombstoneWarnings == null)
+                        tombstoneWarnings = new HashMap<>();
                     tombstoneWarnings.put(tableId, estimatedTombstones);
                     noSpamLogger.warn("Write to {} partition {} triggered tombstone warning; " +
                                       "estimated tombstone count is {}, threshold is {} (see write_tombstone_warn_threshold)",
@@ -100,9 +104,9 @@ public class WriteThresholds
             }
         }
 
-        if (!sizeWarnings.isEmpty())
+        if (sizeWarnings != null)
             MessageParams.add(ParamType.WRITE_SIZE_WARN, sizeWarnings);
-        if (!tombstoneWarnings.isEmpty())
+        if (tombstoneWarnings != null)
             MessageParams.add(ParamType.WRITE_TOMBSTONE_WARN, tombstoneWarnings);
     }
 }

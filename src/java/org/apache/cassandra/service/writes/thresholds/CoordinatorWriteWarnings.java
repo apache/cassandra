@@ -19,12 +19,16 @@
 package org.apache.cassandra.service.writes.thresholds;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
@@ -33,6 +37,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.thresholds.CoordinatorWarningsState;
+import org.apache.cassandra.utils.Clock;
 
 public class CoordinatorWriteWarnings
 {
@@ -40,6 +45,18 @@ public class CoordinatorWriteWarnings
 
     private static final Warnings INIT = new Warnings();
     private static final Warnings EMPTY = new Warnings();
+    private static final AtomicLong nextWarn = new AtomicLong(0);
+
+    private static boolean timeForWarn()
+    {
+        DurationSpec.LongMillisecondsBound interval = DatabaseDescriptor.getCoordinatorWriteWarnInterval();
+        if (interval == null || interval.toMilliseconds() == 0)
+            return true;
+
+        long now = Clock.Global.nanoTime();
+        long next = nextWarn.get();
+        return now > next && nextWarn.compareAndSet(next, now + TimeUnit.MILLISECONDS.toNanos(interval.toMilliseconds()));
+    }
 
     private static final CoordinatorWarningsState<Warnings> STATE =
     new CoordinatorWarningsState<>("CoordinatorWriteWarnings",
@@ -93,7 +110,11 @@ public class CoordinatorWriteWarnings
 
     private static void processWarnings(Warnings warnings)
     {
+
         if (warnings.snapshot == null || warnings.snapshot.isEmpty() || warnings.partitionKey == null)
+            return;
+
+        if (!timeForWarn())
             return;
 
         WriteWarningsSnapshot snapshot = warnings.snapshot;

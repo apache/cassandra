@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -253,6 +254,46 @@ public abstract class AbstractWriteThresholdWarning extends TestBaseImpl
         assertThat(warnings).hasSize(1);
         // Warning must identify the specific table that breached the threshold
         assertThat(warnings.get(0)).contains(KEYSPACE + ".tbl");
+    }
+
+    @Test
+    public void rateLimitingThrottlesWarnings() throws InterruptedException
+    {
+        populateTopPartitions(1, getWarnThreshold() * 2);
+        enable(true);
+
+        // Enable rate limiting with 1 second interval
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() ->
+                                                      DatabaseDescriptor.setCoordinatorWriteWarnInterval(new DurationSpec.LongMillisecondsBound("1000ms"))));
+
+        try
+        {
+            // First write should produce a warning
+            SimpleQueryResult result1 = CLUSTER.coordinator(1).executeWithResult(
+            "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)",
+            ConsistencyLevel.ALL, bytes(512));
+            assertWarnings(result1.warnings());
+
+            // Second write immediately after should be rate-limited (no warning)
+            SimpleQueryResult result2 = CLUSTER.coordinator(1).executeWithResult(
+            "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)",
+            ConsistencyLevel.ALL, bytes(512));
+            assertThat(result2.warnings()).isEmpty();
+
+            Thread.sleep(1500);
+
+            // Third write should produce a warning again
+            SimpleQueryResult result3 = CLUSTER.coordinator(1).executeWithResult(
+                "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, ?)",
+            ConsistencyLevel.ALL, bytes(512));
+            assertWarnings(result3.warnings());
+        }
+        finally
+        {
+            // Reset to no rate limiting for other tests
+            CLUSTER.stream().forEach(i -> i.runOnInstance(() ->
+                                                          DatabaseDescriptor.setCoordinatorWriteWarnInterval(new DurationSpec.LongMillisecondsBound("0ms"))));
+        }
     }
 
     protected static void enable(boolean value)

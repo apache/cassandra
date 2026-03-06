@@ -5535,6 +5535,17 @@ public class DatabaseDescriptor
         conf.write_size_warn_threshold = value;
     }
 
+    public static DurationSpec.LongMillisecondsBound getCoordinatorWriteWarnInterval()
+    {
+        return conf.coordinator_write_warn_interval;
+    }
+
+    public static void setCoordinatorWriteWarnInterval(DurationSpec.LongMillisecondsBound ms)
+    {
+        logger.info("updating coordinator_write_warn_interval to {}", ms);
+        conf.coordinator_write_warn_interval = ms;
+    }
+
     public static int getWriteTombstoneWarnThreshold()
     {
         return conf.write_tombstone_warn_threshold;
