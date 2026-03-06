@@ -84,7 +84,6 @@ public final class CompressionParams
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
-    private final AbstractCompressionProvider compressionProvider;
 
     public static CompressionParams fromMap(Map<String, String> opts)
     {
@@ -206,7 +205,7 @@ public final class CompressionParams
 
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException
     {
-        this(createCompressionProvider(sstableCompressorClass), createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
+        this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
     }
 
 
@@ -217,25 +216,7 @@ public final class CompressionParams
 
     public CompressionParams(String sstableCompressorClass, int chunkLength, int maxCompressedLength, Map<String, String> otherOptions) throws ConfigurationException
     {
-        this(createCompressionProvider(sstableCompressorClass), createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), otherOptions);
-    }
-
-    private static AbstractCompressionProvider createCompressionProvider(Object sstableCompressorObj)
-    {
-        if(sstableCompressorObj == null)
-            return null;
-
-        String compressorClassName;
-        if (sstableCompressorObj instanceof String)
-        {
-            compressorClassName = (String) sstableCompressorObj;
-        }
-        else
-        {
-	    compressorClassName = ((ICompressor) sstableCompressorObj).getClass().getName();
-        }
-        AbstractCompressionProvider provider = registry.get(compressorClassName);
-        return provider;
+        this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), otherOptions);
     }
 
     static double calcMinCompressRatio(int chunkLength, int maxCompressedLength)
@@ -247,27 +228,11 @@ public final class CompressionParams
 
     private CompressionParams(ICompressor sstableCompressor, int chunkLength, int maxCompressedLength, double minCompressRatio, Map<String, String> otherOptions) throws ConfigurationException
     {
-        this(createCompressionProvider(sstableCompressor), sstableCompressor,  chunkLength,  maxCompressedLength,  minCompressRatio,  otherOptions);
-    }
-
-    private CompressionParams(AbstractCompressionProvider provider, ICompressor sstableCompressor, int chunkLength, int maxCompressedLength, double minCompressRatio, Map<String, String> otherOptions) throws ConfigurationException
-    {
-        this.compressionProvider = provider;
         this.sstableCompressor = sstableCompressor;
         this.chunkLength = chunkLength;
         this.otherOptions = ImmutableMap.copyOf(otherOptions);
         this.minCompressRatio = minCompressRatio;
         this.maxCompressedLength = maxCompressedLength;
-    }
-
-    /**
-     * Returns the compression provider associated with this CompressionParams.
-     *
-     * @return the {@link AbstractCompressionProvider} instance, or {@code null} if compression is disabled
-     */
-    public AbstractCompressionProvider getProvider()
-    {
-        return compressionProvider;
     }
 
     public CompressionParams copy()
@@ -344,14 +309,27 @@ public final class CompressionParams
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
         }
-        AbstractCompressionProvider provider = createCompressionProvider(compressorClass.getSimpleName());
-        return provider.createCompressor(compressorClass, compressionOptions);
+        try
+        {
+            // Get the compressor provider for the specified compressor class and use it to create the compressor instance.
+            AbstractCompressionProvider provider = registry.getProvider(compressorClass.getSimpleName());
+            ICompressor serviceProviderCompressor = provider.createCompressor(compressorClass, compressionOptions);
+
+            // Associate the compressor class name with the provider classname in the registry
+            // This information is needed when we save compression metadata, when deserializing compression parameters etc.
+            // This is the only place where we know the mapping, so we need to do it here.
+            registry.mapProviderInstanceToCompressor(serviceProviderCompressor.getClass().getSimpleName(), compressorClass.getName());
+            return serviceProviderCompressor;
+        }
+        catch (Exception e)
+        {
+            throw e;
+        }
     }
 
     public static ICompressor createCompressor(ParameterizedClass compression) throws ConfigurationException
     {
-        Map<String, String> options = copyOptions(compression.parameters);
-        return createCompressor(parseCompressorClass(compression.class_name), options);
+        return createCompressor(parseCompressorClass(compression.class_name), copyOptions(compression.parameters));
     }
 
     private static Map<String, String> copyOptions(Map<? extends CharSequence, ? extends CharSequence> co)
@@ -494,7 +472,8 @@ public final class CompressionParams
             return Collections.singletonMap(ENABLED, "false");
 
         Map<String, String> options = new HashMap<>(otherOptions);
-        options.put(CLASS, getProvider().getAlgorithmName());
+        // Use the one saved in the registry, we don't want to save the name of the service provider compressor here!
+        options.put(CLASS, registry.getCompressorTypeFullName(sstableCompressor.getClass().getSimpleName()));
         options.put(CHUNK_LENGTH_IN_KB, chunkLengthInKB());
         if (minCompressRatio != DEFAULT_MIN_COMPRESS_RATIO)
             options.put(MIN_COMPRESS_RATIO, String.valueOf(minCompressRatio));
@@ -540,7 +519,7 @@ public final class CompressionParams
         public void serialize(CompressionParams parameters, DataOutputPlus out, int version) throws IOException
         {
             assert version >= MessagingService.VERSION_40;
-            out.writeUTF(parameters.getProvider().getAlgorithmSimpleName());
+            out.writeUTF(registry.getCompressorTypeSimpleName(parameters.sstableCompressor.getClass().getSimpleName()));
             out.writeInt(parameters.otherOptions.size());
             for (Map.Entry<String, String> entry : parameters.otherOptions.entrySet())
             {

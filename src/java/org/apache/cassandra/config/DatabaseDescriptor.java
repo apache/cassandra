@@ -97,7 +97,6 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.AbstractCompressionProvider;
 import org.apache.cassandra.io.compress.CompressorRegistry;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -231,7 +230,6 @@ public class DatabaseDescriptor
     private static INetworkAuthorizer networkAuthorizer;
     private static ICIDRAuthorizer cidrAuthorizer;
 
-    private static AbstractCompressionProvider compressionProvider;
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
@@ -589,7 +587,7 @@ public class DatabaseDescriptor
 
     public static void applyCompressionProvider()
     {
-        CompressorRegistry.instance.registerServices();
+        CompressorRegistry.instance.registerServices(conf.compression_provider_options);
     }
 
     private static void applySimpleConfig()
@@ -6198,11 +6196,4 @@ public class DatabaseDescriptor
         conf.gossip_quarantine_disabled = disabled;
     }
 
-    public static Map<String, ParameterizedClass> getCompressionProviderConfigurations()
-    {
-        if (conf == null || conf.compression_provider == null)
-            return null;
-
-        return conf.compression_provider.configurations;
-    }
 }

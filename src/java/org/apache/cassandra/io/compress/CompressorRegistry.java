@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.compress;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,92 +25,209 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * CompressorRegistry manages the registration and retrieval of compression providers
- * which provide access to compressor implementations used for compressing data.
- *
- * This class provides methods to register and retrieve compressorion providers by name of algorithm
+ * CompressorRegistry manages the registration and retrieval of compression providers.
+ * Compression providers supply compressor implementations used for compressing data.
  */
 public class CompressorRegistry
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressorRegistry.class);
-
-    public static final CompressorRegistry instance = new CompressorRegistry();
-    private static final String DEFAULT_PROVIDER_NAME = DefaultCompressionProvider.class.getName() ;
-    private static final Map<String, String> DEFAULT_PARAMS = Collections.emptyMap();
-
-    private final Map<String, AbstractCompressionProvider> compressionProviders = new ConcurrentHashMap<>();
+    /** The fully qualified class name of the default compression provider. */
+    private static final String DEFAULT_PROVIDER_NAME = DefaultCompressionProvider.class.getName();
+    /** Configuration key for enabling fallback to the default provider. */
+    public static final String FALLBACK_TO_DEFAULT_PROVIDER = "fallback_to_default_provider";
+    /** Default parameters for provider configuration. */
+    private static final Map<String, String> DEFAULT_PARAMS = new HashMap<>(Map.of(FALLBACK_TO_DEFAULT_PROVIDER,  "true"));
+    /** Singleton instance of the registry. */
+    public static final CompressorRegistry instance =  new CompressorRegistry();
 
     /**
-     * Returns the compression provider for the given name.
-     * @param name the name of the compressor
-     * @return the compression provider instance, if not found will attempt to create and return a default provider
+     * Enum representing in-built supported compressor types and their abbreviations.
      */
-    public AbstractCompressionProvider get(String name)
+    private enum CompressorType
     {
-        if(compressionProviders.get(name) == null)
+        DEFLATE("DeflateCompressor","deflate"),
+        LZ4("LZ4Compressor","lz4"),
+        NOOP("NoopCompressor", "noop"),
+        SNAPPY("SnappyCompressor","snappy"),
+        ZSTD("ZstdCompressor","zstd"),
+        ZSTD_DICTIONARY("ZstdDictionaryCompressor","zstd_dictionary");
+
+        private final String compressorName;
+        private final String abbreviation;
+
+        CompressorType(String compressorName, String abbreviation)
         {
-            AbstractCompressionProvider  provider = new DefaultCompressionProvider(DEFAULT_PARAMS);
-            register(name, provider);
-            return provider;
+         this.compressorName = compressorName;
+         this.abbreviation = abbreviation;
         }
-        return compressionProviders.get(name);
+        /**
+         * @return the class name of the compressor type
+         */
+        public String getcompressorName()
+        {
+            return this.compressorName;
+        }
+        /**
+         * @return the abbreviation of the compressor type
+         */
+        public String getAbbreviation()
+        {
+            return this.abbreviation;
+        }
+    }
+
+    /** Map of compressor names to their registered providers. */
+    private final Map<String, AbstractCompressionProvider> compressionProviders = new ConcurrentHashMap<>();
+
+    /** Map of service provider compressor name to the fully qualified name of in-built compressor
+     * for which it is providing the service.
+     * For in-built compressors the map entries would look something like this
+     * LZ4Compressor -> org.apache.cassandra.io.compress.LZ4Compressor
+     *
+     * If a service provider, TestProvider, is available, for LZ4Compressor
+     * entry would be something like this
+     * TestProvider -> org.apache.cassandra.io.compress.LZ4Compressor
+     */
+    private final Map<String, String> compressorToTypeMap = new ConcurrentHashMap<>();
+
+    /**
+     * Maps a provider compressor name to an in-built compressor name.
+     * @param providerCompressorName the name of the compressor from the service provider
+     * @param baseCompressorName the name of the in-built compressor that the service provider is providing the service for
+     */
+    public void mapProviderInstanceToCompressor(String providerCompressorName, String baseCompressorName)
+    {
+        compressorToTypeMap.put(providerCompressorName, baseCompressorName);
+    }
+
+    /**
+     * Returns the fully qualified class name for the given compressor name.
+     * Ensures backward compatibility by adding default mappings if needed.
+     * @param name the compressor name
+     * @return the fully qualified class name
+     */
+    public String getCompressorTypeFullName(String name)
+    {
+        String typeName = compressorToTypeMap.get(name);
+        // Sometimes CompressionParams constructor is called directly without calling createCompressor
+        // and in that case the compressorToTypeMap will not have the mapping for the compressor name.
+        // In those cases we will assume that the compressor is one of the in-built compressors and create a default mapping
+        if(typeName == null)
+        {
+            typeName = "org.apache.cassandra.io.compress." + name;
+            compressorToTypeMap.put(name, typeName);
+        }
+        return typeName;
+    }
+
+    /**
+     * Returns the simple class name of the compressor mapped to the service provider compressor
+     * @param name the compressor name
+     * @return the simple class name
+     */
+    public String getCompressorTypeSimpleName(String name)
+    {
+        String typeName = getCompressorTypeFullName(name);
+        if(typeName.contains("."))
+        {
+            try
+            {
+                Class<?> klass = Class.forName(typeName);
+                name =  klass.getSimpleName();
+            }
+            catch (ClassNotFoundException e)
+            {
+                e.printStackTrace();
+            }
+        }
+        return name;
+    }
+
+    /**
+     * Returns the compression provider for the given compressor name.
+     * If not found, attempts to create and register a default provider.
+     * @param name simple class name of the compressor
+     * @return the compression provider instance
+     */
+    public AbstractCompressionProvider getProvider(String name)
+    {
+        AbstractCompressionProvider  provider = compressionProviders.get(name);
+        if (provider == null)
+        {
+            provider = new DefaultCompressionProvider();
+            register( name, provider);
+        }
+        return provider;
     }
 
     /**
      * Registers a compression provider for the given compressor name.
-     * Fully qualified name of the compressor class will be saved in the provider for use in metadata and
-     * other places where compressor name is used.
+     * The fully qualified name of the compressor class is also saved for use in metadata and other places.
      * @param name the name of the compressor
-     * @param provider the compressor provider instance to register
+     * @param provider the compression provider instance to register
      */
     private void register(String name, AbstractCompressionProvider provider)
     {
+        compressionProviders.put(name, provider);
+
         String algorithmClassName = name;
         if (!name.contains("."))
             algorithmClassName = "org.apache.cassandra.io.compress." + name;
-        provider.setAlgorithmName(algorithmClassName);
-        compressionProviders.put(name, provider);
-
+        compressorToTypeMap.put(name, algorithmClassName);
     }
 
     /**
-     * Populates the compressionProvider hashmap with providers specified in the configuration.
-     * Should be called during initialization to ensure providers
-     * specified in the configuration are registered and available for use.
+     * Populates the registry with compression providers specified in the configuration.
+     * Should be called during initialization to ensure providers are registered and available for use.
+     * If a provider fails to initialize and fallback is enabled, the default provider is used.
      *
-     * @throws ConfigurationException if a provider specified in the configuration fails to initialize and fallback is not enabled or also fails to initialize
+     * @param providerOptions map of compressor names to their configuration
+     * @throws ConfigurationException if a provider fails to initialize and fallback is not enabled
      */
-    public void registerServices()
+    public void registerServices(Map<String, ParameterizedClass> providerOptions)
     {
-        Map<String, ParameterizedClass> providerOptions = DatabaseDescriptor.getCompressionProviderConfigurations();
         if (providerOptions == null) return;
-        providerOptions.forEach((algorithmName, providerConfig) -> {
-            AbstractCompressionProvider  provider = getServiceProvider(providerConfig);
-            try
+        for(CompressorType type : CompressorType.values())
+        {
+            String algorithmName = type.getcompressorName();
+            if (providerOptions.get(algorithmName) != null)
             {
-                if (provider != null)
+                ParameterizedClass providerConfig = providerOptions.get(algorithmName);
+                AbstractCompressionProvider provider = getServiceProvider(providerConfig);
+                try
                 {
-                    register(algorithmName, provider);
-                    logger.info("Adding '{}' for '{}'", provider.getProviderName(), algorithmName);
+                    if (provider != null)
+                    {
+                        register(algorithmName, provider);
+                        logger.info("Adding '{}' for '{}'", provider.getProviderName(), algorithmName);
+                    }
+                }
+                catch (Exception e)
+                {
+                    logger.warn("Failed to load service '{}' for '{}'", provider.getProviderName(), algorithmName);
                 }
             }
-            catch (Exception e)
+            else
             {
-                logger.warn("Failed to load service '{}' for '{}'", provider.getProviderName(), algorithmName);
+                AbstractCompressionProvider provider = new DefaultCompressionProvider();
+                register(algorithmName, provider);
             }
-            });
+        }
     }
 
     /**
-     * Returns a compressionProvider with configuration specified in the config file.
-     * If provider fails to initialize or is not healthy, will attempt to fallback to default provider
-     * if enabled in the configuration
+     * Returns a compression provider with configuration specified in the config file.
+     * If the provider fails to initialize or is not healthy, will attempt to fall back to the default provider
+     * if enabled in the configuration.
+     *
+     * @param providerConfig the configuration for the provider
+     * @return the compression provider instance
+     * @throws ConfigurationException if both the specified and fallback providers fail to initialize
      */
     AbstractCompressionProvider getServiceProvider(ParameterizedClass providerConfig)
     {
@@ -120,10 +236,10 @@ public class CompressorRegistry
         Map<String, String> params;
         className = (providerConfig.class_name != null) ? providerConfig.class_name : DEFAULT_PROVIDER_NAME;
         params = (providerConfig.parameters != null) ? new HashMap<>(providerConfig.parameters): DEFAULT_PARAMS;
-        params.putIfAbsent(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, "true");
+        params.putIfAbsent(FALLBACK_TO_DEFAULT_PROVIDER, "true");
         try
         {
-            compressionProvider = FBUtilities.newCompressionProvider(className, params);
+            compressionProvider = FBUtilities.newCompressionProvider(className);
             if(compressionProvider.isHealthy())
             {
                 return compressionProvider;
@@ -142,13 +258,12 @@ public class CompressorRegistry
             ));
 
         }
-        String fallbackToDefault = params.get(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER);
+        String fallbackToDefault = params.get(FALLBACK_TO_DEFAULT_PROVIDER);
         if("true".equals(fallbackToDefault))
         {
             try
             {
-
-                return new DefaultCompressionProvider(params);
+                return new DefaultCompressionProvider();
             }
             catch (Exception e)
             {

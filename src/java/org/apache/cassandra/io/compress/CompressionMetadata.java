@@ -72,6 +72,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
     @Nullable // null when no dictionary
     private final CompressionDictionary compressionDictionary;
     private volatile ICompressor resolvedCompressor;
+    private static final CompressorRegistry registry = CompressorRegistry.instance;
 
     @VisibleForTesting
     public static CompressionMetadata open(File chunksIndexFile,
@@ -497,7 +498,7 @@ public class CompressionMetadata extends WrappedSharedCloseable
         {
             try
             {
-                out.writeUTF(parameters.getProvider().getAlgorithmSimpleName());
+                out.writeUTF(registry.getCompressorTypeSimpleName(parameters.getSstableCompressor().getClass().getSimpleName()));
                 out.writeInt(parameters.getOtherOptions().size());
                 for (Map.Entry<String, String> entry : parameters.getOtherOptions().entrySet())
                 {

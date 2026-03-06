@@ -734,7 +734,7 @@ public class FBUtilities
         }
     }
 
-    public static AbstractCompressionProvider newCompressionProvider(String className, Map<String, String> parameters) throws ConfigurationException
+    public static AbstractCompressionProvider newCompressionProvider(String className) throws ConfigurationException
     {
         try
         {
@@ -742,7 +742,7 @@ public class FBUtilities
                 className = "org.apache.cassandra.io.compress." + className;
 
             Class<?> compressionProviderClass = FBUtilities.classForName(className, "compression service provider");
-            return (AbstractCompressionProvider) compressionProviderClass.getConstructor(Map.class).newInstance(Collections.unmodifiableMap(parameters));
+            return (AbstractCompressionProvider) compressionProviderClass.getConstructor().newInstance();
         }
         catch (ConfigurationException e)
         {

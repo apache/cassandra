@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.compress;
 
-
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -38,9 +37,9 @@ import static java.lang.String.format;
  */
 public class DefaultCompressionProvider extends AbstractCompressionProvider
 {
-    public DefaultCompressionProvider(Map<String, String> args)
+    public DefaultCompressionProvider()
     {
-        super(args);
+        super();
     }
 
     /**
@@ -52,8 +51,8 @@ public class DefaultCompressionProvider extends AbstractCompressionProvider
      */
     @Override
     public boolean isHealthy()
-    { 
-	    return true;
+    {
+        return true;
     }
 
     /**
@@ -67,12 +66,6 @@ public class DefaultCompressionProvider extends AbstractCompressionProvider
     @Override
     public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> compressionOptions) throws IllegalStateException
     {
-	     if (compressorClass == null)
-        {
-            if (!compressionOptions.isEmpty())
-                throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
-            return null;
-        }
         try
         {
             Method method = compressorClass.getMethod("create", Map.class);
@@ -89,7 +82,7 @@ public class DefaultCompressionProvider extends AbstractCompressionProvider
         }
         catch (SecurityException e)
         {
-            throw new ConfigurationException("Access forbiden", e);
+            throw new ConfigurationException("Access forbidden", e);
         }
         catch (IllegalAccessException e)
         {
@@ -127,12 +120,12 @@ public class DefaultCompressionProvider extends AbstractCompressionProvider
         return this.getClass().getName();
     }
 
-    @Override
     /**
      * Returns the simple class name of this compression provider.
      *
      * @return The simple class name: {@code DefaultCompressionProvider}
      */
+    @Override
     public String getProviderSimpleName()
     {
         return this.getClass().getSimpleName();
