@@ -42,7 +42,7 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
  * The initial message of the protocol.
  * Sets up a number of connection options.
  */
-public class StartupMessage extends Message.Reuest
+public class StartupMessage extends Message.Request
 {
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
