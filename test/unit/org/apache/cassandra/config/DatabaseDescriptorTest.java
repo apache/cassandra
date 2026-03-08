@@ -791,6 +791,34 @@ public class DatabaseDescriptorTest
     }
 
     @Test
+    public void testGracefulDisconnectEnabled()
+    {
+        Config config = new Config();
+        boolean originalValue = config.graceful_disconnect_enabled;
+        Assert.assertFalse("Default value of graceful_disconnect_enabled must be false", originalValue);
+    }
+
+    @Test
+    public void testGracefulDisconnectGracePeriodMs()
+    {
+        long originalValue = DatabaseDescriptor.getGracefulDisconnectGracePeriodMs();
+        Assert.assertEquals("Default value of graceful_disconnect_grace_period_ms must be 5000", 5000, originalValue);
+        DatabaseDescriptor.setGracefulDisconnectGracePeriodMs(3000);
+        Assert.assertEquals("graceful_disconnect_grace_period_ms should be updated to 3000", 3000, DatabaseDescriptor.getGracefulDisconnectGracePeriodMs());
+        DatabaseDescriptor.setGracefulDisconnectGracePeriodMs(originalValue);
+    }
+
+    @Test
+    public void testGracefulDisconnectMaxDrainMs()
+    {
+        long originalValue = DatabaseDescriptor.getGracefulDisconnectMaxDrainMs();
+        Assert.assertEquals("Default value of graceful_disconnect_max_drain_ms must be 30000", 30000, originalValue);
+        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(45000);
+        Assert.assertEquals("graceful_disconnect_max_drain_ms should be updated to 45000", 45000, DatabaseDescriptor.getGracefulDisconnectMaxDrainMs());
+        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(originalValue);
+    }
+
+    @Test
     public void testRowIndexSizeAbortEnabledWarnDisabled()
     {
         Config conf = new Config();
