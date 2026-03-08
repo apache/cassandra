@@ -1116,6 +1116,21 @@ native_transport_allow_older_protocols: true
 # native_transport_rate_limiting_enabled: false
 # native_transport_max_requests_per_second: 1000000
 
+# Enables graceful disconnection of clients during node shutdown.
+# When enabled, node stops accepting new connections, notifies compatible drivers
+# to stop sending new requests to the node, allowing in-flight requests to complete before
+# Connections that fail to drain within graceful_disconnect_grace_period are forcibly closed
+# so shutdown can proceed. Connections that fail to drain within the configured
+# grace period are forcibly closed. Requires driver support for this feature
+# unsupported drivers will behave as if the flag is false.
+# triggered on nodetool disablebinary/drain/stopdaemon/decommission(+ -f flag)
+# for compatible drivers, see https://issues.apache.org/jira/browse/CASSANDRA-21191
+
+graceful_disconnect_enabled: true
+
+# Time given to clients to stop sending new requests after the GRACEFUL_DISCONNECT event is emitted.
+graceful_disconnect_grace_period: 15s
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.
