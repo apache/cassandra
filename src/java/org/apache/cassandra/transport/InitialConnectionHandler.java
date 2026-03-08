@@ -28,6 +28,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
@@ -90,6 +91,8 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
                     supportedOptions.put(StartupMessage.COMPRESSION, compressions);
                     supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+                    if (DatabaseDescriptor.getGracefulDisconnectEnabled())
+                        supportedOptions.put(StartupMessage.GRACEFUL_DISCONNECT, List.of("true"));
                     SupportedMessage supported = new SupportedMessage(supportedOptions);
                     supported.setStreamId(inbound.header.streamId);
                     outbound = supported.encode(inbound.header.version);

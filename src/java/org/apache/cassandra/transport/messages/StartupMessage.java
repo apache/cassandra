@@ -42,7 +42,7 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
  * The initial message of the protocol.
  * Sets up a number of connection options.
  */
-public class StartupMessage extends Message.Request
+public class StartupMessage extends Message.Reuest
 {
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
@@ -50,6 +50,7 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_NAME = "DRIVER_NAME";
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
+    public static final String GRACEFUL_DISCONNECT = "GRACEFUL_DISCONNECT";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {
