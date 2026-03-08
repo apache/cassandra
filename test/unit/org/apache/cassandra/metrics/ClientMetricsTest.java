@@ -239,4 +239,20 @@ public class ClientMetricsTest
         assertEquals(0, clientMetrics.encryptedConnectedNativeClients.getValue().intValue());
         assertEquals(0, passwordConnections.getValue().intValue());
     }
+
+    @Test
+    public void testGracefulDisconnectMetrics()
+    {
+        assertEquals(0, clientMetrics.connectionsDraining.get());
+        long initialForcedDisconnects = clientMetrics.forcedDisconnects.getCount();
+
+        clientMetrics.incrementConnectionsDraining();
+        assertEquals(1, clientMetrics.connectionsDraining.get());
+
+        clientMetrics.decrementConnectionsDraining();
+        assertEquals(0, clientMetrics.connectionsDraining.get());
+
+        clientMetrics.markForcedDisconnect(3);
+        assertEquals(initialForcedDisconnects + 3, clientMetrics.forcedDisconnects.getCount());
+    }
 }

@@ -1104,6 +1104,19 @@ native_transport_allow_older_protocols: true
 # native_transport_rate_limiting_enabled: false
 # native_transport_max_requests_per_second: 1000000
 
+# When enabled, nodes will signal connected clients before shutting down,
+# allowing in-flight requests to complete without client-visible timeouts.
+# This applies to intentional shutdowns (nodetool drain, rolling restarts,
+# controlled JVM shutdown). Clients must subscribe to the GRACEFUL_DISCONNECT
+# event via REGISTER to benefit from this behavior.
+# Requires driver support for the GRACEFUL_DISCONNECT event type.
+# See: doc/modules/cassandra/pages/managing/operating/graceful_disconnect.adoc
+# Defaults to false.
+# graceful_disconnect_enabled: false
+
+# Time given to clients to stop sending new requests after the GRACEFUL_DISCONNECT event is emitted.
+# graceful_disconnect_grace_period: 5s
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.

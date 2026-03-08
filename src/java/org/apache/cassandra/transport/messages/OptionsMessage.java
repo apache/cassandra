@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Compressor;
@@ -73,6 +74,8 @@ public class OptionsMessage extends Message.Request
         Map<String, List<String>> supported = new HashMap<String, List<String>>();
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);
         supported.put(StartupMessage.COMPRESSION, compressions);
+        if (DatabaseDescriptor.getGracefulDisconnectEnabled())
+            supported.put(StartupMessage.GRACEFUL_DISCONNECT, List.of("true"));
         supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
 
         return new SupportedMessage(supported);
