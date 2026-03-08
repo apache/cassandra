@@ -1197,6 +1197,48 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
     }
 
+    @Override
+    public void setGracefulDisconnectGracePeriodMs(long value)
+    {
+        if (value > DatabaseDescriptor.getGracefulDisconnectMaxDrainMs())
+            throw new IllegalArgumentException("graceful_disconnect_grace_period_ms cannot exceed graceful_disconnect_max_drain_ms.");
+
+        DatabaseDescriptor.setGracefulDisconnectGracePeriodMs(value);
+        logger.info("set graceful disconnect grace period to {} ms", value);
+    }
+
+    @Override
+    public long getGracefulDisconnectGracePeriodMs()
+    {
+        return DatabaseDescriptor.getGracefulDisconnectGracePeriodMs();
+    }
+
+    @Override
+    public void setGracefulDisconnectMaxDrainMs(long value)
+    {
+        if (value <= 0)
+            throw new IllegalArgumentException("graceful_disconnect_max_drain_ms must be greater than 0 when graceful_disconnect_enabled is set to true.");
+
+        if (value < DatabaseDescriptor.getGracefulDisconnectGracePeriodMs())
+            throw new IllegalArgumentException("graceful_disconnect_max_drain_ms cannot be less than graceful_disconnect_grace_period_ms.");
+
+        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(value);
+        logger.info("set graceful disconnect max drain to {} ms", value);
+    }
+
+
+    @Override
+    public long getGracefulDisconnectMaxDrainMs()
+    {
+        return DatabaseDescriptor.getGracefulDisconnectMaxDrainMs();
+    }
+
+    @Override
+    public boolean getGracefulDisconnectEnabled()
+    {
+        return DatabaseDescriptor.getGracefulDisconnectEnabled();
+    }
+
     public void setReadRpcTimeout(long value)
     {
         DatabaseDescriptor.setReadRpcTimeout(value);
