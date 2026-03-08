@@ -202,6 +202,63 @@ public class StorageServiceTest extends TestBaseImpl
     }
 
     @Test
+    public void testGracefulDisconnectMaxDrainMs()
+    {
+        StorageService storageService = StorageService.instance;
+        long originalMaxDrainMs = storageService.getGracefulDisconnectMaxDrainMs();
+        long originalGracePeriodMs = storageService.getGracefulDisconnectGracePeriodMs();
+        try
+        {
+            storageService.setGracefulDisconnectGracePeriodMs(1000);
+
+            storageService.setGracefulDisconnectMaxDrainMs(10000);
+            assertEquals(10000, storageService.getGracefulDisconnectMaxDrainMs());
+            try
+            {
+                storageService.setGracefulDisconnectMaxDrainMs(0);
+                fail("Should have received an IllegalArgumentException for max_drain_ms of 0");
+            }
+            catch (IllegalArgumentException ignored)
+            {
+            }
+            assertEquals(10000, storageService.getGracefulDisconnectMaxDrainMs());
+        }
+        finally
+        {
+            storageService.setGracefulDisconnectMaxDrainMs(originalMaxDrainMs);
+            storageService.setGracefulDisconnectGracePeriodMs(originalGracePeriodMs);
+        }
+    }
+
+    @Test
+    public void testGracefulDisconnectGracePeriodMs()
+    {
+        StorageService storageService = StorageService.instance;
+        long originalMaxDrainMs = storageService.getGracefulDisconnectMaxDrainMs();
+        long originalGracePeriodMs = storageService.getGracefulDisconnectGracePeriodMs();
+        try
+        {
+            storageService.setGracefulDisconnectMaxDrainMs(20000);
+
+            storageService.setGracefulDisconnectGracePeriodMs(5000);
+            assertEquals(5000, storageService.getGracefulDisconnectGracePeriodMs());
+
+            try
+            {
+                storageService.setGracefulDisconnectGracePeriodMs(30000);
+                fail("Should have received an IllegalArgumentException when grace_period_ms exceeds max_drain_ms");
+            }
+            catch (IllegalArgumentException ignored) {}
+            assertEquals(5000, storageService.getGracefulDisconnectGracePeriodMs());
+        }
+        finally
+        {
+            storageService.setGracefulDisconnectMaxDrainMs(originalMaxDrainMs);
+            storageService.setGracefulDisconnectGracePeriodMs(originalGracePeriodMs);
+        }
+    }
+
+    @Test
     public void testColumnIndexCacheSizeInKiB()
     {
         StorageService storageService = StorageService.instance;
