@@ -80,6 +80,7 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.ReconfigureCMS;
 import org.apache.cassandra.tcm.sequences.ReplaceSameAddress;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
@@ -136,7 +137,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                     ClusterMetadata replayed = ClusterMetadata.current();
                     InetAddressAndPort oldAddress = replayed.directory.endpoint(nodeId);
                     InetAddressAndPort newAddress = FBUtilities.getBroadcastAddressAndPort();
-                    if (!newAddress.equals(oldAddress))
+                    if (!newAddress.equals(oldAddress) && replayed.directory.commonSerializationVersion.isAtLeast(Version.V9))
                     {
                         // Build temporary mappings for addressing CMS nodes who's addresses have been
                         // changed but not yet committed via the CMS or not yet been enacted locally.
@@ -144,6 +145,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                         initMessaging.run();
                         initializeCMSLookup(nodeId, replayed);
                         ClusterMetadataService.instance().log().unpause();
+
 
                         logger.info("Detected change in local node addresses, committing update to Cluster Metadata Service");
                         Transformation transform = new org.apache.cassandra.tcm.transformations.Startup(nodeId,
@@ -298,8 +300,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         // Technically, if this node it not a CMS member it only needs to be able to contact a single peer which is a
         // CMS member to submit its STARTUP transformation. However, if this node is a CMS member, it will need to
-        // confirm a majority of the other members in order to join the consensus group with them in order to commit its
-        // own STARTUP. For simplicity we try to confirm a majority of CMS members before proceeding in either case.
+        // confirm a majority of the other members in order to form the consensus group with them to commit its own
+        // STARTUP. For simplicity we try to confirm a majority of CMS members before proceeding in either case.
         int quorum = (previousCMS.size() / 2) + 1;
         int rounds = DatabaseDescriptor.getDiscoveryRounds();
         long roundTimeNanos = DatabaseDescriptor.getDiscoveryTimeout(TimeUnit.NANOSECONDS) / rounds;
@@ -308,24 +310,22 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         while (confirmedCMS.size() < quorum && currentRound < rounds)
         {
             logger.info("In round {} sending survey to {}", currentRound, candidates);
-            Collection<Pair<InetAddressAndPort, NodeId>> surveyed =
-            MessageDelivery.fanoutAndWait(MessagingService.instance(),
-                                          candidates,
-                                          Verb.TCM_DISCOVER_SURVEY_REQ,
-                                          NoPayload.noPayload,
-                                          roundTimeNanos,
-                                          TimeUnit.NANOSECONDS);
+            Collection<Pair<InetAddressAndPort, NodeId>> surveyed = MessageDelivery.fanoutAndWait(MessagingService.instance(),
+                                                                                                  candidates,
+                                                                                                  Verb.TCM_DISCOVER_SURVEY_REQ,
+                                                                                                  NoPayload.noPayload,
+                                                                                                  roundTimeNanos,
+                                                                                                  TimeUnit.NANOSECONDS);
             logger.info("Survey of {} discovered {}", candidates, surveyed);
             surveyed.forEach(pair -> {
                 if (previousCMS.containsKey(pair.right))
                     confirmedCMS.put(pair.right, pair.left);
-
             });
 
             logger.info("Confirmed CMS members {}", confirmedCMS);
             if (confirmedCMS.size() < quorum || (previousCMS.size() == 1 && confirmedCMS.containsKey(nodeId)))
             {
-                // In the single node CMS case, run discovery simply to propagate this node's new address to the rest of
+                // In the single node CMS case we run discovery simply to propagate this node's new address to the rest of
                 // the cluster via the seeds & discovery meshing. Otherwise, if every node has a new address the non-CMS
                 // members have no way to discover the CMS and it has no way to know the new places to push updates to.
                 logger.info("Running discovery round; either CMS quorum was not confirmed or this is the only CMS member");
