@@ -29,19 +29,23 @@ import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.LEGACY_PEERS;
 import static org.apache.cassandra.db.SystemKeyspace.PEERS_V2;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -82,29 +86,13 @@ public class SystemPeersValidatorTest
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
         assertEquals("peers_v2 should have 1 peer", 1, countEntries(PEERS_V2));
-        assertEquals("legacy peers should have 1 peer", 1, countEntries(LEGACY_PEERS));
+        assertEquals("peers should have 1 peer", 1, countEntries(LEGACY_PEERS));
 
         // Second call should be a no-op
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
         assertEquals("peers_v2 count should not change on second call", 1, countEntries(PEERS_V2));
-        assertEquals("legacy peers count should not change on second call", 1, countEntries(LEGACY_PEERS));
-    }
-
-    @Test
-    public void testStaleEntriesAreRemovedFromBothTables() throws UnknownHostException
-    {
-        InetAddressAndPort staleEndpoint = InetAddressAndPort.getByName("127.0.0.99");
-        insertStalePeerEntry(staleEndpoint, PEERS_V2);
-        insertStalePeerEntry(staleEndpoint, LEGACY_PEERS);
-
-        assertTrue(entryExistsInPeersV2(staleEndpoint));
-        assertTrue(entryExistsInLegacyPeers(staleEndpoint.getAddress()));
-
-        SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
-
-        assertFalse("Stale entry should be removed from peers_v2", entryExistsInPeersV2(staleEndpoint));
-        assertFalse("Stale entry should be removed from legacy peers", entryExistsInLegacyPeers(staleEndpoint.getAddress()));
+        assertEquals("peers count should not change on second call", 1, countEntries(LEGACY_PEERS));
     }
 
     @Test
@@ -119,14 +107,14 @@ public class SystemPeersValidatorTest
     }
 
     @Test
-    public void testStaleEntryOnlyInLegacyPeersIsRemoved() throws UnknownHostException
+    public void testStaleEntryOnlyInPeersIsRemoved() throws UnknownHostException
     {
         InetAddressAndPort staleEndpoint = InetAddressAndPort.getByName("127.0.0.99");
         insertStalePeerEntry(staleEndpoint, LEGACY_PEERS);
 
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
-        assertFalse("Stale entry should be removed from legacy peers", entryExistsInLegacyPeers(staleEndpoint.getAddress()));
+        assertFalse("Stale entry should be removed from peers", entryExistsInPeers(staleEndpoint.getAddress()));
     }
 
     @Test
@@ -136,12 +124,12 @@ public class SystemPeersValidatorTest
         removePeerEntry(peerEndpoint);
 
         assertFalse(entryExistsInPeersV2(peerEndpoint));
-        assertFalse(entryExistsInLegacyPeers(peerEndpoint.getAddress()));
+        assertFalse(entryExistsInPeers(peerEndpoint.getAddress()));
 
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
-        assertTrue("Missing peer should be added to peers_v2", entryExistsInPeersV2(peerEndpoint));
-        assertTrue("Missing peer should be added to legacy peers", entryExistsInLegacyPeers(peerEndpoint.getAddress()));
+        assertPeersV2RowMatchesMetadata(peerEndpoint);
+        assertPeersRowMatchesMetadata(peerEndpoint);
     }
 
     @Test
@@ -150,30 +138,68 @@ public class SystemPeersValidatorTest
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
         executeInternal(String.format("UPDATE %s.%s SET data_center = 'stale-dc' WHERE peer = ? AND peer_port = ?",
-                                      SchemaConstants.SYSTEM_KEYSPACE_NAME, PEERS_V2),
+                                      SYSTEM_KEYSPACE_NAME, PEERS_V2),
                         peerEndpoint.getAddress(), peerEndpoint.getPort());
 
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
-        String expectedDc = ClusterMetadata.current().directory.location(ClusterMetadataTestHelper.nodeId(2)).datacenter;
-        assertEquals("data_center in peers_v2 should match ClusterMetadata",
-                     expectedDc, getDataCenter(peerEndpoint, PEERS_V2));
+        assertPeersV2RowMatchesMetadata(peerEndpoint);
     }
 
     @Test
-    public void testStaleFieldInLegacyPeersIsRepaired()
+    public void testStaleFieldInPeersIsRepaired()
     {
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
         executeInternal(String.format("UPDATE %s.%s SET data_center = 'stale-dc' WHERE peer = ?",
-                                      SchemaConstants.SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
+                                      SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
                         peerEndpoint.getAddress());
 
         SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
-        String expectedDc = ClusterMetadata.current().directory.location(ClusterMetadataTestHelper.nodeId(2)).datacenter;
-        assertEquals("data_center in legacy peers should match ClusterMetadata",
-                     expectedDc, getDataCenter(peerEndpoint, LEGACY_PEERS));
+        assertPeersRowMatchesMetadata(peerEndpoint);
+    }
+
+    @Test
+    public void testNullColumnInPeersV2IsRepaired()
+    {
+        String[] columns = { "data_center", "host_id", "preferred_ip", "preferred_port",
+                             "rack", "release_version", "native_address", "native_port",
+                             "schema_version", "tokens" };
+
+        SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
+
+        for (String column : columns)
+        {
+            executeInternal(String.format("DELETE %s FROM %s.%s WHERE peer = ? AND peer_port = ?",
+                                          column, SYSTEM_KEYSPACE_NAME, PEERS_V2),
+                            peerEndpoint.getAddress(), peerEndpoint.getPort());
+
+            SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
+
+            assertPeersV2RowMatchesMetadata(peerEndpoint);
+        }
+    }
+
+    @Test
+    public void testNullColumnInPeersIsRepaired()
+    {
+        String[] columns = { "data_center", "host_id", "preferred_ip",
+                             "rack", "release_version", "rpc_address",
+                             "schema_version", "tokens" };
+
+        SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
+
+        for (String column : columns)
+        {
+            executeInternal(String.format("DELETE %s FROM %s.%s WHERE peer = ?",
+                                          column, SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
+                            peerEndpoint.getAddress());
+
+            SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
+
+            assertPeersRowMatchesMetadata(peerEndpoint);
+        }
     }
 
     @Test
@@ -185,19 +211,19 @@ public class SystemPeersValidatorTest
         StorageService.instance.validateAndRepairPeersMetadata();
 
         assertTrue("JMX repair should restore peer in peers_v2", entryExistsInPeersV2(peerEndpoint));
-        assertTrue("JMX repair should restore peer in legacy peers", entryExistsInLegacyPeers(peerEndpoint.getAddress()));
+        assertTrue("JMX repair should restore peer in peers", entryExistsInPeers(peerEndpoint.getAddress()));
     }
 
     private void cleanupPeersTables()
     {
-        executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, PEERS_V2));
-        executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, LEGACY_PEERS));
+        executeInternal(String.format("TRUNCATE %s.%s", SYSTEM_KEYSPACE_NAME, PEERS_V2));
+        executeInternal(String.format("TRUNCATE %s.%s", SYSTEM_KEYSPACE_NAME, LEGACY_PEERS));
     }
 
     private int countEntries(String table)
     {
         UntypedResultSet result = executeInternal(String.format("SELECT COUNT(*) FROM %s.%s",
-                                                                SchemaConstants.SYSTEM_KEYSPACE_NAME, table));
+                                                                SYSTEM_KEYSPACE_NAME, table));
         return (int) result.one().getLong("count");
     }
 
@@ -205,34 +231,66 @@ public class SystemPeersValidatorTest
     {
         UntypedResultSet result = executeInternal(
             String.format("SELECT peer FROM %s.%s WHERE peer = ? AND peer_port = ?",
-                          SchemaConstants.SYSTEM_KEYSPACE_NAME, PEERS_V2),
+                          SYSTEM_KEYSPACE_NAME, PEERS_V2),
             endpoint.getAddress(), endpoint.getPort());
         return !result.isEmpty();
     }
 
-    private boolean entryExistsInLegacyPeers(InetAddress address)
+    private boolean entryExistsInPeers(InetAddress address)
     {
         UntypedResultSet result = executeInternal(
             String.format("SELECT peer FROM %s.%s WHERE peer = ?",
-                          SchemaConstants.SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
+                          SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
             address);
         return !result.isEmpty();
     }
 
-    private String getDataCenter(InetAddressAndPort endpoint, String table)
+    private void assertPeersV2RowMatchesMetadata(InetAddressAndPort endpoint)
     {
-        UntypedResultSet result;
-        if (table.equals(PEERS_V2))
-            result = executeInternal(
-                String.format("SELECT data_center FROM %s.%s WHERE peer = ? AND peer_port = ?",
-                              SchemaConstants.SYSTEM_KEYSPACE_NAME, table),
-                endpoint.getAddress(), endpoint.getPort());
-        else
-            result = executeInternal(
-                String.format("SELECT data_center FROM %s.%s WHERE peer = ?",
-                              SchemaConstants.SYSTEM_KEYSPACE_NAME, table),
-                endpoint.getAddress());
-        return result.one().getString("data_center");
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = ClusterMetadataTestHelper.nodeId(2);
+        NodeAddresses addresses = metadata.directory.getNodeAddresses(nodeId);
+        Location location = metadata.directory.location(nodeId);
+
+        UntypedResultSet result = executeInternal(
+            String.format("SELECT * FROM %s.%s WHERE peer = ? AND peer_port = ?",
+                          SYSTEM_KEYSPACE_NAME, PEERS_V2),
+            endpoint.getAddress(), endpoint.getPort());
+        UntypedResultSet.Row row = result.one();
+
+        assertEquals(addresses.broadcastAddress.getAddress(), row.getInetAddress("preferred_ip"));
+        assertEquals(addresses.broadcastAddress.getPort(), row.getInt("preferred_port"));
+        assertEquals(addresses.nativeAddress.getAddress(), row.getInetAddress("native_address"));
+        assertEquals(addresses.nativeAddress.getPort(), row.getInt("native_port"));
+        assertEquals(location.datacenter, row.getString("data_center"));
+        assertEquals(location.rack, row.getString("rack"));
+        assertEquals(nodeId.toUUID(), row.getUUID("host_id"));
+        assertEquals(metadata.directory.version(nodeId).cassandraVersion.toString(), row.getString("release_version"));
+        assertEquals(metadata.schema.getVersion(), row.getUUID("schema_version"));
+        assertEquals(SystemKeyspace.tokensAsSet(metadata.tokenMap.tokens(nodeId)), row.getSet("tokens", UTF8Type.instance));
+    }
+
+    private void assertPeersRowMatchesMetadata(InetAddressAndPort endpoint)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = ClusterMetadataTestHelper.nodeId(2);
+        NodeAddresses addresses = metadata.directory.getNodeAddresses(nodeId);
+        Location location = metadata.directory.location(nodeId);
+
+        UntypedResultSet result = executeInternal(
+            String.format("SELECT * FROM %s.%s WHERE peer = ?",
+                          SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
+            endpoint.getAddress());
+        UntypedResultSet.Row row = result.one();
+
+        assertEquals(addresses.broadcastAddress.getAddress(), row.getInetAddress("preferred_ip"));
+        assertEquals(addresses.nativeAddress.getAddress(), row.getInetAddress("rpc_address"));
+        assertEquals(location.datacenter, row.getString("data_center"));
+        assertEquals(location.rack, row.getString("rack"));
+        assertEquals(nodeId.toUUID(), row.getUUID("host_id"));
+        assertEquals(metadata.directory.version(nodeId).cassandraVersion.toString(), row.getString("release_version"));
+        assertEquals(metadata.schema.getVersion(), row.getUUID("schema_version"));
+        assertEquals(SystemKeyspace.tokensAsSet(metadata.tokenMap.tokens(nodeId)), row.getSet("tokens", UTF8Type.instance));
     }
 
     private void insertStalePeerEntry(InetAddressAndPort endpoint, String table)
@@ -241,25 +299,24 @@ public class SystemPeersValidatorTest
             executeInternal(
                 String.format("INSERT INTO %s.%s (peer, peer_port, data_center, host_id, rack, release_version, tokens) " +
                               "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                              SchemaConstants.SYSTEM_KEYSPACE_NAME, table),
+                              SYSTEM_KEYSPACE_NAME, table),
                 endpoint.getAddress(), endpoint.getPort(), "dc1", UUID.randomUUID(), "rack1", "5.0.0", new HashSet<String>());
         else
             executeInternal(
                 String.format("INSERT INTO %s.%s (peer, data_center, host_id, rack, release_version, tokens) " +
                               "VALUES (?, ?, ?, ?, ?, ?)",
-                              SchemaConstants.SYSTEM_KEYSPACE_NAME, table),
+                              SYSTEM_KEYSPACE_NAME, table),
                 endpoint.getAddress(), "dc1", UUID.randomUUID(), "rack1", "5.0.0", new HashSet<String>());
     }
 
     private void removePeerEntry(InetAddressAndPort endpoint)
     {
         executeInternal(
-            String.format("DELETE FROM %s.%s WHERE peer = ? AND peer_port = ?",
-                      SchemaConstants.SYSTEM_KEYSPACE_NAME, PEERS_V2),
+            String.format("DELETE FROM %s.%s WHERE peer = ? AND peer_port = ?", SYSTEM_KEYSPACE_NAME, PEERS_V2),
             endpoint.getAddress(), endpoint.getPort());
 
         executeInternal(
-            String.format("DELETE FROM %s.%s WHERE peer = ?",
-                      SchemaConstants.SYSTEM_KEYSPACE_NAME, LEGACY_PEERS), endpoint.getAddress());
+            String.format("DELETE FROM %s.%s WHERE peer = ?", SYSTEM_KEYSPACE_NAME, LEGACY_PEERS),
+                endpoint.getAddress());
     }
 }
