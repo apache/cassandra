@@ -25,8 +25,9 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -61,6 +62,10 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
+import static org.apache.cassandra.tcm.Epoch.FIRST;
+import static org.apache.cassandra.tcm.Epoch.UPGRADE_GOSSIP;
+import static org.apache.cassandra.tcm.Epoch.UPGRADE_STARTUP;
+import static org.apache.cassandra.tcm.Epoch.EMPTY;
 
 /**
  * Offline tool to dump cluster metadata from local SSTables.
@@ -125,11 +130,11 @@ public class OfflineClusterMetadataDump implements Runnable
     @Command(mixinStandardHelpOptions = true)
     static abstract class BaseCommand implements Runnable
     {
-        @Option(names = { "-d", "--data-dir" }, description = "Data directory containing system keyspace")
-        public String dataDir;
+        @Option(names = { "-d", "--data-dir" }, description = "Data directory containing system keyspace (can be specified multiple times)", arity = "1..*")
+        public List<String> dataDirs;
 
         @Option(names = { "-s", "--sstables" }, description = "Path to SSTable directory for metadata tables (can be specified multiple times)", arity = "1..*")
-        public List<String> sstables;
+        public List<String> sstableDirectories;
 
         @Option(names = { "-p", "--partitioner" }, description = "Partitioner class name",
         defaultValue = "org.apache.cassandra.dht.Murmur3Partitioner")
@@ -268,26 +273,26 @@ public class OfflineClusterMetadataDump implements Runnable
             Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
             // Find and import SSTables for local_metadata_log
-            String logTablePath = findTablePath(SystemKeyspace.METADATA_LOG, SchemaConstants.SYSTEM_KEYSPACE_NAME);
-            if (logTablePath != null)
+            Set<String> logTablePaths = findTablePaths(SystemKeyspace.METADATA_LOG, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+            if (!logTablePaths.isEmpty())
             {
                 ColumnFamilyStore logCfs = ks.getColumnFamilyStore(SystemKeyspace.METADATA_LOG);
-                logCfs.importNewSSTables(Collections.singleton(logTablePath), false, false, false, false, false, false, true);
+                logCfs.importNewSSTables(logTablePaths, false, false, false, false, false, false, true);
                 if (verbose)
                 {
-                    output.out.println("Imported SSTables from: " + logTablePath);
+                    output.out.println("Imported SSTables from: " + logTablePaths);
                 }
             }
 
             // Find and import SSTables for metadata_snapshots
-            String snapshotTablePath = findTablePath(SystemKeyspace.SNAPSHOT_TABLE_NAME, SchemaConstants.SYSTEM_KEYSPACE_NAME);
-            if (snapshotTablePath != null)
+            Set<String> snapshotTablePaths = findTablePaths(SystemKeyspace.SNAPSHOT_TABLE_NAME, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+            if (!snapshotTablePaths.isEmpty())
             {
                 ColumnFamilyStore snapshotCfs = ks.getColumnFamilyStore(SystemKeyspace.SNAPSHOT_TABLE_NAME);
-                snapshotCfs.importNewSSTables(Collections.singleton(snapshotTablePath), false, false, false, false, false, false, true);
+                snapshotCfs.importNewSSTables(snapshotTablePaths, false, false, false, false, false, false, true);
                 if (verbose)
                 {
-                    output.out.println("Imported SSTables from: " + snapshotTablePath);
+                    output.out.println("Imported SSTables from: " + snapshotTablePaths);
                 }
             }
         }
@@ -297,52 +302,65 @@ public class OfflineClusterMetadataDump implements Runnable
             Keyspace ks = Schema.instance.getKeyspaceInstance(SchemaConstants.METADATA_KEYSPACE_NAME);
 
             // Find and import SSTables for distributed_metadata_log
-            String logTablePath = findTablePath(DistributedMetadataLogKeyspace.TABLE_NAME, SchemaConstants.METADATA_KEYSPACE_NAME);
-            if (logTablePath != null)
+            Set<String> logTablePaths = findTablePaths(DistributedMetadataLogKeyspace.TABLE_NAME, SchemaConstants.METADATA_KEYSPACE_NAME);
+            if (!logTablePaths.isEmpty())
             {
                 ColumnFamilyStore logCfs = ks.getColumnFamilyStore(DistributedMetadataLogKeyspace.TABLE_NAME);
-                logCfs.importNewSSTables(Collections.singleton(logTablePath), false, false, false, false, false, false, true);
+                logCfs.importNewSSTables(logTablePaths, false, false, false, false, false, false, true);
                 if (verbose)
                 {
-                    output.out.println("Imported SSTables from: " + logTablePath);
+                    output.out.println("Imported SSTables from: " + logTablePaths);
                 }
             }
         }
 
-        protected String findTablePath(String tableName, String keyspaceName) throws IOException
+        protected Set<String> findTablePaths(String tableName, String keyspaceName) throws IOException
         {
-            if (sstables != null && !sstables.isEmpty())
+            Set<String> paths = new LinkedHashSet<>();
+
+            if (sstableDirectories != null && !sstableDirectories.isEmpty())
             {
-                for (String sstablePath : sstables)
+                for (String sstablePath : sstableDirectories)
                 {
                     if (sstablePath.contains(tableName))
-                        return sstablePath;
+                    {
+                        paths.add(sstablePath);
+                        continue;
+                    }
                     Path tableDir = Path.of(sstablePath, tableName);
                     if (Files.exists(tableDir))
-                        return tableDir.toString();
-                    String matches = findTablePathInDir(tableName, keyspaceName, sstablePath);
-                    if (matches != null)
-                        return matches;
+                    {
+                        paths.add(tableDir.toString());
+                        continue;
+                    }
+                    String match = findTablePathInDir(tableName, keyspaceName, sstablePath);
+                    if (match != null)
+                        paths.add(match);
                 }
-                return null;
+                return paths;
             }
 
-            if (dataDir != null)
+            if (dataDirs != null && !dataDirs.isEmpty())
             {
-                String matches = findTablePathInDir(tableName, keyspaceName, dataDir);
-                if (matches != null)
-                    return matches;
+                for (String dataDir : dataDirs)
+                {
+                    String match = findTablePathInDir(tableName, keyspaceName, dataDir);
+                    if (match != null)
+                        paths.add(match);
+                }
+                return paths;
             }
 
-            String[] dataDirs = DatabaseDescriptor.getAllDataFileLocations();
-            for (String dir : dataDirs)
+            // Fall back to DatabaseDescriptor locations
+            String[] defaultDirs = DatabaseDescriptor.getAllDataFileLocations();
+            for (String dir : defaultDirs)
             {
-                String matches = findTablePathInDir(tableName, keyspaceName, dir);
-                if (matches != null)
-                    return matches;
+                String match = findTablePathInDir(tableName, keyspaceName, dir);
+                if (match != null)
+                    paths.add(match);
             }
 
-            return null;
+            return paths;
         }
 
         private String findTablePathInDir(String tableName, String keyspaceName, String dataDir) throws IOException
@@ -382,11 +400,22 @@ public class OfflineClusterMetadataDump implements Runnable
 
             Epoch baseEpoch = base != null
                               ? base.epoch
-                              : startEpoch != null ? Epoch.create(startEpoch).previousEpoch() : Epoch.EMPTY;
+                              : startEpoch != null ? previousEpoch(Epoch.create(startEpoch)) : Epoch.EMPTY;
             try
             {
                 LogReader.EntryHolder entryHolder = reader.getEntries(baseEpoch, endEpoch);
                 ImmutableList<Entry> entryList = processEntriesWithGapDetection(entryHolder, baseEpoch, out);
+
+                // Warn if requested targetEpoch > available epochs
+                if (targetEpoch != null && !entryList.isEmpty())
+                {
+                    long maxAvailableEpoch = entryList.get(entryList.size() - 1).epoch.getEpoch();
+                    if (targetEpoch > maxAvailableEpoch)
+                    {
+                        out.err.println("WARNING: Requested epoch " + targetEpoch +
+                                        " exceeds max available epoch " + maxAvailableEpoch);
+                    }
+                }
 
                 // Warn if there's a gap between snapshot and first entry
                 ClusterMetadata effectiveBase = base;
@@ -404,6 +433,15 @@ public class OfflineClusterMetadataDump implements Runnable
             {
                 throw new RuntimeException("Failed to read log entries", e);
             }
+        }
+
+        static private Epoch previousEpoch(Epoch epoch)
+        {
+            if (UPGRADE_GOSSIP.equals(epoch) || UPGRADE_STARTUP.equals(epoch))
+                return epoch;
+            if (EMPTY.equals(epoch) || FIRST.equals(epoch))
+                return EMPTY;
+            return Epoch.create(epoch.getEpoch() - 1);
         }
 
         /**
