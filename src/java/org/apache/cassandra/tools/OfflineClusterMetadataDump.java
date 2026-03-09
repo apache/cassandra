@@ -62,10 +62,10 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import static com.google.common.base.Throwables.getStackTraceAsString;
+import static org.apache.cassandra.tcm.Epoch.EMPTY;
 import static org.apache.cassandra.tcm.Epoch.FIRST;
 import static org.apache.cassandra.tcm.Epoch.UPGRADE_GOSSIP;
 import static org.apache.cassandra.tcm.Epoch.UPGRADE_STARTUP;
-import static org.apache.cassandra.tcm.Epoch.EMPTY;
 
 /**
  * Offline tool to dump cluster metadata from local SSTables.
