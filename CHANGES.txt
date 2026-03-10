@@ -13,7 +13,7 @@ Merged from 4.1:
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
 Merged from 4.0:
  * Obsolete expired SSTables before compaction starts (CASSANDRA-19776)
- * Switch lz4-java to at.yawk.lz4 version due to CVE (CASSANDRA-20152)
+ * Switch lz4-java to at.yawk.lz4 version due to CVE (CASSANDRA-21052)
  * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)
  * Backport fix to nodetool gcstats output for direct memory (CASSANDRA-21037)
  * ArrayIndexOutOfBoundsException with repaired data tracking and counters (CASSANDRA-20871)
