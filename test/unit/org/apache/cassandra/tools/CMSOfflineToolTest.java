@@ -472,6 +472,8 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         ClusterMetadata outMetadata = deserializeMetadata(outputFile);
         assertThat(outMetadata.directory.peerState(cmsNodeId)).isEqualTo(NodeState.LEFT);
+        assertThat(outMetadata.fullCMSMemberIds()).doesNotContain(cmsNodeId);
+        assertThat(outMetadata.fullCMSMembers().size()).isEqualTo(metadata.fullCMSMembers().size());
 
         assertCorrectEnvPostTest();
     }
@@ -1646,14 +1648,16 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         NodeVersion nodeVersion = NodeVersion.CURRENT;
 
-        Directory directory =
-        new Directory()
-        .unsafeWithNodeForTesting(nodeId1, new NodeAddresses(addr1), new Location(DC, "rack1"), nodeVersion)
-        .unsafeWithNodeForTesting(nodeId2, new NodeAddresses(addr2), new Location(DC, "rack2"), nodeVersion)
-        .unsafeWithNodeForTesting(nodeId3, new NodeAddresses(addr3), new Location(DC, "rack3"), nodeVersion)
-        .withRackAndDC(nodeId1)
-        .withRackAndDC(nodeId2)
-        .withRackAndDC(nodeId3);
+        Directory directory = new Directory()
+                              .unsafeWithNodeForTesting(nodeId1, new NodeAddresses(addr1),
+                                                        new Location(DC, "rack1"), nodeVersion)
+                              .unsafeWithNodeForTesting(nodeId2, new NodeAddresses(addr2),
+                                                        new Location(DC, "rack2"), nodeVersion)
+                              .unsafeWithNodeForTesting(nodeId3, new NodeAddresses(addr3),
+                                                        new Location(DC, "rack3"), nodeVersion)
+                              .withRackAndDC(nodeId1)
+                              .withRackAndDC(nodeId2)
+                              .withRackAndDC(nodeId3);
 
         KeyspaceParams metaKsParams = KeyspaceParams.create(true,
                                                             Map.of("class", "MetaStrategy", "datacenter1", "3"));
@@ -1738,7 +1742,8 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         Directory directory = prev.directory
                               .unsafeWithNodeForTesting(nodeId, getNodeAddresses(newNodeId),
                                                         new Location(DC, "rack" + newNodeId),
-                                                        NodeVersion.CURRENT);
+                                                        NodeVersion.CURRENT)
+                              .withRackAndDC(nodeId);
 
         ClusterMetadata metadata = prev.transformer().with(directory).join(nodeId).proposeToken(nodeId, tokens).build().metadata;
         DataPlacements dataPlacements = new UniformRangePlacement()
