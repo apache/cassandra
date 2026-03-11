@@ -425,7 +425,14 @@ public class MutationTrackingService
         try
         {
             Preconditions.checkArgument(!mutation.id().isNone());
-            return getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            boolean started = getOrCreateShards(mutation.getKeyspaceName()).startWriting(mutation);
+            // If this is a duplicate mutation (already witnessed), notify any pending read
+            // reconciliation listeners. A listener can be registered between the first write's
+            // invokeListeners() call (which found no listeners) and this duplicate's arrival,
+            // causing the listener to never fire and the read to hang.
+            if (!started)
+                incomingMutations.invokeListeners(mutation.id());
+            return started;
         }
         finally
         {
