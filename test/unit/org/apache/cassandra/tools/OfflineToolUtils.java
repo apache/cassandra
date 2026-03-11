@@ -121,6 +121,7 @@ public abstract class OfflineToolUtils
         var badThreads = Arrays.stream(threads.getThreadInfo(threads.getAllThreadIds()))
                                .filter(Objects::nonNull)
                                .filter(threadInfo -> allowedRegexes.stream().noneMatch(pattern -> pattern.matcher(threadInfo.getThreadName()).matches()))
+                               .filter(threadInfo -> !allowedThreadNames.contains(threadInfo.getThreadName()))
                                .collect(Collectors.toSet());
 
         if (!badThreads.isEmpty())
