@@ -22,6 +22,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
 
+import static org.apache.cassandra.simulator.test.SimulationTestBase.DEFAULT_ITERATIONS;
+
 /**
  * In order to run these tests in your IDE, you need to first build a simulator jara
  *
@@ -100,7 +102,8 @@ public class ShortPaxosSimulationTest
                                                                           "-t", "1000",
                                                                           "-c", "2",
                                                                           "--cluster-action-limit", "2",
-                                                                          "-s", "30" });
+                                                                          "-s", "30",
+                                                                          "--simulations", String.valueOf(DEFAULT_ITERATIONS) });
     }
 
     @Test
@@ -114,7 +117,8 @@ public class ShortPaxosSimulationTest
                                                                           "-s", "30",
                                                                           "--with-self",
                                                                           "--with-rng", "0",
-                                                                          "--with-time", "0",});
+                                                                          "--with-time", "0",
+                                                                          "--simulations", String.valueOf(DEFAULT_ITERATIONS) });
     }
 }
 
