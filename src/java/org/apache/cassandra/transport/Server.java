@@ -126,6 +126,11 @@ public class Server implements CassandraDaemon.Server
         Schema.instance.registerListener(notifier);
     }
 
+    public ChannelGroup getChannelsSubsribedToGracefulDisconnect()
+    {
+        return connectionTracker.groups.get(Event.Type.GRACEFUL_DISCONNECT);
+    }
+
     public void stop()
     {
         stop(false);

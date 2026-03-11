@@ -47,6 +47,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -220,7 +221,9 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.transport.ClientResourceLimits;
+import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -239,6 +242,9 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
+
+import io.netty.channel.group.ChannelGroup;
+import io.netty.util.AttributeKey;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -618,6 +624,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
+        gracefulDisconnect(() -> {
+            daemon.stopNativeTransport(force);
+        });
         daemon.stopNativeTransport(force);
     }
 
@@ -716,7 +725,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (daemon == null)
             throw new IllegalStateException("No configured daemon");
-        daemon.deactivate();
+        gracefulDisconnect(() -> {
+            daemon.deactivate();
+        });
     }
 
     // for testing only
@@ -3855,7 +3866,40 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
-        drain(false);
+        gracefulDisconnect(() -> {
+            try
+            {
+                drain(false);
+            }
+            catch (IOException | InterruptedException | ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void gracefulDisconnect(Runnable defaultAction)
+    {
+        if (CassandraDaemon.instance.nativeTransportService() != null &&
+            CassandraDaemon.instance.nativeTransportService().getServer() != null)
+        {
+            ChannelGroup channelGroup = CassandraDaemon.instance.nativeTransportService()
+                                                                .getServer()
+                                                                .getChannelsSubsribedToGracefulDisconnect();
+
+            if (channelGroup != null && !channelGroup.isEmpty())
+            {
+                EventMessage gracefulDisconnectEventMessage = new EventMessage(new Event.GracefulDisconnect());
+                final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
+                channelGroup.forEach(channel -> {
+                    Consumer<EventMessage> dispatcher = channel.attr(EVENT_DISPATCHER).get();
+                    if (dispatcher != null)
+                        dispatcher.accept(gracefulDisconnectEventMessage);
+                });
+
+            } else
+                defaultAction.run();
+        }
     }
 
     protected synchronized void drain(boolean isFinalShutdown) throws IOException, InterruptedException, ExecutionException
