@@ -36,11 +36,9 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
+import org.apache.cassandra.db.compression.CompressionDictionaryTrainingConfig;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.utils.concurrent.Ref;
-
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateDurationBasedTrainingParameter;
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.validateSizeBasedTrainingParameter;
 
 public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICompressor, IDictionaryCompressor<ZstdCompressionDictionary>
 {
@@ -78,15 +76,10 @@ public class ZstdDictionaryCompressor extends ZstdCompressorBase implements ICom
     {
         int level = getOrDefaultCompressionLevel(options);
         validateCompressionLevel(level);
-        validateSizeBasedTrainingParameter(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
-                                           options.getOrDefault(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
-                                                                DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE));
-        validateSizeBasedTrainingParameter(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
-                                           options.getOrDefault(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
-                                                                DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE));
-        validateDurationBasedTrainingParameter(TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
-                                               options.getOrDefault(TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
-                                                                    DEFAULT_TRAINING_MIN_FREQUENCY));
+        // pass it through to validate
+        CompressionDictionaryTrainingConfig.getMaxDictionarySize(options);
+        CompressionDictionaryTrainingConfig.getMaxTotalSampleSize(options);
+        CompressionDictionaryTrainingConfig.getMinTrainingFrequency(options);
         return getOrCreate(level, null);
     }
 

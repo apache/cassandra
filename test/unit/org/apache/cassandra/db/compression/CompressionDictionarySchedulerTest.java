@@ -68,8 +68,8 @@ public class CompressionDictionarySchedulerTest extends CQLTester
             CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
 
             // Should not throw, but task will complete quickly with no SSTables
-            scheduler.scheduleSSTableBasedTraining(manager.trainer(), refViewFragment, config, true);
-            spinUntilTrue(() -> !scheduler.isManualTrainingRunning());
+            scheduler.scheduleSSTableBasedTraining(refViewFragment, cfs.metadata.get().params.compression, config, manager::handleNewDictionary, true);
+            spinUntilTrue(() -> !scheduler.isTrainingRunning());
             assertThat(manager.getCurrent()).isNull();
         }
     }
@@ -91,13 +91,12 @@ public class CompressionDictionarySchedulerTest extends CQLTester
             assertThat(refViewFragment.sstables).isNotEmpty();
 
             CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
-            manager.trainer().start(config);
 
             assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
-            scheduler.scheduleSSTableBasedTraining(manager.trainer(), refViewFragment, config, true);
+            scheduler.scheduleSSTableBasedTraining(refViewFragment, cfs.metadata.get().params.compression, config, manager::handleNewDictionary, true);
 
             // Task should be scheduled
-            assertThat(scheduler.isManualTrainingRunning()).isTrue();
+            assertThat(scheduler.isTrainingRunning()).isTrue();
             // A dictionary should be trained
             spinUntilTrue(() -> manager.getCurrent() != null);
         }

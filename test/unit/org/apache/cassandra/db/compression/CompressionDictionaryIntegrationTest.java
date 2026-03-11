@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -113,28 +112,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     }
 
     @Test
-    public void testCompressionParameterChanges()
-    {
-        String table = createTable(getTableCql());
-        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
-        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
-        ICompressionDictionaryTrainer trainer = manager.trainer();
-        assertThat(trainer).isNotNull();
-        assertThat(trainer.kind()).isEqualTo(Kind.ZSTD);
-
-        // Change compression level - should create new trainer
-        CompressionParams newParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
-                                                             Collections.singletonMap("compression_level", "5"));
-        manager.maybeReloadFromSchema(newParams);
-        ICompressionDictionaryTrainer newTrainer = manager.trainer();
-        assertThat(newTrainer.kind()).isEqualTo(Kind.ZSTD);
-        assertThat(newTrainer)
-        .as("Should create a different trainer instance when compression level is changed")
-        .isNotSameAs(trainer);
-    }
-
-    @Test
-    public void testResourceCleanupOnClose() throws Exception
+    public void testResourceCleanupOnClose()
     {
         createTable(getTableCql());
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -154,7 +132,9 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         manager.close();
 
-        assertThat(manager.trainer()).isNull();
+        assertThat(TrainingState.fromCompositeData(manager.getTrainingState()).status)
+        .isEqualTo(TrainingState.notStarted().status);
+
         // Dictionary's reference count should be 0 after closing manager
         // Dictionary is closed in a separate thread. Wait a bit for the reference count to be updated.
         spinUntilTrue(() -> testDict.selfRef().globalCount() == 0, 1, TimeUnit.SECONDS);

@@ -21,6 +21,8 @@ package org.apache.cassandra.db.compression;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -30,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 
 /**
@@ -48,7 +51,9 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     private final String tableName;
     private final String tableId;
     private final ICompressionDictionaryCache cache;
-    private final AtomicBoolean manualTrainingInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean trainingInProgress = new AtomicBoolean(false);
+    private final AtomicReference<TrainingState> lastTrainingState = new AtomicReference<>(TrainingState.notStarted());
+    private volatile ICompressionDictionaryTrainer activeTrainer;
 
     private volatile ScheduledFuture<?> scheduledRefreshTask;
     private volatile boolean isEnabled;
@@ -83,31 +88,59 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     }
 
     @Override
-    public void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
-                                             ColumnFamilyStore.RefViewFragment refViewFragment,
+    public void scheduleSSTableBasedTraining(ColumnFamilyStore.RefViewFragment refViewFragment,
+                                             CompressionParams compressionParams,
                                              CompressionDictionaryTrainingConfig config,
+                                             Consumer<CompressionDictionary> listener,
                                              boolean force)
     {
-        if (!manualTrainingInProgress.compareAndSet(false, true))
+        if (!trainingInProgress.compareAndSet(false, true))
         {
             refViewFragment.close();
             throw new IllegalStateException("Training already in progress for table " + keyspaceName + '.' + tableName);
         }
 
-        logger.info("Starting SSTable-based dictionary training for {}.{} from {} SSTables",
-                    keyspaceName, tableName, refViewFragment.sstables.size());
+        ICompressionDictionaryTrainer trainer;
 
-        // Run the SSTableSamplingTask asynchronously
-        SSTableSamplingTask task = new SSTableSamplingTask(refViewFragment, trainer, config, force);
-        ScheduledExecutors.nonPeriodicTasks.submit(task);
+        try
+        {
+            trainer = ICompressionDictionaryTrainer.create(keyspaceName, tableName, compressionParams);
+            trainer.setDictionaryTrainedListener(listener);
+        }
+        catch (Throwable t)
+        {
+            trainingInProgress.set(false);
+            refViewFragment.close();
+            throw t;
+        }
+
+        if (trainer.start(config))
+        {
+            activeTrainer = trainer;
+            lastTrainingState.set(trainer.getTrainingState());
+            logger.info("Starting SSTable-based dictionary training for {}.{} from {} SSTables",
+                        keyspaceName, tableName, refViewFragment.sstables.size());
+
+            SSTableSamplingTask task = new SSTableSamplingTask(refViewFragment, trainer, config, force);
+            // trainer is eventually closed here, as well as indicating
+            // in manualTrainingInProgress that it was finished
+            ScheduledExecutors.nonPeriodicTasks.submit(task);
+        }
+        else
+        {
+            finishTraining(trainer.getTrainingState());
+            cleanup(refViewFragment, trainer);
+        }
     }
 
     /**
      * Cancels the in-progress manual training task.
      */
-    private void cancelManualTraining()
+    private void finishTraining(TrainingState trainingState)
     {
-        manualTrainingInProgress.compareAndSet(true, false);
+        lastTrainingState.set(trainingState);
+        activeTrainer = null;
+        trainingInProgress.compareAndSet(true, false);
     }
 
     /**
@@ -119,6 +152,15 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     public void setEnabled(boolean enabled)
     {
         this.isEnabled = enabled;
+    }
+
+    @Override
+    public TrainingState getLastTrainingState()
+    {
+        ICompressionDictionaryTrainer trainer = activeTrainer;
+        if (trainer != null)
+            return trainer.getTrainingState();
+        return lastTrainingState.get();
     }
 
     /**
@@ -153,7 +195,7 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             scheduledRefreshTask = null;
         }
 
-        cancelManualTraining();
+        finishTraining(TrainingState.notStarted());
     }
 
     /**
@@ -195,7 +237,6 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 // Use the force parameter from the task
                 trainer.trainDictionaryAsync(force)
                        .addCallback((dictionary, throwable) -> {
-                           cancelManualTraining();
                            if (throwable != null)
                            {
                                logger.error("SSTable-based dictionary training failed for {}.{}: {}",
@@ -206,23 +247,36 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                                logger.info("SSTable-based dictionary training completed for {}.{}",
                                            keyspaceName, tableName);
                            }
+
+                           finishTraining(trainer.getTrainingState());
+                           cleanup(refViewFragment, trainer);
                        });
             }
             catch (Exception e)
             {
                 logger.error("Failed to sample from SSTables for {}.{}", keyspaceName, tableName, e);
-                cancelManualTraining();
-            }
-            finally
-            {
-                refViewFragment.close();
+                finishTraining(trainer.getTrainingState());
+                cleanup(refViewFragment, trainer);
             }
         }
     }
 
-    @VisibleForTesting
-    boolean isManualTrainingRunning()
+    private void cleanup(ColumnFamilyStore.RefViewFragment refViewFragment, ICompressionDictionaryTrainer trainer)
     {
-        return manualTrainingInProgress.get();
+        try
+        {
+            trainer.close();
+        }
+        catch (Throwable t)
+        {
+            logger.debug("Unable to close trainer.", t);
+        }
+        refViewFragment.close();
+    }
+
+    @VisibleForTesting
+    boolean isTrainingRunning()
+    {
+        return trainingInProgress.get();
     }
 }

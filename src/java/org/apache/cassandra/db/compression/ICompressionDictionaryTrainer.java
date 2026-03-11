@@ -99,16 +99,6 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     CompressionDictionary.Kind kind();
 
     /**
-     * Determines if this trainer is compatible with the given compression parameters.
-     * This method allows the trainer to decide whether it can continue operating
-     * with new compression parameters or if a new trainer instance is needed.
-     *
-     * @param newParams the new compression parameters to check compatibility against
-     * @return true if this trainer is compatible with the new parameters, false otherwise
-     */
-    boolean isCompatibleWith(CompressionParams newParams);
-
-    /**
      * Sets the listener for dictionary training events.
      *
      * @param listener the listener to be notified when dictionaries are trained, null to remove listener
