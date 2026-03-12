@@ -318,8 +318,20 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         {
             totalSampleSize.set(0);
             sampleCount.set(0);
-            zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
-            config = trainingConfig;
+            try
+            {
+                zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
+                config = trainingConfig;
+            }
+            catch (OutOfMemoryError e)
+            {
+                String sizeStr = FileUtils.stringifyFileSize(trainingConfig.maxTotalSampleSize, true);
+                throw new IllegalStateException(
+                String.format("Unable to allocate %s direct buffer for dictionary training. " +
+                              "Consider reducing max total sample size or increasing JVM max direct memory (-XX:MaxDirectMemorySize).",
+                              sizeStr),
+                e);
+            }
         }
     }
 
