@@ -27,7 +27,7 @@ import org.apache.cassandra.schema.TableMetadata;
 /**
  * Factory for {@code ColumnFilter} instances.
  * <p>This class is used to abstract the fact that depending on the selection clause the {@code ColumnFilter} instances
- * can be computed at prepartion time (if all the requested columns are known) or must be computed at execution time.</p>
+ * can be computed at prepartition time (if all the requested columns are known) or must be computed at execution time.</p>
  */
 abstract class ColumnFilterFactory
 {
