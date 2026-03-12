@@ -41,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -243,6 +244,7 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.util.AttributeKey;
 
@@ -301,6 +303,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public static final int INDEFINITE = -1;
     public static final int RING_DELAY_MILLIS = getRingDelay(); // delay after which we assume ring has stablized
+
+    private final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
 
     {
         PathUtils.setDeletionListener(path -> {
@@ -3880,25 +3884,53 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void gracefulDisconnect(Runnable defaultAction)
     {
-        if (CassandraDaemon.instance.nativeTransportService() != null &&
-            CassandraDaemon.instance.nativeTransportService().getServer() != null)
+        NativeTransportService nts = CassandraDaemon.instance.nativeTransportService();
+        if (nts == null || nts.getServer() == null)
         {
-            ChannelGroup channelGroup = CassandraDaemon.instance.nativeTransportService()
-                                                                .getServer()
-                                                                .getChannelsSubscribedToGracefulDisconnect();
+            defaultAction.run();
+            return;
+        }
 
-            if (channelGroup != null && !channelGroup.isEmpty())
-            {
-                EventMessage gracefulDisconnectEventMessage = new EventMessage(new Event.GracefulDisconnect());
-                final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
-                channelGroup.forEach(channel -> {
-                    Consumer<EventMessage> dispatcher = channel.attr(EVENT_DISPATCHER).get();
-                    if (dispatcher != null)
-                        dispatcher.accept(gracefulDisconnectEventMessage);
-                });
+        ChannelGroup channelGroup = nts.getServer().getChannelsSubscribedToGracefulDisconnect();
+        if (channelGroup == null || channelGroup.isEmpty())
+        {
+            defaultAction.run();
+            return;
+        }
 
-            } else
+        AtomicBoolean actionStarted = new AtomicBoolean(false);
+        Runnable runOnceAction = () -> {
+            if (actionStarted.compareAndSet(false, true))
                 defaultAction.run();
+        };
+
+        ScheduledFuture<?> timeoutTask = ScheduledExecutors.nonPeriodicTasks
+                                         .schedule(runOnceAction, DatabaseDescriptor.getGracefulDisconnectMaxDrainMs(), MILLISECONDS);
+
+        AtomicInteger pendingRegistrations = new AtomicInteger(1);
+        EventMessage gracefulDisconnectEventMessage = new EventMessage(new Event.GracefulDisconnect());
+
+        channelGroup.forEach(channel -> {
+            pendingRegistrations.incrementAndGet();
+
+            Consumer<EventMessage> dispatcher = channel.attr(EVENT_DISPATCHER).get();
+            if (dispatcher != null)
+                dispatcher.accept(gracefulDisconnectEventMessage);
+
+            // in-flight requests complete when the driver closes socket connection
+            channel.closeFuture().addListener((ChannelFutureListener) future -> {
+                if (pendingRegistrations.decrementAndGet() == 0 && channelGroup.isEmpty())
+                {
+                    runOnceAction.run();
+                    timeoutTask.cancel(false);
+                }
+            });
+        });
+
+        if (pendingRegistrations.decrementAndGet() == 0 && channelGroup.isEmpty())
+        {
+            runOnceAction.run();
+            timeoutTask.cancel(false);
         }
     }
 
