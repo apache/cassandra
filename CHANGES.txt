@@ -1,4 +1,5 @@
 5.0.7
+ * Include tools in applyCompatibilityMode to ensure they are not limited in sstable formats they support (CASSANDRA-21196)
  * Dynamically skip sharding L0 when SAI Vector index present (CASSANDRA-19661)
  * Optionally force IndexStatusManager to use the optimized index status format (CASSANDRA-21132) 
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)
