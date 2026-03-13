@@ -527,6 +527,18 @@ public final class Guardrails implements GuardrailsMBean
                             what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
+     * Guardrail on the size of a blob term written to SAI index.
+     */
+    public static final MaxThreshold saiBlobTermSize =
+    new MaxThreshold("sai_blob_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiBlobTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiBlobTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
      * Guardrail on the size of a frozen term written to SAI index.
      */
     public static final MaxThreshold saiFrozenTermSize =
@@ -1327,6 +1339,26 @@ public final class Guardrails implements GuardrailsMBean
     public void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
     {
         DEFAULT_CONFIG.setSaiStringTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getSaiBlobTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiBlobTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiBlobTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiBlobTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiBlobTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiBlobTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override

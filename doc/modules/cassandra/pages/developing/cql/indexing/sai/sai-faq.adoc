@@ -140,10 +140,11 @@ See xref:developing/cql/indexing/sai/sai-read-write-paths.adoc[SAI write path an
 
 SAI supports two on-disk index formats, optimized for:
 
-* Equality and non-exact matching on *strings*.
-** Strings are indexed on-disk using the https://en.wikipedia.org/wiki/Trie[trie] data structure, in conjunction with postings (term/row pairs) lists.
-The trie is heap friendly, providing string prefix compression for terms, and can match any query that can be expressed as a deterministic finite automaton.
+* Equality and non-exact matching on *strings, blobs, and booleans*.
+** These literal types are indexed on-disk using the https://en.wikipedia.org/wiki/Trie[trie] data structure, in conjunction with postings (term/row pairs) lists.
+The trie is heap friendly, providing prefix compression for terms, and can match any query that can be expressed as a deterministic finite automaton.
 The feature minimizes on-disk footprint and supports simple token skipping.
+Note that `BLOB` and `BOOLEAN` types support equality queries only.
 
 * Equality and range queries on *numeric and non-literal types*.
 ** Numeric values and the other non-literal CQL types (`timestamp`, `date`, `UUID`) are indexed on-disk using https://en.wikipedia.org/wiki/K-d_tree[k-dimensional tree], a balanced structure that provides fast lookups across one or more dimensions, and compression for both values and postings.
@@ -156,12 +157,14 @@ The SAI disk usage is largely dependent on the underlying data model and the num
 
 == What are the supported column data types for SAI indexing?
 
-The supported types are: `ASCII, BIGINT, DATE, DECIMAL, DOUBLE, FLOAT, INET, INT, SMALLINT, TEXT, TIME, TIMESTAMP, TIMEUUID, TINYINT, UUID, VARCHAR, VARINT`.
+The supported types are: `ASCII, BIGINT, BLOB, BOOLEAN, DATE, DECIMAL, DOUBLE, FLOAT, INET, INT, SMALLINT, TEXT, TIME, TIMESTAMP, TIMEUUID, TINYINT, UUID, VARCHAR, VARINT`.
 
 [NOTE]
 ====
 * `INET` support for IPv4 and IPv6 was new starting with Cassandra ???.
 * The `DECIMAL` and `VARINT` support was new starting with Cassandra ???.
+* The `BOOLEAN` support was new starting with Cassandra ???.
+* The `BLOB` support was new starting with Cassandra ???.
 * SAI also supports collections -- see the xref:#saiCollectionColumnFaq[next FAQ].
 ====
 

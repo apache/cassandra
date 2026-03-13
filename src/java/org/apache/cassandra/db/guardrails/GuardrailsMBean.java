@@ -824,6 +824,30 @@ public interface GuardrailsMBean
     void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
+     * @return The warning threshold for blob terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiBlobTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for blob terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiBlobTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for blob terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for blob terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiBlobTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The warning threshold for frozen terms written to an SAI index, as a human-readable string.
      *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
      */

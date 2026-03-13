@@ -67,7 +67,8 @@ public class IndexTermTypeTest
             boolean isUTF8OrAscii = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT ||
                                     cql3Type == CQL3Type.Native.VARCHAR;
             boolean isLiteral = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT ||
-                                cql3Type == CQL3Type.Native.VARCHAR || cql3Type == CQL3Type.Native.BOOLEAN;
+                                cql3Type == CQL3Type.Native.VARCHAR || cql3Type == CQL3Type.Native.BOOLEAN ||
+                                cql3Type == CQL3Type.Native.BLOB;
             assertEquals(isLiteral, indexTermType.isLiteral());
             assertEquals(indexTermType.isLiteral(), reversedIndexTermType.isLiteral());
             assertEquals(isUTF8OrAscii, indexTermType.isString());
