@@ -1,4 +1,5 @@
 4.1.11
+ * Fix ant generate-eclipse-files (CASSANDRA-21215)
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)
  * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)

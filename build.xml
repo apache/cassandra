@@ -2250,7 +2250,7 @@
     </path>
     <pathconvert property="eclipse-libs-list" refid="eclipse-project-libs-path" pathsep="${line.separator}">
         <mapper>
-            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1\" \/&gt;'/>
+            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1" /&gt;'/>
         </mapper>
     </pathconvert>
     <property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
