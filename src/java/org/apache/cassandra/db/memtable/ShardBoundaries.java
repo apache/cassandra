@@ -22,8 +22,13 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.agrona.collections.IntArrayList;
+
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.Epoch;
 
@@ -39,14 +44,18 @@ public class ShardBoundaries
 {
     private static final Token[] EMPTY_TOKEN_ARRAY = new Token[0];
 
-    // Special boundaries that map all tokens to one shard.
-    // These boundaries will be used in either of these cases:
+    // Special boundaries that map all tokens to one shard. These boundaries will be used in either of these cases:
     // - there is only 1 shard configured
     // - the default partitioner doesn't support splitting
     // - the keyspace is local system keyspace
+    private static final Range<PartitionPosition>[] EMPTY_RANGE_ARRAY = new Range[0];
+    private static final IntArrayList EMPTY_BOUNDARIES_SHARDS = new IntArrayList(new int[] { 0 }, 1, IntArrayList.DEFAULT_NULL_VALUE);
+
     public static final ShardBoundaries NONE = new ShardBoundaries(EMPTY_TOKEN_ARRAY, Epoch.EMPTY);
 
     private final Token[] boundaries;
+    private final Range<PartitionPosition>[] ranges;
+    private final IntArrayList allShards;
     public final Epoch epoch;
 
     @VisibleForTesting
@@ -54,6 +63,34 @@ public class ShardBoundaries
     {
         this.boundaries = boundaries;
         this.epoch = epoch;
+        this.ranges = precomputeRanges();
+
+        IntArrayList shards = new IntArrayList(boundaries.length + 1, IntArrayList.DEFAULT_NULL_VALUE);
+        for (int i = 0; i <= boundaries.length; i++)
+            shards.addInt(i);
+        this.allShards = shards;
+    }
+
+    private Range<PartitionPosition>[] precomputeRanges()
+    {
+        if (boundaries.length == 0)
+            return EMPTY_RANGE_ARRAY;
+
+        IPartitioner partitioner = boundaries[0].getPartitioner();
+        Range<PartitionPosition>[] ranges = new Range[boundaries.length + 1];
+        int rangeIndex = 0;
+        PartitionPosition minimum = partitioner.getMinimumToken().minKeyBound();
+
+        for (Token boundary : boundaries)
+        {
+            PartitionPosition boundaryPosition = boundary.maxKeyBound();
+            ranges[rangeIndex++] = new Range<>(minimum, boundaryPosition);
+            minimum = boundaryPosition;
+        }
+
+        ranges[rangeIndex] = new Range<>(minimum, partitioner.getMaximumTokenForSplitting().maxKeyBound());
+
+        return ranges;
     }
 
     public ShardBoundaries(List<Token> boundaries, Epoch epoch)
@@ -85,6 +122,23 @@ public class ShardBoundaries
 
         assert (key.getPartitioner() == boundaries[0].getPartitioner());
         return getShardForToken(key.getToken());
+    }
+
+    public IntArrayList getShardsForRange(AbstractBounds<PartitionPosition> keyRange)
+    {
+        if (boundaries.length == 0)
+            return EMPTY_BOUNDARIES_SHARDS;
+
+        // If the keyRange tokens match and are minimum then it represents the entire token ring
+        // then we need to return all the shards.
+        if (keyRange.right.isMinimum() && keyRange.left.compareTo(keyRange.right) == 0)
+            return allShards;
+        
+        IntArrayList inRange = new IntArrayList(ranges.length, IntArrayList.DEFAULT_NULL_VALUE);
+        for (int shard = 0; shard < ranges.length; shard++)
+            if (ranges[shard].intersects(keyRange))
+                inRange.addInt(shard);
+        return inRange;
     }
 
     public Token getShardStartBoundary(int shardId)
