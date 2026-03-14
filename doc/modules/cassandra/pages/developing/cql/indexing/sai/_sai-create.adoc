@@ -17,6 +17,7 @@ The SAI index options are defined in the `WITH OPTIONS` clause.
 The `case_sensitive` option is set to `false` to allow case-insensitive searches.
 The `normalize` option is set to `true` to allow searches to be normalized for Unicode characters.
 The `ascii_only` option is set to `true` to allow searches to be limited to ASCII characters.
+The `shards` option sets the number of in-memory index shards per Memtable. (Set to `'auto'` for `cassandra.memtable.shard.count` shards. Not supported on vector column indexes.)
 
 The `map` collection data type is the one exception, as shown in the xref:#map-collection-in-sai-index[example below].
 

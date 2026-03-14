@@ -178,7 +178,21 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
             return intersects((Range<T>) that);
         if (that instanceof Bounds)
             return intersects((Bounds<T>) that);
-        throw new UnsupportedOperationException("Intersection is only supported for Bounds and Range objects; found " + that.getClass());
+        if (that instanceof ExcludingBounds)
+            return intersects((ExcludingBounds<T>) that);
+        if (that instanceof IncludingExcludingBounds)
+            return intersects((IncludingExcludingBounds<T>) that);
+        throw new UnsupportedOperationException("Intersection is not supported for " + that.getClass());
+    }
+    
+    public boolean intersects(IncludingExcludingBounds<T> that)
+    {
+        return contains(that.left) || intersects(new Range<>(that.left, that.right));
+    }
+
+    public boolean intersects(ExcludingBounds<T> that)
+    {
+        return intersects(new Range<>(that.left, that.right));
     }
 
     /**
