@@ -82,9 +82,11 @@ import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
 import static java.util.Collections.singletonList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -267,6 +269,74 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                                           " USING 'sai'", invalidColumn)))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessage(String.format(CreateIndexStatement.INVALID_CHARS_CUSTOM_INDEX_TARGET, invalidColumn));
+    }
+
+    @Test
+    public void shouldRejectShardsOptionOnVectorIndex()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val vector<float, 3>)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '4' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("vector column does not support sharding");
+    }
+
+    @Test
+    public void shouldCreateIndexWithValidShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text)");
+        createIndex("CREATE INDEX ON %s(val1) USING 'sai' WITH OPTIONS = { 'shards' : '1' }");
+        createIndex("CREATE INDEX ON %s(val2) USING 'sai' WITH OPTIONS = { 'shards' : '4' }");
+        assertEquals(2, saiCreationCounter.get());
+    }
+
+    @Test
+    public void shouldRejectNonIntegerShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : 'abc' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a valid integer");
+    }
+
+    @Test
+    public void shouldCreateIndexWithAutoShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val1 text, val2 text, val3 text)");
+        createIndex("CREATE INDEX auto_idx ON %s(val1) USING 'sai' WITH OPTIONS = { 'shards' : 'auto' }");
+        createIndex("CREATE INDEX ON %s(val2) USING 'sai' WITH OPTIONS = { 'shards' : 'Auto' }");
+        createIndex("CREATE INDEX ON %s(val3) USING 'sai' WITH OPTIONS = { 'shards' : 'AUTO' }");
+        assertEquals(3, saiCreationCounter.get());
+
+        SecondaryIndexManager sim = getCurrentColumnFamilyStore().indexManager;
+        StorageAttachedIndex index = (StorageAttachedIndex) sim.getIndexByName("auto_idx");
+        int expectedShardCount = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
+        assertEquals(expectedShardCount, index.shardCount());
+    }
+
+    @Test
+    public void shouldRejectNonPositiveShardsOption()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '0' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a positive integer");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '-5' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must be a positive integer");
+    }
+
+    @Test
+    public void shouldRejectShardsOptionGreaterThanMaxShardCount()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '257' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("Shard count for a storage-attached index must not exceed");
     }
 
     @Test
