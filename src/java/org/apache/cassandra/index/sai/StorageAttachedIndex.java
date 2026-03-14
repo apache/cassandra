@@ -88,6 +88,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
+import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
@@ -159,7 +160,8 @@ public class StorageAttachedIndex implements Index
                                                                      IndexWriterConfig.OPTIMIZE_FOR,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
-                                                                     NonTokenizingOptions.ASCII);
+                                                                     NonTokenizingOptions.ASCII,
+                                                                     ShardedMemtableIndex.SHARDS_OPTION);
 
     public static final Set<CQL3Type> SUPPORTED_TYPES = ImmutableSet.of(CQL3Type.Native.ASCII, CQL3Type.Native.BIGINT, CQL3Type.Native.DATE,
                                                                         CQL3Type.Native.DOUBLE, CQL3Type.Native.FLOAT, CQL3Type.Native.INT,
@@ -276,6 +278,10 @@ public class StorageAttachedIndex implements Index
         }
 
         IndexTermType indexTermType = IndexTermType.create(target.left, metadata.partitionKeyColumns(), target.right);
+        String shardsOption = options.get(ShardedMemtableIndex.SHARDS_OPTION);
+        if (shardsOption != null && indexTermType.isVector())
+            throw new InvalidRequestException("A storage-attached index on a vector column does not support sharding");
+
         AbstractAnalyzer.fromOptions(indexTermType, analysisOptions);
         IndexWriterConfig config = IndexWriterConfig.fromOptions(null, indexTermType, options);
 
