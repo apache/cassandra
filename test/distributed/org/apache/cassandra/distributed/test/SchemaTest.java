@@ -30,6 +30,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -38,7 +39,9 @@ import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 
 import static java.time.Duration.ofSeconds;
+import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -46,6 +49,17 @@ public class SchemaTest extends TestBaseImpl
 {
     public static final String TABLE_ONE = "tbl_one";
     public static final String TABLE_TWO = "tbl_two";
+
+    @Test
+    public void testSchemaModificationDisabled() throws Throwable
+    {
+        try (WithProperties properties = new WithProperties().set(CassandraRelevantProperties.SCHEMA_MODIFICATIONS, false);
+             Cluster cluster = build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start())
+        {
+            assertThatThrownBy(() -> cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))"))
+            .hasMessage("Schema modifications are disabled.");
+        }
+    }
 
     @Test
     public void readRepair() throws Throwable
