@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Minor TokenMap performance improvement (CASSANDRA-21223)
  * Handle lost response when committing PrepareMove (CASSANDRA-21222)
  * SEPExecutor.maybeExecuteImmediately does not always execute tasks immediately despite available worker capacity (CASSANDRA-21429)
  * Safely regain ranges and delete retired command stores (CASSANDRA-21212)
