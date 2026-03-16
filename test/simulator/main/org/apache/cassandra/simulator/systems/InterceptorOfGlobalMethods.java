@@ -21,7 +21,6 @@ package org.apache.cassandra.simulator.systems;
 import java.util.ArrayDeque;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.ToIntFunction;
@@ -488,7 +487,6 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
 
         private final IntSupplier nextId;
         private final WeakIdentityHashMap<Object, Integer> saved = new WeakIdentityHashMap<>();
-        private final ReentrantLock mapLock = new ReentrantLock();
 
         public IdentityHashCode(IntSupplier nextId)
         {
@@ -496,28 +494,19 @@ public interface InterceptorOfGlobalMethods extends InterceptorOfSystemMethods, 
         }
 
         /**
-         * As {@link #saved} is not thread safe, we want to preserve weak reference semantics, and we want to gracefully
-         * support virtual threads, we need to use another locking mechanism other than synchronized since that is a risk
-         * of deadlock in JDK21 as virtual threads block on held monitors and won't release.
+         * As {@link #saved} is not thread safe, we want to preserve weak reference semantics. If we want to gracefully
+         * support virtual threads at some point, we need to use a locking mechanism other than synchronized, since that 
+         * may introduce the risk of deadlock when virtual threads block on held monitors and won't release.
          */
-        public int applyAsInt(Object value)
+        public synchronized int applyAsInt(Object value)
         {
-            mapLock.lock();
-            try
+            Integer id = saved.get(value);
+            if (id == null)
             {
-                Integer id = saved.get(value);
-                if (id == null)
-                {
-                    id = nextId.getAsInt();
-                    saved.put(value, id);
-                }
-                return id;
+                id = nextId.getAsInt();
+                saved.put(value, id);
             }
-            finally
-            {
-                mapLock.unlock();
-            }
+            return id;
         }
     }
-
 }
