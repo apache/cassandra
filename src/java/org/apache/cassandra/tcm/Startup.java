@@ -449,6 +449,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                 if (isReplacing)
                     ReconfigureCMS.maybeReconfigureCMS(metadata, DatabaseDescriptor.getReplaceAddress());
 
+                // if this throws startup is aborted and operator needs to restart, in that case the IPS is resumed if
+                // it was successfully committed
                 ClusterMetadataService.instance().commit(initialTransformation.get());
                 // When Accord starts up it needs to check for any historic epochs that it needs to know about (in order
                 // to handle pending transactions), in order to know what nodes to check with it needs to know what the
