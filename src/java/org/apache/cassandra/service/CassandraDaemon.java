@@ -389,6 +389,11 @@ public class CassandraDaemon
         // Prepared statements
         QueryProcessor.instance.preloadPreparedStatements();
 
+        // Apply overrides before re-enabling auto-compaction
+        setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
+        // re-enable auto-compaction after replay, so correct disk boundaries are used
+        enableAutoCompaction(Schema.instance.getKeyspaces());
+
         // start server internals
         StorageService.instance.registerDaemon(this);
         try
@@ -420,11 +425,6 @@ public class CassandraDaemon
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
         StorageService.instance.doAuthSetup();
-
-        // Apply overrides before re-enabling auto-compaction
-        setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
-        // re-enable auto-compaction after replay, so correct disk boundaries are used
-        enableAutoCompaction(Schema.instance.getKeyspaces());
 
         AuditLogManager.instance.initialize();
 
