@@ -942,11 +942,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 // should not change as we progress
                 for (Node n : state.currentNodes)
                 {
-                    RangesAtEndpoint localRanges = ClusterMetadata.placementsAllSettledForNode(n.nodeId(), sut.service.metadata())
-                                                                  .get(ksm.params.replication)
-                                                                  .writes
-                                                                  .byEndpoint()
-                                                                  .get(n.addr());
+                    RangesAtEndpoint localRanges = sut.service.metadata()
+                                                              .placementsAllSettledForNode(n.nodeId())
+                                                              .get(ksm.params.replication)
+                                                              .writes
+                                                              .byEndpoint()
+                                                              .get(n.addr());
                     Assert.assertEquals(localRanges, allSettled.writes.byEndpoint().get(n.addr()));
                 }
                 validatePlacements(sut, state);

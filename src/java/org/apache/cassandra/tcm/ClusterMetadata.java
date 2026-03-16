@@ -328,15 +328,14 @@ public class ClusterMetadata
         if (localRangesAllSettled != null)
             return localRangesAllSettled.getOrDefault(ksm.params.replication, EMPTY_LOCAL_RANGES);
 
-        ClusterMetadata metadata = this;
-        NodeId localId = metadata.myNodeId();
+        NodeId localId = myNodeId();
         synchronized (this)
         {
             if (localRangesAllSettled != null)
-                return localRangesAllSettled.get(ksm.params.replication);
+                return localRangesAllSettled.getOrDefault(ksm.params.replication, EMPTY_LOCAL_RANGES);
 
             Map<ReplicationParams, RangesAtEndpoint> builder = Maps.newHashMapWithExpectedSize(this.placements.size());
-            DataPlacements settled = placementsAllSettledForNode(localId, metadata);
+            DataPlacements settled = placementsAllSettledForNode(localId);
             settled.forEach((replication, placement) -> {
                 builder.put(replication, placement.writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()));
             });
@@ -346,15 +345,16 @@ public class ClusterMetadata
     }
 
     /**
-     * Run through all inflight MultiStepOperations in the supplied metadata and if any impact the specifed node,
-     * apply their metadata transformations. Only used outside of tests by @{link localWriteRangesAllSettled} to
-     * identify how placements for the local node will be affected by in flight operations. In that case, the result
-     * is cached so this should be called at most once for a given ClusterMetadata instance.
+     * Run through all inflight MultiStepOperations and if any impact the specifed node, apply their metadata
+     * transformations. Only used outside of tests by @{link localWriteRangesAllSettled} to identify how placements for
+     * the local node will be affected by in flight operations. In that case, the result is cached so this should be
+     * called at most once for a given ClusterMetadata instance.
      */
     @VisibleForTesting
-    public static DataPlacements placementsAllSettledForNode(NodeId peer, ClusterMetadata metadata)
+    public DataPlacements placementsAllSettledForNode(NodeId peer)
     {
-        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+        Iterator<MultiStepOperation<?>> iter = inProgressSequences.iterator();
+        ClusterMetadata metadata = this;
         while (iter.hasNext())
         {
             MultiStepOperation<?> operation = iter.next();
