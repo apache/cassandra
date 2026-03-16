@@ -27,11 +27,11 @@ import java.util.List;
 import java.util.function.LongPredicate;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.UnmodifiableIterator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -70,6 +70,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_BOUND;
@@ -294,15 +295,8 @@ public class CursorCompactor extends CompactionInfo.Holder
          * {@link CompactionIterator#CompactionIterator(OperationType, List, AbstractCompactionController, long, TimeUUID, ActiveCompactionsTracker)}
          */
 
-        // Convert Readers to Cursors
-        this.sstableCursors = new StatefulCursor[sstables.size()];
+        this.sstableCursors = convertScannersToCursors(scanners, sstables, DatabaseDescriptor.getCompactionReadDiskAccessMode());
         this.sstableCursorsEqualsNext = new boolean[sstables.size()];
-        UnmodifiableIterator<SSTableReader> iterator = sstables.iterator();
-        for (int i = 0; i < this.sstableCursors.length; i++)
-        {
-            SSTableReader ssTableReader = iterator.next();
-            this.sstableCursors[i] = new StatefulCursor(ssTableReader);
-        }
         this.enforceStrictLiveness = controller.cfs.metadata.get().enforceStrictLiveness();
 
         purger = new Purger(type, controller, nowInSec);
@@ -1551,6 +1545,33 @@ public class CursorCompactor extends CompactionInfo.Holder
             sb.setLength(sb.length() - 1); //trim trailing comma
         sb.append("] = ").append(sum);
         return sb.toString();
+    }
+
+    /**
+     * Closes scanner-opened readers before opening cursor-specific readers with the configured disk access mode.
+     * In cursor compaction, scanners are only used for metadata; closing them avoids holding redundant file
+     * descriptors and prevents conflicts when scan and non-scan readers for the same file share thread-local
+     * buffer state on the same thread.
+     */
+    private static StatefulCursor[] convertScannersToCursors(List<ISSTableScanner> scanners, ImmutableSet<SSTableReader> sstables,
+                                                             DiskAccessMode diskAccessMode)
+    {
+        for (ISSTableScanner scanner : scanners)
+            scanner.close();
+
+        StatefulCursor[] cursors = new StatefulCursor[sstables.size()];
+        int i = 0;
+        try
+        {
+            for (SSTableReader reader : sstables)
+                cursors[i++] = new StatefulCursor(reader, diskAccessMode);
+            return cursors;
+        }
+        catch (RuntimeException | Error e)
+        {
+            Throwables.closeNonNullAndAddSuppressed(e, cursors);
+            throw e;
+        }
     }
 
     public void close()

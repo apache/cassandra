@@ -24,6 +24,9 @@ import org.agrona.BitUtil;
 import org.agrona.BufferUtil;
 
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import sun.nio.ch.DirectBuffer;
 
 public final class DirectThreadLocalReadAheadBuffer extends ThreadLocalReadAheadBuffer
 {
@@ -46,4 +49,12 @@ public final class DirectThreadLocalReadAheadBuffer extends ThreadLocalReadAhead
         if (channel.read(blockBuffer, blockPosition) < sizeToRead)
             throw new CorruptSSTableException(null, channel.filePath());
     }
+
+    @Override
+    protected void cleanBuffer(ByteBuffer buffer)
+    {
+        // Aligned buffers from BufferUtil.allocateDirectAligned are slices; clean the backing buffer (attachment)
+        MemoryUtil.clean((ByteBuffer) ((DirectBuffer) buffer).attachment());
+    }
+
 }
