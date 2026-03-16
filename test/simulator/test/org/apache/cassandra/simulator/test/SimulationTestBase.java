@@ -102,6 +102,9 @@ public class SimulationTestBase
     @BeforeClass
     public static void beforeAll()
     {
+        // The shutdown threadcount invariant for normal tests does not apply to the Simulator
+        CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.setBoolean(true);
+
         // Disallow time on the bootstrap classloader
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Delegating");
