@@ -2194,16 +2194,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             toSend.forceNewerGenerationUnsafe();
             toSend.markDead();
             VersionedValue value = StorageService.instance.valueFactory.left(tokens, computeExpireTime());
-
-            if (left.equals(getBroadcastAddressAndPort()))
-            {
-                // Adding local state bumps the value's version. To keep this consistent across
-                // the cluster, re-fetch it before broadcasting.
-                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, value);
-                value = Gossiper.instance.endpointStateMap.get(getBroadcastAddressAndPort())
-                                                          .getApplicationState(ApplicationState.STATUS_WITH_PORT);
-            }
-
             toSend.addApplicationState(ApplicationState.STATUS_WITH_PORT, value);
             GossipDigestAck2 payload = new GossipDigestAck2(Collections.singletonMap(left, toSend));
             logger.info("Sending app state with status {} to {}", value.value, sendTo);
