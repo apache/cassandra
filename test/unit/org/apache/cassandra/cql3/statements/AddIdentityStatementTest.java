@@ -138,7 +138,7 @@ public class AddIdentityStatementTest
     }
 
     @Test
-    public void testUsersWithNoPrevilegesCannotAddIdentitiess()
+    public void testUsersWithNoPrivilegesCannotAddIdentities()
     {
         // Added user to roles table
         AuthenticatedUser authenticatedUser = new AuthenticatedUser("readwrite_user");
