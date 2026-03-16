@@ -168,6 +168,12 @@ sets, and maps). In the case of maps, `CONTAINS` applies to the map
 values. The `CONTAINS KEY` operator may only be used on map columns and
 applies to the map keys.
 
+The `LIKE` operator performs a pattern match on `text` and `ascii` columns, using `%`
+as a wildcard. A `%` is only interpreted as a wildcard at the start and/or end of the
+pattern: `'foo%'` (prefix), `'%foo'` (suffix), `'%foo%'` (contains), or `'foo'` (exact
+match). A `%` anywhere else in the pattern is rejected. CQL does not support interior
+wildcards, and there is no escape sequence for matching a literal `%`.
+
 [[group-by-clause]]
 === Grouping results
 

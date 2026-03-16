@@ -55,9 +55,11 @@ import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.TableReference;
 import org.apache.cassandra.cql3.ast.Value;
+import org.apache.cassandra.cql3.restrictions.LikePattern;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
@@ -421,6 +423,58 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         return state.command(rs, select, annotation);
     }
 
+    public Property.Command<State, Void, ?> likeQuery(RandomSource rs, State state)
+    {
+        Symbol symbol = rs.pick(state.searchableTextColumns);
+        TreeMap<ByteBuffer, List<BytesPartitionState.PrimaryKey>> universe = state.model.index(symbol);
+
+        NavigableSet<ByteBuffer> allowed = Sets.filter(universe.navigableKeySet(),
+                                                      b -> {
+                                                          String s = symbol.type().getString(b);
+                                                          return !s.contains("%") && !ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(b);
+                                                      });
+
+        if (allowed.isEmpty())
+            return Property.ignoreCommand();
+
+        ByteBuffer value = rs.pickOrderedSet(allowed);
+        String valueStr = symbol.type().getString(value);
+        String pattern;
+
+        LikePattern.Kind kind = rs.pick(LikePattern.Kind.values());
+        switch (kind)
+        {
+            case PREFIX:
+                int prefixLen = rs.nextInt(1, valueStr.length() + 1);
+                pattern = valueStr.substring(0, prefixLen) + "%";
+                break;
+
+            case SUFFIX:
+                int suffixLen = rs.nextInt(1, valueStr.length() + 1);
+                pattern = "%" + valueStr.substring(valueStr.length() - suffixLen);
+                break;
+
+            case CONTAINS:
+                int begin = rs.nextInt(0, valueStr.length());
+                int end   = rs.nextInt(begin + 1, valueStr.length() + 1);
+                pattern = "%" + valueStr.substring(begin, end) + "%";
+                break;
+
+            case MATCHES:
+                pattern = valueStr;
+                break;
+
+            default:
+                throw new IllegalStateException("Unhandled LIKE kind: " + kind);
+        }
+
+        Select.Builder builder = Select.builder().table(state.metadata);
+        builder.allowFiltering();
+        builder.like(symbol, new Bind(pattern, symbol.type()));
+        Select select = builder.build();
+        return state.command(rs, select, "LIKE query on " + symbol.detailedName());
+    }
+
     protected State createState(RandomSource rs, Cluster cluster)
     {
         return new State(rs, cluster);
@@ -456,6 +510,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                   .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
                                   .addIf(State::allowClusteringBetweenQuery, this::clusteringBetweenQuery)
+                                  .addIf(State::allowLikeQuery, this::likeQuery)
                                   .destroyState(State::close)
                                   .commandsTransformer(LoggingCommand.factory())
                                   .onSuccess(onSuccess(logger))
@@ -510,6 +565,7 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
         private final List<Symbol> searchableNonPartitionColumns;
         private final List<Symbol> searchableColumns;
         private final List<Symbol> nonPkIndexedColumns;
+        private final List<Symbol> searchableTextColumns;
 
         public State(RandomSource rs, Cluster cluster)
         {
@@ -577,6 +633,11 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                                 .stream()
                                 .filter(this::isSearchable)
                                 .collect(Collectors.toList());
+
+            searchableTextColumns = model.factory.selectionOrder
+                                    .stream()
+                                    .filter(this::supportsLike)
+                                    .collect(Collectors.toList());
         }
 
         @Override
@@ -596,6 +657,12 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
             // multi cell collections can only be searched if you search their elements, not the collection as a whole
             //TODO (coverage): can you query for UDT fields?  its a single cell so you "should"?
             return !(symbol.type().isMultiCell() && (symbol.type().isCollection() || symbol.type().isUDT()));
+        }
+
+        private boolean supportsLike(Symbol symbol)
+        {
+            AbstractType<?> type = symbol.type();
+            return type instanceof StringType;
         }
 
         @Override
@@ -644,6 +711,11 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
                 indexed.put(symbol, new IndexedColumn(symbol, ddl));
             }
             return indexed;
+        }
+
+        public boolean allowLikeQuery()
+        {
+            return !model.isEmpty() && !searchableTextColumns.isEmpty();
         }
 
         public boolean supportTokens()
