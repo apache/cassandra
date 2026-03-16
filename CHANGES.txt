@@ -1,4 +1,5 @@
 5.1
+ * Make shadow gossip round parameters configurable for testing (CASSANDRA-21149)
  * Avoid potential gossip thread deadlock during decommission (CASSANDRA-21143)
  * Improve construction of consensus groups for range movements (CASSANDRA-21142)
  * Support compaction_read_disk_access_mode for cursor-based compaction (CASSANDRA-21147)

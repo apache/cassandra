@@ -32,6 +32,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -68,15 +69,17 @@ public class NewGossiper
         handler = shadowRoundHandler;
 
         int tries = 0;
+        int maxTries = CassandraRelevantProperties.TCM_SHADOW_ROUND_MAX_ATTEMPTS.getInt();
+        long timeout = CassandraRelevantProperties.TCM_SHADOW_ROUND_TIMEOUT.getLong();
         while (true)
         {
             try
             {
-                return shadowRoundHandler.doShadowRound().get(15, TimeUnit.SECONDS);
+                return shadowRoundHandler.doShadowRound().get(timeout, TimeUnit.MILLISECONDS);
             }
             catch (InterruptedException | ExecutionException | TimeoutException e)
             {
-                if (++tries > 3)
+                if (++tries >= maxTries)
                     break;
                 logger.warn("Got no response for shadow round");
             }
