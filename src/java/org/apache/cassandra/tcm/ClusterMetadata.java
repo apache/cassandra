@@ -1062,11 +1062,6 @@ public class ClusterMetadata
         return null;
     }
 
-    public boolean metadataSerializationUpgradeInProgress()
-    {
-        return !directory.clusterMaxVersion.serializationVersion().equals(directory.commonSerializationVersion);
-    }
-
     public static class Serializer implements MetadataSerializer<ClusterMetadata>
     {
         @Override
