@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Don’t leave autocompaction disabled during bootstrap and replace (CASSANDRA-21236)
  * Make nodetool abortbootstrap more robust (CASSANDRA-21235)
  * Don't clear prepared statement cache on nodetool cms initialize (CASSANDRA-21234)
  * Improve performance when deserializing cluster metadata  (CASSANDRA-21224)
