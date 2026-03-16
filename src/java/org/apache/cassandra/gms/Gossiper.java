@@ -268,7 +268,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 taskLock.lock();
 
                 /* Update the local heartbeat counter. */
-                endpointStateMap.get(getBroadcastAddressAndPort()).updateHeartBeat();
+                EndpointState epstate = endpointStateMap.get(getBroadcastAddressAndPort());
+                if (epstate == null)
+                {
+                    logger.warn("Node {} is not in gossip, not running GossipTask", getBroadcastAddressAndPort());
+                    return;
+                }
+                epstate.updateHeartBeat();
                 if (logger.isTraceEnabled())
                     logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
                 final List<GossipDigest> gDigests = new ArrayList<>();
