@@ -166,13 +166,15 @@ def tasks() {
   def buildSteps = [
     'jar': [script: 'build-jars.sh', toCopy: null],
     'artifacts': [script: 'build-artifacts.sh', toCopy: 'apache-cassandra-*.tar.gz,apache-cassandra-*.jar,apache-cassandra-*.pom'],
-    'lint': [script: 'check-code.sh', toCopy: null],
+    'lint': [script: 'check-code.sh', size: 'medium', toCopy: null],
     'debian': [script: 'build-debian.sh', toCopy: 'cassandra_*,cassandra-tools_*'],
     'redhat': [script: 'build-redhat.sh rpm', toCopy: '*.rpm'],
   ]
   buildSteps.each() {
     it.value.put('type', 'build')
-    it.value.put('size', 'small')
+    if (!it.value['size']) {
+        it.value.put('size', 'small')
+    }
     it.value.put('splits', 1)
   }
 
