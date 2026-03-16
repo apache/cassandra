@@ -17,8 +17,12 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.lang.management.BufferPoolMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.Arrays;
+import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.Pair;
@@ -61,4 +65,49 @@ public class DirectThreadLocalReadAheadBufferTest extends ThreadLocalReadAheadBu
             tlrab.close();
         }
     }
+
+    @Test
+    public void testDirectMemoryIsCleanedOnClose()
+    {
+        BufferPoolMXBean directPool = getDirectBufferPool();
+        int blockSize = FileUtils.getFileBlockSize(files[0]);
+        int bufferSize = 64 * 1024 * 1024; // 64MB - large enough to reliably detect
+
+        try (ChannelProxy channel = new ChannelProxy(files[0], ChannelProxy.IOMode.DIRECT))
+        {
+            DirectThreadLocalReadAheadBuffer tlrab =
+                new DirectThreadLocalReadAheadBuffer(channel, bufferSize, blockSize);
+
+            // Force buffer allocation
+            tlrab.allocateBuffer();
+
+            long memoryUsedBefore = directPool.getMemoryUsed();
+
+            // Close should clean the direct memory
+            tlrab.close();
+
+            long memoryUsedAfter = directPool.getMemoryUsed();
+
+            // Memory should decrease by approximately buffer size (+ alignment overhead)
+            long expectedDecrease = bufferSize;
+            long actualDecrease = memoryUsedBefore - memoryUsedAfter;
+
+            Assert.assertTrue(
+                "Direct memory should decrease after close(). " +
+                "Before: " + memoryUsedBefore + ", After: " + memoryUsedAfter +
+                ", Expected decrease: ~" + expectedDecrease + ", Actual: " + actualDecrease,
+                actualDecrease >= expectedDecrease * 0.9); // 10% tolerance for alignment
+        }
+    }
+
+    private static BufferPoolMXBean getDirectBufferPool()
+    {
+        List<BufferPoolMXBean> pools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
+        for (BufferPoolMXBean pool : pools)
+          if (pool.getName().equals("direct"))
+                return pool;
+
+        throw new IllegalStateException("Direct buffer pool not found");
+    }
+
 }
