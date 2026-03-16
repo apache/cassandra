@@ -1,4 +1,5 @@
 5.1
+ * Improve construction of consensus groups for range movements (CASSANDRA-21142)
  * Support compaction_read_disk_access_mode for cursor-based compaction (CASSANDRA-21147)
  * Allow value/element indexing on frozen collections in SAI (CASSANDRA-18492)
  * Add tool to offline dump cluster metadata and the log (CASSANDRA-21129)
