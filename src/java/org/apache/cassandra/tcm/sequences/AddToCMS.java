@@ -35,6 +35,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -123,6 +124,12 @@ public class AddToCMS extends MultiStepOperation<Epoch>
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
         return finishJoin.execute(metadata);
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        return Set.of();
     }
 
     @Override

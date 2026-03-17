@@ -119,7 +119,7 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     private static boolean isOutOfRange(SharedContext ctx, String ksName, Collection<Range<Token>> repairRanges)
     {
         Keyspace keyspace = Keyspace.open(ksName);
-        Collection<Range<Token>> localRanges = Range.normalize(ClusterMetadata.current().writeRanges(keyspace.getMetadata(), ctx.broadcastAddressAndPort()));
+        Collection<Range<Token>> localRanges = Range.normalize(ClusterMetadata.current().writeRanges(keyspace.getMetadata(), ctx.broadcastAddressAndPort()).ranges());
 
         for (Range<Token> repairRange : Range.normalize(repairRanges))
         {

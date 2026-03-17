@@ -53,6 +53,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -178,6 +179,16 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
         return applyMultipleTransformations(metadata, next, of(startReplace, midReplace, finishReplace));
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
+        affectedEndpoints.addAll(startReplace.affectedEndpoints());
+        affectedEndpoints.addAll(midReplace.affectedEndpoints());
+        affectedEndpoints.addAll(finishReplace.affectedEndpoints());
+        return endpointsToIds(affectedEndpoints, directory);
     }
 
     @Override

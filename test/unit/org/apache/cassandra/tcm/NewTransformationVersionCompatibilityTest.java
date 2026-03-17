@@ -30,17 +30,12 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.harry.model.TokenPlacementModel;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
-import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
@@ -48,11 +43,10 @@ import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.addr;
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.getLeavePlan;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class ClusterMetadataTest
+public class NewTransformationVersionCompatibilityTest
 {
     @BeforeClass
     public static void beforeClass()
@@ -65,61 +59,6 @@ public class ClusterMetadataTest
     {
         ClusterMetadataService.unsetInstance();
         new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, new TokenPlacementModel.SimpleReplicationFactor(3));
-    }
-
-    @Test
-    public void testWritePlacementAllSettledLeaving()
-    {
-        for (int i = 1; i <= 4; i++)
-        {
-            ClusterMetadataTestHelper.register(i);
-            ClusterMetadataTestHelper.join(i, i);
-        }
-        ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareLeave(3));
-        UnbootstrapAndLeave plan = getLeavePlan(3);
-
-        ClusterMetadataService.instance().commit(plan.startLeave);
-        KeyspaceMetadata ksm = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));
-
-        DataPlacement writeAllSettled = ClusterMetadata.current().writePlacementAllSettled(ksm);
-        ClusterMetadataService.instance().commit(plan.midLeave);
-        ClusterMetadataService.instance().commit(plan.finishLeave);
-
-        DataPlacement actualFinishedWritePlacements = ClusterMetadata.current().placements.get(ksm.params.replication);
-
-        assertTrue(actualFinishedWritePlacements.difference(writeAllSettled).writes.removals.isEmpty());
-        assertTrue(actualFinishedWritePlacements.difference(writeAllSettled).writes.additions.isEmpty());
-    }
-
-    @Test
-    public void testWritePlacementAllSettledJoining()
-    {
-        for (int i = 1; i <= 4; i++)
-        {
-            ClusterMetadataTestHelper.register(i);
-            ClusterMetadataTestHelper.join(i, i);
-        }
-
-        ClusterMetadataTestHelper.register(10);
-        ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareJoin(10));
-
-        BootstrapAndJoin plan = ClusterMetadataTestHelper.getBootstrapPlan(10);
-        ClusterMetadataService.instance().commit(plan.startJoin);
-        KeyspaceMetadata ksm = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));
-        DataPlacement writeAllSettled = ClusterMetadata.current().writePlacementAllSettled(ksm);
-
-        ClusterMetadataService.instance().commit(plan.midJoin);
-        ClusterMetadataService.instance().commit(plan.finishJoin);
-
-        DataPlacement actualFinishedWritePlacements = ClusterMetadata.current().placements.get(ksm.params.replication);
-        assertTrue(actualFinishedWritePlacements.difference(writeAllSettled).writes.removals.isEmpty());
-        assertTrue(actualFinishedWritePlacements.difference(writeAllSettled).writes.additions.isEmpty());
-    }
-
-    @Test
-    public void testWritePlacementAllSettledMoving()
-    {
-        // todo
     }
 
     @Test

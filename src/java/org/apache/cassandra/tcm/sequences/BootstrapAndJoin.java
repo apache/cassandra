@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -56,6 +57,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -183,6 +185,16 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
         return applyMultipleTransformations(metadata, next, of(startJoin, midJoin, finishJoin));
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
+        affectedEndpoints.addAll(startJoin.affectedEndpoints());
+        affectedEndpoints.addAll(midJoin.affectedEndpoints());
+        affectedEndpoints.addAll(finishJoin.affectedEndpoints());
+        return endpointsToIds(affectedEndpoints, directory);
     }
 
     @Override

@@ -63,6 +63,7 @@ import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Retry;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -143,6 +144,12 @@ public class ReconfigureCMS extends MultiStepOperation<AdvanceCMSReconfiguration
     @Override public Transformation.Kind nextStep()
     {
         return next.kind();
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        return Set.of();
     }
 
     @Override
