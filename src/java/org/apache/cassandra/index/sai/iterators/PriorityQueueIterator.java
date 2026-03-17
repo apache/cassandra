@@ -15,18 +15,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+package org.apache.cassandra.index.sai.iterators;
 
-public class MemtableSwitchedNotification implements INotification
+import java.util.PriorityQueue;
+
+import org.apache.cassandra.utils.AbstractIterator;
+
+/**
+ * An iterator over a priority queue.
+ * @param <T> the type of the elements in the priority queue
+ */
+public class PriorityQueueIterator<T> extends AbstractIterator<T>
 {
-    public final Memtable previous;
-    public final Memtable next;
+    private final PriorityQueue<T> queue;
 
-    public MemtableSwitchedNotification(Memtable switched, Memtable next)
+    /**
+     * Build a PriorityQueueIterator.
+     * @param queue a priority queue to be lazily consumed by the iterator
+     */
+    public PriorityQueueIterator(PriorityQueue<T> queue)
     {
-        this.previous = switched;
-        this.next = next;
+        this.queue = queue;
+    }
+
+    @Override
+    protected T computeNext()
+    {
+        return queue.isEmpty() ? endOfData() : queue.poll();
     }
 }

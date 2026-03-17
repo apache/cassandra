@@ -63,6 +63,7 @@ import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.MemtableDiscardedNotification;
 import org.apache.cassandra.notifications.MemtableRenewedNotification;
+import org.apache.cassandra.notifications.MemtableSwitchedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.TableMetadata;
@@ -276,6 +277,10 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         else if (notification instanceof MemtableRenewedNotification)
         {
             indexes.forEach(index -> index.memtableIndexManager().renewMemtable(((MemtableRenewedNotification) notification).renewed));
+        }
+        else if (notification instanceof MemtableSwitchedNotification)
+        {
+            indexes.forEach(index -> index.memtableIndexManager().maybeInitializeMemtableIndex(((MemtableSwitchedNotification) notification).next));
         }
         else if (notification instanceof MemtableDiscardedNotification)
         {

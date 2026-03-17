@@ -15,18 +15,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
-public class MemtableSwitchedNotification implements INotification
+import org.apache.cassandra.utils.AbstractIterator;
+
+import io.github.jbellis.jvector.graph.NeighborQueue;
+
+/**
+ * An iterator over {@link RowIdWithScore} that lazily consumes a {@link NeighborQueue}.
+ */
+public class NeighborQueueRowIdIterator extends AbstractIterator<RowIdWithScore>
 {
-    public final Memtable previous;
-    public final Memtable next;
+    private final NeighborQueue scoreQueue;
 
-    public MemtableSwitchedNotification(Memtable switched, Memtable next)
+    public NeighborQueueRowIdIterator(NeighborQueue scoreQueue)
     {
-        this.previous = switched;
-        this.next = next;
+        this.scoreQueue = scoreQueue;
+    }
+
+    @Override
+    protected RowIdWithScore computeNext()
+    {
+        if (scoreQueue.size() == 0)
+            return endOfData();
+        float score = scoreQueue.topScore();
+        int rowId = scoreQueue.pop();
+        return new RowIdWithScore(rowId, score);
     }
 }
