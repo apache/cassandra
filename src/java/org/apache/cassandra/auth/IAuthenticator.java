@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.security.cert.Certificate;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -248,6 +249,7 @@ public interface IAuthenticator
     abstract class AuthenticationMode
     {
         private final String displayName;
+        private final String normalizedDisplayName;
 
         /**
          * @param displayName How this mode should be displayed in tooling and JMX beans.  Note that it is desirable
@@ -256,6 +258,7 @@ public interface IAuthenticator
         public AuthenticationMode(@Nonnull String displayName)
         {
             this.displayName = displayName;
+            this.normalizedDisplayName = displayName.toLowerCase(Locale.ROOT);
         }
 
         /**
@@ -283,15 +286,15 @@ public interface IAuthenticator
         public boolean equals(Object o)
         {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (!(o instanceof AuthenticationMode)) return false;
             AuthenticationMode that = (AuthenticationMode) o;
-            return displayName.equals(that.displayName);
+            return normalizedDisplayName.equalsIgnoreCase(that.normalizedDisplayName);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(displayName);
+            return Objects.hash(normalizedDisplayName);
         }
     }
 }
