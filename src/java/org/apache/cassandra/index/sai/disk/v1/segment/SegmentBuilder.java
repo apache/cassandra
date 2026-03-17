@@ -113,7 +113,7 @@ public abstract class SegmentBuilder
         public VectorSegmentBuilder(StorageAttachedIndex index, NamedMemoryLimiter limiter)
         {
             super(index, limiter);
-            graphIndex = new OnHeapGraph<>(index.termType().indexType(), index.indexWriterConfig(), false);
+            graphIndex = new OnHeapGraph<>(index.termType().indexType(), index.indexWriterConfig(), null);
         }
 
         @Override

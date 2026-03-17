@@ -34,6 +34,7 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookupMeta;
 import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookup;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -66,6 +67,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         protected final LongArray.Factory rowToPartitionReaderFactory;
         protected final KeyLookup partitionKeyReader;
         protected final PrimaryKey.Factory primaryKeyFactory;
+        protected final SSTableId sstableId;
 
         private final FileHandle rowToTokenFile;
         private final FileHandle rowToPartitionFile;
@@ -89,6 +91,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
                 KeyLookupMeta partitionKeysMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
                 this.partitionKeyReader = new KeyLookup(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
+                this.sstableId = indexDescriptor.sstableDescriptor.id;
             }
             catch (Throwable t)
             {
@@ -105,7 +108,8 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
             return new SkinnyPrimaryKeyMap(rowIdToToken,
                                            rowIdToPartitionId,
                                            partitionKeyReader.openCursor(),
-                                           primaryKeyFactory);
+                                           primaryKeyFactory,
+                                           sstableId);
         }
 
         @Override
@@ -119,16 +123,25 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     protected final LongArray rowIdToPartitionIdArray;
     protected final KeyLookup.Cursor partitionKeyCursor;
     protected final PrimaryKey.Factory primaryKeyFactory;
+    protected final SSTableId sstableId;
 
     protected SkinnyPrimaryKeyMap(LongArray rowIdToTokenArray,
                                   LongArray rowIdToPartitionIdArray,
                                   KeyLookup.Cursor partitionKeyCursor,
-                                  PrimaryKey.Factory primaryKeyFactory)
+                                  PrimaryKey.Factory primaryKeyFactory,
+                                  SSTableId sstableId)
     {
         this.rowIdToTokenArray = rowIdToTokenArray;
         this.rowIdToPartitionIdArray = rowIdToPartitionIdArray;
         this.partitionKeyCursor = partitionKeyCursor;
         this.primaryKeyFactory = primaryKeyFactory;
+        this.sstableId = sstableId;
+    }
+
+    @Override
+    public SSTableId getSSTableId()
+    {
+        return sstableId;
     }
 
     @Override

@@ -557,6 +557,11 @@ public abstract class SAITester extends CQLTester
 
     protected void verifySSTableIndexes(IndexIdentifier indexIdentifier, int sstableContextCount, int sstableIndexCount)
     {
+        verifySSTableIndexes(indexIdentifier, sstableContextCount, sstableIndexCount, 0);
+    }
+
+    protected void verifySSTableIndexes(IndexIdentifier indexIdentifier, int sstableContextCount, int sstableIndexCount, int expectedEmptyIndexCount)
+    {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         StorageAttachedIndexGroup indexGroup = getCurrentIndexGroup();
         int contextCount = indexGroup.sstableContextManager().size();
@@ -564,7 +569,10 @@ public abstract class SAITester extends CQLTester
 
         StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexIdentifier.indexName);
         Collection<SSTableIndex> sstableIndexes = sai == null ? Collections.emptyList() : sai.view().getIndexes();
-        assertEquals("Expected " + sstableIndexCount +" SSTableIndexes, but got " + sstableIndexes.toString(), sstableIndexCount, sstableIndexes.size());
+        long nonEmptyIndexCount = sstableIndexes.stream().filter(i -> i.getRowCount() > 0).count();
+        long emptyIndexCount = sstableIndexes.stream().filter(i -> i.getRowCount() == 0).count();
+        assertEquals("Expected " + sstableIndexCount +" SSTableIndexes, but got " + sstableIndexes.toString(), sstableIndexCount, nonEmptyIndexCount);
+        assertEquals("Expected " + expectedEmptyIndexCount + " empty indexes, but got " + emptyIndexCount, expectedEmptyIndexCount, emptyIndexCount);
     }
 
     protected boolean isBuildCompletionMarker(IndexComponent indexComponent)

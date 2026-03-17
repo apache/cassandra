@@ -26,6 +26,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.sstable.SSTableId;
 
 /**
  * A bidirectional map of {@link PrimaryKey} to row ID. Implementations of this interface
@@ -54,6 +55,12 @@ public interface PrimaryKeyMap extends Closeable
         {
         }
     }
+
+    /**
+     * Returns the {@link SSTableId} associated with this {@link PrimaryKeyMap}
+     * @return an {@link SSTableId}
+     */
+    SSTableId getSSTableId();
 
     /**
      * Returns a {@link PrimaryKey} for a row ID

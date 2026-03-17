@@ -460,14 +460,19 @@ public enum CassandraRelevantProperties
     /** Whether to allow the user to specify custom options to the hnsw index */
     SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.vector.allow_custom_parameters", "false"),
 
+    /**
+     * The maximum number of primary keys that a WHERE clause may materialize before the query planner switches
+     * from a search-then-sort execution strategy to an order-by-then-filter strategy. Increasing this limit allows
+     * more primary keys to be buffered in memory, enabling either (a) brute-force sorting or (b) graph traversal
+     * with a restrictive filter that admits only nodes whose primary keys matched the WHERE clause.
+     *
+     * Note also that the SAI_INTERSECTION_CLAUSE_LIMIT is applied to the WHERE clause before using a search to
+     * build a potential result set for search-then-sort query execution.
+     */
+    SAI_VECTOR_SEARCH_MAX_MATERIALIZE_KEYS("cassandra.sai.vector_search.max_materialized_keys", "16000"),
+
     /** Controls the maximum top-k limit for vector search */
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
-
-    /**
-     * Controls the maximum number of PrimaryKeys that will be read into memory at one time when ordering/limiting
-     * the results of an ANN query constrained by non-ANN predicates.
-     */
-    SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "100000"),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),

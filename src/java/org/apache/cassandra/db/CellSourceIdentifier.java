@@ -15,18 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+package org.apache.cassandra.db;
 
-public class MemtableSwitchedNotification implements INotification
+/**
+ * A cell's source data object. Can be used to determine if two cells originated from the same object, e.g. memtable
+ * or sstable.
+ */
+public interface CellSourceIdentifier
 {
-    public final Memtable previous;
-    public final Memtable next;
-
-    public MemtableSwitchedNotification(Memtable switched, Memtable next)
+    /**
+     * Returns true iff this and other CellSourceIdentifier are equal, indicating that the cell are from the same
+     * source.
+     * @param other the other source with which to compare
+     * @return true if the two sources are equal
+     */
+    default boolean isEqualSource(CellSourceIdentifier other)
     {
-        this.previous = switched;
-        this.next = next;
+        return this.equals(other);
     }
 }

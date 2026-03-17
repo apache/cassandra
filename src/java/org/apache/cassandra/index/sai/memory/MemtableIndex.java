@@ -28,17 +28,19 @@ import java.util.function.Function;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -47,12 +49,12 @@ public class MemtableIndex implements MemtableOrdering
     private final MemoryIndex memoryIndex;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
-    private final AbstractType<?> type;
+    private final Memtable memtable;
 
-    public MemtableIndex(StorageAttachedIndex index)
+    public MemtableIndex(StorageAttachedIndex index, Memtable memtable)
     {
-        this.memoryIndex = index.termType().isVector() ? new VectorMemoryIndex(index) : new TrieMemoryIndex(index);
-        this.type = index.termType().indexType();
+        this.memoryIndex = index.termType().isVector() ? new VectorMemoryIndex(index, memtable) : new TrieMemoryIndex(index);
+        this.memtable = memtable;
     }
 
     public long writeCount()
@@ -68,6 +70,11 @@ public class MemtableIndex implements MemtableOrdering
     public boolean isEmpty()
     {
         return memoryIndex.isEmpty();
+    }
+
+    public Memtable getMemtable()
+    {
+        return memtable;
     }
 
     public ByteBuffer getMinTerm()
@@ -114,8 +121,14 @@ public class MemtableIndex implements MemtableOrdering
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(List<PrimaryKey> primaryKeys, Expression expression, int limit)
+    public CloseableIterator<PrimaryKeyWithScore> orderBy(QueryContext queryContext, Expression orderer, AbstractBounds<PartitionPosition> keyRange)
     {
-        return memoryIndex.limitToTopResults(primaryKeys, expression, limit);
+        return memoryIndex.orderBy(queryContext, orderer, keyRange);
+    }
+
+    @Override
+    public CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext queryContext, List<PrimaryKey> results, Expression orderer)
+    {
+        return memoryIndex.orderResultsBy(queryContext, results, orderer);
     }
 }

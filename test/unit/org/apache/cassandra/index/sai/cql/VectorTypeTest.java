@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.plan.QueryController;
 import org.apache.cassandra.service.ClientWarn;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -674,5 +675,49 @@ public class VectorTypeTest extends VectorTester
 
         execute("INSERT INTO %s (pk, metadata, row_v) VALUES (10, {'map_k' : 'map_v'}, [0.11, 0.19])");
         assertRows(execute(select), row);
+    }
+
+    @Test
+    public void testStaticVectorColumnIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 2> static, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (pk, ck, val) VALUES (0, 1, [1,0])");
+        execute("INSERT INTO %s (pk, ck)      VALUES (0, 2)");
+        execute("INSERT INTO %s (pk, ck, val) VALUES (1, 3, [0,-1])");
+        execute("INSERT INTO %s (pk, ck, val) VALUES (2, 4, [0,1])");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT ck FROM %s ORDER BY val ANN OF [0,1] LIMIT 3"), row(4), row(1), row(2));
+            assertRows(execute("SELECT ck FROM %s ORDER BY val ANN OF [0,1] LIMIT 2"), row(4), row(1));
+        });
+    }
+
+    @Test
+    public void testTooManyMaterializedKeys() throws Throwable
+    {
+        int originalValue = QueryController.MAX_MATERIALIZED_KEYS;
+        QueryController.MAX_MATERIALIZED_KEYS = 10;
+        try
+        {
+            createTable("CREATE TABLE %s (pk int primary key, i int, val vector<float, 2>)");
+            createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+            createIndex("CREATE CUSTOM INDEX ON %s(i) USING 'StorageAttachedIndex'");
+
+            for (int i = 1; i <= QueryController.MAX_MATERIALIZED_KEYS * 10; i++)
+                execute("INSERT INTO %s (pk, i, val) VALUES (?, ?, [1,0])", i, i);
+
+            beforeAndAfterFlush(() -> {
+                // Search for less than half of the table, which is over the MAX_MATERIALIZED_KEYS value to trigger
+                // the switched order by then filter query execution.
+                UntypedResultSet rows = execute("SELECT pk FROM %s WHERE i < ? ORDER BY val ANN OF [0,1] LIMIT 3", QueryController.MAX_MATERIALIZED_KEYS * 2);
+                assertRowCount(rows, 3);
+            });
+        }
+        finally
+        {
+            QueryController.MAX_MATERIALIZED_KEYS = originalValue;
+        }
     }
 }

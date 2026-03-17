@@ -42,7 +42,7 @@ public enum OptimizeFor
 
     public int topKFor(int limit)
     {
-        return (int)(limitMultiplier.apply(limit) * limit);
+        return (int)(Math.max(1.0, limitMultiplier.apply(limit)) * limit);
     }
 
     public static OptimizeFor fromString(String value)

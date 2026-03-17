@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -32,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,10 +46,12 @@ import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
 import io.github.jbellis.jvector.util.Bits;
+import io.github.jbellis.jvector.util.RamUsageEstimator;
 import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -59,13 +61,15 @@ import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.lucene.util.StringHelper;
 
 public class OnHeapGraph<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(OnHeapGraph.class);
+
+    public static final int MIN_PQ_ROWS = 1024;
 
     private final RamAwareVectorValues vectorValues;
     private final GraphIndexBuilder<float[]> builder;
@@ -73,31 +77,26 @@ public class OnHeapGraph<T>
     private final VectorSimilarityFunction similarityFunction;
     private final ConcurrentMap<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
+    private final NonBlockingHashMap<T, float[]> vectorsByKey;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
     private volatile boolean hasDeletions;
-
-    /**
-     * @param termComparator the vector type
-     * @param indexWriterConfig
-     *
-     * Will create a concurrent object.
-     */
-    public OnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
-    {
-        this(termComparator, indexWriterConfig, true);
-    }
+    private String source;
 
     /**
      * @param termComparator the vector type
      * @param indexWriterConfig the {@link IndexWriterConfig} for the graph
-     * @param concurrent should be true for memtables, false for compaction.  Concurrent allows us to search
-     *                   while building the graph; non-concurrent allows us to avoid synchronization costs.
+     * @param memtable should be provided if attached to a memtable, null otherwise (i.e. compaction). Allows us to
+     *                 configure concurrent search and provide more meaningful trace logging. Concurrent search
+     *                 while building the graph; non-concurrent allows us to avoid synchronization costs.
      */
     @SuppressWarnings("unchecked")
-    public OnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, boolean concurrent)
+    public OnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, Memtable memtable)
     {
         this.vectorType = (VectorType<?>) termComparator;
-        vectorValues = concurrent
+        source = memtable != null
+                 ? memtable.getClass().getSimpleName() + '@' + Integer.toHexString(memtable.hashCode())
+                 : "compaction";
+        vectorValues = memtable != null
                        ? new ConcurrentVectorValues(((VectorType<?>) termComparator).dimension)
                        : new CompactionVectorValues(((VectorType<Float>) termComparator));
         similarityFunction = indexWriterConfig.getSimilarityFunction();
@@ -107,6 +106,7 @@ public class OnHeapGraph<T>
         // is thus a better option than hash-based (which has to look at all elements to compute the hash).
         postingsMap = new ConcurrentSkipListMap<>(Arrays::compare);
         postingsByOrdinal = new NonBlockingHashMapLong<>();
+        vectorsByKey = memtable != null ? new NonBlockingHashMap<>() : null;
 
         builder = new GraphIndexBuilder<>(vectorValues,
                                           VectorEncoding.FLOAT32,
@@ -154,6 +154,16 @@ public class OnHeapGraph<T>
         }
 
         long bytesUsed = 0L;
+
+        // Store a cached reference to the vector for brute force computations later. Because insertions
+        // for the same primary key are guaranteed to be sequential, there is no race condition here.
+        if (vectorsByKey != null)
+        {
+            vectorsByKey.put(key, vector);
+            // The size of the entries themselves are counted below, so just count the two extra references
+            bytesUsed += RamUsageEstimator.NUM_BYTES_OBJECT_REF * 2L;
+        }
+
         VectorPostings<T> postings = postingsMap.get(vector);
         // if the vector is already in the graph, all that happens is that the postings list is updated
         // otherwise, we add the vector in this order:
@@ -240,6 +250,13 @@ public class OnHeapGraph<T>
         return postingsByOrdinal.get(node).getPostings();
     }
 
+    public float[] vectorForKey(T key)
+    {
+        if (vectorsByKey == null)
+            throw new IllegalStateException("vectorsByKey is not initialized");
+        return vectorsByKey.get(key);
+    }
+
     public long remove(ByteBuffer term, T key)
     {
         assert term != null && term.remaining() != 0;
@@ -255,31 +272,35 @@ public class OnHeapGraph<T>
         }
 
         hasDeletions = true;
-        return postings.remove(key);
+        long bytesUsed = postings.remove(key);
+
+        if (vectorsByKey != null)
+        {
+            // On updates to a row, we call add then remove, so we must pass the key's value to ensure we only remove
+            // the deleted vector from vectorsByKey.
+            vectorsByKey.remove(key, vector);
+        }
+
+        return bytesUsed;
     }
 
     /**
      * @return keys (PrimaryKey or segment row id) associated with the topK vectors near the query
      */
-    public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept)
+    public CloseableIterator<SearchResult.NodeScore> search(float[] queryVector, int limit, Bits toAccept)
     {
         validateIndexable(queryVector, similarityFunction);
 
         // search() errors out when an empty graph is passed to it
         if (vectorValues.size() == 0)
-            return new PriorityQueue<>();
+            return CloseableIterator.empty();
 
         Bits bits = hasDeletions ? BitsUtil.bitsIgnoringDeleted(toAccept, postingsByOrdinal) : toAccept;
         GraphIndex<float[]> graph = builder.getGraph();
-        GraphSearcher<float[]> searcher = new GraphSearcher.Builder<>(graph.getView()).withConcurrentUpdates().build();
+        GraphIndex.View<float[]> view = graph.getView();
+        GraphSearcher<float[]> searcher = new GraphSearcher.Builder<>(view).withConcurrentUpdates().build();
         NeighborSimilarity.ExactScoreFunction scoreFunction = node2 -> vectorCompareFunction(queryVector, node2);
-        SearchResult result = searcher.search(scoreFunction, null, limit, bits);
-        Tracing.trace("ANN search visited {} in-memory nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
-        SearchResult.NodeScore[] a = result.getNodes();
-        PriorityQueue<T> keyQueue = new PriorityQueue<>();
-        for (int i = 0; i < a.length; i++)
-            keyQueue.addAll(keysFromOrdinal(a[i].node));
-        return keyQueue;
+        return new AutoResumingNodeScoreIterator(searcher, scoreFunction, null, limit, bits, v -> {}, true, source, view);
     }
 
     public SegmentMetadata.ComponentMetadataMap writeData(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, Function<T, Integer> postingTransformer) throws IOException
@@ -351,8 +372,8 @@ public class OnHeapGraph<T>
     {
         // don't bother with PQ if there are fewer than 1K vectors
         int M = vectorValues.dimension() / 2;
-        writer.writeBoolean(vectorValues.size() >= 1024);
-        if (vectorValues.size() < 1024)
+        writer.writeBoolean(vectorValues.size() >= MIN_PQ_ROWS);
+        if (vectorValues.size() < MIN_PQ_ROWS)
         {
             logger.debug("Skipping PQ for only {} vectors", vectorValues.size());
             return writer.position();

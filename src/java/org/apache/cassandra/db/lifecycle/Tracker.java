@@ -399,7 +399,7 @@ public class Tracker
         if (truncating)
             notifyRenewed(newMemtable);
         else
-            notifySwitched(result.left.getCurrentMemtable());
+            notifySwitched(result.left.getCurrentMemtable(), result.right.getCurrentMemtable());
 
         return result.left.getCurrentMemtable();
     }
@@ -554,9 +554,9 @@ public class Tracker
         notify(new MemtableRenewedNotification(renewed));
     }
 
-    public void notifySwitched(Memtable previous)
+    public void notifySwitched(Memtable previous, Memtable next)
     {
-        notify(new MemtableSwitchedNotification(previous));
+        notify(new MemtableSwitchedNotification(previous, next));
     }
 
     public void notifyDiscarded(Memtable discarded)

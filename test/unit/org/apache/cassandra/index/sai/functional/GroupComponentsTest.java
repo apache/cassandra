@@ -31,6 +31,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.index.sai.disk.EmptyIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.io.sstable.Component;
@@ -61,7 +62,7 @@ public class GroupComponentsTest extends SAITester
 
         // index files are released but not removed
         cfs.invalidate(true, false);
-        Assert.assertTrue(index.view().getIndexes().isEmpty());
+        Assert.assertTrue(index.view().getIndexes().stream().allMatch(i -> i instanceof EmptyIndex));
         for (Component component : components)
             Assert.assertTrue(sstable.descriptor.fileFor(component).exists());
     }

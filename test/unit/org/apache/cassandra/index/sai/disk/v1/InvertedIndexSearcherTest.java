@@ -45,6 +45,7 @@ import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -65,6 +66,12 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
     public static final PrimaryKeyMap TEST_PRIMARY_KEY_MAP = new PrimaryKeyMap()
     {
         private final PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(Murmur3Partitioner.instance, new ClusteringComparator());
+
+        @Override
+        public SSTableId getSSTableId()
+        {
+            return null;
+        }
 
         @Override
         public PrimaryKey primaryKeyFromRowId(long sstableRowId)
@@ -202,6 +209,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.termType(), index.identifier()))
         {
             final IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY,
+                                                                            null,
                                                                             indexFiles,
                                                                             segmentMetadata,
                                                                             index);

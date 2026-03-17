@@ -102,6 +102,12 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
 
                         for (SSTableIndex sstableIndex : index.view())
                         {
+                            // Empty indexes are tracked internally for the sake of having complete views. However,
+                            // these indexes have not historically been exposed in this virtual table, so we skip
+                            // them for now.
+                            if (sstableIndex.getRowCount() == 0)
+                                continue;
+
                             SSTableReader sstable = sstableIndex.getSSTable();
                             Descriptor descriptor = sstable.descriptor;
                             AbstractBounds<Token> bounds = sstable.getBounds();

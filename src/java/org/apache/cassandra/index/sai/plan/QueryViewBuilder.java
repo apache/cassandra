@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
@@ -64,9 +66,18 @@ public class QueryViewBuilder
             this.memtableIndexes = memtableIndexes;
             this.sstableIndexes = sstableIndexes;
         }
+
+        public ColumnFamilyStore.ViewFragment computeViewFragment()
+        {
+            // Because the SSTableIndex holds a reference to the SSTableReader, we know the sstable is still accessible
+            // so it is safe to build a view fragment.
+            List<Memtable> memtables = memtableIndexes.stream().map(MemtableIndex::getMemtable).collect(Collectors.toList());
+            List<SSTableReader> sstableReaders = sstableIndexes.stream().map(SSTableIndex::getSSTable).collect(Collectors.toList());
+            return new ColumnFamilyStore.ViewFragment(sstableReaders, memtables);
+        }
     }
 
-    public static class QueryView
+    public static class QueryView implements AutoCloseable
     {
         public final Collection<QueryExpressionView> view;
         public final Set<SSTableIndex> referencedIndexes;
@@ -75,6 +86,12 @@ public class QueryViewBuilder
         {
             this.view = view;
             this.referencedIndexes = referencedIndexes;
+        }
+
+        @Override
+        public void close()
+        {
+            referencedIndexes.forEach(SSTableIndex::releaseQuietly);
         }
     }
 

@@ -19,19 +19,26 @@
 package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.PriorityQueue;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -59,13 +66,18 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class StorageAttachedIndexSearcher implements Index.Searcher
 {
@@ -120,27 +132,64 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
         if (!command.isTopK())
-            return new ResultRetriever(executionController, false);
+        {
+            return new ResultRetriever(executionController);
+        }
         else
         {
-            Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(executionController, true);
-
-            // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
-            //  First time to find out there are shadow keys, second time to find out there are no more shadow keys.
-            while (true)
+            // Need a consistent view of the memtables/sstables and their associated index, so we get the view now
+            // and propagate it as needed.
+            try (QueryViewBuilder.QueryView queryView = buildAnnQueryView())
             {
-                long lastShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
-                ResultRetriever result = resultSupplier.get();
-                UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
-
-                long currentShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
-                if (lastShadowedKeysCount == currentShadowedKeysCount)
-                    return topK;
+                queryController.maybeTriggerGuardrails(queryView);
+                ScoreOrderedResultRetriever result = new ScoreOrderedResultRetriever(executionController, queryView);
+                // takeTopKThenSortByPrimaryKey eagerly consumes up to k rows from the result because search must
+                // produce an iterator in PrimaryKey order.
+                return (UnfilteredPartitionIterator) new VectorTopKProcessor(command).takeTopKThenSortByPrimaryKey(result);
             }
         }
     }
 
-    private class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private QueryViewBuilder.QueryView buildAnnQueryView()
+    {
+        RowFilter.Expression annExpression = null;
+        for (RowFilter.Expression expression : queryController.indexFilter().getExpressions())
+        {
+            if (expression.operator() == Operator.ANN)
+            {
+                if (annExpression != null)
+                    throw new IllegalStateException("Multiple ANN expressions in a single query are not supported");
+                annExpression = expression;
+            }
+        }
+        if (annExpression == null)
+            throw new IllegalStateException("No ANN expression found in query");
+
+        StorageAttachedIndex index = queryController.indexFor(annExpression);
+        Expression planExpression = Expression.create(index).add(Operator.ANN, annExpression.getIndexValue().duplicate());
+        return new QueryViewBuilder(Collections.singleton(planExpression), queryController.mergeRange()).build();
+    }
+
+    private abstract class AbstractRetreiver extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    {
+        final FilterTree filterTree;
+        final ReadExecutionController executionController;
+
+        AbstractRetreiver(ReadExecutionController executionController)
+        {
+            this.executionController = executionController;
+            this.filterTree = Operation.buildFilter(queryController, queryController.usesStrictFiltering());
+        }
+
+        @Override
+        public TableMetadata metadata()
+        {
+            return queryController.metadata();
+        }
+
+    }
+
+    private class ResultRetriever extends AbstractRetreiver
     {
         private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
@@ -149,26 +198,21 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private AbstractBounds<PartitionPosition> currentKeyRange;
 
         private final KeyRangeIterator resultKeyIterator;
-        private final FilterTree filterTree;
-        private final ReadExecutionController executionController;
         private final PrimaryKey.Factory keyFactory;
-        private final boolean topK;
         private final int partitionRowBatchSize;
 
         private PrimaryKey lastKey;
 
-        private ResultRetriever(ReadExecutionController executionController, boolean topK)
+        private ResultRetriever(ReadExecutionController executionController)
         {
+            super(executionController);
             this.keyRanges = queryController.dataRanges().iterator();
             this.firstDataRange = keyRanges.next();
             this.currentKeyRange = firstDataRange.keyRange();
             this.resultKeyIterator = Operation.buildIterator(queryController);
-            this.filterTree = Operation.buildFilter(queryController, queryController.usesStrictFiltering());
-            this.executionController = executionController;
             this.keyFactory = queryController.primaryKeyFactory();
             this.firstPrimaryKey = queryController.firstPrimaryKeyInRange();
             this.lastPrimaryKey = queryController.lastPrimaryKeyInRange();
-            this.topK = topK;
 
             // Ensure we don't fetch larger batches than the provided LIMIT to avoid fetching keys we won't use: 
             this.partitionRowBatchSize = Math.min(PARTITION_ROW_BATCH_SIZE, command.limits().count());
@@ -458,112 +502,16 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 queryContext.partitionsRead++;
                 queryContext.checkpoint();
 
-                UnfilteredRowIterator filtered = filterPartition(keys, partition, filterTree);
+                List<Row> filtered = filterPartition(partition, filterTree, queryContext);
 
-                // Note that we record the duration of the read after post-filtering, which actually 
+                // Note that we record the duration of the read after post-filtering, which actually
                 // materializes the rows from disk.
                 tableQueryMetrics.postFilteringReadLatency.update(Clock.Global.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
 
-                return filtered;
+                return filtered != null
+                       ? new SinglePartitionIterator(partition, partition.staticRow(), filtered.iterator())
+                       : null;
             }
-        }
-
-        private UnfilteredRowIterator filterPartition(List<PrimaryKey> keys, UnfilteredRowIterator partition, FilterTree tree)
-        {
-            Row staticRow = partition.staticRow();
-            DecoratedKey partitionKey = partition.partitionKey();
-            List<Unfiltered> matches = new ArrayList<>();
-            boolean hasMatch = false;
-            Set<PrimaryKey> keysToShadow = topK ? new HashSet<>(keys) : Collections.emptySet();
-
-            while (partition.hasNext())
-            {
-                Unfiltered unfiltered = partition.next();
-
-                if (unfiltered.isRow())
-                {
-                    queryContext.rowsFiltered++;
-
-                    if (tree.isSatisfiedBy(partitionKey, (Row) unfiltered, staticRow))
-                    {
-                        matches.add(unfiltered);
-                        hasMatch = true;
-
-                        if (topK)
-                        {
-                            PrimaryKey shadowed = keyFactory.hasClusteringColumns()
-                                                  ? keyFactory.create(partitionKey, ((Row) unfiltered).clustering())
-                                                  : keyFactory.create(partitionKey);
-                            keysToShadow.remove(shadowed);
-                        }
-                    }
-                }
-            }
-
-            // If any non-static rows match the filter, there should be no need to shadow the static primary key:
-            if (topK && hasMatch && keyFactory.hasClusteringColumns())
-                keysToShadow.remove(keyFactory.create(partitionKey, Clustering.STATIC_CLUSTERING));
-
-            // We may not have any non-static row data to filter...
-            if (!hasMatch)
-            {
-                queryContext.rowsFiltered++;
-
-                if (tree.isSatisfiedBy(partitionKey, staticRow, staticRow))
-                {
-                    hasMatch = true;
-
-                    if (topK)
-                        keysToShadow.clear();
-                }
-            }
-
-            if (topK && !keysToShadow.isEmpty())
-            {
-                // Record primary keys shadowed by expired TTLs, row tombstones, or range tombstones:
-                queryContext.vectorContext().recordShadowedPrimaryKeys(keysToShadow);
-            }
-
-            if (!hasMatch)
-            {
-                // If there are no matches, return an empty partition. If reconciliation is required at the
-                // coordinator, replica filtering protection may make a second round trip to complete its view
-                // of the partition.
-                return null;
-            }
-
-            // Return all matches found, along with the static row... 
-            return new PartitionIterator(partition, staticRow, matches.iterator());
-        }
-
-        private class PartitionIterator extends AbstractUnfilteredRowIterator
-        {
-            private final Iterator<Unfiltered> rows;
-
-            public PartitionIterator(UnfilteredRowIterator partition, Row staticRow, Iterator<Unfiltered> rows)
-            {
-                super(partition.metadata(),
-                      partition.partitionKey(),
-                      partition.partitionLevelDeletion(),
-                      partition.columns(),
-                      staticRow,
-                      partition.isReverseOrder(),
-                      partition.stats());
-
-                this.rows = rows;
-            }
-
-            @Override
-            protected Unfiltered computeNext()
-            {
-                return rows.hasNext() ? rows.next() : endOfData();
-            }
-        }
-
-        @Override
-        public TableMetadata metadata()
-        {
-            return queryController.metadata();
         }
 
         @Override
@@ -571,6 +519,306 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         {
             FileUtils.closeQuietly(resultKeyIterator);
             if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
+        }
+    }
+
+    private static List<Row> filterPartition(UnfilteredRowIterator partition, FilterTree tree, QueryContext context)
+    {
+        Row staticRow = partition.staticRow();
+        DecoratedKey partitionKey = partition.partitionKey();
+        List<Row> matches = new ArrayList<>();
+        boolean hasMatch = false;
+
+        while (partition.hasNext())
+        {
+            Unfiltered unfiltered = partition.next();
+
+            if (unfiltered.isRow())
+            {
+                context.rowsFiltered++;
+
+                if (tree.isSatisfiedBy(partitionKey, (Row) unfiltered, staticRow))
+                {
+                    matches.add((Row) unfiltered);
+                    hasMatch = true;
+                }
+            }
+        }
+
+        // We may not have any non-static row data to filter...
+        if (!hasMatch)
+        {
+            context.rowsFiltered++;
+
+            if (tree.isSatisfiedBy(partitionKey, staticRow, staticRow))
+            {
+                hasMatch = true;
+            }
+        }
+
+        if (!hasMatch)
+        {
+            // If there are no matches, return an empty partition. If reconciliation is required at the
+            // coordinator, replica filtering protection may make a second round trip to complete its view
+            // of the partition.
+            return null;
+        }
+
+        // Return all matches found
+        return matches;
+    }
+
+    private static class SinglePartitionIterator extends AbstractUnfilteredRowIterator
+    {
+        private final Iterator<Row> rows;
+
+        public SinglePartitionIterator(UnfilteredRowIterator partition, Row staticRow, Iterator<Row> rows)
+        {
+            super(partition.metadata(),
+                  partition.partitionKey(),
+                  partition.partitionLevelDeletion(),
+                  partition.columns(),
+                  staticRow,
+                  partition.isReverseOrder(),
+                  partition.stats());
+
+            this.rows = rows;
+        }
+
+        @Override
+        protected Unfiltered computeNext()
+        {
+            return rows.hasNext() ? rows.next() : endOfData();
+        }
+    }
+
+    /**
+     * A result retriever that consumes an iterator primary keys sorted by some score, materializes the row for each
+     * primary key (currently, each primary key is required to be fully qualified and should only point to one row),
+     * apply the filter tree to the row to test that the real row satisfies the WHERE clause, and finally tests
+     * that the row is valid for the ORDER BY clause. The class performs some optimizations to avoid materializing
+     * rows unnecessarily. See the class for more details.
+     * <p>
+     * The resulting {@link UnfilteredRowIterator} objects are not guaranteed to be in any particular order. It is
+     * the responsibility of the caller to sort the results if necessary.
+     */
+    public class ScoreOrderedResultRetriever extends AbstractRetreiver
+    {
+        private final ColumnFamilyStore.ViewFragment view;
+        private final List<AbstractBounds<PartitionPosition>> keyRanges;
+        private final boolean coversFullRing;
+        private final CloseableIterator<PrimaryKeyWithScore> scoredPrimaryKeyIterator;
+
+        private final boolean isVectorColumnStatic;
+        private final HashSet<PrimaryKey> processedKeys;
+        private final Queue<UnfilteredRowIterator> pendingRows;
+
+        // The limit requested by the query. We cannot load more than softLimit rows in bulk because we only want
+        // to fetch the topk rows where k is the limit. However, we allow the iterator to fetch more rows than the
+        // soft limit to avoid confusing behavior. When the softLimit is reached, the iterator will fetch one row
+        // at a time.
+        private final int softLimit;
+        private int returnedRowCount = 0;
+
+        private ScoreOrderedResultRetriever(ReadExecutionController executionController,
+                                            QueryViewBuilder.QueryView queryView)
+        {
+            super(executionController);
+            assert queryView.view.size() == 1;
+            QueryViewBuilder.QueryExpressionView queryExpressionView = queryView.view.stream().findFirst().get();
+            this.view = queryExpressionView.computeViewFragment();
+            this.keyRanges = queryController.dataRanges().stream().map(DataRange::keyRange).collect(Collectors.toList());
+            this.coversFullRing = keyRanges.size() == 1 && RangeUtil.coversFullRing(keyRanges.get(0));
+
+            this.scoredPrimaryKeyIterator = Operation.buildIteratorForOrder(queryController, queryExpressionView);
+
+            this.isVectorColumnStatic = queryExpressionView.expression.getIndexTermType().columnMetadata().isStatic();
+            this.softLimit = command.limits().count();
+            this.processedKeys = new HashSet<>(softLimit);
+            this.pendingRows = new ArrayDeque<>(softLimit);
+        }
+
+        @Override
+        public UnfilteredRowIterator computeNext()
+        {
+            if (pendingRows.isEmpty())
+                fillPendingRows();
+            returnedRowCount++;
+            // Because we know ordered keys are fully qualified, we do not iterate partitions
+            return !pendingRows.isEmpty() ? pendingRows.poll() : endOfData();
+        }
+
+        /**
+         * Fills the pendingRows queue to generate a queue of row iterators for the supplied keys by repeatedly calling
+         * {@link #readAndValidatePartition} until it gives enough non-null results.
+         */
+        private void fillPendingRows()
+        {
+            // Group PKs by source sstable/memtable
+            Map<PrimaryKey, List<PrimaryKeyWithScore>> groupedKeys = new HashMap<>();
+            // We always want to get at least 1. When the vector column is static, we cannot batch because we need to
+            // retain the score ordering a bit longer.
+            int rowsToRetrieve = isVectorColumnStatic ? 1 : Math.max(1, softLimit - returnedRowCount);
+            // We want to get the first unique `rowsToRetrieve` keys to materialize
+            // Don't pass the priority queue here because it is more efficient to add keys in bulk
+            fillKeys(groupedKeys, rowsToRetrieve, null);
+            // Sort the primary keys by PrK order, just in case that helps with cache and disk efficiency
+            PriorityQueue<PrimaryKey> primaryKeyPriorityQueue = new PriorityQueue<>(groupedKeys.keySet());
+
+            // drain groupedKeys into pendingRows
+            while (!groupedKeys.isEmpty())
+            {
+                PrimaryKey pk = primaryKeyPriorityQueue.poll();
+                List<PrimaryKeyWithScore> sourceKeys = groupedKeys.remove(pk);
+                UnfilteredRowIterator partitionIterator = readAndValidatePartition(pk, sourceKeys);
+                if (partitionIterator != null)
+                    pendingRows.add(partitionIterator);
+                else
+                    // The current primaryKey did not produce a partition iterator. We know the caller will need
+                    // `rowsToRetrieve` rows, so we get the next unique key and add it to the queue.
+                    fillKeys(groupedKeys, 1, primaryKeyPriorityQueue);
+            }
+        }
+
+        /**
+         * Fills the `groupedKeys` Map with the next `count` unique primary keys that are in the keys produced by calling
+         * {@link #nextSelectedKeyInRange()}. We map PrimaryKey to a list of PrimaryKeyWithScore because the same
+         * primary key can be in the result set multiple times, but with different source tables.
+         * @param groupedKeys the map to fill
+         * @param count the number of unique PrimaryKeys to consume from the iterator
+         * @param primaryKeyPriorityQueue the priority queue to add new keys to. If the queue is null, we do not add
+         *                                keys to the queue.
+         */
+        private void fillKeys(Map<PrimaryKey, List<PrimaryKeyWithScore>> groupedKeys, int count, PriorityQueue<PrimaryKey> primaryKeyPriorityQueue)
+        {
+            int initialSize = groupedKeys.size();
+            while (groupedKeys.size() - initialSize < count)
+            {
+                PrimaryKeyWithScore primaryKeyWithScore = nextSelectedKeyInRange();
+                if (primaryKeyWithScore == null)
+                    return;
+                PrimaryKey nextPrimaryKey = primaryKeyWithScore.primaryKey();
+                List<PrimaryKeyWithScore> accumulator = groupedKeys.computeIfAbsent(nextPrimaryKey, k -> new ArrayList<>());
+                if (primaryKeyPriorityQueue != null && accumulator.isEmpty())
+                    primaryKeyPriorityQueue.add(nextPrimaryKey);
+                accumulator.add(primaryKeyWithScore);
+            }
+        }
+
+        /**
+         * Determine if the key is in one of the queried key ranges. We do not iterate through results in
+         * {@link PrimaryKey} order, so we have to check each range.
+         * @param key the key to test
+         * @return true if the key is in one of the queried key ranges
+         */
+        private boolean isInRange(DecoratedKey key)
+        {
+            if (coversFullRing)
+                return true;
+
+            for (AbstractBounds<PartitionPosition> range : keyRanges)
+                if (range.contains(key))
+                    return true;
+            return false;
+        }
+
+        /**
+         * Returns the next available key contained by one of the keyRanges and selected by the queryController.
+         * If the next key falls out of the current key range, it skips to the next key range, and so on.
+         * If no more keys acceptd by the controller are available, returns null.
+         */
+        private @Nullable PrimaryKeyWithScore nextSelectedKeyInRange()
+        {
+            while (scoredPrimaryKeyIterator.hasNext())
+            {
+                PrimaryKeyWithScore key = scoredPrimaryKeyIterator.next();
+                if (isInRange(key.primaryKey().partitionKey()) && !queryController.doesNotSelect(key.primaryKey()))
+                    return key;
+            }
+            return null;
+        }
+
+        /**
+         * Reads and validates a partition for a given primary key against its sources.
+         * <p>
+         * @param pk The primary key of the partition to read and validate
+         * @param sourceKeys A list of PrimaryKeyWithScore objects associated with the primary key.
+         *                   Multiple sort keys can exist for the same primary key when data comes from different
+         *                   sstables or memtables.
+         *
+         * @return An UnfilteredRowIterator containing the validated partition data, or null if:
+         *         - The key has already been processed
+         *         - The partition does not pass index filters
+         *         - The partition contains no valid rows
+         *         - The row data does not match the index metadata for any of the provided primary keys
+         */
+        public UnfilteredRowIterator readAndValidatePartition(PrimaryKey pk, List<PrimaryKeyWithScore> sourceKeys)
+        {
+            // If we've already processed the key, we can skip it. Because the score ordered iterator does not
+            // deduplicate rows, we could see dupes if a row is in the ordering index multiple times. This happens
+            // in the case of dupes and of overwrites.
+            if (processedKeys.contains(pk))
+                return null;
+
+            try (UnfilteredRowIterator partition = queryController.queryStorage(pk, view, executionController))
+            {
+                queryContext.partitionsRead++;
+                queryContext.checkpoint();
+
+                List<Row> clusters = filterPartition(partition, filterTree, queryContext);
+
+                if (clusters == null)
+                {
+                    // Key counts as processed because the materialized row didn't satisfy the filter logic
+                    processedKeys.add(pk);
+                    return null;
+                }
+
+                Row staticRow = partition.staticRow();
+                long now = FBUtilities.nowInSeconds();
+
+                // If the pk is static, then we must check that the static row satisfies the source key's validity check.
+                // Otherwise, we need to make sure that we have one row in the cluster result and then we use that
+                // for checking validity.
+                Row representativeRow;
+                if (pk.kind() == PrimaryKey.Kind.STATIC)
+                {
+                    representativeRow = staticRow;
+                }
+                else
+                {
+                    if (clusters.isEmpty())
+                    {
+                        // Key counts as processed because the materialized row didn't satisfy the filter logic
+                        processedKeys.add(pk);
+                        return null;
+                    }
+                    representativeRow = clusters.get(0);
+                    assert clusters.size() == 1 : "Expect 1 result row, but got: " + clusters.size();
+                }
+
+                // Each of sourceKeys are equal with respect to primary key equality, but they have different source tables.
+                // As long as one is valid, we consider the row valid.
+                for (PrimaryKeyWithScore sourceKey : sourceKeys)
+                {
+                    assert sourceKey.primaryKey().kind() == pk.kind();
+                    if (sourceKey.isIndexDataValid(representativeRow, now))
+                    {
+                        processedKeys.add(pk);
+                        return new SinglePartitionIterator(partition, staticRow, clusters.iterator());
+                    }
+                }
+                // Key does not count as processed because the only thing that "failed" is the validity check on the
+                // grouped source keys, and it is possible that the score ordered iterator has the same key in the
+                // iterator lower. We only get here when a vector's value is updated to a more distant vector, so
+                // the old value ranks high in the iterator, but isn't the current value for the materialized row.
+                return null;
+            }
+        }
+
+        public void close()
+        {
+            FileUtils.closeQuietly(scoredPrimaryKeyIterator);
         }
     }
 

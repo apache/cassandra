@@ -45,6 +45,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -2547,6 +2548,41 @@ public abstract class CQLTester
     protected List<Object> list(Object...values)
     {
         return Arrays.asList(values);
+    }
+
+    /** @return a normalized vector with the given dimension */
+    public Vector<Float> randomVectorBoxed(int dimension)
+    {
+        float[] floats = randomVector(dimension);
+        return vector(floats);
+    }
+
+    public float[] randomVector(int dimension)
+    {
+        // this can be called from concurrent threads so don't use getRandom()
+        ThreadLocalRandom R = ThreadLocalRandom.current();
+
+        float[] vector = new float[dimension];
+        for (int i = 0; i < dimension; i++)
+        {
+            vector[i] = R.nextFloat();
+        }
+        normalize(vector);
+        return vector;
+    }
+
+    /** Normalize the given vector in-place */
+    protected static void normalize(float[] v)
+    {
+        float sum = 0.0f;
+        for (int i = 0; i < v.length; i++)
+        {
+            sum += v[i] * v[i];
+        }
+
+        sum = (float) Math.sqrt(sum);
+        for (int i = 0; i < v.length; i++)
+            v[i] /= sum;
     }
 
     @SafeVarargs

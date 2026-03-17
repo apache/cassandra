@@ -36,12 +36,13 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.v1.segment.Segment;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.index.sai.virtual.SegmentsSystemView.CELL_COUNT;
@@ -174,14 +175,25 @@ public class V1SSTableIndex extends SSTableIndex
         return segmentIterators;
     }
 
-    @Override
-    public KeyRangeIterator limitToTopKResults(QueryContext context, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
+    public List<CloseableIterator<PrimaryKeyWithScore>> orderBy(Expression orderer, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
-        KeyRangeUnionIterator.Builder unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
+        // Return a list to allow the caller to merge the results from multiple sstables into a single iterator.
+        List<CloseableIterator<PrimaryKeyWithScore>> iterators = new ArrayList<>(segments.size());
         for (Segment segment : segments)
-            unionIteratorBuilder.add(segment.limitToTopKResults(context, primaryKeys, expression));
+            if (segment.intersects(keyRange))
+                iterators.add(segment.orderBy(orderer, keyRange, context));
 
-        return unionIteratorBuilder.build();
+        return iterators;
+    }
+
+    public List<CloseableIterator<PrimaryKeyWithScore>> orderResultsBy(QueryContext context, List<PrimaryKey> results, Expression orderer) throws IOException
+    {
+        // Return a list to allow the caller to merge the results from multiple sstables into a single iterator.
+        List<CloseableIterator<PrimaryKeyWithScore>> iterators = new ArrayList<>(segments.size());
+        for (Segment segment : segments)
+            iterators.add(segment.orderResultsBy(context, results, orderer));
+
+        return iterators;
     }
 
     @Override

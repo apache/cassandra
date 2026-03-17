@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.SortedSet;
@@ -42,11 +43,13 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -258,6 +261,18 @@ public class TrieMemoryIndex extends MemoryIndex
         PrimaryKeys primaryKeys = data.get(comparableMatch);
         return primaryKeys == null ? KeyRangeIterator.empty()
                                    : new FilteringInMemoryKeyRangeIterator(primaryKeys.keys(), keyRange);
+    }
+
+    @Override
+    public CloseableIterator<PrimaryKeyWithScore> orderBy(QueryContext queryContext, Expression orderer, AbstractBounds<PartitionPosition> keyRange)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext context, List<PrimaryKey> results, Expression orderer)
+    {
+        throw new UnsupportedOperationException();
     }
 
     private static class Collector
