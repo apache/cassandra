@@ -191,18 +191,48 @@ batchlog_replay_throttle: 1024KiB
 #    ...
 #
 # - AllowAllAuthenticator performs no checks - set it to disable authentication.
-# - PasswordAuthenticator relies on username/password pairs to authenticate
-#   users. It keeps usernames and hashed passwords in system_auth.roles table.
-#   Please increase system_auth keyspace replication factor if you use this authenticator.
-#   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
+# - PasswordAuthenticator relies on username/password pairs to authenticate users. It keeps usernames and
+#     hashed passwords in system_auth.roles table. Please increase system_auth keyspace replication factor
+#     if you use this authenticator.
+#     If using PasswordAuthenticator, CassandraRoleManager must also be used (see below).
+# - MutualTlsAuthenticator is certificate-based authentication, using the same certificates used to establish
+#     connection security.
 authenticator:
-  class_name: AllowAllAuthenticator
+  class_name: PasswordAuthenticator
 # MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
 # which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
 # and validating certificates.
 #  class_name: org.apache.cassandra.auth.MutualTlsAuthenticator
 #  parameters:
 #    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+
+# Configure authenticator negotiation, to allow nodes to support multiple authentication mechanisms and
+# negotiate (resolve) a specific mechanism with a client at connection time. When this configuration is present,
+# it supersedes the 'authenticator' configuration entirely.
+authenticator_negotiation:
+  # If true, client connections will go through authn negotiation. If false, they will use the authenticator
+  # configured by the default_authenticator key.
+  enabled: true
+  # If true, all configured authenticators, including the default authenticator, must 'require authenticiation':
+  # i.e., 'AllowAllAuthenticator' and other authenticators that don't require authentication cannot be used and
+  # will cause the node to fail at starttup. This prevents 'fail-open' negotiation. If false, AllowAllAuthenticator
+  # and other non-authenticating authenticators are allowed. This is discouraged but may make migrating to
+  # negotiated authentication easier for deployments that do not enforce authentication today.
+  require_authentication: false
+  # The authenticator to be used for clients that don't support negotiation, or clients that support none of
+  # the authenticators listed in the 'authenticators' section.
+  default_authenticator:
+    - class_name: PasswordAuthenticator
+  # The authenticators that this node supports for negotiation. These are configured as documented for the
+  # 'authenticator' section. List authenticators in order from most- to least-preferred. For negotiating
+  # clients, the server will select the first authenticator in this list that the client indicates it can
+  # support.
+  authenticators:
+    - class_name: MutualTlsAuthenticator
+      parameters:
+        validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+    - class_name: PasswordAuthenticator
+    - class_name: AllowAllAuthenticator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -1895,7 +1925,7 @@ client_encryption_options:
   # Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
   # JAAS login modules can be used for authentication using this property.Cassandra ships with a
   # LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule - which delegates
-  # to the IAuthenticator configured in cassandra.yaml.
+  # to the default IAuthenticator configured in cassandra.yaml.
   #
   # login_config_name refers to the Application Name in the JAAS configuration under which the
   # desired LoginModule(s) are configured.

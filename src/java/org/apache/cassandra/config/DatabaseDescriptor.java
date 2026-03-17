@@ -224,7 +224,8 @@ public class DatabaseDescriptor
     private static DiskAccessMode compactionReadDiskAccessMode;
 
     private static AbstractCryptoProvider cryptoProvider;
-    private static IAuthenticator authenticator;
+    private static List<IAuthenticator> negotiableAuthenticators;
+    private static IAuthenticator defaultAuthenticator;
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
     private static ICIDRAuthorizer cidrAuthorizer;
@@ -393,7 +394,7 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Equivalent to {@link #clientInitialization(boolean) clientInitialization(true, Config::new)}.
+     * Equivalent to {@link #clientInitialization(boolean, Supplier) clientInitialization(failIfDaemonOrTool, Config::new)}.
      */
     public static void clientInitialization(boolean failIfDaemonOrTool)
     {
@@ -2037,12 +2038,42 @@ public class DatabaseDescriptor
         DatabaseDescriptor.cryptoProvider = cryptoProvider;
     }
 
+    @VisibleForTesting /* Only for testing */
+    public static void setAuthenticatorNegotationEnabled(boolean isEnabled) {
+        conf.authenticator_negotiation.enabled = isEnabled;
+    }
+
+    public static boolean isAuthenticatorNegotiationEnabled()
+    {
+        return conf.authenticator_negotiation.enabled &&
+               !negotiableAuthenticators.isEmpty();
+    }
+
+    public static List<IAuthenticator> getNegotiableAuthenticators()
+    {
+        return DatabaseDescriptor.negotiableAuthenticators;
+    }
+
+    public static void setNegotiableAuthenticators(List<IAuthenticator> authenticators)
+    {
+        DatabaseDescriptor.negotiableAuthenticators = new ArrayList<>(authenticators);
+    }
+
     /**
-     * Returns the authenticator configured for this node.
+     * Returns the default authenticator configured for this node.
      */
+    @Deprecated(since = "6.0.0")
     public static IAuthenticator getAuthenticator()
     {
-        return authenticator;
+        return getDefaultAuthenticator();
+    }
+
+    /**
+     * Returns the default authenticator configured for this node.
+     */
+    public static IAuthenticator getDefaultAuthenticator()
+    {
+        return defaultAuthenticator;
     }
 
     /**
@@ -2053,15 +2084,25 @@ public class DatabaseDescriptor
      */
     public static <T extends IAuthenticator> Optional<T> getAuthenticator(Class<T> clazz)
     {
-        return hasAuthenticator(clazz) ? Optional.of(clazz.cast(authenticator)) : Optional.empty();
+        return negotiableAuthenticators.stream()
+                                       .filter(auth -> clazz.isAssignableFrom(auth.getClass()))
+                                       .findFirst()
+                                       .map(clazz::cast);
     }
 
     /**
      * Sets the authenticator used by this node to authenticate clients.
+     * @deprecated Use {@link #setDefaultAuthenticator(IAuthenticator)} instead.
      */
+    @Deprecated(since = "6.0.0" )
     public static void setAuthenticator(IAuthenticator authenticator)
     {
-        DatabaseDescriptor.authenticator = authenticator;
+        setDefaultAuthenticator(authenticator);
+    }
+
+    public static void setDefaultAuthenticator(IAuthenticator authenticator)
+    {
+        DatabaseDescriptor.defaultAuthenticator = authenticator;
     }
 
     /**
@@ -2079,9 +2120,9 @@ public class DatabaseDescriptor
      */
     private static boolean hasAuthenticator(Class<? extends IAuthenticator> clazz)
     {
-        return clazz.isAssignableFrom(authenticator.getClass());
+        return negotiableAuthenticators.stream()
+                                       .anyMatch(auth -> clazz.isAssignableFrom(auth.getClass()));
     }
-
 
     public static IAuthorizer getAuthorizer()
     {

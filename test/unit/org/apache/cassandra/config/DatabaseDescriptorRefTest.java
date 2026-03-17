@@ -89,6 +89,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",
     "org.apache.cassandra.config.Config",
     "org.apache.cassandra.config.Config$1",
+    "org.apache.cassandra.config.Config$AuthenticatorNegotiationConfig",
     "org.apache.cassandra.config.Config$CommitFailurePolicy",
     "org.apache.cassandra.config.Config$CQLStartTime",
     "org.apache.cassandra.config.Config$CommitLogSync",
