@@ -2634,6 +2634,15 @@ public class DatabaseDescriptor
         return conf.graceful_disconnect_enabled;
     }
 
+    /**
+     * Updating graceful_disconnect_enabled via JMX isn't supported. This function exists solely for test cases
+     * @param gracefulDisconnectEnabled
+     */
+    public static void setGracefulDisconnectEnabled(boolean  gracefulDisconnectEnabled)
+    {
+        conf.graceful_disconnect_enabled = gracefulDisconnectEnabled;
+    }
+
     public static long getReadRpcTimeout(TimeUnit unit)
     {
         return conf.read_request_timeout.to(unit);

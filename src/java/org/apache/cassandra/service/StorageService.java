@@ -244,7 +244,6 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.util.AttributeKey;
 
@@ -304,7 +303,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static final int INDEFINITE = -1;
     public static final int RING_DELAY_MILLIS = getRingDelay(); // delay after which we assume ring has stablized
 
-    private final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
+    static final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
 
     {
         PathUtils.setDeletionListener(path -> {
@@ -631,7 +630,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         gracefulDisconnect(() -> {
             daemon.stopNativeTransport(force);
         });
-        daemon.stopNativeTransport(force);
     }
 
     public boolean isNativeTransportRunning()
@@ -3890,44 +3888,51 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             defaultAction.run();
             return;
         }
-
+        nts.getServer().stopAcceptingNewConnections();
         ChannelGroup channelGroup = nts.getServer().getChannelsSubscribedToGracefulDisconnect();
         if (channelGroup == null || channelGroup.isEmpty())
         {
             defaultAction.run();
             return;
         }
+        gracefulDisconnect(defaultAction, channelGroup);
+    }
 
+    void gracefulDisconnect(Runnable defaultAction, ChannelGroup channelGroup)
+    {
+        if (channelGroup == null || channelGroup.isEmpty())
+        {
+            defaultAction.run();
+            return;
+        }
         AtomicBoolean actionStarted = new AtomicBoolean(false);
         Runnable runOnceAction = () -> {
             if (actionStarted.compareAndSet(false, true))
                 defaultAction.run();
         };
-
         ScheduledFuture<?> timeoutTask = ScheduledExecutors.nonPeriodicTasks
                                          .schedule(runOnceAction, DatabaseDescriptor.getGracefulDisconnectMaxDrainMs(), MILLISECONDS);
 
-        AtomicInteger pendingRegistrations = new AtomicInteger(1);
+        // Use a counter rather than channelGroup.isEmpty() because DefaultChannelGroup removes
+        // channels on close; under concurrent closes, a listener could see isEmpty()==true
+        // before all listeners have fired, triggering the action prematurely.
+        AtomicInteger connectedChannels = new AtomicInteger(channelGroup.size());
         EventMessage gracefulDisconnectEventMessage = new EventMessage(new Event.GracefulDisconnect());
-
         channelGroup.forEach(channel -> {
-            pendingRegistrations.incrementAndGet();
-
             Consumer<EventMessage> dispatcher = channel.attr(EVENT_DISPATCHER).get();
             if (dispatcher != null)
                 dispatcher.accept(gracefulDisconnectEventMessage);
-
-            // in-flight requests complete when the driver closes socket connection
-            channel.closeFuture().addListener((ChannelFutureListener) future -> {
-                if (pendingRegistrations.decrementAndGet() == 0 && channelGroup.isEmpty())
+            channel.closeFuture().addListener((future -> {
+                if (connectedChannels.decrementAndGet() == 0)
                 {
                     runOnceAction.run();
                     timeoutTask.cancel(false);
                 }
-            });
+            }));
         });
-
-        if (pendingRegistrations.decrementAndGet() == 0 && channelGroup.isEmpty())
+        // All channels were already closed before we could register listeners
+        // close futures fired inline and decremented the counter to 0 during forEach.
+        if (connectedChannels.get() == 0)
         {
             runOnceAction.run();
             timeoutTask.cancel(false);

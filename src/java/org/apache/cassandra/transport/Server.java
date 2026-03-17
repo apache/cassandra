@@ -80,6 +80,7 @@ public class Server implements CassandraDaemon.Server
     private static final boolean useEpoll = NativeTransportService.useEpoll();
 
     private final ConnectionTracker connectionTracker;
+    private Channel bindChannel;
 
     private final Connection.Factory connectionFactory = new Connection.Factory()
     {
@@ -154,12 +155,23 @@ public class Server implements CassandraDaemon.Server
 
         // Configure the server.
         ChannelFuture bindFuture = pipelineConfigurator.initializeChannel(workerGroup, socket, connectionFactory);
+        bindChannel = bindFuture.channel();
         if (!bindFuture.awaitUninterruptibly().isSuccess())
             throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()),
                                             bindFuture.cause());
 
         connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
+    }
+
+    public void stopAcceptingNewConnections()
+    {
+        if (bindChannel != null && bindChannel.isOpen())
+        {
+            logger.info("Stopping native transport acceptor on {}", bindChannel.localAddress());
+            // syncUninterruptibly ensures we wait for the port to actually close
+            bindChannel.close().syncUninterruptibly();
+        }
     }
 
     public int countConnectedClients()
