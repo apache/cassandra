@@ -52,7 +52,9 @@ public class View implements Iterable<SSTableIndex>
         for (SSTableIndex sstableIndex : indexes)
         {
             this.view.put(sstableIndex.getSSTable().descriptor, sstableIndex);
-            if (!indexTermType.isVector())
+            // Skip vector indexes, since they are scatter gather for all terms. Skip empty indexes since they
+            // cannot be inserted into the tree due to the lack of min and max terms.
+            if (!indexTermType.isVector() && sstableIndex.getRowCount() > 0)
                 rangeTermTreeBuilder.add(sstableIndex);
         }
 

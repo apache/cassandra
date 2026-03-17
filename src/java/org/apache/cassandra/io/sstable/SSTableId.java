@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.io.util.File;
 
 /**
@@ -37,7 +38,7 @@ import org.apache.cassandra.io.util.File;
  * - must be case-insensitive because the sstables can be stored on case-insensitive file system
  * <p>
  */
-public interface SSTableId
+public interface SSTableId extends CellSourceIdentifier
 {
     /**
      * Creates a byte format of the identifier that can be parsed by

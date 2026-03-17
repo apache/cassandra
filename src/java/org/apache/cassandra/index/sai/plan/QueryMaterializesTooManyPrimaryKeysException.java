@@ -15,18 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+package org.apache.cassandra.index.sai.plan;
 
-public class MemtableSwitchedNotification implements INotification
+import org.apache.cassandra.db.RejectException;
+
+public class QueryMaterializesTooManyPrimaryKeysException extends RejectException
 {
-    public final Memtable previous;
-    public final Memtable next;
-
-    public MemtableSwitchedNotification(Memtable switched, Memtable next)
+    public QueryMaterializesTooManyPrimaryKeysException(String msg)
     {
-        this.previous = switched;
-        this.next = next;
+        super(msg);
     }
 }

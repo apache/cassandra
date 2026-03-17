@@ -23,24 +23,28 @@ import java.util.List;
 
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.utils.CloseableIterator;
 
 /**
- * A {@link SegmentOrdering} orders and limits a list of {@link PrimaryKey}s.
- * <p>
+ * A {@link SegmentOrdering} orders an index and produces a stream of {@link PrimaryKeyWithScore}s.
+ *
+ * The limit can be used to lazily order the {@link PrimaryKey}s. Due to the possiblity for
+ * shadowed or updated keys, a {@link SegmentOrdering} should be able to order the whole index
+ * until exhausted.
+ *
  * When using {@link SegmentOrdering} there are several steps to
- * build the list of Primary Keys to be ordered and limited:
- * <p>
+ * build the list of Primary Keys to be ordered:
+ *
  * 1. Find all primary keys that match each non-ordering query predicate.
  * 2. Union and intersect the results of step 1 to build a single {@link KeyRangeIterator}
  *    ordered by {@link PrimaryKey}.
- * 3. Filter out any shadowed primary keys.
- * 4. Fan the primary keys from step 3 out to each sstable segment to order and limit each
- *    list of primary keys.
+ * 3. Fan the primary keys from step 2 out to each sstable segment to order the list of primary keys.
  * <p>
- * SegmentOrdering handles the fourth step.
+ * SegmentOrdering handles the third step.
  * <p>
  * Note: a segment ordering is only used when a query has both ordering and non-ordering predicates.
  * Where a query has only ordering predicates, the ordering is handled by
@@ -51,7 +55,7 @@ public interface SegmentOrdering
     /**
      * Reorder, limit, and put back into original order the results from a single sstable
      */
-    default KeyRangeIterator limitToTopKResults(QueryContext queryContext, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
+    default CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext queryContext, List<PrimaryKey> results, Expression orderer) throws IOException
     {
         throw new UnsupportedOperationException();
     }
