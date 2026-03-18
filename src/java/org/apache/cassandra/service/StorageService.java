@@ -158,6 +158,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.locator.SystemReplicas;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -3906,9 +3907,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return;
         }
         AtomicBoolean actionStarted = new AtomicBoolean(false);
+        AtomicInteger connectedChannels = new AtomicInteger(channelGroup.size());
         Runnable runOnceAction = () -> {
             if (actionStarted.compareAndSet(false, true))
+            {
+                int remaining = connectedChannels.get();
+                ClientMetrics.instance.markForcedDisconnect(remaining);
+                ClientMetrics.instance.decrementConnectionsDraining(remaining);
                 defaultAction.run();
+            }
         };
         ScheduledFuture<?> timeoutTask = ScheduledExecutors.nonPeriodicTasks
                                          .schedule(runOnceAction, DatabaseDescriptor.getGracefulDisconnectMaxDrainMs(), MILLISECONDS);
@@ -3916,19 +3923,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // Use a counter rather than channelGroup.isEmpty() because DefaultChannelGroup removes
         // channels on close; under concurrent closes, a listener could see isEmpty()==true
         // before all listeners have fired, triggering the action prematurely.
-        AtomicInteger connectedChannels = new AtomicInteger(channelGroup.size());
         EventMessage gracefulDisconnectEventMessage = new EventMessage(new Event.GracefulDisconnect());
         channelGroup.forEach(channel -> {
             Consumer<EventMessage> dispatcher = channel.attr(EVENT_DISPATCHER).get();
             if (dispatcher != null)
                 dispatcher.accept(gracefulDisconnectEventMessage);
             channel.closeFuture().addListener((future -> {
+                ClientMetrics.instance.decrementConnectionsDraining();
                 if (connectedChannels.decrementAndGet() == 0)
                 {
                     runOnceAction.run();
                     timeoutTask.cancel(false);
                 }
             }));
+            ClientMetrics.instance.incrementConnectionsDraining();
         });
         // All channels were already closed before we could register listeners
         // close futures fired inline and decremented the counter to 0 during forEach.

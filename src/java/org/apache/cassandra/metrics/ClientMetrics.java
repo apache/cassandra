@@ -71,6 +71,13 @@ public final class ClientMetrics
     @VisibleForTesting
     Gauge<Integer> connectedNativeClients;
 
+    private AtomicInteger connectionsDraining;
+
+    @SuppressWarnings({ "unused", "FieldCanBeLocal" })
+    private Gauge<Integer> connectionsDrainingGauge;
+
+    private Meter forcedDisconnects;
+
     @VisibleForTesting
     Gauge<Integer> encryptedConnectedNativeClients;
 
@@ -173,6 +180,26 @@ public final class ClientMetrics
         protocolException.mark();
     }
 
+    public void incrementConnectionsDraining()
+    {
+        connectionsDraining.incrementAndGet();
+    }
+
+    public void decrementConnectionsDraining()
+    {
+        connectionsDraining.decrementAndGet();
+    }
+
+    public void decrementConnectionsDraining(int drainingConnections)
+    {
+        connectionsDraining.addAndGet(-drainingConnections);
+    }
+
+    public void markForcedDisconnect(int forceDisconnectedClients)
+    {
+        forcedDisconnects.mark(forceDisconnectedClients);
+    }
+
     public void markSSLHandshakeException()
     {
         sslHandshakeException.mark();
@@ -196,6 +223,10 @@ public final class ClientMetrics
         registerGauge("Connections", "connections", this::connectedClients);
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
         registerGauge("RequestsSize", ClientResourceLimits::getCurrentGlobalUsage);
+
+        connectionsDraining = new AtomicInteger();
+        connectionsDrainingGauge = registerGauge("ConnectionsDraining", connectionsDraining::get);
+        forcedDisconnects = registerMeter("ForcedDisconnects");
 
         CassandraReservoir ipUsageReservoir = ClientResourceLimits.ipUsageReservoir();
         Metrics.register(factory.createMetricName("RequestsSizeByIpDistribution"),
