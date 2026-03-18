@@ -91,14 +91,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
-
-    private final CredentialsCache cache;
-
-    public PasswordAuthenticator()
-    {
-        cache = new CredentialsCache(this);
-        AuthCacheService.instance.register(cache);
-    }
+    private CredentialsCache cache;
 
     /**
      * {@inheritDoc}
@@ -248,6 +241,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
     public void setup()
     {
+        // Cache initialization is deferred to setup() to avoid duplicate cache registration when subclasses
+        // of PasswordAuthenticator (e.g., MutualTlsWithPasswordFallbackAuthenticator) are also instantiated.
+        cache = new CredentialsCache(this);
+        AuthCacheService.instance.register(cache);
+
         String query = String.format("SELECT %s FROM %s.%s WHERE role = ?",
                                      SALTED_HASH,
                                      SchemaConstants.AUTH_KEYSPACE_NAME,

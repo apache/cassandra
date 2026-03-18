@@ -23,11 +23,11 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -40,6 +40,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.config.YamlConfigurationLoaderTest.load;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -64,6 +65,25 @@ public class AuthConfigTest
     public void teardown()
     {
         unregisterCaches();
+    }
+
+    @Test
+    public void testConfigureAuthenticatorNegotiation()
+    {
+        Config config = load("cassandra-auth-negotiation.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
+        assertThat(authenticator instanceof PasswordAuthenticator);
+        assertNotNull(authenticator);
+        assertTrue(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
+        List<IAuthenticator> negotiableAuthenticators = DatabaseDescriptor.getNegotiableAuthenticators();
+        assertNotNull(negotiableAuthenticators);
+        // TODO - See TODO in AuthConfig. Right now we're adding the PasswordAuthenticator twice.
+        assertEquals(4, negotiableAuthenticators.size());
+        assertTrue(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class).isPresent());
+        assertTrue(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class).isPresent());
+        assertTrue(DatabaseDescriptor.getAuthenticator(AllowAllAuthenticator.class).isPresent());
     }
 
     @Test
@@ -94,7 +114,7 @@ public class AuthConfigTest
         Config config = load("cassandra-passwordauth.yaml");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
 
         assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class))
@@ -117,7 +137,7 @@ public class AuthConfigTest
         config.authenticator.parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
 
         // MutualTlsWithPasswordFallbackAuthenticator is-a PasswordAuthenticator, so we expect getAuthenticator to
@@ -145,7 +165,7 @@ public class AuthConfigTest
         Config config = load("cassandra-mtls.yaml");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
 
         assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class)).isEmpty();

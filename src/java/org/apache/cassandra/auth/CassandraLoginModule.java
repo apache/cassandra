@@ -39,8 +39,8 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.service.StorageService;
 
 /**
- * LoginModule which authenticates a user towards the Cassandra database using
- * the internal authentication mechanism.
+ * LoginModule which authenticates a user towards the Cassandra database using the default authentication
+ * mechanism. This is used to support JMX authentication.
  */
 public class CassandraLoginModule implements LoginModule
 {
@@ -143,7 +143,7 @@ public class CassandraLoginModule implements LoginModule
         if (!StorageService.instance.isAuthSetupComplete())
             throw new AuthenticationException("Cannot login as server authentication setup is not yet completed");
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         Map<String, String> credentials = new HashMap<>();
         credentials.put(PasswordAuthenticator.USERNAME_KEY, username);
         credentials.put(PasswordAuthenticator.PASSWORD_KEY, String.valueOf(password));

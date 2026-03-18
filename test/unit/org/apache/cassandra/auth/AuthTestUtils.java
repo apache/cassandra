@@ -240,6 +240,23 @@ public class AuthTestUtils
         }
     }
 
+    /**
+     * Functionally identical to LocalPasswordAuthenticator, but is used to differentiate between default and
+     * negotiated authenticators in negotiation test cases.
+     */
+    public static class LocalDefaultPasswordAuthenticator extends LocalPasswordAuthenticator
+    {
+
+    }
+
+    public static class LocalMutualTLSAuthenticator extends MutualTlsAuthenticator
+    {
+        public LocalMutualTLSAuthenticator(Map<String, String> parameters)
+        {
+            super(parameters);
+        }
+    }
+
     public static class LocalMutualTlsWithPasswordFallbackAuthenticator extends MutualTlsWithPasswordFallbackAuthenticator
     {
 
