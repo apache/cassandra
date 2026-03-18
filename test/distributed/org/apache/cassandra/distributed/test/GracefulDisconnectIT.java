@@ -161,6 +161,15 @@ public class GracefulDisconnectIT
                 Throwable exception = Assertions.assertThrows(RuntimeException.class, () -> client.connect(false));
                 Assertions.assertTrue(exception.getCause() instanceof ProtocolException, "Expected cause to be ProtocolException but was " + exception.getCause().getClass().getName());
                 Assertions.assertTrue(exception.getMessage().contains("GRACEFUL_DISCONNECT not valid"), "Error message did not contain expected text. Found: " + exception.getMessage());
+                int subscribedCount = cluster.get(1).callOnInstance(() ->
+                                                                    CassandraDaemon.getInstanceForTesting()
+                                                                                   .nativeTransportService()
+                                                                                   .getServer()
+                                                                                   .getChannelsSubscribedToGracefulDisconnect()
+                                                                                   .size());
+
+                Assertions.assertEquals(0, subscribedCount,
+                                        "One channel should be subscribed to GRACEFUL_DISCONNECT");
             }
         }
     }
