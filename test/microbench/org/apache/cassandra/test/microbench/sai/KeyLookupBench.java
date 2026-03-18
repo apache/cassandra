@@ -20,7 +20,10 @@ package org.apache.cassandra.test.microbench.sai;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -60,7 +63,7 @@ import static org.apache.cassandra.index.sai.SAITester.getRandom;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@BenchmarkMode({Mode.Throughput})
+@BenchmarkMode({ Mode.Throughput })
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 3, time = 5)
@@ -86,16 +89,16 @@ public class KeyLookupBench
 
     private PrimaryKey primaryKey;
 
-    @Param({"3", "4", "5"})
+    @Param({ "3", "4", "5" })
     public int partitionBlockShift;
 
-    @Param({"3", "4", "5"})
+    @Param({ "3", "4", "5" })
     public int clusteringBlockShift;
 
-    @Param({"10", "100", "1000", "10000"})
+    @Param({ "10", "100", "1000", "10000" })
     public int partitionSize;
 
-    @Param({"true", "false"})
+    @Param({ "true", "false" })
     public boolean randomClustering;
 
     @Setup(Level.Trial)
@@ -125,26 +128,13 @@ public class KeyLookupBench
 
         PrimaryKey.Factory factory = new PrimaryKey.Factory(metadata.partitioner, metadata.comparator);
 
-        PrimaryKey[] primaryKeys = new PrimaryKey[rows];
-        int partition = 0;
-        int partitionRowCounter = 0;
-        for (int index = 0; index < rows; index++)
-        {
-            primaryKeys[index] = factory.create(makeKey(metadata, (long) partition, (long) partition), makeClustering(metadata));
-            partitionRowCounter++;
-            if (partitionRowCounter == partitionSize)
-            {
-                partition++;
-                partitionRowCounter = 0;
-            }
-        }
-
+        PrimaryKey[] primaryKeys = generatePrimaryKeys(factory);
         Arrays.sort(primaryKeys);
 
         DecoratedKey lastKey = null;
         for (PrimaryKey primaryKey : primaryKeys)
         {
-            if (lastKey == null || lastKey.compareTo(primaryKey.partitionKey()) < 0)
+            if (lastKey == null || lastKey.compareTo(primaryKey.partitionKey()) != 0)
             {
                 lastKey = primaryKey.partitionKey();
                 writer.startPartition(lastKey);
@@ -161,7 +151,7 @@ public class KeyLookupBench
 
         primaryKeyMap = mapFactory.newPerSSTablePrimaryKeyMap();
 
-        primaryKey = primaryKeys[500000];
+        primaryKey = primaryKeys[rows / 2];
     }
 
     @Benchmark
@@ -170,36 +160,87 @@ public class KeyLookupBench
         return primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
     }
 
-    private static DecoratedKey makeKey(TableMetadata table, Object...partitionKeys)
+    private static DecoratedKey makeKey(TableMetadata table, Object... partitionKeys)
     {
         ByteBuffer key;
         if (table.partitionKeyType instanceof CompositeType)
-            key = ((CompositeType)table.partitionKeyType).decompose(partitionKeys);
+            key = ((CompositeType) table.partitionKeyType).decompose(partitionKeys);
         else
-            key = table.partitionKeyType.fromString((String)partitionKeys[0]);
+            key = table.partitionKeyType.decomposeUntyped(partitionKeys[0]);
         return table.partitioner.decorateKey(key);
     }
 
-    private Clustering<?> makeClustering(TableMetadata table)
+    private PrimaryKey[] generatePrimaryKeys(PrimaryKey.Factory factory)
     {
-        Clustering<?> clustering;
-        if (table.comparator.size() == 0)
-            clustering = Clustering.EMPTY;
-        else
+        PrimaryKey[] primaryKeys = new PrimaryKey[rows];
+        int partition = 0;
+        int partitionRowCounter = 0;
+
+        ClusteringStringGenerator clusteringStringGenerator = new ClusteringStringGenerator(metadata);
+        for (int index = 0; index < rows; index++)
         {
-            ByteBuffer[] values = new ByteBuffer[table.comparator.size()];
-            for (int index = 0; index < table.comparator.size(); index++)
-                values[index] = table.comparator.subtype(index).fromString(makeClusteringString());
-            clustering = Clustering.make(values);
+            primaryKeys[index] = factory.create(makeKey(metadata, (long) partition, (long) partition),
+                                                clusteringStringGenerator.makeClustering());
+            partitionRowCounter++;
+            if (partitionRowCounter == partitionSize)
+            {
+                partition++;
+                partitionRowCounter = 0;
+                clusteringStringGenerator = new ClusteringStringGenerator(metadata);
+            }
         }
-        return clustering;
+        return primaryKeys;
     }
 
-    private String makeClusteringString()
+
+    /**
+     * Generates a sorted list of unique clustering strings during initialization,
+     * then returns them in lexicographical order on each call to makeClustering().
+     */
+    private class ClusteringStringGenerator
     {
-        if (randomClustering)
-            return getRandom().nextTextString(10, 100);
-        else
-            return String.format("%08d", getRandom().nextIntBetween(0, partitionSize));
+        private final List<String> sortedStrings;
+        private final TableMetadata table;
+        private int currentIndex;
+
+        ClusteringStringGenerator(TableMetadata table)
+        {
+            // Use TreeSet to maintain sorted order and ensure uniqueness
+            TreeSet<String> uniqueStrings = new TreeSet<>();
+            this.table = table;
+            this.currentIndex = 0;
+
+            sortedStrings = generateUniqueSortedStrings(uniqueStrings);
+        }
+
+        private List<String> generateUniqueSortedStrings(TreeSet<String> uniqueStrings)
+        {
+            while (uniqueStrings.size() < partitionSize)
+            {
+                String candidate = makeClusteringString();
+                uniqueStrings.add(candidate);
+            }
+            return new ArrayList<>(uniqueStrings);
+        }
+
+        Clustering<?> makeClustering()
+        {
+            if (table.comparator.size() == 0)
+                return Clustering.EMPTY;
+
+            ByteBuffer[] values = new ByteBuffer[table.comparator.size()];
+            String nextString = sortedStrings.get(currentIndex++);
+            for (int index = 0; index < table.comparator.size(); index++)
+                values[index] = table.comparator.subtype(index).fromString(nextString);
+            return Clustering.make(values);
+        }
+
+        private String makeClusteringString()
+        {
+            if (randomClustering)
+                return getRandom().nextTextString(10, 100);
+            else
+                return String.format("%08d", getRandom().nextIntBetween(0, partitionSize));
+        }
     }
 }
