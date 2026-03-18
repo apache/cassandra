@@ -543,8 +543,8 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         updatePartitionsPerBatchMetrics(mutations.size());
 
-        // We special case single token batch statements that span multiple tables,
-        // to go through the batch log in order to preserve all or nothing application
+        // We special case single token batch statements that span both Accord and non-Accord
+        // tables to go through the batch log in order to preserve all or nothing application
         // see CASSANDRA-20588 for more details
         boolean isSingleTokenBatchStatementSpanningAccordAndNonAccordTables = (mutations.size() == 1) && (containsAccordMutation(ClusterMetadata.current(), mutations.get(0)));
         boolean mutateAtomic = (isLogged() && mutations.size() > 1) || isSingleTokenBatchStatementSpanningAccordAndNonAccordTables;
