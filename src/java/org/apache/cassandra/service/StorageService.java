@@ -40,6 +40,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
@@ -3869,6 +3870,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
+        CountDownLatch drainComplete = new CountDownLatch(1);
         gracefulDisconnect(() -> {
             try
             {
@@ -3878,7 +3880,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 throw new RuntimeException(e);
             }
+            finally
+            {
+                drainComplete.countDown();
+            }
         });
+        drainComplete.await(DatabaseDescriptor.getGracefulDisconnectMaxDrainMs(), MILLISECONDS);
     }
 
     private void gracefulDisconnect(Runnable defaultAction)
@@ -3899,7 +3906,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         gracefulDisconnect(defaultAction, channelGroup);
     }
 
-    void gracefulDisconnect(Runnable defaultAction, ChannelGroup channelGroup)
+    public void gracefulDisconnect(Runnable defaultAction, ChannelGroup channelGroup)
     {
         if (channelGroup == null || channelGroup.isEmpty())
         {

@@ -62,6 +62,7 @@ import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.RegisterMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
@@ -100,6 +101,8 @@ public class SimpleClient implements Closeable
 
     public static final int TIMEOUT_SECONDS = 10;
 
+    private final AtomicBoolean draining = new AtomicBoolean(false);
+
     static
     {
         InternalLoggerFactory.setDefaultFactory(new Slf4JLoggerFactory());
@@ -112,7 +115,7 @@ public class SimpleClient implements Closeable
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
 
-    protected final ResponseHandler responseHandler = new ResponseHandler();
+    protected final ResponseHandler responseHandler = new ResponseHandler(this);
     protected final Connection.Tracker tracker = new ConnectionTracker();
     protected final ProtocolVersion version;
     // We don't track connection really, so we don't need one Connection per channel
@@ -238,8 +241,10 @@ public class SimpleClient implements Closeable
             options.put(StartupMessage.COMPRESSION, "LZ4");
             connection.setCompressor(Compressor.LZ4Compressor.instance);
         }
+        // real driver will check the protocol version before sending GRACEFUL_DISCONNECT, here for checking
+        // sever behavior on receiving GRACEFUL_DISCONNECT with lesser supported protocol version, we will send it anyway
         execute(new StartupMessage(options));
-
+        execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
         return this;
     }
 
@@ -324,6 +329,10 @@ public class SimpleClient implements Closeable
 
     public Message.Response execute(Message.Request request, boolean throwOnErrorResponse)
     {
+        if (draining.get())
+        {
+            throw new RuntimeException("Connection is draining (GRACEFUL_DISCONNECT received)");
+        }
         try
         {
             request.attach(connection);
@@ -626,6 +635,15 @@ public class SimpleClient implements Closeable
         }
     }
 
+    private void handleGracefulDisconnect()
+    {
+        draining.set(true);
+        if (lastWriteFuture != null)
+            lastWriteFuture.awaitUninterruptibly();
+        close();
+    }
+
+
     @ChannelHandler.Sharable
      static class MessageBatchEncoder extends MessageToMessageEncoder<List<Message>>
     {
@@ -686,6 +704,14 @@ public class SimpleClient implements Closeable
     @ChannelHandler.Sharable
     static class ResponseHandler extends SimpleChannelInboundHandler<Message.Response>
     {
+
+        private final SimpleClient client;
+
+        public ResponseHandler(SimpleClient client)
+        {
+            this.client = client;
+        }
+
         public final BlockingQueue<Message.Response> responses = new SynchronousQueue<>(true);
         public EventHandler eventHandler;
 
@@ -705,8 +731,17 @@ public class SimpleClient implements Closeable
 
                 if (r instanceof EventMessage)
                 {
+                    Event event = ((EventMessage) r).event;
+
+                    if (event.type == Event.Type.GRACEFUL_DISCONNECT)
+                    {
+                        client.draining.set(true);
+                        client.handleGracefulDisconnect();
+                        logger.info("Received GRACEFUL_DISCONNECT. Entering draining mode.");
+                    }
+
                     if (eventHandler != null)
-                        eventHandler.onEvent(((EventMessage) r).event);
+                        eventHandler.onEvent(event);
                 }
                 else
                     responses.put(r);

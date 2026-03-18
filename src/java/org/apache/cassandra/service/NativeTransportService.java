@@ -158,7 +158,7 @@ public class NativeTransportService
     }
 
     @VisibleForTesting
-    Server getServer()
+    public Server getServer()
     {
         return server;
     }
