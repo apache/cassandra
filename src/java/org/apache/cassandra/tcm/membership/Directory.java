@@ -858,7 +858,8 @@ public class Directory implements MetadataValue<Directory>
                Objects.equals(endpointsByDC, directory.endpointsByDC) &&
                Objects.equals(racksByDC, directory.racksByDC) &&
                Objects.equals(versions, directory.versions) &&
-               Objects.equals(addresses, directory.addresses);
+               Objects.equals(addresses, directory.addresses) &&
+               Objects.equals(removedNodes, directory.removedNodes);
     }
     
     private static final Logger logger = LoggerFactory.getLogger(Directory.class);
