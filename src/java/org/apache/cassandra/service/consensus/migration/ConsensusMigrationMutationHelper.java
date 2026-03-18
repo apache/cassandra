@@ -206,7 +206,13 @@ public class ConsensusMigrationMutationHelper
 
     public static <T extends IMutation> boolean containsAccordMutation(ClusterMetadata cm, T mutation)
     {
-        return instance.splitMutationIntoAccordAndNormal(mutation, cm).accordMutation != null;
+        if (mutation.potentialTxnConflicts().allowed)
+            return false;
+
+        Token token = mutation.key().getToken();
+        Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
+
+        return (T)mutation.filter(isAccordUpdate) != null;
     }
 
     /**
