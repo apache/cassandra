@@ -80,7 +80,7 @@ public class AccordSingleTokenBatchTest extends AccordTestBase
             cluster.coordinator(1).execute("BEGIN BATCH\n" +
                                            "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
                                            "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
-                                           "APPLY BATCH;", ConsistencyLevel.ONE); // Chore: Double check consistency level semantics
+                                           "APPLY BATCH;", ConsistencyLevel.ONE); 
 
             SimpleQueryResult r1 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1", ConsistencyLevel.ONE);
             SimpleQueryResult r2 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedRegularTableName + " WHERE k = 1", ConsistencyLevel.ONE);
