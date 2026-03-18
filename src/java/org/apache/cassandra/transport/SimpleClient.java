@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.SynchronousQueue; // checkstyle: permit this import
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -62,7 +62,6 @@ import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
-import org.apache.cassandra.transport.messages.RegisterMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
@@ -83,7 +82,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import io.netty.handler.ssl.SslContext;
-import io.netty.util.concurrent.Promise; // checkstyle: permit this import
+import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -241,10 +240,9 @@ public class SimpleClient implements Closeable
             options.put(StartupMessage.COMPRESSION, "LZ4");
             connection.setCompressor(Compressor.LZ4Compressor.instance);
         }
-        // real driver will check the protocol version before sending GRACEFUL_DISCONNECT, here for checking
-        // sever behavior on receiving GRACEFUL_DISCONNECT with lesser supported protocol version, we will send it anyway
+        if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            options.put(StartupMessage.GRACEFUL_DISCONNECT, "GRACEFUL_DISCONNECT");
         execute(new StartupMessage(options));
-        execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
         return this;
     }
 

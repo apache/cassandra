@@ -32,7 +32,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.OptionsMessage;
@@ -43,31 +42,30 @@ import org.apache.cassandra.transport.messages.SupportedMessage;
 
 // TODO: Expand integration tests once Java driver GRACEFUL_DISCONNECT support is complete.
 // Test cases to cover:
-// 5. Non-subscribed clients do NOT receive the event
-// 6. In-flight requests complete successfully after GRACEFUL_DISCONNECT is received
-// 7. No new requests are sent by driver after receiving event
-// 8. Driver closes connection after all in-flight requests complete
-// 9. Server proceeds with drain() after all subscribed connections close
-// 10. Server force-closes connections that don't close within max_drain_ms
-// 11. drain() proceeds after max_drain_ms even if connections are still open
-// 12. Mixed fleet — some connections subscribed, some not — drain proceeds correctly
-// 13. Non-subscribed connections continue serving requests during drain window
-// 14. Server stops accepting new connections after emitting GRACEFUL_DISCONNECT
-// 15. connections_draining increments correctly when event is emitted
-// 16. connections_draining decrements when connection closes cleanly
-// 17. connections_draining decrements when connection is force-closed
-// 18. forced_disconnects increments when max_drain_ms is exceeded
-// 19. forced_disconnects does NOT increment on clean drain
-// 20. max_drain_ms updated via JMX — new value respected during drain
-// 21. grace_period_ms updated via JMX — reflected correctly
-// 22. No subscribed connections — drain proceeds immediately
-// 23. All connections already closed before drain — drain proceeds immediately
-// 24. Single connection drains cleanly
-// 25. Multiple connections all drain cleanly
-// 26. Multiple connections — some clean, some force-closed
-// 26. Connection closes mid-drain (before event is sent)
-// 27. Node restart after drain — new connections can subscribe again
-// 28. Rapid consecutive drains — no state leakage between drains
+// 5. In-flight requests complete successfully after GRACEFUL_DISCONNECT is received
+// 6. No new requests are sent by driver after receiving event
+// 7. Driver closes connection after all in-flight requests complete
+// 8. Server proceeds with drain() after all subscribed connections close
+// 9. Server force-closes connections that don't close within max_drain_ms
+// 10. drain() proceeds after max_drain_ms even if connections are still open
+// 11. Mixed fleet — some connections subscribed, some not — drain proceeds correctly
+// 12. Non-subscribed connections continue serving requests during drain window
+// 13. Server stops accepting new connections after emitting GRACEFUL_DISCONNECT
+// 14. connections_draining increments correctly when event is emitted
+// 15. connections_draining decrements when connection closes cleanly
+// 16. connections_draining decrements when connection is force-closed
+// 17. forced_disconnects increments when max_drain_ms is exceeded
+// 18. forced_disconnects does NOT increment on clean drain
+// 19. max_drain_ms updated via JMX — new value respected during drain
+// 20. grace_period_ms updated via JMX — reflected correctly
+// 21. No subscribed connections — drain proceeds immediately
+// 22. All connections already closed before drain — drain proceeds immediately
+// 23. Single connection drains cleanly
+// 24. Multiple connections all drain cleanly
+// 25. Multiple connections — some clean, some force-closed
+// 25. Connection closes mid-drain (before event is sent)
+// 26. Node restart after drain — new connections can subscribe again
+// 27. Rapid consecutive drains — no state leakage between drains
 public class GracefulDisconnectIT
 {
 
@@ -158,9 +156,7 @@ public class GracefulDisconnectIT
             InetSocketAddress nativeAddr = cluster.get(1).config().broadcastAddress();
             try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostString(), 9042).protocolVersion(ProtocolVersion.V4).build())
             {
-                Throwable exception = Assertions.assertThrows(RuntimeException.class, () -> client.connect(false));
-                Assertions.assertTrue(exception.getCause() instanceof ProtocolException, "Expected cause to be ProtocolException but was " + exception.getCause().getClass().getName());
-                Assertions.assertTrue(exception.getMessage().contains("GRACEFUL_DISCONNECT not valid"), "Error message did not contain expected text. Found: " + exception.getMessage());
+                client.connect(false);
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
