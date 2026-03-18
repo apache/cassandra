@@ -1198,39 +1198,39 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void setGracefulDisconnectGracePeriodMs(long value)
+    public void setGracefulDisconnectGracePeriod(long value)
     {
-        if (value > DatabaseDescriptor.getGracefulDisconnectMaxDrainMs())
-            throw new IllegalArgumentException("graceful_disconnect_grace_period_ms cannot exceed graceful_disconnect_max_drain_ms.");
+        if (value > DatabaseDescriptor.getGracefulDisconnectMaxDrain())
+            throw new IllegalArgumentException("graceful_disconnect_grace_period cannot exceed graceful_disconnect_max_drain.");
 
-        DatabaseDescriptor.setGracefulDisconnectGracePeriodMs(value);
+        DatabaseDescriptor.setGracefulDisconnectGracePeriod(value);
         logger.info("set graceful disconnect grace period to {} ms", value);
     }
 
     @Override
-    public long getGracefulDisconnectGracePeriodMs()
+    public long getGracefulDisconnectGracePeriod()
     {
-        return DatabaseDescriptor.getGracefulDisconnectGracePeriodMs();
+        return DatabaseDescriptor.getGracefulDisconnectGracePeriod();
     }
 
     @Override
-    public void setGracefulDisconnectMaxDrainMs(long value)
+    public void setGracefulDisconnectMaxDrain(long value)
     {
         if (value <= 0)
-            throw new IllegalArgumentException("graceful_disconnect_max_drain_ms must be greater than 0 when graceful_disconnect_enabled is set to true.");
+            throw new IllegalArgumentException("graceful_disconnect_max_drain must be greater than 0 when graceful_disconnect_enabled is set to true.");
 
-        if (value < DatabaseDescriptor.getGracefulDisconnectGracePeriodMs())
-            throw new IllegalArgumentException("graceful_disconnect_max_drain_ms cannot be less than graceful_disconnect_grace_period_ms.");
+        if (value < DatabaseDescriptor.getGracefulDisconnectGracePeriod())
+            throw new IllegalArgumentException("graceful_disconnect_max_drain cannot be less than graceful_disconnect_grace_period.");
 
-        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(value);
+        DatabaseDescriptor.setGracefulDisconnectMaxDrain(value);
         logger.info("set graceful disconnect max drain to {} ms", value);
     }
 
 
     @Override
-    public long getGracefulDisconnectMaxDrainMs()
+    public long getGracefulDisconnectMaxDrain()
     {
-        return DatabaseDescriptor.getGracefulDisconnectMaxDrainMs();
+        return DatabaseDescriptor.getGracefulDisconnectMaxDrain();
     }
 
     @Override

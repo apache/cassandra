@@ -773,11 +773,11 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setRpcTimeout(long value);
     public long getRpcTimeout();
 
-    public void setGracefulDisconnectGracePeriodMs(long value);
-    public long getGracefulDisconnectGracePeriodMs();
+    public void setGracefulDisconnectGracePeriod(long value);
+    public long getGracefulDisconnectGracePeriod();
 
-    public void setGracefulDisconnectMaxDrainMs(long value);
-    public long getGracefulDisconnectMaxDrainMs();
+    public void setGracefulDisconnectMaxDrain(long value);
+    public long getGracefulDisconnectMaxDrain();
 
     public boolean getGracefulDisconnectEnabled();
 
