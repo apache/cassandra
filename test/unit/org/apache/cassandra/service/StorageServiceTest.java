@@ -202,59 +202,59 @@ public class StorageServiceTest extends TestBaseImpl
     }
 
     @Test
-    public void testGracefulDisconnectMaxDrainMs()
+    public void testGracefulDisconnectMaxDrain()
     {
         StorageService storageService = StorageService.instance;
-        long originalMaxDrainMs = storageService.getGracefulDisconnectMaxDrainMs();
-        long originalGracePeriodMs = storageService.getGracefulDisconnectGracePeriodMs();
+        long originalMaxDrain = storageService.getGracefulDisconnectMaxDrain();
+        long originalGracePeriod = storageService.getGracefulDisconnectGracePeriod();
         try
         {
-            storageService.setGracefulDisconnectGracePeriodMs(1000);
+            storageService.setGracefulDisconnectGracePeriod(1000);
 
-            storageService.setGracefulDisconnectMaxDrainMs(10000);
-            assertEquals(10000, storageService.getGracefulDisconnectMaxDrainMs());
+            storageService.setGracefulDisconnectMaxDrain(10000);
+            assertEquals(10000, storageService.getGracefulDisconnectMaxDrain());
             try
             {
-                storageService.setGracefulDisconnectMaxDrainMs(0);
-                fail("Should have received an IllegalArgumentException for max_drain_ms of 0");
+                storageService.setGracefulDisconnectMaxDrain(0);
+                fail("Should have received an IllegalArgumentException for max_drain of 0");
             }
             catch (IllegalArgumentException ignored)
             {
             }
-            assertEquals(10000, storageService.getGracefulDisconnectMaxDrainMs());
+            assertEquals(10000, storageService.getGracefulDisconnectMaxDrain());
         }
         finally
         {
-            storageService.setGracefulDisconnectMaxDrainMs(originalMaxDrainMs);
-            storageService.setGracefulDisconnectGracePeriodMs(originalGracePeriodMs);
+            storageService.setGracefulDisconnectMaxDrain(originalMaxDrain);
+            storageService.setGracefulDisconnectGracePeriod(originalGracePeriod);
         }
     }
 
     @Test
-    public void testGracefulDisconnectGracePeriodMs()
+    public void testGracefulDisconnectGracePeriod()
     {
         StorageService storageService = StorageService.instance;
-        long originalMaxDrainMs = storageService.getGracefulDisconnectMaxDrainMs();
-        long originalGracePeriodMs = storageService.getGracefulDisconnectGracePeriodMs();
+        long originalMaxDrain = storageService.getGracefulDisconnectMaxDrain();
+        long originalGracePeriod = storageService.getGracefulDisconnectGracePeriod();
         try
         {
-            storageService.setGracefulDisconnectMaxDrainMs(20000);
+            storageService.setGracefulDisconnectMaxDrain(20000);
 
-            storageService.setGracefulDisconnectGracePeriodMs(5000);
-            assertEquals(5000, storageService.getGracefulDisconnectGracePeriodMs());
+            storageService.setGracefulDisconnectGracePeriod(5000);
+            assertEquals(5000, storageService.getGracefulDisconnectGracePeriod());
 
             try
             {
-                storageService.setGracefulDisconnectGracePeriodMs(30000);
-                fail("Should have received an IllegalArgumentException when grace_period_ms exceeds max_drain_ms");
+                storageService.setGracefulDisconnectGracePeriod(30000);
+                fail("Should have received an IllegalArgumentException when grace_period exceeds max_drain");
             }
             catch (IllegalArgumentException ignored) {}
-            assertEquals(5000, storageService.getGracefulDisconnectGracePeriodMs());
+            assertEquals(5000, storageService.getGracefulDisconnectGracePeriod());
         }
         finally
         {
-            storageService.setGracefulDisconnectMaxDrainMs(originalMaxDrainMs);
-            storageService.setGracefulDisconnectGracePeriodMs(originalGracePeriodMs);
+            storageService.setGracefulDisconnectMaxDrain(originalMaxDrain);
+            storageService.setGracefulDisconnectGracePeriod(originalGracePeriod);
         }
     }
 

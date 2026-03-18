@@ -685,15 +685,15 @@ public class DatabaseDescriptor
             throw new ConfigurationException("phi_convict_threshold must be between 5 and 16, but was " + conf.phi_convict_threshold, false);
         }
 
-        if (conf.graceful_disconnect_enabled && conf.graceful_disconnect_max_drain_ms.toMilliseconds() <= 0)
+        if (conf.graceful_disconnect_enabled && conf.graceful_disconnect_max_drain.toMilliseconds() <= 0)
         {
-            throw new ConfigurationException("graceful_disconnect_max_drain_ms must be greater than 0 when graceful_disconnect_enabled is set to true.", false);
+            throw new ConfigurationException("graceful_disconnect_max_drain must be greater than 0 when graceful_disconnect_enabled is set to true.", false);
         }
 
         if (conf.graceful_disconnect_enabled &&
-            conf.graceful_disconnect_grace_period_ms.toMilliseconds() > conf.graceful_disconnect_max_drain_ms.toMilliseconds())
+            conf.graceful_disconnect_grace_period.toMilliseconds() > conf.graceful_disconnect_max_drain.toMilliseconds())
         {
-            throw new ConfigurationException("graceful_disconnect_grace_period_ms cannot exceed graceful_disconnect_max_drain_ms.", false);
+            throw new ConfigurationException("graceful_disconnect_grace_period cannot exceed graceful_disconnect_max_drain.", false);
         }
 
         /* Thread per pool */
@@ -2645,24 +2645,24 @@ public class DatabaseDescriptor
         conf.request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
-    public static long getGracefulDisconnectGracePeriodMs()
+    public static long getGracefulDisconnectGracePeriod()
     {
-        return conf.graceful_disconnect_grace_period_ms.toMilliseconds();
+        return conf.graceful_disconnect_grace_period.toMilliseconds();
     }
 
-    public static void setGracefulDisconnectGracePeriodMs(long gracefulDisconnectGracePeriodMs)
+    public static void setGracefulDisconnectGracePeriod(long gracefulDisconnectGracePeriod)
     {
-        conf.graceful_disconnect_grace_period_ms = new DurationSpec.LongMillisecondsBound(gracefulDisconnectGracePeriodMs);
+        conf.graceful_disconnect_grace_period = new DurationSpec.LongMillisecondsBound(gracefulDisconnectGracePeriod);
     }
 
-    public static long getGracefulDisconnectMaxDrainMs()
+    public static long getGracefulDisconnectMaxDrain()
     {
-        return conf.graceful_disconnect_max_drain_ms.toMilliseconds();
+        return conf.graceful_disconnect_max_drain.toMilliseconds();
     }
 
-    public static void setGracefulDisconnectMaxDrainMs(long gracefulDisconnectMaxDrainMs)
+    public static void setGracefulDisconnectMaxDrain(long gracefulDisconnectMaxDrain)
     {
-        conf.graceful_disconnect_max_drain_ms = new DurationSpec.LongMillisecondsBound(gracefulDisconnectMaxDrainMs);
+        conf.graceful_disconnect_max_drain = new DurationSpec.LongMillisecondsBound(gracefulDisconnectMaxDrain);
     }
 
     public static boolean getGracefulDisconnectEnabled()

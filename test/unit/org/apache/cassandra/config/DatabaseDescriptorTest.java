@@ -800,23 +800,23 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testGracefulDisconnectGracePeriodMs()
+    public void testGracefulDisconnectGracePeriod()
     {
-        long originalValue = DatabaseDescriptor.getGracefulDisconnectGracePeriodMs();
-        Assert.assertEquals("Default value of graceful_disconnect_grace_period_ms must be 5000", 5000, originalValue);
-        DatabaseDescriptor.setGracefulDisconnectGracePeriodMs(3000);
-        Assert.assertEquals("graceful_disconnect_grace_period_ms should be updated to 3000", 3000, DatabaseDescriptor.getGracefulDisconnectGracePeriodMs());
-        DatabaseDescriptor.setGracefulDisconnectGracePeriodMs(originalValue);
+        long originalValue = DatabaseDescriptor.getGracefulDisconnectGracePeriod();
+        Assert.assertEquals("Default value of graceful_disconnect_grace_period must be 5000", 5000, originalValue);
+        DatabaseDescriptor.setGracefulDisconnectGracePeriod(3000);
+        Assert.assertEquals("graceful_disconnect_grace_period should be updated to 3000", 3000, DatabaseDescriptor.getGracefulDisconnectGracePeriod());
+        DatabaseDescriptor.setGracefulDisconnectGracePeriod(originalValue);
     }
 
     @Test
-    public void testGracefulDisconnectMaxDrainMs()
+    public void testGracefulDisconnectMaxDrain()
     {
-        long originalValue = DatabaseDescriptor.getGracefulDisconnectMaxDrainMs();
-        Assert.assertEquals("Default value of graceful_disconnect_max_drain_ms must be 30000", 30000, originalValue);
-        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(45000);
-        Assert.assertEquals("graceful_disconnect_max_drain_ms should be updated to 45000", 45000, DatabaseDescriptor.getGracefulDisconnectMaxDrainMs());
-        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(originalValue);
+        long originalValue = DatabaseDescriptor.getGracefulDisconnectMaxDrain();
+        Assert.assertEquals("Default value of graceful_disconnect_max_drain must be 30000", 30000, originalValue);
+        DatabaseDescriptor.setGracefulDisconnectMaxDrain(45000);
+        Assert.assertEquals("graceful_disconnect_max_drain should be updated to 45000", 45000, DatabaseDescriptor.getGracefulDisconnectMaxDrain());
+        DatabaseDescriptor.setGracefulDisconnectMaxDrain(originalValue);
     }
 
     @Test
