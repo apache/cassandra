@@ -78,6 +78,7 @@ import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.TimestampSource;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -87,6 +88,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.util.function.Predicate.isEqual;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.containsAccordMutation;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -541,7 +543,9 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         updatePartitionsPerBatchMetrics(mutations.size());
 
-        boolean mutateAtomic = (isLogged() && mutations.size() > 1);
+        // See CASSANDRA-20588 for details
+        boolean isSingleTokenBatchStatementSpanningAccordAndNonAccordTables = (mutations.size() == 1) && (containsAccordMutation(ClusterMetadata.current(), mutations.get(0)));
+        boolean mutateAtomic = (isLogged() && mutations.size() > 1) || isSingleTokenBatchStatementSpanningAccordAndNonAccordTables;
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }

@@ -549,11 +549,11 @@ replay only makes a single attempt to replay before converting the batch
 contents to hints. If part of the batch was routed to Accord then there
 is no node to hint so there is a fake node that a hint is written to and
 when that hint is dispatched it will be split and then executed
-appropriately. In https://issues.apache.org/jira/browse/CASSANDRA-20588[CASSANDRA-20588] this needs to be simplified to writing the
-entire batch through Accord if any part of it should be written through
-Accord because it also addresses an atomicity issue with single token
-batches which can be torn when part is applied through Accord and part
-is applied through Cassandra.
+appropriately. Single token batches that involve both an Accord and non-Accord
+tables will be logged in the batch log to preserve all or nothing application.
+However, atomicity of single token batch updates are still best effort.
+Note when migrating to Accord, there is a performance hit for single token batch
+updates that span both an Accord and non-Accord tables.
 
 Hints can be for multiple tables some of which may be Accord and some
 non-Accord so splitting occurs. It's also possible a hint will be for an

@@ -20,18 +20,33 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.TimeUUID;
+
+import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 public class AccordSingleTokenBatchTest extends AccordTestBase
 {
@@ -48,10 +63,9 @@ public class AccordSingleTokenBatchTest extends AccordTestBase
     {
         AccordTestBase.setupCluster(builder -> builder
                                                .withoutVNodes()
+                                               .withInstanceInitializer(BBHelper::install)
                                                .withConfig(config ->
                                                            config
-                                                           .set("accord.shard_durability_target_splits", "1")
-                                                           .set("accord.shard_durability_cycle", "20s")
                                                            .with(Feature.NETWORK, Feature.GOSSIP)), 6);
     }
 
@@ -66,51 +80,39 @@ public class AccordSingleTokenBatchTest extends AccordTestBase
             cluster.coordinator(1).execute("BEGIN BATCH\n" +
                                            "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
                                            "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
-                                           "APPLY BATCH;", ConsistencyLevel.ONE);
-
-            String tableName = accordTableName;
+                                           "APPLY BATCH;", ConsistencyLevel.ONE); // Chore: Double check consistency level semantics
 
             SimpleQueryResult r1 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1", ConsistencyLevel.ONE);
             SimpleQueryResult r2 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedRegularTableName + " WHERE k = 1", ConsistencyLevel.ONE);
 
             assert(r1.toObjectArrays().length == 1);
             assert(r2.toObjectArrays().length == 1);
-            // Assert the key has the value
 
-            cluster.get(1).runOnInstance(() -> {
-                TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
-            });
-
-            // Chore: Add an assert somewhere to ensure that writes
+            assert(State.batchLogPath.get());
         });
     }
 
-    /*@Test
-    public void accordSinglePartitionKeyBatchWithConditionalTest() throws Throwable
+    @Shared
+    public static class State
     {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'",
-                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
-        test(ddls, cluster -> {
+        public static AtomicBoolean batchLogPath = new AtomicBoolean(false);
+    }
 
-            cluster.coordinator(2).execute("INSERT INTO " + qualifiedRegularTableName + "(k, v) VALUES", ConsistencyLevel.TWO, 1, 2);
-            cluster.coordinator(1).execute("BEGIN BATCH\n" +
-                                           "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
-                                           "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3) IF NOT EXISTS;\n" +
-                                           "APPLY BATCH;", ConsistencyLevel.ONE, 1, 2);
+    public static class BBHelper
+    {
+        static void install(ClassLoader cl, int nodeNumber)
+        {
+            new ByteBuddy().rebase(StorageProxy.class)
+                           .method(named("syncWriteToBatchlog").and(takesArguments(4)))
+                           .intercept(MethodDelegation.to(BBHelper.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
 
-            String tableName = regularTableName;
-
-            cluster.get(1).runOnInstance(() -> {
-                TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
-                System.out.println("here");
-            });
-
-            // Chore: Add an assert somewhere to ensure that writes
-        });*/
-
-        // Add a test for a migration, and ensure that we hit the same consistency level?
-    // Add test that shows this path only goes through for single partition batches?
-    // }
+        public static void syncWriteToBatchlog(Collection<Mutation> mutations, ReplicaPlan.ForWrite replicaPlan, TimeUUID uuid, Dispatcher.RequestTime requestTime, @SuperCall Callable<Void> r) throws Exception
+        {
+            State.batchLogPath.set(true);
+            r.call();
+        }
+    }
 }

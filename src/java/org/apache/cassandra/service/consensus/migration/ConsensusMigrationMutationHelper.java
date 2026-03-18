@@ -204,6 +204,11 @@ public class ConsensusMigrationMutationHelper
         }
     }
 
+    public static <T extends IMutation> boolean containsAccordMutation(ClusterMetadata cm, T mutation)
+    {
+        return instance.splitMutationIntoAccordAndNormal(mutation, cm).accordMutation != null;
+    }
+
     /**
      * Result of splitting a mutation across Accord and non-transactional boundaries
      */
