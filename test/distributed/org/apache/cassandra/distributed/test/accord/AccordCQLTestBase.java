@@ -70,19 +70,26 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FailingConsumer;
@@ -93,6 +100,7 @@ import static java.util.Collections.singletonList;
 import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.apache.cassandra.cql3.statements.schema.AlterTableStatement.ACCORD_COUNTER_COLUMN_UNSUPPORTED;
 import static org.apache.cassandra.cql3.statements.schema.AlterTableStatement.ACCORD_COUNTER_TABLES_UNSUPPORTED;
+import static org.apache.cassandra.dht.NormalizedRanges.normalizedRanges;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -301,6 +309,26 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
                 assertEquals(format(ACCORD_COUNTER_COLUMN_UNSUPPORTED, KEYSPACE, accordTableName, TransactionalMode.off, transactionalMode), t.getMessage());
             }
+        });
+    }
+
+    @Test
+    public void testBeginMigrationTargetsOnlyLocalRanges() throws Exception
+    {
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+        test(ddls, cluster -> {
+            cluster.schemaChange("ALTER TABLE " + qualifiedRegularTableName + " WITH transactional_mode = 'full'");
+            NodeToolResult result = cluster.get(1).nodetoolResult("consensus_admin", "begin-migration");
+
+            String keyspace = KEYSPACE;
+            String tableName = regularTableName;
+            cluster.get(1).runOnInstance(() -> {
+                ConsensusMigrationState state = ClusterMetadataService.instance().metadata().consensusMigrationState;
+                List<Range<Token>> expectedMigratingRange = StorageService.instance.getLocalRanges(keyspace);
+                assert(state.tableStates.get(Schema.instance.getTableMetadata(keyspace, tableName).id()).migratingRanges().equals(normalizedRanges(expectedMigratingRange)));
+            });
         });
     }
 

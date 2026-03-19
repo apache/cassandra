@@ -201,8 +201,17 @@ public abstract class ConsensusTableMigration
 
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Optional<List<Range<Token>>> maybeParsedRanges = maybeRangesStr.map(rangesStr -> ImmutableList.copyOf(RepairOption.parseRanges(rangesStr, partitioner)));
-        Token minToken = partitioner.getMinimumToken();
-        NormalizedRanges<Token> ranges = normalizedRanges(maybeParsedRanges.orElse(ImmutableList.of(new Range(minToken, minToken))));
+
+        NormalizedRanges<Token> ranges;
+        if (maybeParsedRanges.isPresent())
+            ranges = normalizedRanges(maybeParsedRanges.get());
+        else
+        {
+            List<Range<Token>> defaultRanges = new ArrayList<>();
+            for (String keyspaceName : keyspaceNames)
+                defaultRanges.addAll(StorageService.instance.getLocalReplicas(keyspaceName).onlyFull().ranges());
+            ranges = normalizedRanges(defaultRanges);
+        }
 
         ClusterMetadataService.instance().commit(new BeginConsensusMigrationForTableAndRange(ranges, tableIds));
     }

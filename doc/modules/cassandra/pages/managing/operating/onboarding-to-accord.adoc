@@ -229,8 +229,9 @@ Marking ranges as migrating is a lightweight operation and does not
 trigger the repairs that will finish the migration.
 
 The range to mark migrating needs to be explicitly
-provided otherwise the entire ring will be marked migrating for the
-specified keyspace and tables. If the entire range is marked migrating it is
+provided otherwise the token ranges replicated on the node
+you called the command on will be marked migrating.
+If the entire range is marked migrating it is
 only necessary to invoke `begin-migration` on one node.
 
 This is only needed if
@@ -247,9 +248,9 @@ systems may need to be used to execute the request.
 Invoking `nodetool` with
 `consensus++_++admin finish-migration ++[<++keyspace++>++ ++<++tables++>++...`
 will run the repairs needed to complete the migration for the specified
-ranges. If no range is specified it will default to the primary range of
-the node that `nodetool` is connecting to so you can call it once on
-every node to complete migration.
+ranges. If no range is specified it will default to all token ranges replicated by
+the node for all keyspaces migrating to Accord.. This is the same behavior
+as the default for repair.
 
 When migrating from Paxos to Accord it will run an incremental data
 repair and then a full data repair {plus} Paxos repair. When migrating
