@@ -29,6 +29,8 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.PeersTable;
@@ -54,7 +56,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 
-public class LegacyStateListener implements ChangeListener.Async
+public class LegacyStateListener implements ChangeListener
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacyStateListener.class);
 
@@ -75,52 +77,96 @@ public class LegacyStateListener implements ChangeListener.Async
                 changed.add(node);
         }
 
-        for (InetAddressAndPort remove : removedAddr)
+        // next.myNodeId() can be null during replay (before we have registered) but if it is present and
+        // there is a relevant change to the state of the local node, process that synchronously.
+        if (next.myNodeId() != null && changed.contains(next.myNodeId()))
         {
-            GossipHelper.removeFromGossip(remove);
-            GossipHelper.evictFromMembership(remove);
-            PeersTable.removeFromSystemPeersTables(remove);
+            // Default is to process updates for the local node synchronously, overridable via config/hotprop
+            if (DatabaseDescriptor.getLegacyStateListenerSyncLocalUpdates())
+                processChangesToLocalState(prev, next, next.myNodeId());
+            else
+                ScheduledExecutors.optionalTasks.submit(() -> processChangesToLocalState(prev, next, next.myNodeId()));
+
+            changed.remove(next.myNodeId());
         }
 
+        // Schedule async processing of changes to peers and removing unregistered nodes (potentially including the
+        // local node).
+        ScheduledExecutors.optionalTasks.submit(() -> {
+            processRemovedNodes(removedAddr);
+            processChangesToRemotePeers(prev, next, changed);
+        });
+    }
+
+    private void processChangesToLocalState(ClusterMetadata prev, ClusterMetadata next, NodeId localId)
+    {
+        logger.info("Processing changes to local node state {} for epoch {}->{}", localId, prev.epoch.getEpoch(), next.epoch.getEpoch());
+        Collection<Token> tokensForGossip = next.tokenMap.tokens(localId);
+        NodeState state = next.directory.peerState(localId);
+        switch (state)
+        {
+            case BOOTSTRAPPING:
+            case BOOT_REPLACING:
+                // For compatibility with clients, ensure we set TOKENS for bootstrapping nodes in gossip.
+                // As these are not yet added to the token map they must be extracted from the in progress sequence.
+                tokensForGossip = GossipHelper.getTokensFromOperation(localId, next);
+                if (state == BOOTSTRAPPING && prev.directory.peerState(localId) != BOOTSTRAPPING)
+                {
+                    // legacy log messages for tests
+                    logger.info("JOINING: Starting to bootstrap");
+                    logger.info("JOINING: calculation complete, ready to bootstrap");
+                }
+                break;
+            case JOINED:
+                tokensForGossip = next.tokenMap.tokens(localId);
+                SystemKeyspace.updateTokens(next.directory.endpoint(localId), tokensForGossip);
+                StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
+                             .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                             .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
+                NodeState previousState = prev.directory.peerState(localId);
+                if (previousState == MOVING)
+                {
+                    logger.info("Node {} state jump to NORMAL", next.directory.endpoint(localId));
+                }
+                else if (previousState == BOOT_REPLACING)
+                {
+                    // legacy log message for compatibility (& tests)
+                    MultiStepOperation<?> sequence = prev.inProgressSequences.get(localId);
+                    if (sequence != null && sequence.kind() == MultiStepOperation.Kind.REPLACE)
+                    {
+                        logCompletedReplacement(prev.directory, (BootstrapAndReplace) sequence);
+                        tokensForGossip = GossipHelper.getTokensFromOperation(sequence);
+                    }
+                }
+                break;
+            case MOVING:
+                logger.debug("Node {} state MOVING, tokens {}", next.directory.endpoint(localId), prev.tokenMap.tokens(localId));
+                tokensForGossip = next.tokenMap.tokens(localId);
+                break;
+            case LEFT:
+                tokensForGossip = prev.tokenMap.tokens(localId);
+                break;
+        }
+
+        // Maybe initialise local epstate whatever the node state because we could be processing after a
+        // replay and so may have not seen any previous local states, making this the first mutation of gossip
+        // state for the local node.
+        Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
+        Gossiper.instance.addLocalApplicationState(SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
+        // Pull node properties from cluster metadata into gossip, except if the node is only in the REGISTERED state
+        // as that has no equivalent gossip STATUS
+        if (state != REGISTERED)
+            Gossiper.instance.mergeNodeToGossip(localId, next, tokensForGossip);
+        // if the local node's location has changed, update system.local.
+        if (!next.directory.location(localId).equals(prev.directory.location(localId)))
+            SystemKeyspace.updateLocation(next.directory.location(localId));
+    }
+
+    private void processChangesToRemotePeers(ClusterMetadata prev, ClusterMetadata next, Set<NodeId> changed)
+    {
         for (NodeId change : changed)
         {
-            // next.myNodeId() can be null during replay (before we have registered)
-            if (next.myNodeId() != null && next.myNodeId().equals(change))
-            {
-                switch (next.directory.peerState(change))
-                {
-                    case BOOTSTRAPPING:
-                        if (prev.directory.peerState(change) != BOOTSTRAPPING)
-                        {
-                            // legacy log messages for tests
-                            logger.info("JOINING: Starting to bootstrap");
-                            logger.info("JOINING: calculation complete, ready to bootstrap");
-                        }
-                        break;
-                    case BOOT_REPLACING:
-                    case REGISTERED:
-                        break;
-                    case JOINED:
-                        SystemKeyspace.updateTokens(next.directory.endpoint(change), next.tokenMap.tokens(change));
-                        // needed if we miss the REGISTERED above; Does nothing if we are already in epStateMap:
-                        Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-                        StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                                     .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
-                                     .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
-                        if (prev.directory.peerState(change) == MOVING)
-                            logger.info("Node {} state jump to NORMAL", next.directory.endpoint(change));
-                        break;
-                }
-                // Maybe intitialise local epstate whatever the node state because we could be processing after a
-                // replay and so may have not seen any previous local states, making this the first mutation of gossip
-                // state for the local node.
-                Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-                Gossiper.instance.addLocalApplicationState(SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
-                // if the local node's location has changed, update system.local.
-                if (!next.directory.location(change).equals(prev.directory.location(change)))
-                    SystemKeyspace.updateLocation(next.directory.location(change));
-            }
-
+            logger.info("Processing changes to peer {} for epoch {}->{}", change, prev.epoch.getEpoch(), next.epoch.getEpoch());
             if (next.directory.peerState(change) == REGISTERED)
             {
                 // Re-establish any connections made prior to this node registering
@@ -155,21 +201,11 @@ public class LegacyStateListener implements ChangeListener.Async
             }
             else if (prev.directory.peerState(change) == BOOT_REPLACING)
             {
-                // legacy log message for compatibility (& tests)
                 MultiStepOperation<?> sequence = prev.inProgressSequences.get(change);
                 if (sequence != null && sequence.kind() == MultiStepOperation.Kind.REPLACE)
                 {
-                    BootstrapAndReplace replace = (BootstrapAndReplace) sequence;
-                    InetAddressAndPort replaced = prev.directory.endpoint(replace.startReplace.replaced());
-                    InetAddressAndPort replacement = prev.directory.endpoint(change);
-                    Collection<Token> tokens = GossipHelper.getTokensFromOperation(replace);
-                    logger.info("Node {} will complete replacement of {} for tokens {}", replacement, replaced, tokens);
-                    if (!replacement.equals(replaced))
-                    {
-                        for (Token token : tokens)
-                            logger.warn("Token {} changing ownership from {} to {}", token, replaced, replacement);
-                    }
-                    Gossiper.instance.mergeNodeToGossip(change, next, tokens);
+                    logCompletedReplacement(prev.directory, (BootstrapAndReplace) sequence);
+                    Gossiper.instance.mergeNodeToGossip(change, next, GossipHelper.getTokensFromOperation(sequence));
                     PeersTable.updateLegacyPeerTable(change, prev, next);
                 }
             }
@@ -178,6 +214,30 @@ public class LegacyStateListener implements ChangeListener.Async
                 Gossiper.instance.mergeNodeToGossip(change, next);
                 PeersTable.updateLegacyPeerTable(change, prev, next);
             }
+        }
+    }
+
+    private void processRemovedNodes(Set<InetAddressAndPort> removed)
+    {
+        for (InetAddressAndPort remove : removed)
+        {
+            GossipHelper.removeFromGossip(remove);
+            GossipHelper.evictFromMembership(remove);
+            PeersTable.removeFromSystemPeersTables(remove);
+        }
+    }
+
+    private void logCompletedReplacement(Directory directory, BootstrapAndReplace sequence)
+    {
+        // legacy log message for compatibility (& tests)
+        InetAddressAndPort replaced = directory.endpoint(sequence.startReplace.replaced());
+        InetAddressAndPort replacement = directory.endpoint(sequence.startReplace.replacement());
+        Collection<Token> tokens = GossipHelper.getTokensFromOperation(sequence);
+        logger.info("Node {} will complete replacement of {} for tokens {}", replacement, replaced, tokens);
+        if (!replacement.equals(replaced))
+        {
+            for (Token token : tokens)
+                logger.warn("Token {} changing ownership from {} to {}", token, replaced, replacement);
         }
     }
 

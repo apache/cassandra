@@ -280,6 +280,18 @@ public class CMSOperations implements CMSOperationsMBean
         return convertToStringValues(log);
     }
 
+    @Override
+    public boolean getLegacyStateListenerSyncLocalUpdates()
+    {
+        return DatabaseDescriptor.getLegacyStateListenerSyncLocalUpdates();
+    }
+
+    @Override
+    public void setLegacyStateListenerSyncLocalUpdates(boolean sync)
+    {
+        DatabaseDescriptor.setLegacyStateListenerSyncLocalUpdates(sync);
+    }
+
     private Map<Long, Map<String, String>> convertToStringValues(Map<Long, Map<String, Object>> log)
     {
         Map<Long, Map<String, String>> res = new LinkedHashMap<>();

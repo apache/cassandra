@@ -6198,6 +6198,26 @@ public class DatabaseDescriptor
         return conf.unsafe_tcm_mode;
     }
 
+    public static boolean getLegacyStateListenerSyncLocalUpdates()
+    {
+        return conf.legacy_state_listener_sync_local_updates;
+    }
+
+    public static void setLegacyStateListenerSyncLocalUpdates(boolean sync)
+    {
+        if (sync != conf.legacy_state_listener_sync_local_updates)
+        {
+            logger.info("Changing processing mode of state updates to the local node in LegacyStateListener from {} to {}",
+                        sync ? "async" : "sync", sync ? "sync" : "async");
+            conf.legacy_state_listener_sync_local_updates = sync;
+        }
+        else
+        {
+            logger.info("Not changing processing mode of state updates to the local node in LegacyStateListener, already set to {}",
+                        sync ? "sync" : "async");
+        }
+    }
+
     public static int getSaiSSTableIndexesPerQueryWarnThreshold()
     {
         return conf.sai_sstable_indexes_per_query_warn_threshold;
