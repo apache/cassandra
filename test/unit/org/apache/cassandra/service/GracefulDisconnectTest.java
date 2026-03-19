@@ -22,21 +22,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.awaitility.Awaitility;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.transport.Event;
-import org.apache.cassandra.transport.messages.EventMessage;
-
 import io.netty.channel.DefaultChannelId;
-import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.messages.EventMessage;
+import org.awaitility.Awaitility;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class GracefulDisconnectTest
 {
@@ -44,6 +45,7 @@ public class GracefulDisconnectTest
     public void setup()
     {
         DatabaseDescriptor.daemonInitialization();
+        ClientMetrics.instance.initForTesting();
     }
 
     @Test
@@ -62,7 +64,9 @@ public class GracefulDisconnectTest
 
         StorageService.instance.gracefulDisconnect(defaultAction, channelGroup);
 
-        Assert.assertFalse("Action should wait for channels to close", wasActionRun.get());
+        assertThat(wasActionRun.get())
+            .as("Action should wait for channels to close")
+            .isFalse();
 
         ch1.close();
     }
@@ -72,7 +76,7 @@ public class GracefulDisconnectTest
     {
         DatabaseDescriptor.setGracefulDisconnectMaxDrain(60000);
 
-        DefaultEventLoopGroup eventLoopGroup = new DefaultEventLoopGroup(2);
+        NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(2);
         ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
         EmbeddedChannel ch1 = new EmbeddedChannel(DefaultChannelId.newInstance());
@@ -89,11 +93,16 @@ public class GracefulDisconnectTest
         StorageService.instance.gracefulDisconnect(() -> wasActionRun.set(true), channelGroup);
 
         ch1.close().sync();
-        Assert.assertFalse("Action should not run while ch2 is still open", wasActionRun.get());
+        assertThat(wasActionRun.get())
+            .as("Action should not run while ch2 is still open")
+            .isFalse();
 
         ch2.close().sync();
         Awaitility.await().atMost(5, TimeUnit.SECONDS).until(wasActionRun::get);
-        Assert.assertTrue("Action should run now that all channels are closed", wasActionRun.get());
+
+        assertThat(wasActionRun.get())
+            .as("Action should run now that all channels are closed")
+            .isTrue();
 
         eventLoopGroup.shutdownGracefully();
     }
@@ -114,13 +123,18 @@ public class GracefulDisconnectTest
         AtomicBoolean wasActionRun = new AtomicBoolean(false);
         StorageService.instance.gracefulDisconnect(() -> wasActionRun.set(true), channelGroup);
 
-        Assert.assertFalse("Should not run immediately", wasActionRun.get());
+        assertThat(wasActionRun.get())
+            .as("Should not run immediately")
+            .isFalse();
 
         Awaitility.await()
                   .atMost(timeoutMs + 2000, TimeUnit.MILLISECONDS)
                   .until(wasActionRun::get);
 
-        Assert.assertTrue("Action should have run due to timeout", wasActionRun.get());
+        assertThat(wasActionRun.get())
+            .as("Action should have run due to timeout")
+            .isTrue();
+
         ch1.close();
     }
 
@@ -137,8 +151,12 @@ public class GracefulDisconnectTest
         StorageService.instance.gracefulDisconnect(() -> {
         }, channelGroup);
 
-        Assert.assertNotNull("EventMessage should have been dispatched", capturedMessage.get());
-        Assert.assertTrue(capturedMessage.get().event instanceof Event.GracefulDisconnect);
+        assertThat(capturedMessage.get())
+            .as("EventMessage should have been dispatched")
+            .isNotNull();
+
+        assertThat(capturedMessage.get().event)
+            .isInstanceOf(Event.GracefulDisconnect.class);
     }
 
     @Test
@@ -152,7 +170,10 @@ public class GracefulDisconnectTest
 
         StorageService.instance.gracefulDisconnect(() -> wasActionRun.set(true), channelGroup);
 
-        Assert.assertFalse("Should not have run yet, waiting for ch1 to close", wasActionRun.get());
+        assertThat(wasActionRun.get())
+            .as("Should not have run yet, waiting for ch1 to close")
+            .isFalse();
+
         ch1.close();
     }
 }

@@ -131,6 +131,13 @@ public final class ClientMetrics
             meterByMode.mark();
     }
 
+    @VisibleForTesting
+    public void initForTesting()
+    {
+        connectionsDraining = new AtomicInteger();
+        forcedDisconnects = Metrics.meter(factory.createMetricName("ForcedDisconnects"));
+    }
+
     /**
      * @deprecated by {@link #markAuthFailure(AuthenticationMode)}
      */
