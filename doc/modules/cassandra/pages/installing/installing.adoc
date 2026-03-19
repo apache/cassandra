@@ -100,7 +100,7 @@ include::cassandra:example$BASH/curl_install.sh[]
 [NOTE]
 ====
 The mirrors only host the latest versions of each major supported release.
-To download an earlier version of Cassandra, visit the http://archive.apache.org/dist/cassandra/[Apache Archives].
+To download an earlier version of Cassandra, visit the https://archive.apache.org/dist/cassandra/[Apache Archives].
 ====
 . OPTIONAL: Verify the integrity of the downloaded tarball using one of the methods https://www.apache.org/dyn/closer.cgi#verify[here].
 For example, to verify the hash of the downloaded file using GPG:
