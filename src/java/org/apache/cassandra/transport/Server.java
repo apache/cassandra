@@ -347,6 +347,8 @@ public class Server implements CassandraDaemon.Server
 
         public void register(Event.Type type, Channel ch)
         {
+            if (type == Event.Type.GRACEFUL_DISCONNECT && !DatabaseDescriptor.getGracefulDisconnectEnabled())
+                return;
             groups.get(type).add(ch);
         }
 

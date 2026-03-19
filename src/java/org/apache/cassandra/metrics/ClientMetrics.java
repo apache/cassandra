@@ -71,7 +71,7 @@ public final class ClientMetrics
     @VisibleForTesting
     Gauge<Integer> connectedNativeClients;
 
-    private AtomicInteger connectionsDraining;
+    public AtomicInteger connectionsDraining;
 
     @SuppressWarnings({ "unused", "FieldCanBeLocal" })
     private Gauge<Integer> connectionsDrainingGauge;
