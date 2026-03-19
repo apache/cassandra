@@ -59,7 +59,7 @@ import org.apache.cassandra.utils.FBUtilities;
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Fork(value = 1)
+@Fork(value = 1, jvmArgsAppend = { "-Xmx4G", "-Xms4G"})
 @Warmup(iterations = 5, timeUnit = TimeUnit.MILLISECONDS, time = 5000)
 @Measurement(iterations = 5, timeUnit = TimeUnit.MILLISECONDS, time = 5000)
 public class LocalRangesAllSettledBench
