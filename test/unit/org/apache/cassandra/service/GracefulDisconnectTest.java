@@ -49,7 +49,7 @@ public class GracefulDisconnectTest
     @Test
     public void testGracefulDisconnectWithActiveChannels()
     {
-        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(10000);
+        DatabaseDescriptor.setGracefulDisconnectMaxDrain(10000);
 
         ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         EmbeddedChannel ch1 = new EmbeddedChannel();
@@ -70,7 +70,7 @@ public class GracefulDisconnectTest
     @Test
     public void testTriggerOnLastChannelClose() throws InterruptedException
     {
-        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(60000);
+        DatabaseDescriptor.setGracefulDisconnectMaxDrain(60000);
 
         DefaultEventLoopGroup eventLoopGroup = new DefaultEventLoopGroup(2);
         ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
@@ -108,8 +108,8 @@ public class GracefulDisconnectTest
         });
         channelGroup.add(ch1);
 
-        DatabaseDescriptor.setGracefulDisconnectMaxDrainMs(1000);
-        long timeoutMs = DatabaseDescriptor.getGracefulDisconnectMaxDrainMs();
+        DatabaseDescriptor.setGracefulDisconnectMaxDrain(1000);
+        long timeoutMs = DatabaseDescriptor.getGracefulDisconnectMaxDrain();
 
         AtomicBoolean wasActionRun = new AtomicBoolean(false);
         StorageService.instance.gracefulDisconnect(() -> wasActionRun.set(true), channelGroup);

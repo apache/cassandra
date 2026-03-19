@@ -25,9 +25,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
@@ -49,10 +48,13 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 public class GracefulDisconnectIT
 {
 
-    @BeforeAll
+    @BeforeClass
     public static void setUp() throws IOException
     {
         DatabaseDescriptor.daemonInitialization();
@@ -80,8 +82,10 @@ public class GracefulDisconnectIT
                 client.connect(false);
                 Message.Response response = client.execute(new OptionsMessage());
                 SupportedMessage supported = (SupportedMessage) response;
-                Assertions.assertTrue(supported.supported.containsKey(StartupMessage.GRACEFUL_DISCONNECT),
-                                      "GRACEFUL_DISCONNECT should be advertised in SUPPORTED when enabled");
+
+                assertThat(supported.supported.containsKey(StartupMessage.GRACEFUL_DISCONNECT))
+                .as("GRACEFUL_DISCONNECT should be advertised in SUPPORTED when enabled")
+                .isTrue();
             }
         }
     }
@@ -95,8 +99,11 @@ public class GracefulDisconnectIT
             try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostString(), 9042).build())
             {
                 client.connect(false);
-                Assertions.assertFalse(((SupportedMessage) client.execute(new OptionsMessage())).supported.containsKey(StartupMessage.GRACEFUL_DISCONNECT),
-                                       "GRACEFUL_DISCONNECT should be advertised in SUPPORTED when enabled");
+                SupportedMessage supported = (SupportedMessage) client.execute(new OptionsMessage());
+
+                assertThat(supported.supported.containsKey(StartupMessage.GRACEFUL_DISCONNECT))
+                .as("GRACEFUL_DISCONNECT should NOT be advertised in SUPPORTED when disabled")
+                .isFalse();
             }
         }
     }
@@ -115,8 +122,7 @@ public class GracefulDisconnectIT
                 Message.Response response = client.execute(
                 new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
 
-                Assertions.assertTrue(response instanceof ReadyMessage,
-                                      "REGISTER for GRACEFUL_DISCONNECT should be accepted with READY");
+                assertThat(response).isInstanceOf(ReadyMessage.class);
 
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
@@ -125,8 +131,9 @@ public class GracefulDisconnectIT
                                                                                    .getChannelsSubscribedToGracefulDisconnect()
                                                                                    .size());
 
-                Assertions.assertEquals(1, subscribedCount,
-                                        "One channel should be subscribed to GRACEFUL_DISCONNECT");
+                assertThat(subscribedCount)
+                .as("One channel should be subscribed to GRACEFUL_DISCONNECT")
+                .isEqualTo(1);
             }
         }
     }
@@ -147,8 +154,9 @@ public class GracefulDisconnectIT
                                                                                    .getChannelsSubscribedToGracefulDisconnect()
                                                                                    .size());
 
-                Assertions.assertEquals(0, subscribedCount,
-                                        "One channel should be subscribed to GRACEFUL_DISCONNECT");
+                assertThat(subscribedCount)
+                .as("V4 client should not be able to subscribe")
+                .isEqualTo(0);
             }
         }
     }
@@ -170,8 +178,7 @@ public class GracefulDisconnectIT
                                                                                    .getServer()
                                                                                    .getChannelsSubscribedToGracefulDisconnect()
                                                                                    .size());
-                Assertions.assertEquals(0, subscribedCount,
-                                        "V4 client should not be subscribed to GRACEFUL_DISCONNECT");
+                assertThat(subscribedCount).isEqualTo(0);
             }
         }
     }
@@ -191,10 +198,12 @@ public class GracefulDisconnectIT
                                    .getServer()
                                    .stopAcceptingNewConnections();
                 });
-                Assertions.assertThrows(Exception.class, () -> {
+
+                assertThatThrownBy(() -> {
                     SimpleClient newClient = SimpleClient.builder(nativeAddr.getHostString(), 9042).build();
                     newClient.connect(false);
-                }, "Server should reject new connections after stopAcceptingNewConnections");
+                }).as("Server should reject new connections after stopAcceptingNewConnections")
+                  .isNotNull();
             }
         }
     }
@@ -209,6 +218,7 @@ public class GracefulDisconnectIT
             {
                 client.connect(false);
                 client.execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
+
                 int subscribedCount = cluster.get(1).callOnInstance(() ->
                                                                     CassandraDaemon.getInstanceForTesting()
                                                                                    .nativeTransportService()
@@ -216,10 +226,10 @@ public class GracefulDisconnectIT
                                                                                    .getChannelsSubscribedToGracefulDisconnect()
                                                                                    .size());
 
-                Assertions.assertEquals(0, subscribedCount);
-                boolean gracefulDisconnectCalled = cluster.get(1).callOnInstance(() -> !DatabaseDescriptor.getGracefulDisconnectEnabled());
-                Assertions.assertTrue(gracefulDisconnectCalled,
-                                      "graceful_disconnect_enabled=false should skip event emission");
+                assertThat(subscribedCount).isEqualTo(0);
+
+                boolean disabled = cluster.get(1).callOnInstance(() -> !DatabaseDescriptor.getGracefulDisconnectEnabled());
+                assertThat(disabled).isTrue();
             }
         }
     }
@@ -230,12 +240,13 @@ public class GracefulDisconnectIT
         try (Cluster cluster = buildCluster(1, true))
         {
             cluster.get(1).runOnInstance(() ->
-                                         StorageService.instance.setGracefulDisconnectMaxDrainMs(15000));
+                                         StorageService.instance.setGracefulDisconnectMaxDrain(15000));
 
-            long maxDrainMs = cluster.get(1).callOnInstance(StorageService.instance::getGracefulDisconnectMaxDrainMs);
+            long maxDrain = cluster.get(1).callOnInstance(() -> {
+                return StorageService.instance.getGracefulDisconnectMaxDrain();
+            });
 
-            Assertions.assertEquals(15000, maxDrainMs,
-                                    "max_drain_ms should be updated to 15000 via JMX");
+            assertThat(maxDrain).isEqualTo(15000L);
         }
     }
 
@@ -245,13 +256,14 @@ public class GracefulDisconnectIT
         try (Cluster cluster = buildCluster(1, true))
         {
             cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.setGracefulDisconnectGracePeriodMs(3000);
+                StorageService.instance.setGracefulDisconnectGracePeriod(3000);
             });
 
-            long gracePeriodMs = cluster.get(1).callOnInstance(StorageService.instance::getGracefulDisconnectGracePeriodMs);
+            long gracePeriodMs = cluster.get(1).callOnInstance(() -> {
+                return StorageService.instance.getGracefulDisconnectGracePeriod();
+            });
 
-            Assertions.assertEquals(3000, gracePeriodMs,
-                                    "grace_period_ms should be updated to 3000 via JMX");
+            assertThat(gracePeriodMs).isEqualTo(3000L);
         }
     }
 
@@ -260,7 +272,6 @@ public class GracefulDisconnectIT
     {
         try (Cluster cluster = buildCluster(1, true))
         {
-
             InetSocketAddress nativeAddr = cluster.get(1).config().broadcastAddress();
             try (SimpleClient client = SimpleClient.builder(nativeAddr.getHostString(), 9042)
                                                    .protocolVersion(ProtocolVersion.V4)
@@ -279,10 +290,11 @@ public class GracefulDisconnectIT
                         throw new RuntimeException(e);
                     }
                 });
-                // the one hardcoded 1s limit may make this a flaky test case
+
                 long elapsed = System.currentTimeMillis() - start;
-                Assertions.assertTrue(elapsed < 1000,
-                                      "Should proceed immediately with no subscribed connections, took: " + elapsed + "ms");
+                assertThat(elapsed)
+                .as("Should proceed immediately with no subscribed connections")
+                .isLessThan(1000L);
             }
         }
     }
@@ -313,8 +325,7 @@ public class GracefulDisconnectIT
                                                                                    .getChannelsSubscribedToGracefulDisconnect()
                                                                                    .size());
 
-                Assertions.assertEquals(2, subscribedCount,
-                                        "Both connections should be subscribed to GRACEFUL_DISCONNECT");
+                assertThat(subscribedCount).isEqualTo(2);
             }
         }
     }
@@ -332,12 +343,10 @@ public class GracefulDisconnectIT
                 client.connect(false);
                 client.execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
 
-
                 int drainingCount = cluster.get(1).callOnInstance(() ->
                                                                   ClientMetrics.instance.connectionsDraining.get());
 
-                Assertions.assertEquals(0, drainingCount,
-                                        "connections_draining should be 0 before drain");
+                assertThat(drainingCount).isEqualTo(0);
             }
         }
     }
@@ -367,9 +376,8 @@ public class GracefulDisconnectIT
                 });
 
                 Event event = handler.queue.poll(10, TimeUnit.SECONDS);
-                Assertions.assertNotNull(event, "Expected GRACEFUL_DISCONNECT event but got null");
-                Assertions.assertEquals(Event.Type.GRACEFUL_DISCONNECT, event.type,
-                                        "Expected GRACEFUL_DISCONNECT event type");
+                assertThat(event).isNotNull();
+                assertThat(event.type).isEqualTo(Event.Type.GRACEFUL_DISCONNECT);
             }
         }
     }
@@ -391,8 +399,7 @@ public class GracefulDisconnectIT
                 Awaitility.await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
                     int drainingCount = cluster.get(1).callOnInstance(() ->
                                                                       ClientMetrics.instance.connectionsDraining.get());
-                    Assertions.assertEquals(0, drainingCount,
-                                            "connections_draining should be 0 after all connections close");
+                    assertThat(drainingCount).isEqualTo(0);
                 });
 
                 boolean actionCalled = cluster.get(1).callOnInstance(() -> {
@@ -405,8 +412,7 @@ public class GracefulDisconnectIT
                     return called.get();
                 });
 
-                Assertions.assertTrue(actionCalled,
-                                      "Default action should be called immediately when no subscribed connections");
+                assertThat(actionCalled).isTrue();
             }
         }
     }
@@ -425,8 +431,8 @@ public class GracefulDisconnectIT
                 client.execute(new RegisterMessage(Collections.singletonList(Event.Type.GRACEFUL_DISCONNECT)));
 
                 cluster.get(1).runOnInstance(() -> {
-                    StorageService.instance.setGracefulDisconnectGracePeriodMs(500);
-                    StorageService.instance.setGracefulDisconnectMaxDrainMs(1000);
+                    StorageService.instance.setGracefulDisconnectGracePeriod(500);
+                    StorageService.instance.setGracefulDisconnectMaxDrain(1000);
                 });
 
                 cluster.get(1).runOnInstance(() -> {
@@ -440,16 +446,14 @@ public class GracefulDisconnectIT
 
                 Thread.sleep(3000);
 
-                boolean actionCalled = cluster.get(1).callOnInstance(() -> ClientMetrics.instance.connectionsDraining.get() == 0);
-
-                Assertions.assertTrue(actionCalled,
-                                      "Default action should be called after max_drain_ms timeout");
+                boolean finishedDraining = cluster.get(1).callOnInstance(() -> ClientMetrics.instance.connectionsDraining.get() == 0);
+                assertThat(finishedDraining).isTrue();
             }
             finally
             {
                 cluster.get(1).runOnInstance(() -> {
-                    StorageService.instance.setGracefulDisconnectMaxDrainMs(30000);
-                    StorageService.instance.setGracefulDisconnectGracePeriodMs(5000);
+                    StorageService.instance.setGracefulDisconnectMaxDrain(30000);
+                    StorageService.instance.setGracefulDisconnectGracePeriod(5000);
                 });
             }
         }
@@ -491,10 +495,10 @@ public class GracefulDisconnectIT
                 Event event1 = handler1.queue.poll(10, TimeUnit.SECONDS);
                 Event event2 = handler2.queue.poll(10, TimeUnit.SECONDS);
 
-                Assertions.assertNotNull(event1, "client1 should receive GRACEFUL_DISCONNECT");
-                Assertions.assertNotNull(event2, "client2 should receive GRACEFUL_DISCONNECT");
-                Assertions.assertEquals(Event.Type.GRACEFUL_DISCONNECT, event1.type);
-                Assertions.assertEquals(Event.Type.GRACEFUL_DISCONNECT, event2.type);
+                assertThat(event1).isNotNull();
+                assertThat(event2).isNotNull();
+                assertThat(event1.type).isEqualTo(Event.Type.GRACEFUL_DISCONNECT);
+                assertThat(event2.type).isEqualTo(Event.Type.GRACEFUL_DISCONNECT);
             }
         }
     }
@@ -533,8 +537,9 @@ public class GracefulDisconnectIT
                 Event subscribedEvent = subscribedHandler.queue.poll(10, TimeUnit.SECONDS);
                 Event nonSubscribedEvent = nonSubscribedHandler.queue.poll(3, TimeUnit.SECONDS);
 
-                Assertions.assertNotNull(subscribedEvent, "Subscribed client should receive GRACEFUL_DISCONNECT");
-                Assertions.assertNull(nonSubscribedEvent, "Non-subscribed client should not receive GRACEFUL_DISCONNECT");
+                assertThat(subscribedEvent).isNotNull();
+                assertThat(subscribedEvent.type).isEqualTo(Event.Type.GRACEFUL_DISCONNECT);
+                assertThat(nonSubscribedEvent).isNull();
             }
         }
     }
