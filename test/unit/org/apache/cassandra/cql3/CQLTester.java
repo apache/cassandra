@@ -64,28 +64,13 @@ import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.net.ssl.SSLException;
 
-import com.codahale.metrics.Gauge;
-import com.datastax.driver.core.CloseFuture;
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.NettyOptions;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
-import com.datastax.driver.core.SocketOptions;
-import com.datastax.driver.core.Statement;
-import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.UDTValue;
-import com.datastax.driver.core.UserType;
-import com.datastax.driver.core.exceptions.UnauthorizedException;
-import com.datastax.shaded.netty.channel.EventLoopGroup;
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.auth.SpiffeCertificateValidator;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.assertj.core.api.Assertions;
@@ -106,7 +91,23 @@ import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.Property;
 import accord.utils.RandomSource;
-
+import com.codahale.metrics.Gauge;
+import com.datastax.driver.core.CloseFuture;
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ColumnDefinitions;
+import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.NettyOptions;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.SocketOptions;
+import com.datastax.driver.core.Statement;
+import com.datastax.driver.core.TypeCodec;
+import com.datastax.driver.core.UDTValue;
+import com.datastax.driver.core.UserType;
+import com.datastax.driver.core.exceptions.UnauthorizedException;
+import com.datastax.shaded.netty.channel.EventLoopGroup;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
@@ -653,13 +654,26 @@ public abstract class CQLTester
         //TODO
         //MigrationManager.announceNewKeyspace(AuthKeyspace.metadata(), true);
         DatabaseDescriptor.getRoleManager().setup();
-        DatabaseDescriptor.getAuthenticator().setup();
+        DatabaseDescriptor.getDefaultAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
         DatabaseDescriptor.getNetworkAuthorizer().setup();
         DatabaseDescriptor.getCIDRAuthorizer().setup();
         Schema.instance.registerListener(new AuthSchemaChangeListener());
 
         AuthCacheService.initializeAndRegisterCaches();
+    }
+
+    protected static void requireAuthenticatorNegotiation()
+    {
+        final Map<String, String> authenticatorParams = ImmutableMap.of("validator_class_name", SpiffeCertificateValidator.class.getSimpleName());
+        requireAuthenticatorNegotiation(new AuthTestUtils.LocalPasswordAuthenticator(), new AuthTestUtils.LocalMutualTLSAuthenticator(authenticatorParams));
+    }
+
+    protected static void requireAuthenticatorNegotiation(IAuthenticator... negotiableAuthenticators)
+    {
+        DatabaseDescriptor.setAuthenticatorNegotationEnabled(true);
+        DatabaseDescriptor.setNegotiableAuthenticators(List.of(negotiableAuthenticators));
+        requireAuthentication(new AuthTestUtils.LocalDefaultPasswordAuthenticator());
     }
 
     /**

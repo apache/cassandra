@@ -61,6 +61,8 @@ public class OptionsMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
+        // JDEBUG - This duplicates code in InitialConnectionHandler (line 78+). Why? Is this used?
+        /*
         List<String> cqlVersions = new ArrayList<String>();
         cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
@@ -71,11 +73,14 @@ public class OptionsMessage extends Message.Request
         compressions.add("lz4");
 
         Map<String, List<String>> supported = new HashMap<String, List<String>>();
+
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);
         supported.put(StartupMessage.COMPRESSION, compressions);
         supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
 
         return new SupportedMessage(supported);
+         */
+        return new SupportedMessage(new HashMap<>());
     }
 
     @Override
