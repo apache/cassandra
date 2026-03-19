@@ -222,7 +222,7 @@ authenticator_negotiation:
   # The authenticator to be used for clients that don't support negotiation, or clients that support none of
   # the authenticators listed in the 'authenticators' section.
   default_authenticator:
-    - class_name: PasswordAuthenticator
+    class_name: PasswordAuthenticator
   # The authenticators that this node supports for negotiation. These are configured as documented for the
   # 'authenticator' section. List authenticators in order from most- to least-preferred. For negotiating
   # clients, the server will select the first authenticator in this list that the client indicates it can
