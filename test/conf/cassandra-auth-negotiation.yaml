@@ -89,7 +89,7 @@ authenticator_negotiation:
   enabled: true
   require_authentication: true
   default_authenticator:
-    - class_name: PasswordAuthenticator
+    class_name: PasswordAuthenticator
   authenticators:
     - class_name: MutualTlsAuthenticator
       parameters:

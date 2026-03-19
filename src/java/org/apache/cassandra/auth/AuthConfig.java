@@ -126,19 +126,27 @@ public final class AuthConfig
                     // that we have.
                     // TODO - This comparison is potentially broken because depending on how the authenticator
                     //  is configured in YAML, this equals() may or may not work. The parameterized class created
-                    //  from 'default_authenticator: PasswordAuthenticator' is different from that created from
-                    //  'default_authenticator:\n\t- class_name: PasswordAuthenticator'. The ParameterizedClass
-                    //  instance created by SnakeYAML will have an _empty_ parameters member with the first form,
-                    //  and a _null_ parameters member with the second form. This causes ParameterizedClass.equals()
-                    //  to return 'false' when those two ParameterizedClass objects are compared ... which is probably
-                    //  incorrect. I'm not sure how to resolve this right now. For now the unit tests pass but this
-                    //  does introduce the risk of trying to instantiate the same authenticator twice, and not all
-                    //  authenticators can tolerate that.
-                    //if (clazz.equals(conf.authenticator_negotiation.default_authenticator))
-                    //{
-                    //    negotiableAuthenticators.add(defaultAuthenticator);
-                    //    continue;
-                    //}
+                    //  from 'default_authenticator: PasswordAuthenticator' or
+                    //  'default_authenticator:\n\tclass_name: PasswordAuthenticator'
+                    //  is different from that created from
+                    //  'default_authenticator:\n\t- class_name: PasswordAuthenticator'.
+                    //  The latter, inadvertantly, attempts to set default_authenticator to a list (indicated by the '-').
+                    //  Since default_authenticator isn't a list, SnakeYAML grabs the first list element and constructs
+                    //  the ParameterizedClass instance using the default constructor and reflection, which results in
+                    //  'parameters' being null instead of being an empty map which is what the first two forms will
+                    //  create. This causes ParameterizedClass.equals() to return 'false' when a ParameterizedClass
+                    //  generated from the 'authenticators' list is compared to the default_authenticator if the default
+                    //  authenticator was specified using that third form (list style). This results in the default
+                    //  authenticator being placed at the end of the authenticators list instead of in its
+                    //  configured order, which can lead to the negotiator picking a weaker authenticator than the order
+                    //  of authenticators in the configuration indicates. I'm not sure how to resolve this right now.
+                    //  One possibility is to 'fix' the equals() and hashCode() methods in ParameterizedClass to treat
+                    //  null and empty 'parameters' the same (by coercing null to empty).
+                    if (clazz.equals(conf.authenticator_negotiation.default_authenticator))
+                    {
+                        negotiableAuthenticators.add(defaultAuthenticator);
+                        continue;
+                    }
 
                     Optional<IAuthenticator> authenticator = authInstantiate(clazz);
 

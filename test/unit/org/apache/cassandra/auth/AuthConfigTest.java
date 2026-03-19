@@ -80,7 +80,7 @@ public class AuthConfigTest
         List<IAuthenticator> negotiableAuthenticators = DatabaseDescriptor.getNegotiableAuthenticators();
         assertNotNull(negotiableAuthenticators);
         // TODO - See TODO in AuthConfig. Right now we're adding the PasswordAuthenticator twice.
-        assertEquals(4, negotiableAuthenticators.size());
+        assertEquals(3, negotiableAuthenticators.size());
         assertTrue(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class).isPresent());
         assertTrue(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class).isPresent());
         assertTrue(DatabaseDescriptor.getAuthenticator(AllowAllAuthenticator.class).isPresent());
