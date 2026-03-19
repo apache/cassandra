@@ -249,8 +249,7 @@ Invoking `nodetool` with
 `consensus++_++admin finish-migration ++[<++keyspace++>++ ++<++tables++>++...`
 will run the repairs needed to complete the migration for the specified
 ranges. If no range is specified it will default to all token ranges replicated by
-the node for all keyspaces migrating to Accord.. This is the same behavior
-as the default for repair.
+the node. This is the same behavior as the default for repair.
 
 When migrating from Paxos to Accord it will run an incremental data
 repair and then a full data repair {plus} Paxos repair. When migrating
