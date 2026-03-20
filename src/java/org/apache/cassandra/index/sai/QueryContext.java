@@ -70,8 +70,6 @@ public class QueryContext
      * */
     public boolean hasUnrepairedMatches = false;
 
-    private VectorQueryContext vectorContext;
-
     public QueryContext(ReadCommand readCommand, long executionQuotaMs)
     {
         this.readCommand = readCommand;
@@ -93,10 +91,8 @@ public class QueryContext
         }
     }
 
-    public VectorQueryContext vectorContext()
+    public int limit()
     {
-        if (vectorContext == null)
-            vectorContext = new VectorQueryContext(readCommand);
-        return vectorContext;
+        return readCommand.limits().count();
     }
 }

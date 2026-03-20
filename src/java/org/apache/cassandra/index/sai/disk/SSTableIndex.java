@@ -37,13 +37,15 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentOrdering;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.CloseableIterator;
 
 /**
  * A reference-counted container of a {@link SSTableReader} for each column index that:
@@ -53,7 +55,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  *     <li>Exposes the index metadata for the column index</li>
  * </ul>
  */
-public abstract class SSTableIndex implements SegmentOrdering, Comparable<SSTableIndex>
+public abstract class SSTableIndex implements Comparable<SSTableIndex>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndex.class);
 
@@ -141,6 +143,9 @@ public abstract class SSTableIndex implements SegmentOrdering, Comparable<SSTabl
     public abstract List<KeyRangeIterator> search(Expression expression,
                                                   AbstractBounds<PartitionPosition> keyRange,
                                                   QueryContext context) throws IOException;
+
+    public abstract List<CloseableIterator<PrimaryKeyWithScore>> orderBy(Expression orderer, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException;
+    public abstract List<CloseableIterator<PrimaryKeyWithScore>> orderResultsBy(QueryContext context, List<PrimaryKey> results, Expression orderer) throws IOException;
 
     /**
      * Populates a virtual table using the index metadata owned by the index

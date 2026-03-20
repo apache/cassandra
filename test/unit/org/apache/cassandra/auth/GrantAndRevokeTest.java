@@ -487,6 +487,79 @@ public class GrantAndRevokeTest extends CQLTester
         executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
     }
 
+    @Test
+    public void testAddIdentityPermissions() throws Throwable
+    {
+        useSuperUser();
+
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("GRANT CREATE ON ALL ROLES TO %s", user));
+
+        useUser(user, pass);
+        executeNet(String.format("ADD IDENTITY 'id1' TO ROLE '%s'", user));
+
+        // Should disallow binding an identity to a superuser role for regular users
+        assertUnauthorizedQuery("Only superusers can bind identities to a role with superuser status",
+                                "ADD IDENTITY 'adminId' TO ROLE 'cassandra'");
+    }
+
+    @Test
+    public void testRemoveIdentityPermissionsWithSpecificRolePermission() throws Throwable
+    {
+        useSuperUser();
+
+        String simpleUser = "user_1";
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", simpleUser, pass));
+        executeNet(String.format("ADD IDENTITY 'userId' TO ROLE '%s'", user));
+        executeNet(String.format("ADD IDENTITY 'simpleUserId' TO ROLE '%s'", simpleUser));
+        // allows user to drop simpleUser (including identity to role mappings)
+        executeNet(String.format("GRANT DROP ON ROLE %s TO %s", simpleUser, user));
+
+        useUser(user, pass);
+        executeNet("DROP IDENTITY 'simpleUserId'");
+        // We should not be able to drop identities mapped for role "user"
+        assertUnauthorizedQuery("User user does not have sufficient privileges to perform the requested operation",
+                                "DROP IDENTITY 'userId'");
+        // Finally drop the "simpleUser" role
+        executeNet(String.format("DROP ROLE '%s'", simpleUser));
+    }
+
+    @Test
+    public void testRemoveIdentityPermissions()
+    {
+        useSuperUser();
+
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("GRANT DROP ON ALL ROLES TO %s", user));
+        // Bind an identity to a superuser role
+        executeNet("ADD IDENTITY 'adminId' TO ROLE 'cassandra'");
+
+        useUser(user, pass);
+
+        // Spin assert for effective auth changes.
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                // Should disallow regular users from removing an identity binding from a superuser role
+                assertUnauthorizedQuery("Only superusers can remove identity bindings from a role with superuser status",
+                                        "DROP IDENTITY 'adminId'");
+            }
+            catch (Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        useSuperUser();
+        // superusers can drop identities bound to superusers
+        executeNet("DROP IDENTITY 'adminId'");
+
+        // Should also be able to run an IF EXISTS query with a non-existent identity
+        executeNet("DROP IDENTITY IF EXISTS 'nonExistentUserId'");
+    }
+
     private void maybeReadSystemTables(boolean superuser) throws Throwable
     {
         if (superuser)

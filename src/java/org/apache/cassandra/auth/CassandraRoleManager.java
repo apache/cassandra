@@ -27,14 +27,18 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
+import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
@@ -49,7 +53,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.mindrot.jbcrypt.BCrypt;
+import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
@@ -118,6 +122,19 @@ public class CassandraRoleManager implements IRoleManager
 
     private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
 
+    private static int PASSWORD_UPDATE_MIN_INTERVAL_MS = CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt();
+    // in-memory protection against excessive loadRoleWithWritetimeStatement queries
+    private static Cache<String, Boolean> recentPasswordUpdates = Caffeine.newBuilder()
+                                        .expireAfterWrite(PASSWORD_UPDATE_MIN_INTERVAL_MS, TimeUnit.MILLISECONDS)
+                                        .build();
+
+    @VisibleForTesting
+    public static synchronized void updatePasswordUpdateMinInterval(int newInterval)
+    {
+        recentPasswordUpdates = Caffeine.newBuilder().expireAfterWrite(newInterval, TimeUnit.MILLISECONDS).build();
+        PASSWORD_UPDATE_MIN_INTERVAL_MS = newInterval;
+    }
+
     static int getGensaltLogRounds()
     {
         int rounds = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getInt(10);
@@ -129,6 +146,7 @@ public class CassandraRoleManager implements IRoleManager
 
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
+    private SelectStatement loadRoleWithWritetimeStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
@@ -218,6 +236,10 @@ public class CassandraRoleManager implements IRoleManager
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
+
+        loadRoleWithWritetimeStatement = (SelectStatement) prepare("SELECT writetime(salted_hash) AS salted_hash_writetime from %s.%s WHERE role = ?",
+                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                   AuthKeyspace.ROLES);
     }
 
 
@@ -276,6 +298,9 @@ public class CassandraRoleManager implements IRoleManager
 
     public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     {
+        if (options.getPassword().isPresent())
+            enforcePasswordUpdateRateLimit(performer, role.getRoleName());
+
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
         String assignments = optionsToAssignments(options.getOptions());
@@ -625,6 +650,49 @@ public class CassandraRoleManager implements IRoleManager
                            })
                       .filter(Objects::nonNull)
                       .collect(Collectors.joining(","));
+    }
+
+    /**
+     * Rate limit password updates on each role.
+     * @throws OverloadedException if the password was changed within ROLE_PASSWORD_UPDATE_INTERVAL
+     */
+    private void enforcePasswordUpdateRateLimit(AuthenticatedUser performer, String roleName)
+    {
+        if (PASSWORD_UPDATE_MIN_INTERVAL_MS <= 0)
+            return;
+
+        if (Boolean.TRUE != recentPasswordUpdates.getIfPresent(roleName))
+        {
+            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(roleName),
+                                                                 Collections.singletonList(ByteBufferUtil.bytes(roleName)));
+
+            ResultMessage.Rows rows = select(loadRoleWithWritetimeStatement, options);
+            boolean hasRecentPasswordUpdates = !rows.result.isEmpty();
+            if (hasRecentPasswordUpdates)
+            {
+                UntypedResultSet.Row row = UntypedResultSet.create(rows.result).one();
+
+                hasRecentPasswordUpdates = row.has("salted_hash_writetime")
+                                           && PASSWORD_UPDATE_MIN_INTERVAL_MS >= (Clock.Global.currentTimeMillis() - TimeUnit.MICROSECONDS.toMillis(row.getLong("salted_hash_writetime")));
+            }
+            if (!hasRecentPasswordUpdates)
+            {
+                recentPasswordUpdates.put(roleName, Boolean.TRUE);
+                logger.info(String.format("Password changing for role %s by %s", roleName, performer.getName()));
+                return;
+            }
+        }
+        String failure = String.format("Password for role %s can only be changed every %sms.", roleName, PASSWORD_UPDATE_MIN_INTERVAL_MS);
+        logger.warn(String.format("%s [performer: %s]", failure, performer.getName()));
+        throw new OverloadedException(failure);
+    }
+
+    protected static ConsistencyLevel consistencyForRole(String role)
+    {
+        if (role.equals(DEFAULT_SUPERUSER_NAME))
+            return ConsistencyLevel.QUORUM;
+        else
+            return ConsistencyLevel.LOCAL_ONE;
     }
 
     private static String hashpw(String password)

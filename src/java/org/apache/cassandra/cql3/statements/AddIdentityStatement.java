@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -33,7 +34,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
  * Cqlsh statement to add identity into roles_to_identity table for storing authorized identities for mTLS connections.
  * Performs some checks before adding the identity to roles table.
  *
- * EX: ADD IDENTITY 'testIdentity' TO ROLE 'testRole'
+ * <p>EX: ADD IDENTITY 'testIdentity' TO ROLE 'testRole'
  */
 public class AddIdentityStatement extends AuthenticationStatement
 {
@@ -51,7 +52,10 @@ public class AddIdentityStatement extends AuthenticationStatement
     @Override
     public void authorize(ClientState state)
     {
-        checkPermission(state, Permission.CREATE, state.getUser().getPrimaryRole());
+        checkPermission(state, Permission.CREATE, RoleResource.root());
+
+        if (!state.getUser().isSuper() && DatabaseDescriptor.getRoleManager().isSuper(RoleResource.role(role)))
+            throw new UnauthorizedException("Only superusers can bind identities to a role with superuser status");
     }
 
     @Override

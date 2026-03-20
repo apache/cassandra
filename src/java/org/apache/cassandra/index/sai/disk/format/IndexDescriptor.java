@@ -35,6 +35,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.IndexValidation;
 import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.disk.EmptyIndex;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -126,7 +127,9 @@ public class IndexDescriptor
 
     public SSTableIndex newSSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
-        return version.onDiskFormat().newSSTableIndex(sstableContext, index);
+        return isIndexEmpty(index.termType(), index.identifier())
+               ? new EmptyIndex(sstableContext, index)
+               : version.onDiskFormat().newSSTableIndex(sstableContext, index);
     }
 
     public PerSSTableIndexWriter newPerSSTableIndexWriter() throws IOException

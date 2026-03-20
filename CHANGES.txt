@@ -1,5 +1,8 @@
 5.0.7
  * Add blob type support to SAI (CASSANDRA-20012)
+ * Refactor SAI ANN query execution to use score ordered iterators for correctness and speed (CASSANDRA-20086)
+ * Disallow binding an identity to a superuser when the user is a regular user (CASSANDRA-21219)
+ * Fix ConcurrentModificationException in compaction garbagecollect (CASSANDRA-21065)
  * Dynamically skip sharding L0 when SAI Vector index present (CASSANDRA-19661)
  * Optionally force IndexStatusManager to use the optimized index status format (CASSANDRA-21132) 
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)
@@ -10,9 +13,13 @@
  * Adding missing configs in system_views.settings to be backward compatible (CASSANDRA-20863)
  * Heap dump should not be generated on handled exceptions (CASSANDRA-20974)
 Merged from 4.1:
+ * Fix ant generate-eclipse-files (CASSANDRA-21215)
  * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
 Merged from 4.0:
+ * Add option to disable cqlsh history (CASSANDRA-21180)
+ * Rate limit password changes (CASSANDRA-21202)
+ * Node does not send multiple inflight echos (CASSANDRA-18866)
  * Obsolete expired SSTables before compaction starts (CASSANDRA-19776)
  * Switch lz4-java to at.yawk.lz4 version due to CVE (CASSANDRA-21052)
  * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)

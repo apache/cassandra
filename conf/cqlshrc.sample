@@ -111,6 +111,16 @@ port = 9042
 
 
 
+[history]
+;; Controls whether command history is saved to ~/.cassandra/cqlsh_history
+;; When disabled, existing history will still be loaded but new commands
+;; will not be saved. This can be useful for security purposes to prevent
+;; sensitive commands (e.g., those containing passwords) from being persisted.
+;; This can also be controlled via the --disable-history command line option.
+; disabled = false
+
+
+
 ;[ssl]
 ; certfile = ~/keys/cassandra.cert
 

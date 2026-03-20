@@ -203,6 +203,11 @@ public abstract class SSTable
         return descriptor.ksname;
     }
 
+    public SSTableId getId()
+    {
+        return descriptor.id;
+    }
+
     public List<String> getAllFilePaths()
     {
         List<String> ret = new ArrayList<>(components.size());

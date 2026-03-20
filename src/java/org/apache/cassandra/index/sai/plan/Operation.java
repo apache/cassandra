@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -42,9 +41,11 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.CloseableIterator;
 
 public class Operation
 {
@@ -319,16 +320,23 @@ public class Operation
      */
     static KeyRangeIterator buildIterator(QueryController controller)
     {
-        List<RowFilter.Expression> orderings = controller.indexFilter().getExpressions()
-                                                         .stream().filter(e -> e.operator() == Operator.ANN).collect(Collectors.toList());
-        assert orderings.size() <= 1;
-        if (controller.indexFilter().getExpressions().size() == 1 && orderings.size() == 1)
+        return Node.buildTree(controller.indexFilter()).analyzeTree(controller).rangeIterator(controller);
+    }
+
+    /**
+     * Converts expressions into filter tree for query.
+     *
+     * @return a KeyRangeIterator over the index query results
+     */
+    static CloseableIterator<PrimaryKeyWithScore> buildIteratorForOrder(QueryController controller, QueryViewBuilder.QueryExpressionView view)
+    {
+        if (controller.indexFilter().getExpressions().size() == 1)
             // If we only have one expression, we just use the ANN index to order and limit.
-            return controller.getTopKRows(orderings.get(0));
-        KeyRangeIterator iterator = Node.buildTree(controller.indexFilter()).analyzeTree(controller).rangeIterator(controller);
-        if (orderings.isEmpty())
-            return iterator;
-        return controller.getTopKRows(iterator, orderings.get(0));
+            return controller.getTopKRows(view);
+
+        // Otherwise, we need to search first, then order.
+        KeyRangeIterator iterator = buildIterator(controller);
+        return controller.getTopKRows(iterator, view);
     }
 
     /**

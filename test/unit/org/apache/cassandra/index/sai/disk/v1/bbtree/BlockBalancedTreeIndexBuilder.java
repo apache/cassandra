@@ -52,6 +52,7 @@ import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -67,6 +68,12 @@ public class BlockBalancedTreeIndexBuilder
     public static final PrimaryKeyMap TEST_PRIMARY_KEY_MAP = new PrimaryKeyMap()
     {
         private final PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(Murmur3Partitioner.instance, null);
+
+        @Override
+        public SSTableId getSSTableId()
+        {
+            return null;
+        }
 
         @Override
         public PrimaryKey primaryKeyFromRowId(long sstableRowId)
@@ -140,7 +147,7 @@ public class BlockBalancedTreeIndexBuilder
 
         try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.termType(), index.identifier()))
         {
-            IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY, indexFiles, metadata, index);
+            IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY, null, indexFiles, metadata, index);
             assertThat(searcher, is(instanceOf(NumericIndexSegmentSearcher.class)));
             return (NumericIndexSegmentSearcher) searcher;
         }

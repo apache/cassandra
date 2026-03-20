@@ -319,7 +319,8 @@ public class TrackerTest
         tracker = cfs.getTracker();
         listener = new MockListener(false);
         tracker.subscribe(listener);
-        prev1 = tracker.switchMemtable(false, cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition())));
+        Memtable next1 = cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
+        prev1 = tracker.switchMemtable(false, next1);
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
         cfs.invalidate(false);
@@ -328,7 +329,8 @@ public class TrackerTest
         Assert.assertEquals(0, tracker.getView().flushingMemtables.size());
         Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
         Assert.assertEquals(5, listener.received.size());
-        Assert.assertEquals(prev1, ((MemtableSwitchedNotification) listener.received.get(0)).memtable);
+        Assert.assertEquals(prev1, ((MemtableSwitchedNotification) listener.received.get(0)).previous);
+        Assert.assertEquals(next1, ((MemtableSwitchedNotification) listener.received.get(0)).next);
         Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(1)).added);
         Assert.assertEquals(Optional.of(prev1), ((SSTableAddedNotification) listener.received.get(1)).memtable());
         Assert.assertEquals(prev1, ((MemtableDiscardedNotification) listener.received.get(2)).memtable);

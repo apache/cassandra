@@ -167,13 +167,6 @@ public class IndexViewManager
                 continue;
             }
 
-            if (sstableContext.indexDescriptor.isIndexEmpty(index.termType(), index.identifier()))
-            {
-                logger.debug(index.identifier().logMessage("No on-disk index was built for SSTable {} because the SSTable " +
-                                                           "had no indexable rows for the index."), sstableContext.descriptor());
-                continue;
-            }
-
             try
             {
                 if (validation != IndexValidation.NONE)
@@ -186,7 +179,19 @@ public class IndexViewManager
                 }
 
                 SSTableIndex ssTableIndex = sstableContext.newSSTableIndex(index);
-                logger.debug(index.identifier().logMessage("Successfully created index for SSTable {}."), sstableContext.descriptor());
+                // We used to skip these empty indexes. However, that leads to logically incomplete views of the table,
+                // so we keep them in the view now. For example, vector indexes use the view to materialize rows, and
+                // without a complete view, an sstable with no indexable vectors might still have valid data or
+                // tombstones necessary to ensure proper row materialization.
+                if (ssTableIndex.getRowCount() == 0)
+                {
+                    logger.debug(index.identifier().logMessage("No on-disk index was built for SSTable {} because the SSTable " +
+                                                               "had no indexable rows for the index."), sstableContext.descriptor());
+                }
+                else
+                {
+                    logger.debug(index.identifier().logMessage("Successfully created index for SSTable {}."), sstableContext.descriptor());
+                }
 
                 // Try to add new index to the set, if set already has such index, we'll simply release and move on.
                 // This covers situation when SSTable collection has the same SSTable multiple

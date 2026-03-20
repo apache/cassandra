@@ -50,15 +50,25 @@ public class MemtableIndexManager
         this.liveMemtableIndexMap = new ConcurrentHashMap<>();
     }
 
-    public long index(DecoratedKey key, Row row, Memtable mt)
+    public void maybeInitializeMemtableIndex(Memtable memtable)
+    {
+        if (index.termType().isVector())
+            initializeMemtableIndex(memtable);
+    }
+
+    private MemtableIndex initializeMemtableIndex(Memtable mt)
     {
         MemtableIndex current = liveMemtableIndexMap.get(mt);
 
         // We expect the relevant IndexMemtable to be present most of the time, so only make the
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
-        MemtableIndex target = (current != null)
-                               ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index));
+        return current != null ? current
+                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index, memtable));
+    }
+
+    public long index(DecoratedKey key, Row row, Memtable mt)
+    {
+        MemtableIndex target = initializeMemtableIndex(mt);
 
         long start = Clock.Global.nanoTime();
 
@@ -92,9 +102,9 @@ public class MemtableIndexManager
             return index(key, newRow, memtable);
         }
 
+        // Updates should only be able to happen on memtables that were already created and that are still live.
         MemtableIndex target = liveMemtableIndexMap.get(memtable);
-        if (target == null)
-            return 0;
+        assert target != null : "Memtable for " + memtable.metadata().getTableName() + " not found";
 
         ByteBuffer oldValue = index.termType().valueOf(key, oldRow, FBUtilities.nowInSeconds());
         ByteBuffer newValue = index.termType().valueOf(key, newRow, FBUtilities.nowInSeconds());

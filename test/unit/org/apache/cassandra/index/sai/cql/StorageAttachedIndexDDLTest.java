@@ -1167,8 +1167,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
         IndexTermType numericIndexTermType = createIndexTermType(Int32Type.instance);
         IndexTermType literalIndexTermType = createIndexTermType(UTF8Type.instance);
         populateData.run();
-        verifySSTableIndexes(numericIndexIdentifier, 2, 0);
-        verifySSTableIndexes(literalIndexIdentifier, 2, 0);
+        verifySSTableIndexes(numericIndexIdentifier, 2, 0, 2);
+        verifySSTableIndexes(literalIndexIdentifier, 2, 0, 2);
         verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 2, 0, 2);
         verifyIndexFiles(literalIndexTermType, literalIndexIdentifier, 2, 0, 2);
 
@@ -1179,8 +1179,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         // compact empty index
         compact();
-        verifySSTableIndexes(numericIndexIdentifier, 1, 0);
-        verifySSTableIndexes(literalIndexIdentifier, 1, 0);
+        verifySSTableIndexes(numericIndexIdentifier, 1, 0, 1);
+        verifySSTableIndexes(literalIndexIdentifier, 1, 0, 1);
         waitForAssert(() -> verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 1, 0, 1));
         waitForAssert(() -> verifyIndexFiles(literalIndexTermType, literalIndexIdentifier, 1, 0, 1));
 

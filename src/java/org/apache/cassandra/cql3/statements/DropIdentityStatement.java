@@ -21,10 +21,13 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -46,7 +49,27 @@ public class DropIdentityStatement extends AuthenticationStatement
     @Override
     public void authorize(ClientState state)
     {
-        checkPermission(state, Permission.DROP, state.getUser().getPrimaryRole());
+        String roleForIdentity = DatabaseDescriptor.getRoleManager().roleForIdentity(identity);
+
+        if (roleForIdentity == null)
+        {
+            checkPermission(state, Permission.DROP, RoleResource.root());
+        }
+        else
+        {
+            // Check permission for the target role, i.e. we were granted permission to DROP ROLE
+            // for the target identity, this should allow us to drop the identity to role mapping
+            checkPermission(state, Permission.DROP, RoleResource.role(roleForIdentity));
+
+            if (!state.getUser().isSuper())
+            {
+                // If the current user is a regular user and the target role is an admin role
+                // we disallow the operation. Only a superuser can remove an identity bound to
+                // a role with superuser status
+                if (Roles.hasSuperuserStatus(RoleResource.role(roleForIdentity)))
+                    throw new UnauthorizedException("Only superusers can remove identity bindings from a role with superuser status");
+            }
+        }
     }
 
     @Override

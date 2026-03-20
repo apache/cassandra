@@ -57,8 +57,8 @@ Example config values and documentation can be found in the
 [[cql_history]]
 == cql history
 
-All CQL commands you execute are written to a history file. By default, CQL history will be written to `~/.cassandra/cql_history`. You can change this default by setting the environment variable `CQL_HISTORY` like `~/some/other/path/to/cqlsh_history` where `cqlsh_history` is a file. All parent directories to history file will be created if they do not exist. If you do not want to persist history, you can do so by setting CQL_HISTORY to /dev/null.
-This feature is supported from Cassandra 4.1.
+All CQL commands you execute are written to a history file. By default, CQL history will be written to `~/.cassandra/cql_history`.
+You can change this default by setting the environment variable `CQL_HISTORY` like `~/some/other/path/to/cqlsh_history` where `cqlsh_history` is a file. All parent directories to history file will be created if they do not exist. If you do not want to persist history, you can do so by setting CQL_HISTORY to `/dev/null`. This can also be controlled via the --disable-history command line option or from the cqlshrc file. Disabling history is supported since Cassandra 4.0.
 
 == Command Line Options
 

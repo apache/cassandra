@@ -165,6 +165,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     @VisibleForTesting
     final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
 
+    /* Inflight echo requests. */
+    private final Map<InetAddressAndPort, EndpointState> inflightEcho = new ConcurrentHashMap<>();
+
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
 
@@ -206,6 +209,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     {
         unreachableEndpoints.clear();
         liveEndpoints.clear();
+        inflightEcho.clear();
         justRemovedEndpoints.clear();
         expireTimeEndpointMap.clear();
         endpointStateMap.clear();
@@ -725,6 +729,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
                 logger.warn("Seeds list is now empty!");
         }
 
+        inflightEcho.remove(endpoint);
         if (disableEndpointRemoval)
             return;
 
@@ -1431,14 +1436,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     {
         localState.markDead();
 
-        Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
-        logger.trace("Sending ECHO_REQ to {}", addr);
-        RequestCallback echoHandler = msg ->
+        EndpointState prevState = inflightEcho.put(addr, localState);
+        boolean sendEcho = !localState.equals(prevState);
+        if (sendEcho)
         {
-            runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
-        };
-
-        MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
+            Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
+            logger.trace("Sending ECHO_REQ to {}", addr);
+            RequestCallback echoHandler = msg ->
+            {
+                runInGossipStageBlocking(() -> {
+                    EndpointState epState = inflightEcho.remove(addr);
+                    if (epState != null)
+                        realMarkAlive(addr, epState);
+                });
+            };
+            MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
+        }
+        else
+            logger.trace("Skipping ECHO_REQ to {} since it is already inflight", addr);
 
         GossiperDiagnostics.markedAlive(this, addr, localState);
     }
@@ -1488,6 +1503,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     private void silentlyMarkDead(InetAddressAndPort addr, EndpointState localState)
     {
         localState.markDead();
+        inflightEcho.remove(addr);
         if (!disableEndpointRemoval)
         {
             liveEndpoints.remove(addr);

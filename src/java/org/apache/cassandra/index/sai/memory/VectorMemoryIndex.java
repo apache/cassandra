@@ -20,7 +20,9 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableSet;
@@ -32,25 +34,31 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.util.Bits;
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.iterators.KeyRangeListIterator;
+import org.apache.cassandra.index.sai.iterators.PriorityQueueIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -62,6 +70,7 @@ import static java.lang.Math.pow;
 public class VectorMemoryIndex extends MemoryIndex
 {
     private final OnHeapGraph<PrimaryKey> graph;
+    private final Memtable memtable;
     private final LongAdder writeCount = new LongAdder();
 
     private PrimaryKey minimumKey;
@@ -69,10 +78,11 @@ public class VectorMemoryIndex extends MemoryIndex
 
     private final NavigableSet<PrimaryKey> primaryKeys = new ConcurrentSkipListSet<>();
 
-    public VectorMemoryIndex(StorageAttachedIndex index)
+    public VectorMemoryIndex(StorageAttachedIndex index, Memtable memtable)
     {
         super(index);
-        this.graph = new OnHeapGraph<>(index.termType().indexType(), index.indexWriterConfig());
+        this.graph = new OnHeapGraph<>(index.termType().indexType(), index.indexWriterConfig(), memtable);
+        this.memtable = memtable;
     }
 
     @Override
@@ -149,11 +159,15 @@ public class VectorMemoryIndex extends MemoryIndex
     }
 
     @Override
-    public KeyRangeIterator search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public CloseableIterator<PrimaryKeyWithScore> orderBy(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange)
     {
         assert expr.getIndexOperator() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getIndexOperator();
-
-        VectorQueryContext vectorQueryContext = queryContext.vectorContext();
 
         ByteBuffer buffer = expr.lower().value.raw;
         float[] qv = index.termType().decomposeVector(buffer);
@@ -172,73 +186,93 @@ public class VectorMemoryIndex extends MemoryIndex
             PrimaryKey right = isMaxToken ? null : index.keyFactory().create(keyRange.right.getToken()); // upper bound
 
             Set<PrimaryKey> resultKeys = isMaxToken ? primaryKeys.tailSet(left, leftInclusive) : primaryKeys.subSet(left, leftInclusive, right, rightInclusive);
-            if (!vectorQueryContext.getShadowedPrimaryKeys().isEmpty())
-                resultKeys = resultKeys.stream().filter(pk -> !vectorQueryContext.containsShadowedPrimaryKey(pk)).collect(Collectors.toSet());
 
             if (resultKeys.isEmpty())
-                return KeyRangeIterator.empty();
+                return CloseableIterator.empty();
 
-            int bruteForceRows = maxBruteForceRows(vectorQueryContext.limit(), resultKeys.size(), graph.size());
+            int bruteForceRows = maxBruteForceRows(queryContext.limit(), resultKeys.size(), graph.size());
             Tracing.trace("Search range covers {} rows; max brute force rows is {} for memtable index with {} nodes, LIMIT {}",
-                          resultKeys.size(), bruteForceRows, graph.size(), vectorQueryContext.limit());
-            if (resultKeys.size() < Math.max(vectorQueryContext.limit(), bruteForceRows))
-                return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
+                          resultKeys.size(), bruteForceRows, graph.size(), queryContext.limit());
+            if (resultKeys.size() < Math.max(queryContext.limit(), bruteForceRows))
+                return orderByBruteForce(qv, resultKeys);
             else
-                bits = new KeyRangeFilteringBits(keyRange, vectorQueryContext.bitsetForShadowedPrimaryKeys(graph));
+                bits = new KeyRangeFilteringBits(keyRange, null);
         }
         else
         {
-            // partition/range deletion won't trigger index update, so we have to filter shadow primary keys in memtable index
-            bits = queryContext.vectorContext().bitsetForShadowedPrimaryKeys(graph);
+            // Accept all bits
+            bits = new Bits.MatchAllBits(Integer.MAX_VALUE);
         }
 
-        PriorityQueue<PrimaryKey> keyQueue = graph.search(qv, queryContext.vectorContext().limit(), bits);
-        if (keyQueue.isEmpty())
-            return KeyRangeIterator.empty();
-        return new ReorderingRangeIterator(keyQueue);
+        CloseableIterator<SearchResult.NodeScore> iterator = graph.search(qv, queryContext.limit(), bits);
+        return new NodeScoreToScoredPrimaryKeyIterator(iterator);
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(List<PrimaryKey> primaryKeys, Expression expression, int limit)
+    public CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext queryContext, List<PrimaryKey> results, Expression orderer)
     {
         if (minimumKey == null)
             // This case implies maximumKey is empty too.
-            return KeyRangeIterator.empty();
+            return CloseableIterator.empty();
 
-        List<PrimaryKey> results = primaryKeys.stream()
-                                              .dropWhile(k -> k.compareTo(minimumKey) < 0)
-                                              .takeWhile(k -> k.compareTo(maximumKey) <= 0)
-                                              .collect(Collectors.toList());
+        int limit = queryContext.limit();
 
-        int maxBruteForceRows = maxBruteForceRows(limit, results.size(), graph.size());
+        List<PrimaryKey> resultsInRange = results.stream()
+                                                 .dropWhile(k -> k.compareTo(minimumKey) < 0)
+                                                 .takeWhile(k -> k.compareTo(maximumKey) <= 0)
+                                                 .collect(Collectors.toList());
+
+        int maxBruteForceRows = maxBruteForceRows(limit, resultsInRange.size(), graph.size());
         Tracing.trace("SAI materialized {} rows; max brute force rows is {} for memtable index with {} nodes, LIMIT {}",
-                      results.size(), maxBruteForceRows, graph.size(), limit);
-        if (results.size() <= maxBruteForceRows)
-        {
-            if (results.isEmpty())
-                return KeyRangeIterator.empty();
-            return new KeyRangeListIterator(minimumKey, maximumKey, results);
-        }
+                      resultsInRange.size(), maxBruteForceRows, graph.size(), limit);
 
-        ByteBuffer buffer = expression.lower().value.raw;
+        if (resultsInRange.isEmpty())
+            return CloseableIterator.empty();
+
+        ByteBuffer buffer = orderer.lower().value.raw;
         float[] qv = index.termType().decomposeVector(buffer);
-        KeyFilteringBits bits = new KeyFilteringBits(results);
-        PriorityQueue<PrimaryKey> keyQueue = graph.search(qv, limit, bits);
-        if (keyQueue.isEmpty())
-            return KeyRangeIterator.empty();
-        return new ReorderingRangeIterator(keyQueue);
+
+        if (resultsInRange.size() <= maxBruteForceRows)
+            return orderByBruteForce(qv, resultsInRange);
+
+        // Search the graph for the topK vectors near the query
+        KeyFilteringBits bits = new KeyFilteringBits(resultsInRange);
+        CloseableIterator<SearchResult.NodeScore> nodeScores = graph.search(qv, limit, bits);
+        return new NodeScoreToScoredPrimaryKeyIterator(nodeScores);
     }
 
     private int maxBruteForceRows(int limit, int nPermittedOrdinals, int graphSize)
     {
         int expectedNodesVisited = expectedNodesVisited(limit, nPermittedOrdinals, graphSize);
-        int expectedComparisons = index.indexWriterConfig().getMaximumNodeConnections() * expectedNodesVisited;
-        // in-memory comparisons are cheaper than pulling a row off disk and then comparing
-        // VSTODO this is dramatically oversimplified
-        // larger dimension should increase this, because comparisons are more expensive
-        // lower chunk cache hit ratio should decrease this, because loading rows is more expensive
-        double memoryToDiskFactor = 0.25;
-        return (int) max(limit, memoryToDiskFactor * expectedComparisons);
+        // ANN index will do a bunch of extra work besides the full comparisons
+        // VSTODO I'm not sure which one is more expensive, but since the graph is in memory and the vectors are
+        // full precision, the goal here is simple: minimize the number of vector comparisons (aka nodes visited).
+        // As such, the cost function weights them at a 1:1 ratio for now.
+        return max(limit, expectedNodesVisited);
+    }
+
+    private CloseableIterator<PrimaryKeyWithScore> orderByBruteForce(float[] queryVector, Collection<PrimaryKey> keys)
+    {
+        VectorSimilarityFunction similarityFunction = index.indexWriterConfig().getSimilarityFunction();
+        List<PrimaryKeyWithScore> scoredKeys = new ArrayList<>(keys.size());
+        for (PrimaryKey key : keys)
+        {
+            PrimaryKeyWithScore scoredKey = scoreKey(similarityFunction, queryVector, key);
+            if (scoredKey != null)
+                scoredKeys.add(scoredKey);
+        }
+        // Because we merge iterators from all sstables and memtables, we do not need a complete sort of these
+        // elements, so a priority queue provides good performance.
+        return new PriorityQueueIterator<>(new PriorityQueue<>(scoredKeys));
+    }
+
+    private PrimaryKeyWithScore scoreKey(VectorSimilarityFunction similarityFunction, float[] queryVector, PrimaryKey key)
+    {
+        float[] vector = graph.vectorForKey(key);
+        if (vector == null)
+            return null;
+        float score = similarityFunction.compare(queryVector, vector);
+        return new PrimaryKeyWithScore(index.termType().columnMetadata(), memtable, key, score);
     }
 
     /**
@@ -321,36 +355,6 @@ public class VectorMemoryIndex extends MemoryIndex
         }
     }
 
-    private class ReorderingRangeIterator extends KeyRangeIterator
-    {
-        private final PriorityQueue<PrimaryKey> keyQueue;
-
-        ReorderingRangeIterator(PriorityQueue<PrimaryKey> keyQueue)
-        {
-            super(minimumKey, maximumKey, keyQueue.size());
-            this.keyQueue = keyQueue;
-        }
-
-        @Override
-        // VSTODO maybe we can abuse "current" to avoid having to pop and re-add the last skipped key
-        protected void performSkipTo(PrimaryKey nextKey)
-        {
-            while (!keyQueue.isEmpty() && keyQueue.peek().compareTo(nextKey) < 0)
-                keyQueue.poll();
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        protected PrimaryKey computeNext()
-        {
-            if (keyQueue.isEmpty())
-                return endOfData();
-            return keyQueue.poll();
-        }
-    }
-
     private class KeyFilteringBits implements Bits
     {
         private final List<PrimaryKey> results;
@@ -371,6 +375,47 @@ public class VectorMemoryIndex extends MemoryIndex
         public int length()
         {
             return results.size();
+        }
+    }
+
+    /**
+     * An iterator over {@link PrimaryKeyWithScore} sorted by score descending. The iterator converts ordinals (node ids)
+     * to {@link PrimaryKey}s and pairs them with the score given by the index.
+     */
+    private class NodeScoreToScoredPrimaryKeyIterator extends AbstractIterator<PrimaryKeyWithScore>
+    {
+        private final CloseableIterator<SearchResult.NodeScore> nodeScores;
+        private Iterator<PrimaryKeyWithScore> primaryKeysForNode = Collections.emptyIterator();
+
+        NodeScoreToScoredPrimaryKeyIterator(CloseableIterator<SearchResult.NodeScore> nodeScores)
+        {
+            this.nodeScores = nodeScores;
+        }
+
+        @Override
+        protected PrimaryKeyWithScore computeNext()
+        {
+            if (primaryKeysForNode.hasNext())
+                return primaryKeysForNode.next();
+
+            while (nodeScores.hasNext())
+            {
+                SearchResult.NodeScore nodeScore = nodeScores.next();
+                primaryKeysForNode = graph.keysFromOrdinal(nodeScore.node)
+                                          .stream()
+                                          .map(pk -> new PrimaryKeyWithScore(index.termType().columnMetadata(), memtable, pk, nodeScore.score))
+                                          .iterator();
+                if (primaryKeysForNode.hasNext())
+                    return primaryKeysForNode.next();
+            }
+
+            return endOfData();
+        }
+
+        @Override
+        public void close()
+        {
+            FileUtils.closeQuietly(nodeScores);
         }
     }
 }

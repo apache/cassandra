@@ -69,13 +69,13 @@ public class FlushingTest extends SAITester
         ResultSet rows = executeNet("SELECT id1 FROM %s WHERE v1 >= 0");
         assertEquals(0, rows.all().size());
         verifyIndexFiles(indexTermType, indexIdentifier, sstables, 0, sstables);
-        verifySSTableIndexes(indexIdentifier, sstables, 0);
+        verifySSTableIndexes(indexIdentifier, sstables, 0, 3);
 
         compact();
         waitForAssert(() -> verifyIndexFiles(indexTermType, indexIdentifier, 1, 0, 1));
 
         rows = executeNet("SELECT id1 FROM %s WHERE v1 >= 0");
         assertEquals(0, rows.all().size());
-        verifySSTableIndexes(indexIdentifier, 1, 0);
+        verifySSTableIndexes(indexIdentifier, 1, 0, 1);
     }
 }

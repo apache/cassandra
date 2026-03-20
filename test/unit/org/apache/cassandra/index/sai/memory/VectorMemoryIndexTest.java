@@ -29,10 +29,10 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
@@ -49,6 +49,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.Bounds;
@@ -59,19 +60,17 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -117,7 +116,9 @@ public class VectorMemoryIndexTest extends SAITester
     @Test
     public void randomQueryTest() throws Exception
     {
-        memtableIndex = new VectorMemoryIndex(index);
+        // A non-null memtable tells it to track the mapping from primary key to vector, needed for brute force search
+        Memtable memtable = Mockito.mock(Memtable.class);
+        memtableIndex = new VectorMemoryIndex(index, memtable);
 
         for (int row = 0; row < getRandom().nextIntBetween(1000, 5000); row++)
         {
@@ -130,6 +131,9 @@ public class VectorMemoryIndexTest extends SAITester
         }
 
         List<DecoratedKey> keys = new ArrayList<>(keyMap.keySet());
+        long actualVectorsReturned = 0;
+        long expectedVectorsReturned = 0;
+        double expectedRecall = 0.9;
 
         for (int executionCount = 0; executionCount < 1000; executionCount++)
         {
@@ -149,28 +153,41 @@ public class VectorMemoryIndexTest extends SAITester
                                                                    DataLimits.cqlLimits(limit),
                                                                    DataRange.allData(cfs.metadata().partitioner));
 
-            try (KeyRangeIterator iterator = memtableIndex.search(new QueryContext(command,
-                                                                                   DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                                                  expression, keyRange))
+            long expectedResults = Math.min(limit, keysInRange.size());
+
+            try (CloseableIterator<PrimaryKeyWithScore> iterator = memtableIndex.orderBy(new QueryContext(command,
+                                                                                                          DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
+                                                                                         expression, keyRange))
             {
-                while (iterator.hasNext())
+                PrimaryKeyWithScore lastKey = null;
+                while (iterator.hasNext() && foundKeys.size() < expectedResults)
                 {
-                    PrimaryKey primaryKey = iterator.next();
-                    int key = Int32Type.instance.compose(primaryKey.partitionKey().getKey());
+                    PrimaryKeyWithScore primaryKeyWithScore = iterator.next();
+                    if (lastKey != null)
+                        // This assertion only holds true as long as we query at most the expectedNumResults.
+                        // Once we query deeper, we might get a key with a higher score than the last key.
+                        // This is a direct consequence of the approximate part of ANN.
+                        // Note that PrimaryKeyWithScore is flipped to descending order, so we use >= here.
+                        assertTrue("Returned keys are not ordered by score", primaryKeyWithScore.compareTo(lastKey) >= 0);
+                    lastKey = primaryKeyWithScore;
+                    int key = Int32Type.instance.compose(primaryKeyWithScore.primaryKey().partitionKey().getKey());
                     assertFalse(foundKeys.contains(key));
 
-                    assertTrue(keyRange.contains(primaryKey.partitionKey()));
+                    assertTrue(keyRange.contains(primaryKeyWithScore.primaryKey().partitionKey()));
                     assertTrue(rowMap.containsKey(key));
                     foundKeys.add(key);
                 }
+                // Note that we weight each result evenly instead of each query evenly.
+                actualVectorsReturned += foundKeys.size();
+                expectedVectorsReturned += expectedResults;
+                if (foundKeys.size() < expectedResults)
+                    assertTrue("Expected at least " + expectedResults + " results but got " + foundKeys.size(),
+                               foundKeys.size() >= expectedResults * expectedRecall);
             }
-            // with -Dcassandra.test.random.seed=260652334768666, there is one missing key
-            long expectedResult = Math.min(limit, keysInRange.size());
-            if (RangeUtil.coversFullRing(keyRange))
-                assertEquals("Missing key: " + Sets.difference(keysInRange, foundKeys), expectedResult, foundKeys.size());
-            else // if skip ANN, returned keys maybe larger than limit
-                assertTrue("Missing key: " + Sets.difference(keysInRange, foundKeys), expectedResult <= foundKeys.size());
         }
+
+        assertTrue("Expected at least " + expectedVectorsReturned + " results but got " + actualVectorsReturned,
+                   actualVectorsReturned >= expectedVectorsReturned * expectedRecall);
     }
 
     @Test

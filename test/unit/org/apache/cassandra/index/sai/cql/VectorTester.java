@@ -29,14 +29,17 @@ import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.segment.VectorIndexSegmentSearcher;
 import org.apache.cassandra.index.sai.disk.v1.vector.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.utils.Glove;
-import org.apache.cassandra.inject.ActionBuilder;
-import org.apache.cassandra.inject.Injections;
-import org.apache.cassandra.inject.InvokePointBuilder;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@Ignore
+@RunWith(Parameterized.class)
 public class VectorTester extends SAITester
 {
     protected static Glove.WordVector word2vec;
@@ -47,29 +50,19 @@ public class VectorTester extends SAITester
         word2vec = Glove.parse(VectorTester.class.getClassLoader().getResourceAsStream("glove.3K.50d.txt"));
     }
 
+    @Parameterized.Parameter
+    public Boolean forceBruteForceQueries;
+
+    @Parameterized.Parameters(name = "forceBruteForceQueries={0}")
+    public static Iterable<Object[]> data()
+    {
+        return Arrays.asList(new Object[][]{{true}, {false}, {null}});
+    }
+
     @Before
     public void setup() throws Throwable
     {
-        // override maxBruteForceRows to a random number between 0 and 4 so that we make sure
-        // the non-brute-force path gets called during tests (which mostly involve small numbers of rows)
-        var n = getRandom().nextIntBetween(0, 4);
-        var limitToTopResults = InvokePointBuilder.newInvokePoint()
-                                                  .onClass("org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher")
-                                                  .onMethod("limitToTopResults")
-                                                  .atEntry();
-        var bitsOrPostingListForKeyRange = InvokePointBuilder.newInvokePoint()
-                                                             .onClass("org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher")
-                                                             .onMethod("bitsOrPostingListForKeyRange")
-                                                             .atEntry();
-        var ab = ActionBuilder.newActionBuilder()
-                              .actions()
-                              .doAction("$this.globalBruteForceRows = " + n);
-        var changeBruteForceThreshold = Injections.newCustom("force_non_bruteforce_queries")
-                                                  .add(limitToTopResults)
-                                                  .add(bitsOrPostingListForKeyRange)
-                                                  .add(ab)
-                                                  .build();
-        Injections.inject(changeBruteForceThreshold);
+        VectorIndexSegmentSearcher.FORCE_BRUTE_FORCE_ANN = forceBruteForceQueries;
     }
 
     public static double rawIndexedRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException

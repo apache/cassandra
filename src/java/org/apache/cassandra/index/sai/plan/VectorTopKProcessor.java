@@ -85,7 +85,7 @@ public class VectorTopKProcessor
      * Filter given partitions and keep the rows with the highest scores. In case of {@link UnfilteredPartitionIterator},
      * all tombstones will be kept.
      */
-    public <U extends Unfiltered, R extends BaseRowIterator<U>, P extends BasePartitionIterator<R>> BasePartitionIterator<?> filter(P partitions)
+    public <U extends Unfiltered, R extends BaseRowIterator<U>, P extends BasePartitionIterator<R>> BasePartitionIterator<?> consumeSortByScoreAndTakeTopK(P partitions)
     {
         // priority queue ordered by score in ascending order
         PriorityQueue<Triple<PartitionInfo, Row, Float>> topK = new PriorityQueue<>(limit + 1, Comparator.comparing(Triple::getRight));
@@ -161,6 +161,53 @@ public class VectorTopKProcessor
         return 0;
     }
 
+    /**
+     * Filter given partitions and keep the rows with the highest scores. In case of {@link UnfilteredPartitionIterator},
+     * all tombstones will be kept.
+     */
+    public <U extends Unfiltered, R extends BaseRowIterator<U>, P extends BasePartitionIterator<R>> BasePartitionIterator<?> takeTopKThenSortByPrimaryKey(P partitions)
+    {
+        try (partitions)
+        {
+            TreeMap<PartitionInfo, TreeSet<Unfiltered>> unfilteredByPartition = new TreeMap<>(Comparator.comparing(pi -> pi.key));
+
+            int rowsMatched = 0;
+            while (rowsMatched < limit && partitions.hasNext())
+            {
+                try (BaseRowIterator<?> partitionRowIterator = partitions.next())
+                {
+                    rowsMatched += processSingleRowPartition(unfilteredByPartition, partitionRowIterator, limit - rowsMatched);
+                }
+            }
+
+            return new InMemoryUnfilteredPartitionIterator(command, unfilteredByPartition);
+        }
+    }
+
+    /**
+     * Processes a single partition, without scoring it.
+     */
+    private int processSingleRowPartition(TreeMap<PartitionInfo, TreeSet<Unfiltered>> unfilteredByPartition,
+                                          BaseRowIterator<?> partitionRowIterator,
+                                          int reamining)
+    {
+        if (!partitionRowIterator.hasNext())
+            return 0;
+
+        // Always include tombstones for coordinator. It relies on ReadCommand#withMetricsRecording to throw
+        // TombstoneOverwhelmingException to prevent OOM.
+        PartitionInfo partitionInfo = PartitionInfo.create(partitionRowIterator);
+        TreeSet<Unfiltered> map = unfilteredByPartition.computeIfAbsent(partitionInfo, k -> new TreeSet<>(command.metadata().comparator));
+        int added = 0;
+        while (partitionRowIterator.hasNext() && added < reamining)
+        {
+            Unfiltered unfiltered = partitionRowIterator.next();
+            map.add(unfiltered);
+            if (unfiltered.isRow())
+                added++;
+        }
+        return added;
+    }
 
     private Pair<StorageAttachedIndex, float[]> findTopKIndex()
     {
