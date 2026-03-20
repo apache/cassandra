@@ -161,10 +161,7 @@ The supported types are: `ASCII, BIGINT, BLOB, BOOLEAN, DATE, DECIMAL, DOUBLE, F
 
 [NOTE]
 ====
-* `INET` support for IPv4 and IPv6 was new starting with Cassandra ???.
-* The `DECIMAL` and `VARINT` support was new starting with Cassandra ???.
-* The `BOOLEAN` support was new starting with Cassandra ???.
-* The `BLOB` support was new starting with Cassandra ???.
+* The `BLOB` support was new starting with Cassandra 5.0.7.
 * SAI also supports collections -- see the xref:#saiCollectionColumnFaq[next FAQ].
 ====
 

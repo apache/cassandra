@@ -1,4 +1,5 @@
 5.0.7
+ * Add blob type support to SAI (CASSANDRA-20012)
  * Dynamically skip sharding L0 when SAI Vector index present (CASSANDRA-19661)
  * Optionally force IndexStatusManager to use the optimized index status format (CASSANDRA-21132) 
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)
@@ -8266,5 +8267,3 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
-
-
