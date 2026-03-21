@@ -1,4 +1,4 @@
-cassandra (6.0) UNRELEASED; urgency=medium
+cassandra (6.0~alpha1) UNRELEASED; urgency=medium
 
   * New release
 
