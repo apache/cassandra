@@ -1481,7 +1481,7 @@ slow_query_log_timeout: 500ms
 # most users should never need to adjust this.
 # phi_convict_threshold: 8
 
-# IEndpointSnitch has been deprecated in Cassandra 5.1
+# IEndpointSnitch has been deprecated in Cassandra 6.0
 # Configuring a cluster with an IEndpointSnitch implementation using the endpoint_snitch setting remains supported,
 # but is superceded by the new settings detailed below.
 # endpoint_snitch -- Set this to a class that implements

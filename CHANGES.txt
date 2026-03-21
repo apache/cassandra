@@ -1,4 +1,4 @@
-5.1
+6.0
  * Improve performance when calculating settled placements during range movements (CASSANDRA-21144)
  * Make shadow gossip round parameters configurable for testing (CASSANDRA-21149)
  * Avoid potential gossip thread deadlock during decommission (CASSANDRA-21143)

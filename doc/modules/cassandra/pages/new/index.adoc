@@ -1,9 +1,9 @@
 = New Features
 :navtitle: What's new
 
-== New Features in Apache Cassandra 5.1
+== New Features in Apache Cassandra 6.0
 
-This section covers the new features in Apache Cassandra 5.1.
+This section covers the new features in Apache Cassandra 6.0.
 
 * https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
 * https://cwiki.apache.org/confluence/x/YyD1D[Transactional Cluster Metadata]

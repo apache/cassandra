@@ -365,7 +365,7 @@ public class InstanceConfig implements IInstanceConfig
     {
         // Versions before 4.0 need to set 'seed_provider' without specifying the port
         // Versions before 5.0 need to set 'endpoint_snitch', not initial_location_provider + node_proximity
-        if (version.compareTo(UpgradeTestBase.v51) >= 0)
+        if (version.compareTo(UpgradeTestBase.v60) >= 0)
             return this;
 
         InstanceConfig config = new InstanceConfig(this);

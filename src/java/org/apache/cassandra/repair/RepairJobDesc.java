@@ -149,7 +149,7 @@ public class RepairJobDesc
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
 
-            IPartitioner partitioner = version >= MessagingService.VERSION_51
+            IPartitioner partitioner = version >= MessagingService.VERSION_60
                                        ? partitioner(keyspace, columnFamily)
                                        : IPartitioner.global();
 

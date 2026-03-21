@@ -67,11 +67,11 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public static DistributedSchema first(Set<String> knownDatacenters)
     {
-        // During upgrades from pre-5.1 versions, the replication params of the system_cluster_metadata
+        // During upgrades from pre-6.0 versions, the replication params of the system_cluster_metadata
         // keyspace using one of the existing DCs. This is so that this keyspace does not cause issues
         // for tooling, clients or control plane systems which may inspect schema and have specific
         // expectations about DC layout. This keyspace is unused until the CMS is initialized.
-        // For new clusters which start out on 5.1 or later, this is not necessary to the initial
+        // For new clusters which start out on 6.0 or later, this is not necessary to the initial
         // replication params use a empty string for the placeholder DC name.
 
         // During CMS initialization, the replication of this keyspace will be set for real using

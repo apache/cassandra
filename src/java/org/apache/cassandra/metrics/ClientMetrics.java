@@ -110,7 +110,7 @@ public final class ClientMetrics
     /**
      * @deprecated by {@link #markAuthSuccess(AuthenticationMode)}
      */
-    @Deprecated(since="5.1", forRemoval = true)
+    @Deprecated(since="6.0", forRemoval = true)
     public void markAuthSuccess()
     {
         markAuthSuccess(null);
@@ -127,7 +127,7 @@ public final class ClientMetrics
     /**
      * @deprecated by {@link #markAuthFailure(AuthenticationMode)}
      */
-    @Deprecated(since="5.1", forRemoval = true)
+    @Deprecated(since="6.0", forRemoval = true)
     public void markAuthFailure()
     {
         markAuthFailure(null);

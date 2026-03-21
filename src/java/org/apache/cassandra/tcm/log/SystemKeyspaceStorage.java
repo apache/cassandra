@@ -50,7 +50,7 @@ public class SystemKeyspaceStorage implements LogStorage
      * If you make any changes to the tables below, make sure to increment the
      * generation and document your change here.
      * <p>
-     * gen 0: original definition in 5.1
+     * gen 0: original definition in 6.0
      */
     public static final long GENERATION = 0;
 

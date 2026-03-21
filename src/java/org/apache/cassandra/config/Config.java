@@ -187,9 +187,9 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
-    @Deprecated(since="5.1")
+    @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = null;
-    @Deprecated(since="5.1")
+    @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
     public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
 

@@ -559,7 +559,7 @@ public class Directory implements MetadataValue<Directory>
                 else
                 {
                     out.writeBoolean(true);
-                    UUIDSerializer.serializer.serialize(node.hostId, out, MessagingService.VERSION_51);
+                    UUIDSerializer.serializer.serialize(node.hostId, out, MessagingService.VERSION_60);
                 }
 
             }
@@ -572,7 +572,7 @@ public class Directory implements MetadataValue<Directory>
                 NodeState state = NodeState.values()[in.readInt()];
                 NodeVersion nodeVersion = NodeVersion.serializer.deserialize(in, version);
                 boolean hasHostId = in.readBoolean();
-                UUID hostId = hasHostId ? UUIDSerializer.serializer.deserialize(in, MessagingService.VERSION_51) : null;
+                UUID hostId = hasHostId ? UUIDSerializer.serializer.deserialize(in, MessagingService.VERSION_60) : null;
                 return new Node(id, addresses, location, state, nodeVersion, hostId);
             }
 
@@ -587,7 +587,7 @@ public class Directory implements MetadataValue<Directory>
                 size += NodeVersion.serializer.serializedSize(node.version, version);
                 size += TypeSizes.BOOL_SIZE;
                 if (node.hostId != null)
-                    size += UUIDSerializer.serializer.serializedSize(node.hostId, MessagingService.VERSION_51);
+                    size += UUIDSerializer.serializer.serializedSize(node.hostId, MessagingService.VERSION_60);
                 return size;
             }
         }

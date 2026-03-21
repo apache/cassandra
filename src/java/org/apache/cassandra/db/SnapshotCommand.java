@@ -68,7 +68,7 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         out.writeUTF(snapshot_command.column_family);
         out.writeUTF(snapshot_command.snapshot_name);
         out.writeBoolean(snapshot_command.clear_snapshot);
-        if (version >= MessagingService.VERSION_51)
+        if (version >= MessagingService.VERSION_60)
         {
             out.writeUnsignedVInt32(snapshot_command.ranges.size());
             for (Range<Token> r : snapshot_command.ranges)
@@ -85,7 +85,7 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
         String column_family = in.readUTF();
         String snapshot_name = in.readUTF();
         boolean clear_snapshot = in.readBoolean();
-        if (version >= MessagingService.VERSION_51)
+        if (version >= MessagingService.VERSION_60)
         {
             IPartitioner partitioner = Keyspace.open(keyspace).getColumnFamilyStore(column_family).getPartitioner();
             int count = in.readUnsignedVInt32();
@@ -107,7 +107,7 @@ class SnapshotCommandSerializer implements IVersionedSerializer<SnapshotCommand>
                      + TypeSizes.sizeof(sc.column_family)
                      + TypeSizes.sizeof(sc.snapshot_name)
                      + TypeSizes.sizeof(sc.clear_snapshot);
-        if (version >= MessagingService.VERSION_51)
+        if (version >= MessagingService.VERSION_60)
         {
             size += TypeSizes.sizeofUnsignedVInt(sc.ranges.size());
             for (Range<Token> r : sc.ranges)
