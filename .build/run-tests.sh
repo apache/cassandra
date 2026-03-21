@@ -281,16 +281,85 @@ _run_testlist() {
     [ "${_test_iterations}" -eq 1 ] || printf "––––\nfailure rate: ${failures}/${_test_iterations}\n"
 }
 
+_list_microbench_tests() {
+    # Extract blacklist from build-bench.xml property (see CASSANDRA-18873)
+    local blacklist_pattern=$(grep 'name="microbench.exclude.pattern"' .build/build-bench.xml | sed -n 's/.*value="\([^"]*\)".*/\1/p')
+
+    # Find all *Bench.java files, strip prefix, sort, and filter out blacklisted ones
+    find "test/microbench" -name '*Bench.java' | \
+        sed "s;^test/microbench/;;g" | \
+        sort | \
+        grep -vE "(${blacklist_pattern})\.java$"
+}
+
+_run_microbench() {
+    local _target=$1
+    local _test_name_regexp=$2
+    local _split_chunk=$3
+    local testlist=""
+
+    # Assert no *Test.java files exist under test/microbench
+    # uncomment once CachingBenchTest and GcCompactionBenchTest are rewritten to JMH benchmarks
+    #_list_tests "microbench" | grep -q 'Test\.java$' && error 1 "Found *Test.java files under test/microbench, these should be moved to test/unit"
+
+    # Build test list from either regexp or split
+    if [ -n "${_test_name_regexp}" ]; then
+      echo "Running tests: ${_test_name_regexp}"
+      # test regexp can come in csv
+      for i in ${_test_name_regexp//,/ }; do
+        [ -n "${testlist}" ] && testlist="${testlist}"$'\n'
+        testlist="${testlist}$( _list_microbench_tests | _split_tests "${i}")"
+      done
+      [[ -z "${testlist}" ]] && error 1 "No tests found in test name regexp: ${_test_name_regexp}"
+    else
+      [ -n "${_split_chunk}" ] || { error 1 "Neither name regexp or split chunk defined"; }
+      echo "Running split: ${_split_chunk}"
+      testlist="$( _list_microbench_tests | _split_tests "${_split_chunk}")"
+      if [[ -z "${testlist}" ]]; then
+        echo "No microbench tests in split ${_split_chunk}, skipping"
+        return 0
+      fi
+    fi
+
+    # Convert file paths to the JMH classname pattern
+    local benchmark_pattern=$(echo "${testlist}" | sed 's/\.java$//g' | sed 's|^org/apache/cassandra/test/microbench/||g' | sed 's/\//./g' | tr '\n' '|' | sed 's/|$//')
+    echo "Running benchmarks: ${benchmark_pattern}"
+
+    # override build.test.output.dir, adding jdk and arch to output path for report separation
+    local -r java_version="$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')"
+    local -r arch="$(uname -m)"
+    local -r output_dir="${DIST_DIR}/test/output/${_target}/jdk${java_version}/${arch}/${_split_chunk//\//_}"
+
+    ant $_target ${ANT_TEST_OPTS} -Dbuild.test.output.dir=${output_dir} -Dbenchmark.name="${benchmark_pattern}" -Dmaven.test.failure.ignore=true
+
+    # Post-process jmh-result.json to add jdk and arch parameters
+    local jmh_result="${output_dir}/jmh-result.json"
+    if [ -f "${jmh_result}" ]; then
+        python3 -c "
+import json,sys
+with open('${jmh_result}','r') as f:
+    data=json.load(f)
+for r in (data if isinstance(data,list) else [data]):
+    if 'params' not in r:
+        r['params']={}
+    r['params']['jdk']='${java_version}'
+    r['params']['arch']='${arch}'
+with open('${jmh_result}','w') as f:
+    json.dump(data,f)
+"
+    fi
+}
+
 _main() {
   # parameters
   local -r target="${test_target/-repeat/}"
-  local -r split_chunk="${chunk:-'1/1'}" # Chunks formatted as "K/N" for the Kth chunk of N chunks
+  local -r split_chunk="${chunk:-1/1}" # Chunks formatted as "K/N" for the Kth chunk of N chunks
 
   # check split_chunk is compatible with target (if not a regexp)
   if [[ "${_split_chunk}" =~ ^\d+/\d+$ ]] && [[ "1/1" != "${split_chunk}" ]] ; then
     case ${target} in
-      "stress-test" | "fqltool-test" | "microbench" | "cqlsh-test" | "simulator-dtest")
-          error 1 "Target ${target} does not suport splits."
+      "stress-test" | "fqltool-test" | "cqlsh-test" | "simulator-dtest")
+          error 1 "Target ${target} does not support splits."
           ;;
         *)
           ;;
@@ -349,8 +418,7 @@ _main() {
       ant $target ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
       ;;
     "microbench" | "microbench-test")
-      [[ "x${test_name_regexp}" != "x" ]] && test_name_regexp="-Dbenchmark.name=${test_name_regexp}"
-      ant $target ${ANT_TEST_OPTS} ${test_name_regexp} -Dmaven.test.failure.ignore=true
+      _run_microbench "$target" "${test_name_regexp}" "${split_chunk}"
       ;;
     "test")
       _run_testlist "unit" "testclasslist" "${test_name_regexp}" "${split_chunk}" "$(_timeout_for 'test.timeout')" "${repeat_count}"

@@ -20,6 +20,11 @@
          xmlns:if="ant:if" xmlns:unless="ant:unless">
 
     <property name="async-profiler.version" value="2.9"/>
+
+    <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
+    <!-- Blacklist of broken benchmarks -->
+    <property name="microbench.exclude.pattern" value="AtomicBTreePartitionUpdateBench|BTreeSearchIteratorBench|BTreeTransformBench|BTreeUpdateBench|FastThreadLocalBench|KeyLookupBench|MutationBench|(instance.*Bench)|ReadWriteBench|ZeroCopyStreamingBench"/>
+
     <condition property="async-profiler.suffix" value="linux-arm64">
         <and>
             <os arch="aarch64"/>
@@ -81,6 +86,7 @@
     <macrodef name="jmh">
         <element name="extra-args" optional="true"/>
         <sequential>
+            <mkdir dir="${build.test.output.dir}"/>
             <java classname="org.openjdk.jmh.Main" fork="true" failonerror="true" >
                 <classpath>
                     <path refid="cassandra.classpath.test"/>
@@ -103,7 +109,7 @@
                 <arg value="-rf"/>
                 <arg value="json"/>
                 <arg value="-rff"/>
-                <arg value="${build.test.dir}/jmh-result.json"/>
+                <arg value="${build.test.output.dir}/jmh-result.json"/>
                 <arg value="-v"/>
                 <arg value="EXTRA"/>
 
@@ -111,10 +117,9 @@
 
                 <extra-args/>
 
-                <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
-                <!-- The classes listed below are broken, and so currently ignored, see CASSANDRA-18873 -->
+                <!-- Exclude broken, see CASSANDRA-18873 -->
                 <arg value="-e" if:blank="${benchmark.name}"/>
-                <arg value="AtomicBTreePartitionUpdateBench|BTreeSearchIteratorBench|BTreeTransformBench|BTreeUpdateBench|FastThreadLocalBench|KeyLookupBench|MutationBench|(instance.*Bench)|ReadWriteBench|ZeroCopyStreamingBench" if:blank="${benchmark.name}"/>
+                <arg value="${microbench.exclude.pattern}" if:blank="${benchmark.name}"/>
 
                 <arg value=".*microbench.*${benchmark.name}"/>
             </java>
