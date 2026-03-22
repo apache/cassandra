@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -202,60 +203,34 @@ public class StorageServiceTest extends TestBaseImpl
     }
 
     @Test
-    public void testGracefulDisconnectMaxDrain()
+    public void testGracefulDisconnectGracePeriod()
     {
         StorageService storageService = StorageService.instance;
-        long originalMaxDrain = storageService.getGracefulDisconnectMaxDrain();
         long originalGracePeriod = storageService.getGracefulDisconnectGracePeriod();
         try
         {
-            storageService.setGracefulDisconnectGracePeriod(1000);
+            storageService.setGracefulDisconnectGracePeriod(3000);
+            Assertions.assertEquals(3000, storageService.getGracefulDisconnectGracePeriod());
 
-            storageService.setGracefulDisconnectMaxDrain(10000);
-            assertEquals(10000, storageService.getGracefulDisconnectMaxDrain());
             try
             {
-                storageService.setGracefulDisconnectMaxDrain(0);
-                fail("Should have received an IllegalArgumentException for max_drain of 0");
+                Assertions.assertThrows(IllegalArgumentException.class, () -> storageService.setGracefulDisconnectGracePeriod(-1));
             }
-            catch (IllegalArgumentException ignored)
-            {
-            }
-            assertEquals(10000, storageService.getGracefulDisconnectMaxDrain());
+            catch (IllegalArgumentException ignored) {}
+
+            Assertions.assertEquals(3000, storageService.getGracefulDisconnectGracePeriod());
         }
         finally
         {
-            storageService.setGracefulDisconnectMaxDrain(originalMaxDrain);
             storageService.setGracefulDisconnectGracePeriod(originalGracePeriod);
         }
     }
 
     @Test
-    public void testGracefulDisconnectGracePeriod()
+    public void testGracefulDisconnectEnabled()
     {
-        StorageService storageService = StorageService.instance;
-        long originalMaxDrain = storageService.getGracefulDisconnectMaxDrain();
-        long originalGracePeriod = storageService.getGracefulDisconnectGracePeriod();
-        try
-        {
-            storageService.setGracefulDisconnectMaxDrain(20000);
-
-            storageService.setGracefulDisconnectGracePeriod(5000);
-            assertEquals(5000, storageService.getGracefulDisconnectGracePeriod());
-
-            try
-            {
-                storageService.setGracefulDisconnectGracePeriod(30000);
-                fail("Should have received an IllegalArgumentException when grace_period exceeds max_drain");
-            }
-            catch (IllegalArgumentException ignored) {}
-            assertEquals(5000, storageService.getGracefulDisconnectGracePeriod());
-        }
-        finally
-        {
-            storageService.setGracefulDisconnectMaxDrain(originalMaxDrain);
-            storageService.setGracefulDisconnectGracePeriod(originalGracePeriod);
-        }
+        Assertions.assertFalse(StorageService.instance.getGracefulDisconnectEnabled(),
+                               "Default value of graceful_disconnect_enabled must be false");
     }
 
     @Test

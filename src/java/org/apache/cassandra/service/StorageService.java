@@ -1201,46 +1201,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
     }
 
+
+    @Override
+    public boolean getGracefulDisconnectEnabled()
+    {
+        return DatabaseDescriptor.getGracefulDisconnectEnabled();
+    }
+
     @Override
     public void setGracefulDisconnectGracePeriod(long value)
     {
-        if (value > DatabaseDescriptor.getGracefulDisconnectMaxDrain())
-            throw new IllegalArgumentException("graceful_disconnect_grace_period cannot exceed graceful_disconnect_max_drain.");
-
+        if (value <= 0 && DatabaseDescriptor.getGracefulDisconnectEnabled())
+            throw new IllegalArgumentException("Graceful disconnect grace period must be positive when graceful disconnect is enabled. Got " + value);
         DatabaseDescriptor.setGracefulDisconnectGracePeriod(value);
-        logger.info("set graceful disconnect grace period to {} ms", value);
     }
 
     @Override
     public long getGracefulDisconnectGracePeriod()
     {
         return DatabaseDescriptor.getGracefulDisconnectGracePeriod();
-    }
-
-    @Override
-    public void setGracefulDisconnectMaxDrain(long value)
-    {
-        if (value <= 0)
-            throw new IllegalArgumentException("graceful_disconnect_max_drain must be greater than 0 when graceful_disconnect_enabled is set to true.");
-
-        if (value < DatabaseDescriptor.getGracefulDisconnectGracePeriod())
-            throw new IllegalArgumentException("graceful_disconnect_max_drain cannot be less than graceful_disconnect_grace_period.");
-
-        DatabaseDescriptor.setGracefulDisconnectMaxDrain(value);
-        logger.info("set graceful disconnect max drain to {} ms", value);
-    }
-
-
-    @Override
-    public long getGracefulDisconnectMaxDrain()
-    {
-        return DatabaseDescriptor.getGracefulDisconnectMaxDrain();
-    }
-
-    @Override
-    public boolean getGracefulDisconnectEnabled()
-    {
-        return DatabaseDescriptor.getGracefulDisconnectEnabled();
     }
 
     public void setReadRpcTimeout(long value)

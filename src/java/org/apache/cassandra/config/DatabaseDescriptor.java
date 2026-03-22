@@ -685,17 +685,6 @@ public class DatabaseDescriptor
             throw new ConfigurationException("phi_convict_threshold must be between 5 and 16, but was " + conf.phi_convict_threshold, false);
         }
 
-        if (conf.graceful_disconnect_enabled && conf.graceful_disconnect_max_drain.toMilliseconds() <= 0)
-        {
-            throw new ConfigurationException("graceful_disconnect_max_drain must be greater than 0 when graceful_disconnect_enabled is set to true.", false);
-        }
-
-        if (conf.graceful_disconnect_enabled &&
-            conf.graceful_disconnect_grace_period.toMilliseconds() > conf.graceful_disconnect_max_drain.toMilliseconds())
-        {
-            throw new ConfigurationException("graceful_disconnect_grace_period cannot exceed graceful_disconnect_max_drain.", false);
-        }
-
         /* Thread per pool */
         if (conf.concurrent_reads < 2)
         {
@@ -2653,16 +2642,6 @@ public class DatabaseDescriptor
     public static void setGracefulDisconnectGracePeriod(long gracefulDisconnectGracePeriod)
     {
         conf.graceful_disconnect_grace_period = new DurationSpec.LongMillisecondsBound(gracefulDisconnectGracePeriod);
-    }
-
-    public static long getGracefulDisconnectMaxDrain()
-    {
-        return conf.graceful_disconnect_max_drain.toMilliseconds();
-    }
-
-    public static void setGracefulDisconnectMaxDrain(long gracefulDisconnectMaxDrain)
-    {
-        conf.graceful_disconnect_max_drain = new DurationSpec.LongMillisecondsBound(gracefulDisconnectMaxDrain);
     }
 
     public static boolean getGracefulDisconnectEnabled()

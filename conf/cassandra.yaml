@@ -1096,15 +1096,8 @@ native_transport_allow_older_protocols: true
 # unchanged from previous versions.
 # graceful_disconnect_enabled: false
 
-# Time given to clients to stop sending new requests after the
-# GRACEFUL_DISCONNECT event is emitted. Must not exceed graceful_disconnect_max_drain.
-# graceful_disconnect_grace_period: 5000
-
-# Hard timeout for draining connections. Once this limit is reached,
-# remaining connections are force-closed regardless of in-flight requests.
-# Must be greater than 0 when graceful_disconnect_enabled is true.
-# graceful_disconnect_max_drain: 30000
-
+# Time given to clients to stop sending new requests after the GRACEFUL_DISCONNECT event is emitted.
+# graceful_disconnect_grace_period: 30000
 
 # The address or interface to bind the native transport server to.
 #
