@@ -1072,6 +1072,28 @@ native_transport_allow_older_protocols: true
 # native_transport_rate_limiting_enabled: false
 # native_transport_max_requests_per_second: 1000000
 
+# When enabled, nodes will signal connected clients before shutting down,
+# allowing in-flight requests to complete without client-visible timeouts.
+# This applies to intentional shutdowns (nodetool drain, rolling restarts,
+# controlled JVM shutdown). Clients must subscribe to the GRACEFUL_DISCONNECT
+# event via REGISTER to benefit from this behavior.
+#
+# Requires driver support for the GRACEFUL_DISCONNECT event type.
+# See: https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=406619103
+
+# Enable or disable graceful disconnect. When false, shutdown behavior is
+# unchanged from previous versions.
+graceful_disconnect_enabled: true
+
+# Time given to clients to stop sending new requests after the
+# GRACEFUL_DISCONNECT event is emitted. Must not exceed graceful_disconnect_max_drain.
+# graceful_disconnect_grace_period: 5000
+
+# Hard timeout for draining connections. Once this limit is reached,
+# remaining connections are force-closed regardless of in-flight requests.
+# Must be greater than 0 when graceful_disconnect_enabled is true.
+# graceful_disconnect_max_drain: 30000
+
 # The address or interface to bind the native transport server to.
 #
 # Set rpc_address OR rpc_interface, not both.
