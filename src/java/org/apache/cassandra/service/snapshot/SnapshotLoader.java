@@ -154,6 +154,15 @@ public class SnapshotLoader
         {
             String keyspaceName = snapshotDirMatcher.group("keyspace");
             String tableName = snapshotDirMatcher.group("tableName");
+            final UUID tableId = maybeDetermineTableId(snapshotDirMatcher, snapshotDir, keyspaceName, tableName);
+            String tag = snapshotDirMatcher.group("tag");
+            String snapshotId = buildSnapshotId(keyspaceName, tableName, tableId, tag);
+            TableSnapshot.Builder builder = snapshots.computeIfAbsent(snapshotId, k -> new TableSnapshot.Builder(keyspaceName, tableName, tableId, tag));
+            builder.addSnapshotDir(new File(snapshotDir));
+        }
+
+        private UUID maybeDetermineTableId(Matcher snapshotDirMatcher, Path snapshotDir, String keyspaceName, String tableName)
+        {
             final UUID tableId;
             if (snapshotDirMatcher.group("tableId") == null)
             {
@@ -185,10 +194,7 @@ public class SnapshotLoader
             {
                 tableId = parseUUID(snapshotDirMatcher.group("tableId"));
             }
-            String tag = snapshotDirMatcher.group("tag");
-            String snapshotId = buildSnapshotId(keyspaceName, tableName, tableId, tag);
-            TableSnapshot.Builder builder = snapshots.computeIfAbsent(snapshotId, k -> new TableSnapshot.Builder(keyspaceName, tableName, tableId, tag));
-            builder.addSnapshotDir(new File(snapshotDir));
+            return tableId;
         }
     }
 
