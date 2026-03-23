@@ -374,7 +374,6 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             blockMutationAndPreAccept(cluster);
             try
             {
-                // Insert must span both Accord and non-Accord ranges or tables otherwise it bypasses the batchlog entirely
                 cluster.coordinator(1).execute("BEGIN BATCH\n" +
                                                "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
                                                "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
