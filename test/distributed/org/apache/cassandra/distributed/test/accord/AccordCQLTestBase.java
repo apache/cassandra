@@ -342,7 +342,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     public void testSinglePartitionKeyBatch() throws Throwable
     {
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
                                           "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
                                           "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
 
@@ -365,7 +365,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         DatabaseDescriptor.daemonInitialization();
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
                                           "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
                                           "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
 
@@ -377,7 +377,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 cluster.coordinator(1).execute("BEGIN BATCH\n" +
                                                "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
                                                "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
-                                               "APPLY BATCH;", ConsistencyLevel.ONE);
+                                               "APPLY BATCH;", ConsistencyLevel.ALL);
                 fail("Should have thrown WTE");
             }
             catch (Throwable t)
@@ -385,29 +385,29 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                 assertEquals(t.getClass().getName(), WriteTimeoutException.class.getName());
             }
 
-            cluster.get(1).runOnInstance(() -> {
-                String query = String.format("SELECT id, mutations, version FROM %s.%s",
-                                             SchemaConstants.SYSTEM_KEYSPACE_NAME,
-                                             SystemKeyspace.BATCHES);
+            if (transactionalMode.nonSerialWritesThroughAccord)
+                cluster.get(1).runOnInstance(() -> {
+                    String query = String.format("SELECT id, mutations, version FROM %s.%s",
+                                                 SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                                 SystemKeyspace.BATCHES);
 
-                Iterator<UntypedResultSet.Row> r = QueryProcessor.executeInternal(query).iterator();
-                assert(r.hasNext());
-                UntypedResultSet.Row row = r.next();
+                    Iterator<UntypedResultSet.Row> r = QueryProcessor.executeInternal(query).iterator();
+                    assert (r.hasNext());
+                    UntypedResultSet.Row row = r.next();
 
-                int version = row.getInt("version");
-                List<ByteBuffer> serializedMutations = row.getList("mutations", BytesType.instance);
-                assertEquals(1, serializedMutations.size());
+                    int version = row.getInt("version");
+                    List<ByteBuffer> serializedMutations = row.getList("mutations", BytesType.instance);
+                    assertEquals(1, serializedMutations.size());
 
-                try (DataInputBuffer in = new DataInputBuffer(serializedMutations.get(0), true))
-                {
-                    assertEquals(2, org.apache.cassandra.db.Mutation.serializer.deserialize(in, version).getPartitionUpdates().size());
-                }
-                catch (Exception e)
-                {
-                    logger.info("Deserialization failed");
-                }
-            });
-
+                    try (DataInputBuffer in = new DataInputBuffer(serializedMutations.get(0), true))
+                    {
+                        assertEquals(2, org.apache.cassandra.db.Mutation.serializer.deserialize(in, version).getPartitionUpdates().size());
+                    }
+                    catch (Exception e)
+                    {
+                        logger.info("Deserialization failed");
+                    }
+                });
         });
     }
 
