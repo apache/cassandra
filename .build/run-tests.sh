@@ -188,13 +188,13 @@ _build_all_dtest_jars() {
     if [ -d ${TMP_DIR}/cassandra-dtest-jars/.git ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
       echo "Reusing ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
       if [ "x" == "x${OFFLINE}" ] ; then
-        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git -C ${TMP_DIR}/cassandra-dtest-jars fetch failed… trying again… " ; done
+        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet --tags origin ; do echo "git -C ${TMP_DIR}/cassandra-dtest-jars fetch failed… trying again… " ; done
       fi
     else
         echo "Cloning cassandra to ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
         rm -fR ${TMP_DIR}/cassandra-dtest-jars
         pushd $TMP_DIR >/dev/null
-        until git clone --quiet --depth 1 --no-single-branch https://github.com/apache/cassandra.git cassandra-dtest-jars ; do echo "git clone failed… trying again… " ; done
+        until git clone --quiet --depth 1 --no-single-branch --tags https://github.com/apache/cassandra.git cassandra-dtest-jars ; do echo "git clone failed… trying again… " ; done
         popd >/dev/null
     fi
 
@@ -202,7 +202,9 @@ _build_all_dtest_jars() {
     [ "${java_version}" -eq 11 ] && export CASSANDRA_USE_JDK11=true
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
-    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 ; do
+    # Note: cassandra-5.0.7 tag is used instead of cassandra-5.0 branch to enable
+    # testing upgrades from 5.0.7 to the current local build for autorepair feature
+    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0.7 ; do
         git clean -qxdff && git reset --hard HEAD  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')

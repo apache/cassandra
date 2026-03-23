@@ -115,6 +115,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.MigrationCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
@@ -902,6 +903,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
+                                () -> AutoRepair.instance.shutdownBlocking(),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 

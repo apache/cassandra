@@ -433,6 +433,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                     }
                     catch (CorruptSSTableException ex)
                     {
+                        if (hasAutoRepairSchemaIncompatibility(ex))
+                            logger.error("The SSTable {} contains an auto_repair column that is not recognized. " +
+                                         "This occurs when cassandra.autorepair.enable was previously set to true " +
+                                         "and is now false. Set -Dcassandra.autorepair.enable=true and restart.",
+                                         entry.getKey().baseFile());
                         JVMStabilityInspector.inspectThrowable(ex);
                         logger.error("Corrupt sstable {}; skipping table", entry, ex);
                         return;
@@ -463,6 +468,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
 
         return sstables;
+    }
+
+    private static boolean hasAutoRepairSchemaIncompatibility(Throwable t)
+    {
+        for (Throwable cause = t; cause != null; cause = cause.getCause())
+            if (cause.getMessage() != null && cause.getMessage().contains("Unknown column auto_repair during deserialization"))
+                return true;
+        return false;
     }
 
     protected SSTableReader(Builder<?, ?> builder, Owner owner)

@@ -88,6 +88,10 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -183,6 +187,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -267,6 +272,7 @@ import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
+import static org.apache.cassandra.locator.InetAddressAndPort.stringify;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
@@ -408,7 +414,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy().getAddressReplicas(endpoint);
+        return getReplicas(Keyspace.open(keyspaceName).getReplicationStrategy(), endpoint);
+    }
+
+    public RangesAtEndpoint getReplicas(AbstractReplicationStrategy replicationStrategy, InetAddressAndPort endpoint)
+    {
+        return replicationStrategy.getAddressReplicas(tokenMetadata.cloneOnlyTokenMap(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -482,7 +493,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* Used for tracking drain progress */
     private volatile int totalCFs, remainingCFs;
 
-    private static final AtomicInteger nextRepairCommand = new AtomicInteger();
+    public static final AtomicInteger nextRepairCommand = new AtomicInteger();
 
     private final List<IEndpointLifecycleSubscriber> lifecycleSubscribers = new CopyOnWriteArrayList<>();
 
@@ -1313,6 +1324,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (dataAvailable)
             {
                 finishJoiningRing(shouldBootstrap, bootstrapTokens);
+                AutoRepairConfig repairConfig = DatabaseDescriptor.getAutoRepairConfig();
+                // this node might have just bootstrapped; check if we should run repair immediately
+                if (shouldBootstrap && repairConfig.isAutoRepairSchedulingEnabled())
+                {
+                    for (AutoRepairConfig.RepairType rType : AutoRepairConfig.RepairType.values())
+                        if (repairConfig.isAutoRepairEnabled(rType) && repairConfig.getForceRepairNewNode(rType))
+                            AutoRepairUtils.setForceRepairNewNode(rType);
+                }
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
                 {
@@ -1415,6 +1434,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
+
+        doAutoRepairSetup();
     }
 
     @VisibleForTesting
@@ -1437,6 +1458,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             authSetupComplete = true;
         }
     }
+
+    public void doAutoRepairSetup()
+    {
+        if (!CassandraRelevantProperties.AUTOREPAIR_ENABLE.getBoolean())
+        {
+            logger.info("Auto-repair service is disabled via JVM property, skipping setup");
+            return;
+        }
+
+        AutoRepairService.setup();
+        if (DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            logger.info("Enabling auto-repair scheduling");
+            AutoRepair.instance.setup();
+            logger.info("AutoRepair setup complete!");
+        }
+    }
+
 
     public boolean isAuthSetupComplete()
     {
@@ -4102,16 +4141,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return FileUtils.getCanonicalPath(DatabaseDescriptor.getSavedCachesLocation());
     }
 
-    private List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
-    {
-        List<String> stringEndpoints = new ArrayList<>();
-        for (InetAddressAndPort ep : endpoints)
-        {
-            stringEndpoints.add(ep.getHostAddress(withPort));
-        }
-        return stringEndpoints;
-    }
-
     public int getCurrentGenerationNumber()
     {
         return Gossiper.instance.getCurrentGenerationNumber(FBUtilities.getBroadcastAddressAndPort());
@@ -5935,6 +5964,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             CommitLog.instance.shutdownBlocking();
 
+            AutoRepair.instance.shutdownBlocking();
+
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ColumnFamilyStore.shutdownPostFlushExecutor();
 
@@ -7697,5 +7728,42 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getPaxosRepairRaceWait()
     {
         return DatabaseDescriptor.getPaxosRepairRaceWait();
+    }
+
+    @Override
+    public List<String> getTablesForKeyspace(String keyspace)
+    {
+        return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tableNames)
+    {
+        Map<String, ColumnFamilyStore> tables =  Keyspace.open(keyspace).getColumnFamilyStores()
+                                                         .stream().collect(Collectors.toMap(c -> c.name, c -> c));
+        for (String tableName : tableNames)
+        {
+            if (!tables.containsKey(tableName))
+                throw new RuntimeException("Table " + tableName + " does not exist in keyspace " + keyspace);
+        }
+
+        // only select SSTables that are unrepaired when repaired is true and vice versa
+        Predicate<SSTableReader> predicate = sst -> repaired != sst.isRepaired();
+
+        // mutate SSTables
+        long repairedAt = !repaired ? 0 : currentTimeMillis();
+        List<String> sstablesTouched = new ArrayList<>();
+        for (String tableName : tableNames)
+        {
+            ColumnFamilyStore table = tables.get(tableName);
+            Set<SSTableReader> result = table.runWithCompactionsDisabled(() -> {
+                Set<SSTableReader> sstables = table.getLiveSSTables().stream().filter(predicate).collect(Collectors.toSet());
+                if (!preview)
+                    table.getCompactionStrategyManager().mutateRepaired(sstables, repairedAt, null, false);
+                return sstables;
+            }, predicate, OperationType.ANTICOMPACTION, true, false, true);
+            sstablesTouched.addAll(result.stream().map(sst -> sst.descriptor.baseFile().name()).collect(Collectors.toList()));
+        }
+        return sstablesTouched;
     }
 }

@@ -84,8 +84,8 @@ public class SystemKeyspaceTablesNamesTest extends CQLTester
     public void testSystemDistributedKeyspaceTableNames()
     {
         assertExpectedTablesInKeyspace(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
-                                       "SystemDistributedKeyspace.TABLE_NAMES",
-                                       SystemDistributedKeyspace.TABLE_NAMES);
+                                       "SystemDistributedKeyspace.getTableNames()",
+                                       SystemDistributedKeyspace.getTableNames());
     }
     
     private static void assertExpectedTablesInKeyspace(String keyspaceName, String expectedTableSource, Set<String> expectedTables)

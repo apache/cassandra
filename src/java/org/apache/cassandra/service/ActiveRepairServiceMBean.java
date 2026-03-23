@@ -74,4 +74,8 @@ public interface ActiveRepairServiceMBean
     int parentRepairSessionsCount();
     public int getPaxosRepairParallelism();
     public void setPaxosRepairParallelism(int v);
+
+    public double getIncrementalRepairDiskHeadroomRejectRatio();
+
+    public void setIncrementalRepairDiskHeadroomRejectRatio(double value);
 }

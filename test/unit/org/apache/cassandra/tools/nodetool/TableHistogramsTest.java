@@ -43,7 +43,7 @@ public class TableHistogramsTest extends CQLTester
                                        SchemaKeyspace.metadata().tables.size() +
                                        TraceKeyspace.TABLE_NAMES.size() +
                                        AuthKeyspace.TABLE_NAMES.size() +
-                                       SystemDistributedKeyspace.TABLE_NAMES.size();
+                                       SystemDistributedKeyspace.getTableNames().size();
 
     @BeforeClass
     public static void setup() throws Exception

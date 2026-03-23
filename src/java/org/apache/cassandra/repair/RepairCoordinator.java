@@ -32,6 +32,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -102,7 +103,8 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private final Function<String, RangesAtEndpoint> getLocalReplicas;
 
     private final List<ProgressListener> listeners = new ArrayList<>();
-    private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
+    @VisibleForTesting
+    protected final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
     final SharedContext ctx;
     final Scheduler validationScheduler;
 
@@ -208,12 +210,12 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         complete(null);
     }
 
-    private void fail(String reason)
+    protected void fail(String reason)
     {
         if (reason == null)
         {
             Throwable error = firstError.get();
-            reason = error != null ? error.toString() : "Some repair failed";
+            reason = (error != null && error.getMessage() != null) ? error.getMessage() : "Some repair failed";
         }
         state.phase.fail(reason);
         ParticipateState p = ctx.repair().participate(state.id);
