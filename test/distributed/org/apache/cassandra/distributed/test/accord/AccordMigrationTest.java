@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -91,6 +93,7 @@ import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteArrayUtil;
@@ -567,6 +570,47 @@ public class AccordMigrationTest extends AccordTestBase
               assertTargetAccordRead(runRead, 1, key, expectedKeyMigrations, 1, 2, 1, 1);
               key++;
           });
+    }
+
+    @Test
+    public void testBeginMigrationTargetsOnlyLocalRanges() throws Exception
+    {
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+        test(ddls, cluster -> {
+            cluster.schemaChange("ALTER TABLE " + qualifiedRegularTableName + " WITH " + transactionalMode.asCqlParam());
+            cluster.get(1).nodetoolResult("consensus_admin", "begin-migration");
+
+            String keyspace = KEYSPACE;
+            String tableName = regularTableName;
+            cluster.get(1).runOnInstance(() -> {
+                ConsensusMigrationState state = ClusterMetadataService.instance().metadata().consensusMigrationState;
+                Collection<Range<Token>> expectedMigratingRange = StorageService.instance.getPrimaryRanges(keyspace);
+                assertEquals(normalizedRanges(expectedMigratingRange), state.tableStates.get(Schema.instance.getTableMetadata(keyspace, tableName).id()).migratingRanges());
+            });
+        });
+    }
+
+    @Test
+    public void testFinishMigrationTargetsOnlyLocalRanges() throws Exception
+    {
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+        test(ddls, cluster -> {
+            cluster.schemaChange("ALTER TABLE " + qualifiedRegularTableName + " WITH " + transactionalMode.asCqlParam());
+            cluster.get(1).nodetoolResult("consensus_admin", "begin-migration");
+            cluster.get(1).nodetoolResult("consensus_admin", "finish-migration");
+
+            String keyspace = KEYSPACE;
+            String tableName = regularTableName;
+            cluster.get(1).runOnInstance(() -> {
+                ConsensusMigrationState state = ClusterMetadataService.instance().metadata().consensusMigrationState;
+                Collection<Range<Token>> expectedMigratingRange = StorageService.instance.getPrimaryRanges(keyspace);
+                assertEquals(normalizedRanges(expectedMigratingRange), state.tableStates.get(Schema.instance.getTableMetadata(keyspace, tableName).id()).migratedRanges);
+            });
+        });
     }
 
     private void assertTransactionalModes(String keyspace, String table, TransactionalMode mode, TransactionalMigrationFromMode migration)

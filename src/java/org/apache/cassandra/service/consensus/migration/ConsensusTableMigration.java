@@ -209,7 +209,7 @@ public abstract class ConsensusTableMigration
         {
             List<Range<Token>> defaultRanges = new ArrayList<>();
             for (String keyspaceName : keyspaceNames)
-                defaultRanges.addAll(StorageService.instance.getLocalReplicas(keyspaceName).onlyFull().ranges());
+                defaultRanges.addAll(StorageService.instance.getPrimaryRanges(keyspaceName));
             ranges = normalizedRanges(defaultRanges);
         }
 
@@ -225,7 +225,7 @@ public abstract class ConsensusTableMigration
         checkNotNull(target);
         ClusterMetadata cm = ClusterMetadata.current();
 
-        Optional<List<Range<Token>>> localKeyspaceRanges = Optional.of(ImmutableList.copyOf(StorageService.instance.getLocalReplicas(keyspace).onlyFull().ranges()));
+        Optional<List<Range<Token>>> localKeyspaceRanges = Optional.of(ImmutableList.copyOf(StorageService.instance.getPrimaryRanges(keyspace)));
         List<Range<Token>> ranges = maybeRangesToRanges(maybeRangesStr, localKeyspaceRanges);
         Map<TableId, TableMigrationState> allTableMigrationStates = ClusterMetadata.current().consensusMigrationState.tableStates;
         List<TableId> tableIds = keyspacesAndTablesToTableIds(cm, ImmutableList.of(keyspace), maybeTables, Optional.of(allTableMigrationStates::containsKey));
