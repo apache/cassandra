@@ -56,6 +56,10 @@ public enum CassandraRelevantProperties
     AUTH_CACHE_WARMING_MAX_RETRIES("cassandra.auth_cache.warming.max_retries"),
     AUTH_CACHE_WARMING_RETRY_INTERVAL_MS("cassandra.auth_cache.warming.retry_interval_ms"),
     AUTOCOMPACTION_ON_STARTUP_ENABLED("cassandra.autocompaction_on_startup_enabled", "true"),
+    /** When true, checks that all nodes are above the minimum supported version before running auto-repair */
+    AUTOREPAIR_CHECK_MIN_VERSION("cassandra.autorepair.check_min_version", "true"),
+    /** When false, completely disables the auto-repair feature including schema changes and JMX registration */
+    AUTOREPAIR_ENABLE("cassandra.autorepair.enable", "false"),
     AUTO_BOOTSTRAP("cassandra.auto_bootstrap"),
     AUTO_REPAIR_FREQUENCY_SECONDS("cassandra.auto_repair_frequency_seconds", convertToString(TimeUnit.MINUTES.toSeconds(5))),
     BATCHLOG_REPLAY_TIMEOUT_IN_MS("cassandra.batchlog.replay_timeout_in_ms"),

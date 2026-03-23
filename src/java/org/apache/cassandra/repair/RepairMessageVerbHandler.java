@@ -114,6 +114,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         replyDedup(ctx.repair().participate(state.id), message);
                         return;
                     }
+                    if (!ctx.repair().verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
+                    {
+                        // error is logged in verifyDiskHeadroomThreshold
+                        state.phase.fail("Not enough disk headroom to perform repair");
+                        sendFailureResponse(message);
+                        return;
+                    }
                     if (!ctx.repair().verifyCompactionsPendingThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
                     {
                         // error is logged in verifyCompactionsPendingThreshold

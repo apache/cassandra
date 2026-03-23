@@ -84,6 +84,7 @@
 **** xref:cassandra:managing/configuration/cass_jvm_options_file.adoc[jvm-* files]
 **** xref:cassandra:managing/configuration/configuration.adoc[Liberating cassandra.yaml Parameters' Names from Their Units]
 *** xref:cassandra:managing/operating/index.adoc[]
+**** xref:cassandra:managing/operating/auto_repair.adoc[Auto Repair]
 **** xref:cassandra:managing/operating/backups.adoc[Backups]
 **** xref:cassandra:managing/operating/bloom_filters.adoc[Bloom filters]
 **** xref:cassandra:managing/operating/bulk_loading.adoc[Bulk loading]

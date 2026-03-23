@@ -1,8 +1,18 @@
 5.0.8
+ * Backport Automated Repair Inside Cassandra for CEP-37 (CASSANDRA-21138)
  * Update cassandra-stress to support TLS 1.3 by default by auto-negotiation (CASSANDRA-21007)
  * Ensure schema created before 2.1 without tableId in folder name can be loaded in SnapshotLoader (CASSANDRA-21173)
 Merged from 4.1:
 Merged from 4.0:
+Backported from 6.0:
+ * Improved observability in AutoRepair to report both expected vs. actual repair bytes and expected vs. actual keyspaces (CASSANDRA-20581)
+ * Stop repair scheduler if two major versions are detected (CASSANDRA-20048)
+ * AutoRepair: Safeguard Full repair against disk protection (CASSANDRA-20045)
+ * Stop AutoRepair monitoring thread upon Cassandra shutdown (CASSANDRA-20623)
+ * Fix race condition in auto-repair scheduler (CASSANDRA-20265)
+ * Implement minimum repair task duration setting for auto-repair scheduler (CASSANDRA-20160)
+ * Implement preview_repaired auto-repair type (CASSANDRA-20046)
+ * Automated Repair Inside Cassandra for CEP-37 (CASSANDRA-19918)
 
 
 5.0.7

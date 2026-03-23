@@ -1,21 +1,21 @@
 /*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.apache.cassandra.service;
 
 import java.util.ArrayList;
@@ -36,8 +36,11 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Condition;
+
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -66,6 +69,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.mockito.Mock;
 
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
@@ -79,6 +83,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.when;
+import static org.mockito.MockitoAnnotations.initMocks;
 
 public class ActiveRepairServiceTest
 {
@@ -90,13 +96,18 @@ public class ActiveRepairServiceTest
     public String cfname;
     public ColumnFamilyStore store;
     public InetAddressAndPort LOCAL, REMOTE;
-
+    @Mock
+    public DiskUsageMonitor diskUsageMonitor;
+    private static DiskUsageMonitor originalDiskUsageMonitor;
+    private static double originalRepairDiskHeadroomRejectRatio;
     private boolean initialized;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
+        originalDiskUsageMonitor = DiskUsageMonitor.instance;
+        originalRepairDiskHeadroomRejectRatio = DatabaseDescriptor.getRepairDiskHeadroomRejectRatio();
         SchemaLoader.createKeyspace(KEYSPACE5,
                                     KeyspaceParams.simple(2),
                                     SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
@@ -121,6 +132,14 @@ public class ActiveRepairServiceTest
         StorageService.instance.setTokens(Collections.singleton(tmd.partitioner.getRandomToken()));
         tmd.updateNormalToken(tmd.partitioner.getMinimumToken(), REMOTE);
         assert tmd.isMember(REMOTE);
+        initMocks(this);
+    }
+
+    @After
+    public void tearDown()
+    {
+        DiskUsageMonitor.instance = originalDiskUsageMonitor;
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(originalRepairDiskHeadroomRejectRatio);
     }
 
     @Test
@@ -226,7 +245,7 @@ public class ActiveRepairServiceTest
         }
 
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(),expected.get(0).getHostAddressAndPort());
+        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(), expected.get(0).getHostAddressAndPort());
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
 
         assertEquals(expected.get(0), ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges,
@@ -243,7 +262,6 @@ public class ActiveRepairServiceTest
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
         ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
     }
-
 
     @Test
     public void testParentRepairStatus() throws Throwable
@@ -262,7 +280,6 @@ public class ActiveRepairServiceTest
         List<String> failed = StorageService.instance.getParentRepairStatus(3);
         assertNotNull(failed);
         assertEquals(ActiveRepairService.ParentRepairStatus.FAILED, ActiveRepairService.ParentRepairStatus.valueOf(failed.get(0)));
-
     }
 
     Set<InetAddressAndPort> addTokens(int max) throws Throwable
@@ -334,10 +351,10 @@ public class ActiveRepairServiceTest
     {
         assert params.length % 2 == 0 : "unbalanced key value pairs";
         Map<String, String> opt = new HashMap<>();
-        for (int i=0; i<(params.length >> 1); i++)
+        for (int i = 0; i < (params.length >> 1); i++)
         {
             int idx = i << 1;
-            opt.put(params[idx], params[idx+1]);
+            opt.put(params[idx], params[idx + 1]);
         }
         return RepairOption.parse(opt, DatabaseDescriptor.getPartitioner());
     }
@@ -415,7 +432,8 @@ public class ActiveRepairServiceTest
 
             // Submission is unblocked
             Thread.sleep(250);
-            validationExecutor.submit(() -> {});
+            validationExecutor.submit(() -> {
+            });
         }
         finally
         {
@@ -452,8 +470,8 @@ public class ActiveRepairServiceTest
             allSubmitted.await(TASK_SECONDS + 1, TimeUnit.SECONDS);
 
             // Give the tasks we expect to execute immediately chance to be scheduled
-            Util.spinAssertEquals(2 , ((ExecutorPlus) validationExecutor)::getActiveTaskCount, 1);
-            Util.spinAssertEquals(3 , ((ExecutorPlus) validationExecutor)::getPendingTaskCount, 1);
+            Util.spinAssertEquals(2, ((ExecutorPlus) validationExecutor)::getActiveTaskCount, 1);
+            Util.spinAssertEquals(3, ((ExecutorPlus) validationExecutor)::getPendingTaskCount, 1);
 
             // verify that we've reached a steady state with 2 threads actively processing and 3 queued tasks
             Assert.assertEquals(2, ((ExecutorPlus) validationExecutor).getActiveTaskCount());
@@ -500,6 +518,41 @@ public class ActiveRepairServiceTest
         {
             activeRepairService.setRepairSessionSpaceInMiB(previousSize);
         }
+    }
+
+    @Test
+    public void testVerifyDefaultDiskHeadroomThreshold()
+    {
+        Assert.assertTrue(ActiveRepairService.instance().verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE));
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdDiskFull()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(1.0);
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(1.0);
+
+        Assert.assertFalse(ActiveRepairService.instance().verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE));
+    }
+
+    @Test
+    public void testVerifyDiskHeadroomThresholdSufficientDisk()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(0.0);
+        DatabaseDescriptor.setRepairDiskHeadroomRejectRatio(0.0);
+
+        Assert.assertTrue(ActiveRepairService.instance().verifyDiskHeadroomThreshold(TimeUUID.maxAtUnixMillis(0), PreviewKind.NONE));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testPrepareForRepairThrowsExceptionForInsufficientDisk()
+    {
+        DiskUsageMonitor.instance = diskUsageMonitor;
+        when(diskUsageMonitor.getDiskUsage()).thenReturn(1.5);
+
+        ActiveRepairService.instance().prepareForRepair(TimeUUID.maxAtUnixMillis(0), null, null, opts(INCREMENTAL_KEY, b2s(true)), false, null);
     }
 
     private static class Task implements Runnable

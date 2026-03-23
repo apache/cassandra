@@ -23,8 +23,10 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
@@ -57,6 +59,10 @@ public final class TableAttributes extends PropertyDefinitions
     public void validate()
     {
         validate(validKeywords, obsoleteKeywords);
+
+        if (hasOption(AUTO_REPAIR) && !CassandraRelevantProperties.AUTOREPAIR_ENABLE.getBoolean())
+            throw new ConfigurationException("auto_repair option is not supported unless auto-repair is enabled with -Dcassandra.autorepair.enable=true");
+
         build(TableParams.builder()).validate();
     }
 
@@ -150,6 +156,9 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
+
+        if (hasOption(Option.AUTO_REPAIR))
+            builder.automatedRepair(AutoRepairParams.fromMap(getMap(Option.AUTO_REPAIR)));
 
         return builder.build();
     }

@@ -25,6 +25,7 @@ import java.io.EOFException;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -54,6 +55,9 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.slf4j.Logger;
@@ -1274,5 +1278,17 @@ public class Util
     public static RuntimeException testMustBeImplementedForSSTableFormat()
     {
         return new UnsupportedOperationException("Test must be implemented for sstable format " + DatabaseDescriptor.getSelectedSSTableFormat().getClass().getName());
+    }
+
+    // Replaces the global auto-repair config with a new config where auto-repair scheduling is enabled/disabled.
+    // Also sets the AUTOREPAIR_ENABLE JVM property which controls schema column inclusion.
+    public static void setAutoRepairEnabled(boolean enabled) throws Exception
+    {
+        CassandraRelevantProperties.AUTOREPAIR_ENABLE.setBoolean(enabled);
+        Config config = DatabaseDescriptor.getRawConfig();
+        config.auto_repair = new AutoRepairConfig(enabled);
+        Field configField = DatabaseDescriptor.class.getDeclaredField("conf");
+        configField.setAccessible(true);
+        configField.set(null, config);
     }
 }

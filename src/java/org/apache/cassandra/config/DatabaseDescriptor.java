@@ -58,6 +58,7 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.repair.autorepair.AutoRepairConfig;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -4223,6 +4224,16 @@ public class DatabaseDescriptor
         conf.materialized_views_enabled = enableMaterializedViews;
     }
 
+    public static boolean isMaterializedViewsOnRepairEnabled()
+    {
+        return conf.materialized_views_on_repair_enabled;
+    }
+
+    public static void setMaterializedViewsOnRepairEnabled(boolean val)
+    {
+        conf.materialized_views_on_repair_enabled = val;
+    }
+
     public static boolean getSASIIndexesEnabled()
     {
         return conf.sasi_indexes_enabled;
@@ -5318,5 +5329,24 @@ public class DatabaseDescriptor
     public static void setPaxosRepairRaceWait(boolean paxosRepairRaceWait)
     {
         conf.paxos_repair_race_wait = paxosRepairRaceWait;
+    }
+
+    public static AutoRepairConfig getAutoRepairConfig()
+    {
+        return conf.auto_repair;
+    }
+
+    public static double getRepairDiskHeadroomRejectRatio()
+    {
+        return conf.repair_disk_headroom_reject_ratio;
+    }
+
+    public static void setRepairDiskHeadroomRejectRatio(double value)
+    {
+        if (value < 0.0 || value > 1.0)
+        {
+            throw new IllegalArgumentException("Value must be >= 0 and <= 1 for repair_disk_headroom_reject_ratio");
+        }
+        conf.repair_disk_headroom_reject_ratio = value;
     }
 }

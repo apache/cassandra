@@ -65,6 +65,45 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+5.0.8
+======
+
+New features
+------------
+    - CEP-37 Auto Repair is a fully automated scheduler that provides repair orchestration within Apache Cassandra. This
+    significantly reduces operational overhead by eliminating the need for operators to deploy external tools to submit
+    and manage repairs. See
+    https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-37+Apache+Cassandra+Unified+Repair+Solution for more
+    details on the motivation and design.
+
+Upgrading
+---------
+    - The auto-repair feature requires enabling the JVM property `cassandra.autorepair.enable=true` (add
+      `-Dcassandra.autorepair.enable=true` to JVM options) before starting the node. This property creates the required
+      schema elements for auto-repair, including the auto_repair column in system_schema.tables and system_schema.views,
+      as well as the auto_repair_history and auto_repair_priority tables in system_distributed. After enabling this
+      property, you still need to enable auto-repair scheduling either in cassandra.yaml under the `auto_repair` section
+      or at runtime via JMX.
+
+      Users who do not intend to use auto-repair can leave this property disabled (the default) to maintain schema
+      compatibility with pre-5.0.8 nodes during rolling upgrades. This property must be set consistently across all
+      nodes before startup and cannot be changed at runtime.
+
+      WARNING: This property is non-reversible. Once enabled, it cannot be disabled. Attempting to start a node
+      with `cassandra.autorepair.enable=false` after it was previously enabled will cause the node to fail during
+      initialization due to schema incompatibility (the persisted schema contains auto-repair columns that are not
+      recognized when the property is disabled). To disable auto-repair scheduling after the property has been
+      enabled, use cassandra.yaml or JMX instead of changing the JVM property.
+
+      IMPORTANT: The `cassandra.autorepair.enable` property must be enabled consistently across all nodes in the
+      cluster before any schema changes are made. When some nodes have the property enabled and others do not, the
+      system_distributed keyspace schema generation will differ between nodes (generation 7 with auto-repair vs
+      generation 6 without), causing schema disagreement. This is similar to what happens during a major version
+      upgrade when new system tables are added. Any schema change (e.g. CREATE KEYSPACE) attempted while nodes
+      are in this inconsistent state will time out and schema versions will not converge until all nodes are
+      brought up with the same setting. Once all nodes have the property set consistently, schema will converge
+      automatically.
+
 5.0.7
 ======
 
