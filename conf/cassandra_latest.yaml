@@ -2453,21 +2453,21 @@ default_secondary_index_enabled: true
 # It is possible to implement custom startup checks by implementing StatupCheck interface
 # and placing JAR on a classpath, using SPI mechanism.
 #
-#startup_checks:
+startup_checks:
+# Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
+# prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
+# except the ones specified on excluded_keyspaces and excluded_tables.
+  check_data_resurrection:
+    enabled: true
+# file where Cassandra periodically writes the last time it was known to run
+#    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
+#    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
+#    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 # Verifies correct ownership of attached locations on disk at startup. See CASSANDRA-16879 for more details.
 #  check_filesystem_ownership:
 #    enabled: false
 #    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
 #    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
-# Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
-# prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
-# except the ones specified on excluded_keyspaces and excluded_tables.
-#  check_data_resurrection:
-#    enabled: false
-# file where Cassandra periodically writes the last time it was known to run
-#    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
-#    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
-#    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
 # This property indicates with what Cassandra major version the storage format will be compatible with.
 #
