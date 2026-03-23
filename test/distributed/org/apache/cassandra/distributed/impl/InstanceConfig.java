@@ -43,6 +43,7 @@ import org.apache.cassandra.locator.NetworkTopologyProximity;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_ENABLED;
+import static org.apache.cassandra.config.StartupChecksConfiguration.ENABLED_PROPERTY;
 
 public class InstanceConfig implements IInstanceConfig
 {
@@ -129,7 +130,8 @@ public class InstanceConfig implements IInstanceConfig
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")
                 .set("key_cache_size", "50MiB")
-                .set("commitlog_disk_access_mode", "legacy");
+                .set("commitlog_disk_access_mode", "legacy")
+                .set("startup_checks", Map.of("check_data_resurrection", Map.of(ENABLED_PROPERTY, false)));
         if (CassandraRelevantProperties.DTEST_JVM_DTESTS_USE_LATEST.getBoolean())
         {
             // TODO: make this load latest_diff.yaml or cassandra_latest.yaml
