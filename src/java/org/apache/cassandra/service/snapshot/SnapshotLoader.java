@@ -170,14 +170,14 @@ public class SnapshotLoader
 
                     if (tableId == null)
                     {
-                        logger.warn("Snapshot directory without tableId found (pre-2.1 format) " +
-                                    "unable to initialize tableId from cfs defaulting to null {}", snapshotDir);
+                        logger.warn("Snapshot directory without tableId found (pre-2.1 format), " +
+                                    "unable to resolve table id from column family, defaulting to null, snapshot dir: {}", snapshotDir);
                     }
                 }
                 else
                 {
-                    logger.warn("Snapshot directory without tableId found (pre-2.1 format) " +
-                                "Keyspace not initliazed or missing schema unable to initialize tableId default to null {}", snapshotDir);
+                    logger.warn("Snapshot directory without tableId found (pre-2.1 format), " +
+                                "keyspace is not initialized or there is a schema missing, defaulting to null, snapshot dir: {}", snapshotDir);
                     tableId = null;
                 }
             }
