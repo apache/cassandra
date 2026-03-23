@@ -343,7 +343,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
                                           "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
                                           "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
 
         test(ddls, cluster -> {
@@ -366,7 +366,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
         DatabaseDescriptor.daemonInitialization();
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
                                           "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
                                           "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
 
         test(ddls, cluster -> {
