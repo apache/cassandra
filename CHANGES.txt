@@ -1,3 +1,6 @@
+4.1.12
+
+
 4.1.11
  * Fix ant generate-eclipse-files (CASSANDRA-21215)
  * No need to evict already prepared statements, as it creates a race condition between multiple threads (CASSANDRA-17401)
