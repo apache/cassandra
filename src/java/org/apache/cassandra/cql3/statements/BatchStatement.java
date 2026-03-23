@@ -88,7 +88,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.util.function.Predicate.isEqual;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.containsAccordMutation;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.isSingleTokenStatementSpanningAccordAndNonAccordTables;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -546,8 +546,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         // We special case single token batch statements that span both Accord and non-Accord
         // tables to go through the batch log in order to preserve all or nothing application
         // see CASSANDRA-20588 for more details
-        boolean isSingleTokenBatchStatementSpanningAccordAndNonAccordTables = (mutations.size() == 1) && (containsAccordMutation(ClusterMetadata.current(), mutations.get(0)));
-        boolean mutateAtomic = (isLogged() && mutations.size() > 1) || isSingleTokenBatchStatementSpanningAccordAndNonAccordTables;
+        boolean mutateAtomic = (isLogged() && mutations.size() > 1) || (isSingleTokenStatementSpanningAccordAndNonAccordTables(ClusterMetadata.current(), mutations.get(0)));
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }

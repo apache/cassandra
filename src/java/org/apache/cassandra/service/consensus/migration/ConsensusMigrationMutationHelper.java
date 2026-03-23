@@ -204,15 +204,27 @@ public class ConsensusMigrationMutationHelper
         }
     }
 
-    public static <T extends IMutation> boolean containsAccordMutation(ClusterMetadata cm, T mutation)
+    public static <T extends IMutation> boolean isSingleTokenStatementSpanningAccordAndNonAccordTables(ClusterMetadata cm, T mutation)
     {
-        if (mutation.potentialTxnConflicts().allowed)
+        if (mutation.potentialTxnConflicts().allowed || mutation.getTableIds().size() == 1)
             return false;
 
         Token token = mutation.key().getToken();
-        Predicate<TableId> isAccordUpdate = tableId -> tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
 
-        return (T)mutation.filter(isAccordUpdate) != null;
+        boolean containsAccordMutation = false;
+        boolean containsNormalMutation = false;
+
+        for (TableId tableId : mutation.getTableIds())
+        {
+            boolean test = tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
+            containsAccordMutation = containsAccordMutation || test;
+            containsNormalMutation = containsNormalMutation || !test;
+
+            if (containsAccordMutation && containsNormalMutation)
+                return true;
+        }
+
+        return false;
     }
 
     /**

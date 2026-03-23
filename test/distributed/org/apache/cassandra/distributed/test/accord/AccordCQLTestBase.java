@@ -53,7 +53,10 @@ import accord.topology.Topologies;
 import accord.topology.TopologyException;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
@@ -64,6 +67,8 @@ import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -79,6 +84,9 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -327,6 +335,80 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                               .contains(42, 43, 44)
                               .contains(42, 44, 45)
                               .contains(42, 45, 46);
+        });
+    }
+
+    @Test
+    public void testSinglePartitionKeyBatch() throws Throwable
+    {
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'",
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+
+        test(ddls, cluster -> {
+            cluster.coordinator(1).execute("BEGIN BATCH\n" +
+                                           "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
+                                           "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
+                                           "APPLY BATCH;", ConsistencyLevel.ONE);
+
+            SimpleQueryResult r1 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1", ConsistencyLevel.ONE);
+            SimpleQueryResult r2 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedRegularTableName + " WHERE k = 1", ConsistencyLevel.ONE);
+
+            assertEquals(1, r1.toObjectArrays().length);
+            assertEquals(1, r2.toObjectArrays().length);
+        });
+    }
+
+    @Test
+    public void testSinglePartitionKeyBatchWrittenToBatchLog() throws Throwable
+    {
+        DatabaseDescriptor.daemonInitialization();
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'",
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+
+        test(ddls, cluster -> {
+            pauseHints();
+            blockMutationAndPreAccept(cluster);
+            try
+            {
+                // Insert must span both Accord and non-Accord ranges or tables otherwise it bypasses the batchlog entirely
+                cluster.coordinator(1).execute("BEGIN BATCH\n" +
+                                               "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
+                                               "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
+                                               "APPLY BATCH;", ConsistencyLevel.ONE);
+                fail("Should have thrown WTE");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(t.getClass().getName(), WriteTimeoutException.class.getName());
+            }
+
+            cluster.get(1).runOnInstance(() -> {
+                String query = String.format("SELECT id, mutations, version FROM %s.%s",
+                                             SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                             SystemKeyspace.BATCHES);
+
+                Iterator<UntypedResultSet.Row> r = QueryProcessor.executeInternal(query).iterator();
+                assert(r.hasNext());
+                UntypedResultSet.Row row = r.next();
+
+                int version = row.getInt("version");
+                List<ByteBuffer> serializedMutations = row.getList("mutations", BytesType.instance);
+                assertEquals(1, serializedMutations.size());
+
+                try (DataInputBuffer in = new DataInputBuffer(serializedMutations.get(0), true))
+                {
+                    assertEquals(2, org.apache.cassandra.db.Mutation.serializer.deserialize(in, version).getPartitionUpdates().size());
+                }
+                catch (Exception e)
+                {
+                    logger.info("Deserialization failed");
+                }
+            });
+
         });
     }
 
