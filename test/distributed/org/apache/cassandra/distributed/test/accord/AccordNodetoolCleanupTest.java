@@ -22,18 +22,23 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import accord.api.RoutingKey;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.api.TokenKey;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -74,15 +80,15 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
                                           "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 3}",
                                           "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
         test(ddls, cluster -> {
+            String tableName = accordTableName;
+
             cluster.coordinator(2).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
 
             SimpleQueryResult result = cluster.coordinator(2).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
 
-            String keyspace = KEYSPACE;
-            String tableName = accordTableName;
             cluster.get(2).flush(withKeyspace("%s"));
 
-            assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(keyspace).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+            assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             String originalToken = cluster.get(2).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
 
@@ -91,25 +97,31 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
             assert(token < Long.parseLong(originalToken));
 
             cluster.get(2).runOnInstance(() -> {
-                StorageService.instance.move(Long.toString(token - 10000));
-            });
+                TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
+                RoutingKey key = TokenKey.parse(tid, String.valueOf(token), Murmur3Partitioner.instance);
 
-            NodeToolResult r = cluster.get(2).nodetoolResult("cleanup", KEYSPACE, accordTableName);
-
-            assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(keyspace).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-
-            // The invariant that we want to preserve is that no ranges that overlap with our command stores should be removed, in this case this so happens to be
-            cluster.get(2).runOnInstance(() -> {
-                Ranges commandStoreRanges = Ranges.EMPTY;
+                boolean tokenInCommandStore = false;
                 for (CommandStore commandStore : AccordService.instance().node().commandStores().all())
                 {
                     Ranges commandStoreRange = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "Get ranges", safeCommandStore -> {
                         return safeCommandStore.ranges().all();
                     }));
 
-                    commandStoreRanges = commandStoreRanges.union(AbstractRanges.UnionMode.MERGE_ADJACENT, commandStoreRange);
+                    if (commandStoreRange.intersects(key))
+                        tokenInCommandStore = true;
                 }
+
+                assertTrue(tokenInCommandStore);
             });
+
+            cluster.get(2).runOnInstance(() -> {
+                StorageService.instance.move(Long.toString(token - 1000));
+            });
+
+            cluster.get(2).nodetool("cleanup", KEYSPACE, accordTableName);
+
+            assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+
         });
     }
 }
