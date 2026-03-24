@@ -122,6 +122,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -812,7 +813,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                     SSTableReader sstable = sstableIter.next();
                     boolean needsCleanupFull = needsCleanup(sstable, fullRanges);
                     boolean needsCleanupTransient = !transientRanges.isEmpty() && sstable.isRepaired() && needsCleanup(sstable, transientRanges);
-                    boolean sstableRangesIntersectWithCommandStores = sstableContainsRangeNeededByAccord(cfStore.getTableId(), sstable);
+                    boolean sstableRangesIntersectWithCommandStores = sstableContainsRangesNeededByAccord(cfStore.getTableId(), sstable);
 
                     // If there still exists Command Stores that own this range, don't cleanup this specific range
                     // as Accord still needs it even though we no longer own the range
@@ -1619,13 +1620,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         return false;
     }
 
-    @VisibleForTesting
-    public static boolean sstableContainsRangeNeededByAccord(TableId tableId, SSTableReader sstable)
+    public static boolean sstableContainsRangesNeededByAccord(TableId tableId, SSTableReader sstable)
     {
         Ranges accordOwnedRanges = AccordService.instance().node().commandStores().currentRanges();
-        Ranges sstableRange = Ranges.of(TokenRange.create(tableId, sstable.getFirst().getToken(), sstable.getLast().getToken()));
 
-        return accordOwnedRanges.intersects(sstableRange);
+        if (sstable.getFirst().equals(sstable.getLast()))
+            return accordOwnedRanges.intersects(new TokenKey(tableId, sstable.getFirst().getToken()));
+
+        Ranges sstableRanges = Ranges.of(TokenRange.create(tableId, sstable.getFirst().getToken(), sstable.getLast().getToken()));
+        return accordOwnedRanges.intersects(sstableRanges);
     }
 
     /**
