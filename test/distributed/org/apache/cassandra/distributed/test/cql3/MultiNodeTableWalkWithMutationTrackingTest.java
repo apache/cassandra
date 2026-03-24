@@ -27,7 +27,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.Property;
+import accord.utils.RandomSource;
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
+import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.schema.ReplicationType;
@@ -41,10 +43,30 @@ import static org.apache.cassandra.cql3.KnownIssue.AF_MULTI_NODE_MULTI_COLUMN_AN
 public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWalkBase
 {
     private static final Logger logger = LoggerFactory.getLogger(MultiNodeTableWalkWithMutationTrackingTest.class);
-    
+
     public MultiNodeTableWalkWithMutationTrackingTest()
     {
         super(ReadRepairStrategy.NONE, ReplicationType.tracked);
+    }
+
+    protected class MutationTrackingState extends MultiNodeState
+    {
+        public MutationTrackingState(RandomSource rs, Cluster cluster)
+        {
+            super(rs, cluster);
+        }
+
+        @Override
+        protected boolean allowPerPartitionLimit(Select select)
+        {
+            return false;
+        }
+    }
+
+    @Override
+    protected State createState(RandomSource rs, Cluster cluster)
+    {
+        return new MutationTrackingState(rs, cluster);
     }
 
     @Override
@@ -52,6 +74,7 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
+        // builder.withExamples(10);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
         // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.

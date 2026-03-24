@@ -44,7 +44,7 @@ public class MultiNodeTableWalkWithWitnessesTest extends MultiNodeTableWalkWithM
         return List.of();
     }
 
-    protected class MultiNodeState extends State
+    protected class MultiNodeState extends MutationTrackingState
     {
         public MultiNodeState(RandomSource rs, Cluster cluster)
         {
