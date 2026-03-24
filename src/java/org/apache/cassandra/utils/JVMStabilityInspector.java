@@ -124,7 +124,12 @@ public final class JVMStabilityInspector
 
             logger.error("OutOfMemory error letting the JVM handle the error:", t);
 
-            StorageService.instance.removeShutdownHook();
+            // Only remove the shutdown hook for fatal heap OOMs where the JVM will exit
+            // and the drain hook could hang due to lack of heap memory. For non-fatal OOMs
+            // (e.g. direct buffer, native thread), keep the hook for graceful shutdown.
+            // See CASSANDRA-16939.
+            if (isHeapSpaceOom((OutOfMemoryError) t))
+                StorageService.instance.removeShutdownHook();
 
             forceHeapSpaceOomMaybe((OutOfMemoryError) t);
 
@@ -186,7 +191,17 @@ public final class JVMStabilityInspector
             inspectThrowable(t.getCause(), fn, isUncaughtException);
     }
 
-    private static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
+    public static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
+
+    /**
+     * Returns true if the given OOM is a fatal heap-related error (heap space exhaustion or GC overhead),
+     * as opposed to a non-fatal OOM like direct buffer or native thread exhaustion.
+     */
+    @VisibleForTesting
+    static boolean isHeapSpaceOom(OutOfMemoryError oom)
+    {
+        return FORCE_HEAP_OOM_IGNORE_SET.contains(oom.getMessage());
+    }
 
     /**
      * Intentionally produce a heap space OOM upon seeing a non heap memory OOM.

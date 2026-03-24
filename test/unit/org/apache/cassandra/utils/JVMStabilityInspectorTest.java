@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.SocketException;
 import java.util.Arrays;
 
@@ -237,6 +238,56 @@ public class JVMStabilityInspectorTest
         finally
         {
             JVMStabilityInspector.replaceKiller(originalKiller);
+        }
+    }
+
+    @Test
+    public void testShutdownHookNotRemovedForNonFatalOom() throws Exception
+    {
+        testShutdownHookRemovalOnOom("Direct buffer memory", false);
+    }
+
+    @Test
+    public void testShutdownHookRemovedForFatalOom() throws Exception
+    {
+        for (String message : JVMStabilityInspector.FORCE_HEAP_OOM_IGNORE_SET)
+            testShutdownHookRemovalOnOom(message, true);
+    }
+
+    private void testShutdownHookRemovalOnOom(String oomMessage, boolean expectHookRemoved) throws Exception
+    {
+        Thread testHook = new Thread(() -> {}, "TestDrainHook"); // checkstyle: permit this instantiation
+        Runtime.getRuntime().addShutdownHook(testHook);
+
+        Field drainField = StorageService.class.getDeclaredField("drainOnShutdown");
+        drainField.setAccessible(true);
+        Thread originalHook = (Thread) drainField.get(StorageService.instance);
+
+        try
+        {
+            drainField.set(StorageService.instance, testHook);
+
+            Assertions.assertThatThrownBy(() -> JVMStabilityInspector.inspectThrowable(new OutOfMemoryError(oomMessage)))
+                      .isInstanceOf(OutOfMemoryError.class);
+
+            if (expectHookRemoved)
+                assertFalse("Shutdown hook should be removed for fatal OOM (" + oomMessage + ')',
+                            Runtime.getRuntime().removeShutdownHook(testHook));
+            else
+                assertTrue("Shutdown hook should not be removed for non-fatal OOM (" + oomMessage + ')',
+                           Runtime.getRuntime().removeShutdownHook(testHook));
+        }
+        finally
+        {
+            drainField.set(StorageService.instance, originalHook);
+            try
+            {
+                Runtime.getRuntime().removeShutdownHook(testHook);
+            }
+            catch (IllegalStateException ignored)
+            {
+                // Already removed or JVM shutting down
+            }
         }
     }
 }
