@@ -25,14 +25,12 @@ import java.util.List;
 import accord.api.RoutingKey;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
-import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -88,14 +86,16 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             cluster.get(2).flush(withKeyspace("%s"));
 
-            assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-
             String originalToken = cluster.get(2).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
 
             long token = (Long) result.toObjectArrays()[0][0];
 
             assert(token < Long.parseLong(originalToken));
 
+            assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+
+            // SSTable overlaps with Accord CommandStores ranges, so after cleanup we should still have that
+            // 1 SSTable, even though we no longer own the ranges for that SSTable
             cluster.get(2).runOnInstance(() -> {
                 TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
                 RoutingKey key = TokenKey.parse(tid, String.valueOf(token), Murmur3Partitioner.instance);
@@ -103,7 +103,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
                 boolean tokenInCommandStore = false;
                 for (CommandStore commandStore : AccordService.instance().node().commandStores().all())
                 {
-                    Ranges commandStoreRange = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "Get ranges", safeCommandStore -> {
+                    Ranges commandStoreRange = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "Get CommandStore ranges", safeCommandStore -> {
                         return safeCommandStore.ranges().all();
                     }));
 
@@ -121,7 +121,6 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
             cluster.get(2).nodetool("cleanup", KEYSPACE, accordTableName);
 
             assertEquals(1, (int) cluster.get(2).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-
         });
     }
 }
