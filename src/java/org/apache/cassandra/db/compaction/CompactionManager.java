@@ -65,6 +65,8 @@ import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Ranges;
+
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.WrappedExecutorPlus;
@@ -114,9 +116,12 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -807,6 +812,21 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                     SSTableReader sstable = sstableIter.next();
                     boolean needsCleanupFull = needsCleanup(sstable, fullRanges);
                     boolean needsCleanupTransient = !transientRanges.isEmpty() && sstable.isRepaired() && needsCleanup(sstable, transientRanges);
+                    boolean sstableRangesIntersectWithCommandStores = sstableContainsRangeNeededByAccord(cfStore.getTableId(), sstable);
+
+                    // If there still exists Command Stores that own this range, don't cleanup this specific range
+                    // as Accord still needs it even though we no longer own the range
+                    if (sstableRangesIntersectWithCommandStores)
+                    {
+                        logger.debug("Skipping {} ([{}, {}]) for cleanup; as Accord still needs the ranges.",
+                                     sstable,
+                                     sstable.getFirst().getToken(),
+                                     sstable.getLast().getToken());
+                        sstableIter.remove();
+                        transaction.cancel(sstable);
+                        skippedSStables++;
+                    }
+
                     //If there are no ranges for which the table needs cleanup either due to lack of intersection or lack
                     //of the table being repaired.
                     totalSSTables++;
@@ -1597,6 +1617,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         }
 
         return false;
+    }
+
+    @VisibleForTesting
+    public static boolean sstableContainsRangeNeededByAccord(TableId tableId, SSTableReader sstable)
+    {
+        Ranges accordOwnedRanges = AccordService.instance().node().commandStores().currentRanges();
+        Ranges sstableRange = Ranges.of(TokenRange.create(tableId, sstable.getFirst().getToken(), sstable.getLast().getToken()));
+
+        return accordOwnedRanges.intersects(sstableRange);
     }
 
     /**
