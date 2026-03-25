@@ -228,7 +228,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected PerVerbFutureActionSchedulersFactory perVerbFutureActionSchedulersFactory;
         protected String memtableType = null;
         protected String memtableAllocationType = null;
-        protected String sstableFormat = null;
 
         public Builder<S> failures(Failures failures)
         {
@@ -644,12 +643,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
-        public Builder<S> sstableFormat(String format)
-        {
-            this.sstableFormat = format;
-            return this;
-        }
-
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -838,19 +831,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         }
         randomizedConfig.put("memtable_allocation_type", memtableAllocationType);
 
-        // Randomize SSTable format
-        String sstableFormat;
-        if (builder.sstableFormat != null)
-        {
-            sstableFormat = builder.sstableFormat;
-        }
-        else
-        {
-            String[] formats = {"big", "bti"};
-            sstableFormat = formats[random.uniform(0, formats.length)];
-        }
-        randomizedConfig.put("sstable_format", sstableFormat);
-
         KindOfSequence kindOfDriftSequence = Choices.uniform(KindOfSequence.values()).choose(random);
         KindOfSequence kindOfDiscontinuitySequence = Choices.uniform(KindOfSequence.values()).choose(random);
         randomizedConfig.put("clock_drift_sequence", kindOfDriftSequence.toString());
@@ -907,8 +887,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
                                    .set("commitlog_sync", "batch")
                                    .set("accord.journal.flush_mode", "BATCH")
-                                   .set("accord.command_store_shard_count", "4")
-                                   .set("sstable", Map.of("selected_format", sstableFormat));
+                                   .set("accord.command_store_shard_count", "4");
 
                              if (memtableType.equals("TrieMemtable"))
                              {
