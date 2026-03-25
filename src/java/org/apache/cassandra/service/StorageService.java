@@ -820,7 +820,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             BootstrapAndReplace.checkUnsafeReplace(shouldBootstrap());
         }
 
-        if (isReplacingSameAddress())
+        if (isReplacing() && isReplacingSameAddress())
         {
             BootstrapAndReplace.gossipStateToHibernate(ClusterMetadata.current(), ClusterMetadata.currentNullable().myNodeId());
             Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), false);
