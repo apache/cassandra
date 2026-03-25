@@ -3464,7 +3464,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
 
             long token = (Long) result.toObjectArrays()[0][0];
 
-            assert(token < Long.parseLong(originalToken));
+            assertTrue(token < Long.parseLong(originalToken));
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
@@ -3495,6 +3495,40 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             cluster.get(1).nodetool("cleanup", KEYSPACE, accordTableName);
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+        });
+    }
+
+    @Test
+    public void nodetoolCleanupForNonAccordTableTest() throws Throwable
+    {
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+        test(ddls, cluster -> {
+            String tableName = regularTableName;
+
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (?, ?)", ConsistencyLevel.ALL, 1, 2);
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedRegularTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
+
+            cluster.get(1).flush(withKeyspace("%s"));
+
+            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
+
+            long token = (Long) result.toObjectArrays()[0][0];
+
+            assertTrue(token < Long.parseLong(originalToken));
+
+            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+
+            cluster.get(1).runOnInstance(() -> {
+                StorageService.instance.move(Long.toString(token - 1000));
+            });
+
+            cluster.get(1).nodetool("cleanup", KEYSPACE, regularTableName);
+
+            // SSTable should be removed as we no longer own the range and no Accord CommandStore needs these ranges 
+            assertEquals(0, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
         });
     }
 }

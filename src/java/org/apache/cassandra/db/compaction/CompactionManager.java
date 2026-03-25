@@ -1622,6 +1622,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     public static boolean sstableContainsRangesNeededByAccord(TableId tableId, SSTableReader sstable)
     {
+        if (!AccordService.isSetup())
+            return false;
+
         Ranges accordOwnedRanges = AccordService.instance().node().commandStores().commandStoresOwnedRanges();
 
         if (sstable.getFirst().equals(sstable.getLast()))
