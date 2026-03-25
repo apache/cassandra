@@ -30,6 +30,7 @@ class SaferScannerBase(re.Scanner):
 
     @classmethod
     def subpat(cls, phrase, flags):
+        # pylint: disable=no-member
         return cls.scrub_sub(re.sre_parse.parse(phrase, flags), flags)
 
     @classmethod
@@ -38,6 +39,7 @@ class SaferScannerBase(re.Scanner):
         seqtypes = (type(()), type([]))
         for op, arg in sub.data:
             if type(arg) in seqtypes:
+                # pylint: disable=no-member
                 arg = [cls.scrub_sub(a, flags) if isinstance(a, re.sre_parse.SubPattern) else a
                        for a in arg]
             if op in (BRANCH, SUBPATTERN):
@@ -49,6 +51,7 @@ class SaferScannerBase(re.Scanner):
             raise ValueError("Named captures not allowed in SaferScanner lexicon")
         if sub.pattern.flags ^ flags:
             raise ValueError("RE flag setting not allowed in SaferScanner lexicon (%s)" % (bin(sub.pattern.flags),))
+        # pylint: disable=no-member
         return re.sre_parse.SubPattern(sub.pattern, scrubbedsub)
 
 
@@ -57,6 +60,7 @@ class Py36SaferScanner(SaferScannerBase):
     def __init__(self, lexicon, flags=0):
         self.lexicon = lexicon
         p = []
+        # pylint: disable=no-member
         s = re.sre_parse.Pattern()
         s.flags = flags
         for phrase, action in lexicon:
@@ -73,6 +77,7 @@ class Py38SaferScanner(SaferScannerBase):
     def __init__(self, lexicon, flags=0):
         self.lexicon = lexicon
         p = []
+        # pylint: disable=no-member
         s = re.sre_parse.State()
         s.flags = flags
         for phrase, action in lexicon:
@@ -89,6 +94,7 @@ class Py311SaferScanner(SaferScannerBase):
     def __init__(self, lexicon, flags=0):
         self.lexicon = lexicon
         p = []
+        # pylint: disable=no-member
         s = re._parser.State()
         s.flags = flags
         for phrase, action in lexicon:
