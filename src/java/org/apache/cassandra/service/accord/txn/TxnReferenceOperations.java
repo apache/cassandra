@@ -63,6 +63,11 @@ public class TxnReferenceOperations
         return metadata.equals(that.metadata) && clusterings.equals(that.clusterings) && regulars.equals(that.regulars) && statics.equals(that.statics);
     }
 
+    public List<Clustering<?>> getClusterings()
+    {
+        return clusterings;
+    }
+
     @Override
     public int hashCode()
     {

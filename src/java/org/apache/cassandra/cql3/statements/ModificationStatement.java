@@ -1006,14 +1006,14 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return fragments;
     }
 
-    public List<RowKey> getRowKeys(ClientState state, QueryOptions options)
+    public List<RowKey> getRowKeys(List<TxnWrite.Fragment> writeFragments)
     {
         List<RowKey> rowKeys = new ArrayList<>();
-        List<PartitionUpdate> updates = getTxnUpdate(state, options);
-        for (PartitionUpdate update : updates)
+
+        for (TxnWrite.Fragment writeFragment : writeFragments)
         {
-            DecoratedKey key = update.partitionKey();
-            List<Clustering<?>> clusteringColumns = txnClusterings(options, state);
+            DecoratedKey key = writeFragment.key.partitionKey();
+            List<Clustering<?>> clusteringColumns = writeFragment.referenceOps.getClusterings();
             for (Clustering<?> clustering : clusteringColumns)
                 rowKeys.add(new RowKey(key, clustering));
         }

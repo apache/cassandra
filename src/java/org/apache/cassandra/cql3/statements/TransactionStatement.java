@@ -361,12 +361,18 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
     {
+        // check that within a transaction we don't have multiple updates to the same primary key, column pair
+        HashMap<RowKey, Columns> seenRegularColumns = new HashMap<>();
+        HashMap<DecoratedKey, Columns> seenStaticColumns = new HashMap<>();
+
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
             minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
-            fragments.addAll(modification.getTxnWriteFragment(idx, state, options, keyCollector));
+            List<TxnWrite.Fragment> writeFragments = modification.getTxnWriteFragment(idx, state, options, keyCollector);
+            fragments.addAll(writeFragments);
+            validateOnlyModifyPrimaryKeyColumnPairOnce(seenRegularColumns, seenStaticColumns, modification, writeFragments);
 
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
             {
@@ -379,6 +385,33 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             idx++;
         }
         return fragments;
+    }
+
+    private static void validateOnlyModifyPrimaryKeyColumnPairOnce(HashMap<RowKey, Columns> seenRegularColumns, HashMap<DecoratedKey, Columns> seenStaticColumns,
+                                                  ModificationStatement statement, List<TxnWrite.Fragment> writeFragments)
+    {
+        List<RowKey> rowKeys = statement.getRowKeys(writeFragments);
+        Columns regularColumns = statement.updatedColumns().columns(false);
+        Columns staticColumns = statement.updatedColumns().columns(true);
+
+        for (RowKey rowKey : rowKeys)
+        {
+            Columns existingRegularColumns = seenRegularColumns.putIfAbsent(rowKey, regularColumns);
+            if (existingRegularColumns != null)
+            {
+                for (ColumnMetadata column : regularColumns)
+                    checkFalse(existingRegularColumns.contains(column), DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
+                seenRegularColumns.put(rowKey, existingRegularColumns.mergeTo(regularColumns));
+            }
+
+            Columns existingStaticColumns = seenStaticColumns.putIfAbsent(rowKey.partitionKey(), staticColumns);
+            if (existingStaticColumns != null)
+            {
+                for (ColumnMetadata column : staticColumns)
+                    checkFalse(existingStaticColumns.contains(column), DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
+                seenStaticColumns.put(rowKey.partitionKey(), existingStaticColumns.mergeTo(staticColumns));
+            }
+        }
     }
 
     private ConsistencyLevel consistencyLevelForAccordRead(ClusterMetadata cm, TableMetadatas.Complete tables, Keys keys, @Nullable ConsistencyLevel consistencyLevel)
@@ -558,36 +591,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         if (returningSelect != null && returningSelect.select.getRestrictions().keyIsInRelation())
         {
             checkTrue(returningSelect.select.getLimit(options) == DataLimits.NO_LIMIT, NO_PARTITION_IN_CLAUSE_WITH_LIMIT, "SELECT", returningSelect.select.source);
-        }
-
-        // check that within a transaction we don't have multiple updates to the same primary key, column pair
-        HashMap<RowKey, Columns> seenRegularColumns = new HashMap<>();
-        HashMap<DecoratedKey, Columns> seenStaticColumns = new HashMap<>();
-
-        for (ModificationStatement statement : updates)
-        {
-            List<RowKey> rowKeys = statement.getRowKeys(state.getClientState(), options);
-            Columns regularColumns = statement.updatedColumns().columns(false);
-            Columns staticColumns = statement.updatedColumns().columns(true);
-
-            for (RowKey rowKey : rowKeys)
-            {
-                Columns existingRegularColumns = seenRegularColumns.putIfAbsent(rowKey, regularColumns);
-                if (existingRegularColumns != null)
-                {
-                    for (ColumnMetadata column : regularColumns)
-                        checkFalse(existingRegularColumns.contains(column), DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
-                    seenRegularColumns.put(rowKey, existingRegularColumns.mergeTo(regularColumns));
-                }
-
-                Columns existingStaticColumns = seenStaticColumns.putIfAbsent(rowKey.partitionKey(), staticColumns);
-                if (existingStaticColumns != null)
-                {
-                    for (ColumnMetadata column : staticColumns)
-                        checkFalse(existingStaticColumns.contains(column), DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
-                    seenStaticColumns.put(rowKey.partitionKey(), existingStaticColumns.mergeTo(staticColumns));
-                }
-            }
         }
 
         Txn txn = createTxn(state.getClientState(), options);
