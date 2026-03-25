@@ -620,7 +620,9 @@ public class ClientState
      */
     public boolean isOrdinaryUser()
     {
-        return !isSuper() && !isSystem();
+        // isSuper() depends on auth setup being complete. Prior to that, all clients are system only,
+        // so check that first to avoid warnings during node startup.
+        return !isSystem() && !isSuper();
     }
 
     /**
