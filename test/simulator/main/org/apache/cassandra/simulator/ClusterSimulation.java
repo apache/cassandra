@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,7 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -197,7 +195,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected LongConsumer onThreadLocalRandomCheck;
         protected String memtableType = null;
         protected String memtableAllocationType = null;
-        protected String sstableFormat = null;
 
         public Debug debug()
         {
@@ -538,12 +535,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
-        public Builder<S> sstableFormat(String format)
-        {
-            this.sstableFormat = format;
-            return this;
-        }
-
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -726,20 +717,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         }
         randomizedConfig.put("memtable_allocation_type", memtableAllocationType);
 
-        // Randomize SSTable format
-        String sstableFormat;
-        if (builder.sstableFormat != null)
-        {
-            sstableFormat = builder.sstableFormat;
-        }
-        else
-        {
-            String[] formats = {"big", "bti"};
-            sstableFormat = formats[random.uniform(0, formats.length)];
-        }
-        randomizedConfig.put("sstable_format", sstableFormat);
-        CassandraRelevantProperties.SSTABLE_FORMAT_DEFAULT.setString(sstableFormat);
-
         KindOfSequence kindOfDriftSequence = Choices.uniform(KindOfSequence.values()).choose(random);
         KindOfSequence kindOfDiscontinuitySequence = Choices.uniform(KindOfSequence.values()).choose(random);
         randomizedConfig.put("clock_drift_sequence", kindOfDriftSequence.toString());
@@ -758,8 +735,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
         Failures failures = new Failures();
         ThreadAllocator threadAllocator = new ThreadAllocator(random, builder.threadCount, numOfNodes);
-        List<String> allowedDiskAccessModes = Arrays.asList("mmap", "mmap_index_only", "standard");
-        String disk_access_mode = allowedDiskAccessModes.get(random.uniform(0, allowedDiskAccessModes.size() - 1));
+        String disk_access_mode = "standard";
         randomizedConfig.put("disk_access_mode", disk_access_mode);
         boolean commitlogCompressed = random.decide(.5f);
         cluster = snitch.setup(Cluster.build(numOfNodes)

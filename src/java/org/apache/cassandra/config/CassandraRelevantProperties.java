@@ -509,7 +509,6 @@ public enum CassandraRelevantProperties
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
     SSL_ENABLE("ssl.enable"),
     SSL_STORAGE_PORT("cassandra.ssl_storage_port"),
-    SSTABLE_FORMAT_DEFAULT("cassandra.sstable.format.default"),
     START_GOSSIP("cassandra.start_gossip", "true"),
     START_NATIVE_TRANSPORT("cassandra.start_native_transport"),
     STORAGE_DIR("cassandra.storagedir"),
