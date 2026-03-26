@@ -655,22 +655,40 @@ public class ClientState
 
     /**
      * Checks if this user is a super user.
+     * <p/>
+     * Returns true if:
+     * 1. This is an internal/system client, OR
+     * 2. No authenticators in the system require authentication (backward compat for AllowAllAuthenticator), OR
+     * 3. The user is authenticated and has been granted superuser role
+     * During migration with mixed authentication (some authenticators require auth, some don't),
+     * unauthenticated clients will NOT get the bypass - they'll be checked against the "anonymous" role.
      */
     public boolean isSuper()
     {
-        // TODO: If AllowAllAuthenticator is used as a fallback in negotiation, should clients
-        // who didn't authenticate have superuser privileges while authenticated clients need
-        // explicit grants? This may need policy consideration.
+        // Internal/system clients are always super
+        if (isInternal)
+        {
+            return true;
+        }
 
-        // Authenticator should always be set before this is called in normal operation.
-        // If not set (e.g., internal clients or test code), fall back to global check.
+        // If authenticator not set yet (shouldn't happen in normal operation), fall back to global check
         if (authenticator == null)
         {
             logger.warn("isSuper() called before authenticator was set - this should not happen in normal operation");
-            return !DatabaseDescriptor.isAuthenticationRequired() || (user != null && user.isSuper());
         }
 
-        return !authenticator.requireAuthentication() || (user != null && user.isSuper());
+        // Check global authentication requirement, not this connection's specific authenticator.
+        //
+        // If NO authenticators in the system require authentication (e.g., only AllowAllAuthenticator configured):
+        //   - Returns true (bypass) for backward compatibility with auth-disabled clusters
+        //   - Short-circuits before checking user.isSuper()
+        //
+        // If ANY authenticator in the system requires authentication (e.g., PasswordAuthenticator in negotiable list):
+        //   - Evaluates user.isSuper() to check actual role grants
+        //   - For authenticated users: returns true if they have superuser role
+        //   - For ANONYMOUS_USER: returns false (AuthenticatedUser.isSuper() always returns false for anonymous)
+        //   - This ensures unauthenticated clients during migration get no bypass
+        return !DatabaseDescriptor.isAuthenticationRequired() || (user != null && user.isSuper());
     }
 
     /**

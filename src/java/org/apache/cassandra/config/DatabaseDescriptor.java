@@ -224,8 +224,12 @@ public class DatabaseDescriptor
     private static DiskAccessMode compactionReadDiskAccessMode;
 
     private static AbstractCryptoProvider cryptoProvider;
-    private static List<IAuthenticator> negotiableAuthenticators;
+
+    // Cached value: true if any authenticator requires authentication
+    private static boolean authenticationRequired;
+    private static List<IAuthenticator> negotiableAuthenticators = List.of();
     private static IAuthenticator defaultAuthenticator;
+
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
     private static ICIDRAuthorizer cidrAuthorizer;
@@ -2057,6 +2061,7 @@ public class DatabaseDescriptor
     public static void setNegotiableAuthenticators(List<IAuthenticator> authenticators)
     {
         DatabaseDescriptor.negotiableAuthenticators = new ArrayList<>(authenticators);
+        updateAuthenticationRequired();
     }
 
     /**
@@ -2103,14 +2108,42 @@ public class DatabaseDescriptor
     public static void setDefaultAuthenticator(IAuthenticator authenticator)
     {
         DatabaseDescriptor.defaultAuthenticator = authenticator;
+        updateAuthenticationRequired();
     }
 
     /**
-     * Indicates if this node uses an authenticator that requires authentication.
+     * Recomputes and caches whether authentication is required.
+     * Called when authenticators are set/updated.
+     */
+    private static void updateAuthenticationRequired()
+    {
+        if (isAuthenticatorNegotiationEnabled())
+        {
+            // Check if ANY negotiable authenticator requires authentication
+            authenticationRequired = negotiableAuthenticators.stream()
+                .anyMatch(IAuthenticator::requireAuthentication);
+        }
+        else if (defaultAuthenticator != null)
+        {
+            // Fallback to default authenticator for non-negotiation mode
+            authenticationRequired = defaultAuthenticator.requireAuthentication();
+        }
+        else
+        {
+            // Not yet initialized
+            authenticationRequired = false;
+        }
+    }
+
+    /**
+     * Indicates if this node uses an authenticator that requires authentication. With authenticator negotiation,
+     * returns true if ANY negotiable authenticator requires authentication. This determines whether authentication
+     * infrastructure (caches, role management) should be enabled, as well as to determine whether anonymous (i.e.
+     * unauthenticated) users can elevate permissions to perform CREATE/DROP TRIGGER and other operations.
      */
     public static boolean isAuthenticationRequired()
     {
-        return defaultAuthenticator.requireAuthentication();
+        return authenticationRequired;
     }
 
     /**
