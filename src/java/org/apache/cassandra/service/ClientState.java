@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.auth.Resources;
@@ -114,6 +115,9 @@ public class ClientState
     private volatile String keyspace;
     private volatile boolean issuedPreparedStatementsUseWarning;
     private volatile boolean issuedWarningForUneligiblePreparedStatements;
+
+    // The authenticator used for this connection (set after negotiation/selection)
+    private volatile IAuthenticator authenticator;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -199,8 +203,6 @@ public class ClientState
     {
         this.isInternal = false;
         this.remoteAddress = remoteAddress;
-        if (!DatabaseDescriptor.isAuthenticationRequired())
-            this.user = AuthenticatedUser.ANONYMOUS_USER;
     }
 
     protected ClientState(ClientState source)
@@ -212,6 +214,7 @@ public class ClientState
         this.driverName = source.driverName;
         this.driverVersion = source.driverVersion;
         this.clientOptions = source.clientOptions;
+        this.authenticator = source.authenticator;
     }
 
     /**
@@ -407,6 +410,31 @@ public class ClientState
             this.user = user;
         else
             throw new AuthenticationException(String.format("%s is not permitted to log in", user.getName()));
+    }
+
+    /**
+     * Sets the authenticator used for this connection.
+     * Should be called after authenticator negotiation/selection completes.
+     * If the authenticator doesn't require authentication, sets the user to anonymous.
+     *
+     * @throws IllegalStateException if authenticator has already been set
+     */
+    public void setAuthenticator(IAuthenticator authenticator)
+    {
+        if (this.authenticator != null)
+            throw new IllegalStateException("Authenticator already set for this connection");
+
+        this.authenticator = authenticator;
+        if (!authenticator.requireAuthentication())
+            this.user = AuthenticatedUser.ANONYMOUS_USER;
+    }
+
+    /**
+     * Returns the authenticator used for this connection, or null if not yet set.
+     */
+    public IAuthenticator getAuthenticator()
+    {
+        return authenticator;
     }
 
     private boolean canLogin(AuthenticatedUser user)
@@ -630,7 +658,19 @@ public class ClientState
      */
     public boolean isSuper()
     {
-        return !DatabaseDescriptor.isAuthenticationRequired() || (user != null && user.isSuper());
+        // TODO: If AllowAllAuthenticator is used as a fallback in negotiation, should clients
+        // who didn't authenticate have superuser privileges while authenticated clients need
+        // explicit grants? This may need policy consideration.
+
+        // Authenticator should always be set before this is called in normal operation.
+        // If not set (e.g., internal clients or test code), fall back to global check.
+        if (authenticator == null)
+        {
+            logger.warn("isSuper() called before authenticator was set - this should not happen in normal operation");
+            return !DatabaseDescriptor.isAuthenticationRequired() || (user != null && user.isSuper());
+        }
+
+        return !authenticator.requireAuthentication() || (user != null && user.isSuper());
     }
 
     /**
