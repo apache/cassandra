@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.AuthenticationException;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.CassandraDaemon;
 
 /**
  * LoginModule which authenticates a user towards the Cassandra database using the default authentication
@@ -140,7 +140,7 @@ public class CassandraLoginModule implements LoginModule
 
     private void authenticate()
     {
-        if (!StorageService.instance.isAuthSetupComplete())
+        if (!CassandraDaemon.isAuthSetupComplete())
             throw new AuthenticationException("Cannot login as server authentication setup is not yet completed");
 
         IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
