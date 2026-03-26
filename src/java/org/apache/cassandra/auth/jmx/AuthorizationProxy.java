@@ -53,7 +53,7 @@ import org.apache.cassandra.auth.PermissionDetails;
 import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.auth.Roles;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.utils.JmxInvocationListener;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -148,10 +148,10 @@ public class AuthorizationProxy implements InvocationHandler
     protected Function<ObjectName, Set<ObjectName>> queryNames = (name) -> mbs.queryNames(name, null);
 
     /*
-     Used to determine whether auth setup has completed so we know whether the expect the IAuthorizer
+     Used to determine whether auth setup has completed so we know whether to expect the IAuthorizer
      to be ready. Can be overridden for testing.
      */
-    protected BooleanSupplier isAuthSetupComplete = () -> StorageService.instance.isAuthSetupComplete();
+    protected BooleanSupplier isAuthSetupComplete = () -> CassandraDaemon.isAuthSetupComplete();
 
     protected JmxInvocationListener listener = AuditLogManager.instance;
 
