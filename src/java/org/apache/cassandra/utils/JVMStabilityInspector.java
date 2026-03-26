@@ -191,7 +191,8 @@ public final class JVMStabilityInspector
             inspectThrowable(t.getCause(), fn, isUncaughtException);
     }
 
-    public static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
+    @VisibleForTesting
+    static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
 
     /**
      * Returns true if the given OOM is a fatal heap-related error (heap space exhaustion or GC overhead),
