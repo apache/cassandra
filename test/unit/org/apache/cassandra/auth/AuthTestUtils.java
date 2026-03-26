@@ -242,11 +242,35 @@ public class AuthTestUtils
 
     /**
      * Functionally identical to LocalPasswordAuthenticator, but is used to differentiate between default and
-     * negotiated authenticators in negotiation test cases.
+     * negotiated authenticators in negotiation test cases. Delegates to a shared LocalPasswordAuthenticator
+     * instance to avoid duplicate cache initialization.
      */
     public static class LocalDefaultPasswordAuthenticator extends LocalPasswordAuthenticator
     {
+        private final LocalPasswordAuthenticator delegate;
 
+        public LocalDefaultPasswordAuthenticator(LocalPasswordAuthenticator delegate)
+        {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void setup()
+        {
+            // Delegate handles setup
+        }
+
+        @Override
+        public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
+        {
+            return delegate.newSaslNegotiator(clientAddress);
+        }
+
+        @Override
+        public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials)
+        {
+            return delegate.legacyAuthenticate(credentials);
+        }
     }
 
     public static class LocalMutualTLSAuthenticator extends MutualTlsAuthenticator

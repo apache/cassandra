@@ -188,12 +188,17 @@ public class ConnectionTrackerTest
             }
         });
 
+        ClientState state = connection.getClientState();
+
+        // Set authenticator so ClientState behaves correctly
+        state.setAuthenticator(DatabaseDescriptor.getDefaultAuthenticator());
+
         if (user == null)
         {
+            // For anonymous connections, the authenticator should have already set ANONYMOUS_USER
+            // if authentication is not required
             return connection;
         }
-
-        ClientState state = connection.getClientState();
 
         ClientState spyState = Mockito.spy(state);
         Mockito.when(spyState.getUser()).thenReturn(user);

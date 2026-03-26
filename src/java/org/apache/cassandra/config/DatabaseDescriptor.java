@@ -2110,7 +2110,7 @@ public class DatabaseDescriptor
      */
     public static boolean isAuthenticationRequired()
     {
-        return authenticator.requireAuthentication();
+        return defaultAuthenticator.requireAuthentication();
     }
 
     /**
