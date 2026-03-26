@@ -137,7 +137,7 @@ public class StartupMessage extends Message.Request
         Set<String> clientAuthenticators = Set.of(StringUtils.defaultIfEmpty(options.get(AUTHENTICATORS), StringUtils.EMPTY).split(","));
 
         IAuthenticator authenticator = AuthenticatorNegotiator.negotiateAuthenticator(clientAuthenticators);
-        
+
         // Set the authenticator for this connection
         clientState.setAuthenticator(authenticator);
 

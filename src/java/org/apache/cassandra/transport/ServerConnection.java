@@ -116,10 +116,10 @@ public class ServerConnection extends Connection
     {
         // Get the authenticator that was negotiated/selected for this connection
         IAuthenticator authenticator = queryState.getClientState().getAuthenticator();
-        
+
         if (authenticator == null)
             throw new IllegalStateException("Authenticator must be set in ClientState before creating SASL negotiator");
-        
+
         return authenticator.newSaslNegotiator(queryState.getClientAddress(), certificates());
     }
 
