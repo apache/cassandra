@@ -54,9 +54,9 @@ public final class InMarker extends Terms.NonTerminals
     public void addFunctionsTo(List<Function> functions) {}
 
     @Override
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        boundNames.add(bindIndex, receiver);
+        boundNames.add(bindIndex, receiver, owner);
     }
 
     @Override

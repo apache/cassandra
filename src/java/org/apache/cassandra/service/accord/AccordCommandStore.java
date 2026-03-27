@@ -60,6 +60,8 @@ import accord.local.CommandStores;
 import accord.local.CommandSummaries;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
+import accord.local.MinimalCommand;
+import accord.local.MinimalCommand.MinimalWithDeps;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
 import accord.local.PreLoadContext.Empty;
@@ -67,7 +69,6 @@ import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
 import accord.local.RedundantStatus.Property;
 import accord.local.RedundantStatus.SomeStatus;
-import accord.local.RejectBefore;
 import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
@@ -87,8 +88,8 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults.CountingResult;
 
-import org.apache.cassandra.config.AccordSpec;
-import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode;
+import org.apache.cassandra.config.AccordConfig;
+import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.util.File;
@@ -255,7 +256,7 @@ public class AccordCommandStore extends CommandStore
 
         this.exclusiveExecutor = sharedExecutor.executor(id);
         {
-            AccordSpec.RangeIndexMode mode = getAccord().range_index_mode;
+            AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
             switch (mode)
             {
                 default: throw new UnhandledEnum(mode);
@@ -388,7 +389,7 @@ public class AccordCommandStore extends CommandStore
         RedundantBefore.QuickBounds bounds = safeGetRedundantBefore().get(key);
         if (!Invariants.expect(bounds != null, "No RedundantBefore information found when loading key %s", key))
             return cfk;
-        return cfk.withGcBeforeAtLeast(bounds.gcBefore, false);
+        return cfk.withCleanCfkBeforeAtLeast(bounds.cleanCfkBefore(), false);
     }
 
     boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
@@ -423,6 +424,18 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
+    public AsyncChain<Void> priorityChain(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    {
+        return AccordTask.create(this, preLoadContext, consumer).priorityChain();
+    }
+
+    @Override
+    public <T> AsyncChain<T> priorityChain(PreLoadContext preLoadContext, Function<? super SafeCommandStore, T> function)
+    {
+        return AccordTask.create(this, preLoadContext, function).priorityChain();
+    }
+
+    @Override
     public <T> AsyncChain<T> chain(Callable<T> call)
     {
         return taskExecutor().chain(call);
@@ -432,6 +445,12 @@ public class AccordCommandStore extends CommandStore
     public void execute(Runnable run)
     {
         taskExecutor().execute(run);
+    }
+
+    @Override
+    public boolean tryExecuteImmediately(Runnable run)
+    {
+        return taskExecutor().tryExecuteImmediately(run);
     }
 
     public AccordSafeCommandStore begin(AccordTask<?> operation, @Nullable CommandSummaries commandsForRanges)
@@ -575,12 +594,12 @@ public class AccordCommandStore extends CommandStore
         return command;
     }
 
-    public Command.Minimal loadMinimal(TxnId txnId)
+    public MinimalCommand loadMinimal(TxnId txnId)
     {
         return journal.loadMinimal(id, txnId, safeGetRedundantBefore(), durableBefore());
     }
 
-    public Command.MinimalWithDeps loadMinimalWithDeps(TxnId txnId)
+    public MinimalWithDeps loadMinimalWithDeps(TxnId txnId)
     {
         return journal.loadMinimalWithDeps(id, txnId, safeGetRedundantBefore(), durableBefore());
     }
@@ -805,7 +824,6 @@ public class AccordCommandStore extends CommandStore
                 tmpSaveDir.createDirectoriesIfNotExists();
                 writeOne(new File(tmpSaveDir, "max_decidedrx"), unsafeGetMaxDecidedRX(), maxDecidedRX);
                 writeOne(new File(tmpSaveDir, "max_conflicts"), unsafeGetMaxConflicts(), maxConflicts);
-                writeOne(new File(tmpSaveDir, "reject_before"), unsafeGetRejectBefore(), rejectBefore);
                 writeList(new File(tmpSaveDir, "listeners"), ((DefaultLocalListeners)listeners).snapshot(), txnListener);
                 writeList(new File(tmpSaveDir, "progress_log"), ((DefaultProgressLog)progressLog).snapshot(), progressLogState);
                 rangeIndex.save(new File(tmpSaveDir, "range_index"));
@@ -872,7 +890,7 @@ public class AccordCommandStore extends CommandStore
 
             File savePoint = savePoints[savePoints.length - 1];
             long segment = Long.parseLong(savePoint.name());
-            MaxDecidedRX mxd; MaxConflicts mxc; RejectBefore rjb;
+            MaxDecidedRX mxd; MaxConflicts mxc;
             List<TxnListener> dll; List<TxnState> dpl; Object rgi;
             RedundantBefore rdb;
             try
@@ -880,7 +898,11 @@ public class AccordCommandStore extends CommandStore
                 logger.info("{} loading state from {}", this, savePoint);
                 mxd = readOne(new File(savePoint, "max_decidedrx"), maxDecidedRX);
                 mxc = readOne(new File(savePoint, "max_conflicts"), maxConflicts);
-                rjb = readOne(new File(savePoint, "reject_before"), rejectBefore);
+                {
+                    File rjbf = new File(savePoint, "reject_before");
+                    if (rjbf.exists())
+                        mxc = mxc.with(readOne(rjbf, rejectBefore));
+                }
                 dll = readList(new File(savePoint, "listeners"), txnListener);
                 dpl = readList(new File(savePoint, "progress_log"), progressLogState);
                 rgi = rangeIndex.load(new File(savePoint, "range_index"));
@@ -898,7 +920,6 @@ public class AccordCommandStore extends CommandStore
             rangeIndex.restore(rgi);
             unsafeSetMaxDecidedRX(mxd);
             unsafeSetMaxConflicts(mxc);
-            unsafeSetRejectBefore(rjb);
             ((DefaultLocalListeners) listeners).restore(dll);
             boolean unsetCatchup = ((DefaultProgressLog) progressLog).setModeExclusive(safeStore, CATCH_UP);
             ((DefaultProgressLog) progressLog).restore(safeStore, dpl);

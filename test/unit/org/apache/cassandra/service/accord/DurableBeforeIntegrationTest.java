@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 
+import org.junit.Test;
+
 import accord.api.RoutingKey;
 import accord.local.DurableBefore;
 import accord.local.DurableBeforeTest;
@@ -51,6 +53,7 @@ public class DurableBeforeIntegrationTest extends DurableBeforeTest
         return new TokenKey(TableId.fromLong(1 + prefix), new Murmur3Partitioner.LongToken(hash));
     }
 
+    @Test
     @Override
     public void test()
     {

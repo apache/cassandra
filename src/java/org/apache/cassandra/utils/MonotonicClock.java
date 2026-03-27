@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.APPROXIMATE_TIME_PRECISION_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
@@ -146,21 +147,28 @@ public interface MonotonicClock
         @VisibleForTesting
         public static class AlmostSameTime implements MonotonicClockTranslation
         {
+            final long microsSinceEpoch;
             final long millisSinceEpoch;
             final long monotonicNanos;
             final long error; // maximum error of millis measurement (in nanos)
 
             @VisibleForTesting
-            public AlmostSameTime(long millisSinceEpoch, long monotonicNanos, long errorNanos)
+            public AlmostSameTime(long sinceEpoch, TimeUnit unitsSinceEpoch, long monotonicNanos, long errorNanos)
             {
-                this.millisSinceEpoch = millisSinceEpoch;
+                this.microsSinceEpoch = unitsSinceEpoch.toMicros(sinceEpoch);
+                this.millisSinceEpoch = unitsSinceEpoch.toMillis(sinceEpoch);
                 this.monotonicNanos = monotonicNanos;
                 this.error = errorNanos;
             }
 
-            public long fromMillisSinceEpoch(long currentTimeMillis)
+            public long fromMillisSinceEpoch(long millisSinceEpoch)
             {
-                return monotonicNanos + MILLISECONDS.toNanos(currentTimeMillis - millisSinceEpoch);
+                return monotonicNanos + MILLISECONDS.toNanos(millisSinceEpoch - this.millisSinceEpoch);
+            }
+
+            public long fromMicrosSinceEpoch(long microsSinceEpoch)
+            {
+                return monotonicNanos + MICROSECONDS.toNanos(microsSinceEpoch - this.microsSinceEpoch);
             }
 
             public long toMillisSinceEpoch(long nanoTime)
@@ -174,15 +182,17 @@ public interface MonotonicClock
             }
         }
 
-        final LongSupplier millisSinceEpoch;
+        final LongSupplier sinceEpoch;
+        final TimeUnit sinceEpochUnits;
 
-        private volatile AlmostSameTime almostSameTime = new AlmostSameTime(0L, 0L, Long.MAX_VALUE);
+        private volatile AlmostSameTime almostSameTime = new AlmostSameTime(0L, MILLISECONDS, 0L, Long.MAX_VALUE);
         private Future<?> almostSameTimeUpdater;
         private static double failedAlmostSameTimeUpdateModifier = 1.0;
 
-        AbstractEpochSamplingClock(LongSupplier millisSinceEpoch)
+        AbstractEpochSamplingClock(LongSupplier sinceEpoch, TimeUnit sinceEpochUnits)
         {
-            this.millisSinceEpoch = millisSinceEpoch;
+            this.sinceEpoch = sinceEpoch;
+            this.sinceEpochUnits = sinceEpochUnits;
             resumeEpochSampling();
         }
 
@@ -217,7 +227,7 @@ public interface MonotonicClock
             samples[0] = nanoTime();
             for (int i = 1 ; i < samples.length ; i += 2)
             {
-                samples[i] = millisSinceEpoch.getAsLong();
+                samples[i] = sinceEpoch.getAsLong();
                 samples[i + 1] = now();
             }
 
@@ -229,12 +239,12 @@ public interface MonotonicClock
                     best = i;
             }
 
-            long millis = samples[best];
+            long since = samples[best];
             long nanos = (samples[best+1] / 2) + (samples[best-1] / 2);
             long error = (samples[best+1] / 2) - (samples[best-1] / 2);
 
             AlmostSameTime prev = almostSameTime;
-            AlmostSameTime next = new AlmostSameTime(millis, nanos, error);
+            AlmostSameTime next = new AlmostSameTime(since, sinceEpochUnits, nanos, error);
 
             if (next.error > prev.error && next.error > prev.error * failedAlmostSameTimeUpdateModifier)
             {
@@ -258,7 +268,7 @@ public interface MonotonicClock
         // class to ACC_PUBLIC, and ensured proper testing relationship from both the surrounding and nested class.
         public SystemClock()
         {
-            super(Clock.Global::currentTimeMillis);
+            super(FBUtilities::preciseTimestampMicros, MICROSECONDS);
         }
 
         @Override

@@ -22,8 +22,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
@@ -54,11 +57,14 @@ import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing.AccordTraceIn;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.LEAKY;
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.SAMPLE;
+import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.SLOWEST;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordTracing extends AccordCoordinatorMetrics.Listener
 {
@@ -68,16 +74,20 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
 
     public enum BucketMode
     {
-        LEAKY, SAMPLE, RING;
+        LEAKY, SAMPLE, RING, SLOWEST;
 
         int position(int permits, int total)
         {
             switch (this)
             {
                 default: throw UnhandledEnum.unknown(this);
-                case LEAKY: return Integer.MAX_VALUE;
-                case RING: return total % permits;
-                case SAMPLE: return ThreadLocalRandom.current().nextInt(total);
+                case SLOWEST:
+                case LEAKY:
+                    return Integer.MAX_VALUE;
+                case RING:
+                    return total % permits;
+                case SAMPLE:
+                    return ThreadLocalRandom.current().nextInt(total);
             }
         }
     }
@@ -90,14 +100,26 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
     public static class Message
     {
         public final long atNanos;
+        public final int nodeId;
         public final int commandStoreId;
         public final String message;
 
-        Message(int commandStoreId, String message, long atLeastNanos)
+        static Message withAtLeastNanos(int nodeId, int commandStoreId, String message, long atLeastNanos)
         {
+            return new Message(nodeId, commandStoreId, message, Math.max(atLeastNanos, nanoTime()));
+        }
+
+        static Message withExactNanos(int nodeId, int commandStoreId, String message, long atNanos)
+        {
+            return new Message(nodeId, commandStoreId, message, atNanos);
+        }
+
+        private Message(int nodeId, int commandStoreId, String message, long atNanos)
+        {
+            this.atNanos = atNanos;
+            this.nodeId = nodeId;
             this.commandStoreId = commandStoreId;
             this.message = message;
-            this.atNanos = Math.max(atLeastNanos, Clock.Global.nanoTime());
         }
 
         @Override
@@ -109,25 +131,29 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
 
     public static class TxnEvent implements Tracing, Comparable<TxnEvent>
     {
+        public final TxnEvents parent;
         public final CoordinationKind kind;
         public final long idMicros = uniqueNowMicros();
-        public final long atNanos = Clock.Global.nanoTime();
+        public final long atNanos = nanoTime();
         final List<Message> messages = new ArrayList<>();
         int index = -1, subIndex = -1;
+        long elapsedNanos;
 
-        public TxnEvent(CoordinationKind kind)
+        public TxnEvent(TxnEvents parent, CoordinationKind kind)
         {
+            this.parent = parent;
             this.kind = kind;
         }
 
         @Override
-        public void trace(CommandStore commandStore, String s)
+        public synchronized void trace(CommandStore commandStore, String s)
         {
             long prevNanos = messages.isEmpty() ? 0 : messages.get(messages.size() - 1).atNanos;
             int id = commandStore == null ? -1 : commandStore.id();
+            // TODO (expected): make this configurable
             if (s.length() > 1000)
                 s = s.substring(0, 1000);
-            messages.add(new Message(id, s, prevNanos + 1));
+            messages.add(Message.withAtLeastNanos(-1, id, s, prevNanos + 1));
         }
 
         @Override
@@ -139,6 +165,74 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         public List<Message> messages()
         {
             return Collections.unmodifiableList(messages);
+        }
+
+        @Override
+        public Tracing send()
+        {
+            return this;
+        }
+
+        public long elapsedNanos()
+        {
+            return elapsedNanos;
+        }
+
+        public long doneAtNanos()
+        {
+            return atNanos + elapsedNanos;
+        }
+
+        @Override
+        public void done()
+        {
+            elapsedNanos = nanoTime() - atNanos;
+            TracePatternState pattern = parent.owner;
+            if (pattern != null && pattern.bucketMode == SLOWEST && !pattern.updateSlowest(parent, elapsedNanos))
+                return;
+
+            if (index < 0)
+            {
+                parent.parent.txnIdMap.compute(parent.txnId, (id, events) -> {
+                    TracePatternState owner = parent.owner;
+                    if (owner != null)
+                    {
+                        synchronized (owner)
+                        {
+                            owner.detachedEvent.remove(idMicros);
+                        }
+                    }
+
+                    if (events != parent)
+                        return events;
+
+                    TxnEventsList subList = events.subLists.get(kind);
+                    TxnEventsList list = subList == null ? events : subList;
+                    if (list.size < events.bucketSize && (subList == null || subList.size < events.bucketSubSize))
+                    {
+                        if (events.parent.globalCount.admit())
+                            events.add(kind, subList, this);
+                        return events;
+                    }
+
+                    for (int i = 0 ; i < list.size ; ++i)
+                    {
+                        TxnEvent event = list.get(i);
+                        if (event.elapsedNanos < elapsedNanos)
+                        {
+                            events.remove(event.index);
+                            events.add(kind, subList, this);
+                            break;
+                        }
+                    }
+                    return events;
+                });
+            }
+        }
+
+        public TxnId txnId()
+        {
+            return parent.txnId;
         }
     }
 
@@ -189,11 +283,28 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
     public static class TxnEvents extends TxnEventsList
     {
         private final EnumMap<CoordinationKind, TxnEventsList> subLists = new EnumMap<>(CoordinationKind.class);
+
+        final AccordTracing parent;
+        final TxnId txnId;
+
         private CoordinationKinds traceEvents = CoordinationKinds.ALL;
         private BucketMode mode = LEAKY;
         private TracePatternState owner;
         private int bucketSize, bucketSubSize;
         private float chance = 1.0f;
+        private boolean detached;
+
+        public TxnEvents(AccordTracing parent, TxnId txnId)
+        {
+            this.parent = parent;
+            this.txnId = txnId;
+        }
+
+        private TxnEvents setDetached()
+        {
+            detached = true;
+            return this;
+        }
 
         void remove(int index)
         {
@@ -287,7 +398,11 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
                 subList.incrementSeen();
                 int position = mode.position(bucketSubSize, subList.bucketSeen);
                 if (position >= bucketSubSize)
+                {
+                    if (mode == SLOWEST)
+                        return new TxnEvent(this, kind);
                     return null;
+                }
 
                 remove(subList.get(position).index);
             }
@@ -296,13 +411,17 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
                 incrementSeen();
                 int position = mode.position(bucketSize, bucketSeen);
                 if (position >= bucketSize)
+                {
+                    if (mode == SLOWEST)
+                        return new TxnEvent(this, kind);
                     return null;
+                }
 
                 remove(position);
             }
             else
             {
-                if (!globalCount.admit())
+                if (globalCount != null && !globalCount.admit())
                     return null;
             }
 
@@ -321,15 +440,20 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
 
         private TxnEvent newTrace(CoordinationKind kind, TxnEventsList subList)
         {
+            TxnEvent event = new TxnEvent(this, kind);
+            add(kind, subList, event);
+            return event;
+        }
+
+        private void add(CoordinationKind kind, TxnEventsList subList, TxnEvent event)
+        {
             if (subList == null)
                 subLists.put(kind, subList = new TxnEventsList());
 
-            TxnEvent event = new TxnEvent(kind);
             event.subIndex = subList.size;
             subList.addInternal(event);
             event.index = size;
             addInternal(event);
-            return event;
         }
 
         public boolean hasOwner()
@@ -370,7 +494,12 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         public void forEach(Consumer<TxnEvent> forEach)
         {
             for (int i = 0 ; i < size ; ++i)
-                forEach.accept(events[i]);
+            {
+                synchronized (events[i])
+                {
+                    forEach.accept(events[i]);
+                }
+            }
         }
     }
 
@@ -439,6 +568,26 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         }
     }
 
+    private static class SlowestTxnId implements Comparable<SlowestTxnId>
+    {
+        final TxnId txnId;
+        long elapsedNanos;
+
+        private SlowestTxnId(TxnId txnId, long elapsedNanos)
+        {
+            this.txnId = txnId;
+            this.elapsedNanos = elapsedNanos;
+        }
+
+        @Override
+        public int compareTo(SlowestTxnId that)
+        {
+            int c = Long.compare(this.elapsedNanos, that.elapsedNanos);
+            if (c == 0) c = this.txnId.compareTo(that.txnId);
+            return c;
+        }
+    }
+
     public class TracePatternState
     {
         final int id;
@@ -452,6 +601,10 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         private CoordinationKinds traceEvents = new CoordinationKinds(false, 0);
 
         private final List<TxnId> txnIds = new ArrayList<>();
+        private final WeakHashMap<TxnId, TxnEvents> detachedEvents = new WeakHashMap<>();
+        private final WeakHashMap<Long, TxnEvent> detachedEvent = new WeakHashMap<>();
+        private final Map<TxnId, SlowestTxnId> slowestLookup = new HashMap<>();
+        private final TreeSet<SlowestTxnId> slowest = new TreeSet<>();
 
         public TracePatternState(int id)
         {
@@ -487,37 +640,160 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             return maybeAdd(txnId);
         }
 
-        private synchronized TxnEvents maybeAdd(TxnId txnId)
+        private TxnEvents maybeAdd(TxnId txnId)
         {
-            if (bucketSize == 0)
-                return null;
-
-            if (++bucketSeen < 0)
-                bucketSeen = Integer.MAX_VALUE;
-
-            if (bucketSize > txnIds.size())
+            class MaybeAdd implements BiFunction<TxnId, TxnEvents, TxnEvents>
             {
-                TxnEvents added = trace(txnId);
-                if (added != null)
-                    txnIds.add(txnId);
-                return added;
+                TxnEvents result;
+                TxnId untrace;
+
+                @Override
+                public TxnEvents apply(TxnId txnId, TxnEvents in)
+                {
+                    synchronized (TracePatternState.this)
+                    {
+                        if (in != null)
+                            return null; // already tracing
+
+                        if (bucketSize == 0)
+                            return null;
+
+                        if (++bucketSeen < 0)
+                            bucketSeen = Integer.MAX_VALUE;
+
+                        if (bucketSize > txnIds.size())
+                        {
+                            result = newEvents(txnId);
+                            txnIds.add(txnId);
+                            if (bucketMode == SLOWEST)
+                                initSlowest(result);
+                            return result;
+                        }
+
+                        int position = bucketMode.position(bucketSize, bucketSeen);
+                        if (position >= bucketSize)
+                        {
+                            if (bucketMode == SLOWEST)
+                                result = detachedEvents.computeIfAbsent(txnId, id -> newEvents(id).setDetached());
+                            return null;
+                        }
+
+                        result = newEvents(txnId);
+                        untrace = txnIds.get(position);
+                        txnIds.set(position, txnId);
+                        if (bucketMode == SLOWEST)
+                            initSlowest(result);
+                        return result;
+                    }
+                }
             }
 
-            int position = bucketMode.position(bucketSize, bucketSeen);
-
-            if (position >= bucketSize)
-                return null;
-
-            TxnEvents added = trace(txnId);
-            if (added == null)
-                return null;
-
-            untrace(txnIds.get(position));
-            txnIds.set(position, txnId);
-            return added;
+            MaybeAdd maybeAdd = new MaybeAdd();
+            txnIdMap.compute(txnId, maybeAdd);
+            if (maybeAdd.untrace != null)
+                untrace(maybeAdd.untrace);
+            return maybeAdd.result;
         }
 
-        private synchronized void untrace(TxnId txnId)
+        private boolean initSlowest(TxnEvents events)
+        {
+            SlowestTxnId entry = new SlowestTxnId(events.txnId, Long.MAX_VALUE);
+            if (null != slowestLookup.putIfAbsent(events.txnId, entry))
+                return false;
+            slowest.add(entry);
+            return true;
+        }
+
+        private boolean updateSlowest(TxnEvents events, long elapsedNanos)
+        {
+            synchronized (this)
+            {
+                SlowestTxnId entry = slowestLookup.get(events.txnId);
+                if (entry != null)
+                {
+                    if (entry.elapsedNanos < elapsedNanos)
+                    {
+                        slowest.remove(entry);
+                        entry.elapsedNanos = elapsedNanos;
+                        slowest.add(entry);
+                    }
+                    return true;
+                }
+            }
+
+            class UpdateSlowest implements BiFunction<TxnId, TxnEvents, TxnEvents>
+            {
+                boolean result;
+                TxnId untrace;
+
+                @Override
+                public TxnEvents apply(TxnId txnId, TxnEvents cur)
+                {
+                    if (cur != null && cur != events)
+                        return cur;
+
+                    synchronized (TracePatternState.this)
+                    {
+                        SlowestTxnId entry = slowestLookup.get(events.txnId);
+                        if (entry != null)
+                        {
+                            if (entry.elapsedNanos < elapsedNanos)
+                            {
+                                slowest.remove(entry);
+                                entry.elapsedNanos = elapsedNanos;
+                                slowest.add(entry);
+                            }
+                            result = true;
+                            return events;
+                        }
+
+                        int index = txnIds.size();
+                        if (index >= bucketSize && !slowest.isEmpty())
+                        {
+                            SlowestTxnId leastSlow = slowest.first();
+                            if (leastSlow.elapsedNanos >= elapsedNanos)
+                                return cur;
+
+                            SlowestTxnId removed;
+                            removed = slowest.pollFirst();
+                            Invariants.expect(leastSlow.equals(removed), "%s != %s", entry, removed);
+                            removed = slowestLookup.remove(leastSlow.txnId);
+                            Invariants.expect(leastSlow.equals(removed), "%s != %s", entry, removed);
+                            index = txnIds.indexOf(leastSlow.txnId);
+                            Invariants.expect(index >= 0);
+                            if (index < 0)
+                                return cur;
+
+                            untrace = leastSlow.txnId;
+                            txnIds.set(index, events.txnId);
+                        }
+                        else
+                        {
+                            if (index > bucketSize)
+                                txnIds.remove(0);
+                            txnIds.add(events.txnId);
+                        }
+
+                        if (null != slowestLookup.put(events.txnId, entry = new SlowestTxnId(events.txnId, elapsedNanos)))
+                            return cur;
+
+                        slowest.add(entry);
+                        detachedEvents.remove(entry.txnId);
+                        events.detached = false;
+                        result = true;
+                        return events;
+                    }
+                }
+            }
+
+            UpdateSlowest updateSlowest = new UpdateSlowest();
+            txnIdMap.compute(events.txnId, updateSlowest);
+            if (updateSlowest.untrace != null)
+                untrace(updateSlowest.untrace);
+            return updateSlowest.result;
+        }
+
+        private void untrace(TxnId txnId)
         {
             txnIdMap.compute(txnId, (ignore, cur) -> {
                 if (cur == null || cur.owner != this)
@@ -528,16 +804,14 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             });
         }
 
-        private synchronized TxnEvents trace(TxnId txnId)
+        private TxnEvents newEvents(TxnId txnId)
         {
-            TxnEvents events = new TxnEvents();
+            TxnEvents events = new TxnEvents(AccordTracing.this, txnId);
             events.mode = traceBucketMode;
             events.bucketSize = traceBucketSize;
             events.bucketSubSize = traceBucketSubSize;
             events.owner = this;
-            if (null == txnIdMap.putIfAbsent(txnId, events))
-                return events;
-            return null;
+            return events;
         }
 
         synchronized void set(Function<TracePattern, TracePattern> pattern, BucketMode newBucketMode, int newBucketSeen, int newBucketSize, BucketMode newTraceBucketMode, int newTraceBucketSize, int newTraceBucketSubSize, CoordinationKinds newTraceEvents)
@@ -545,8 +819,16 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             Invariants.require(newBucketSize != 0);
             Invariants.require(newTraceBucketSize != 0);
             this.pattern = pattern.apply(this.pattern);
-            if (newBucketMode != null)
+            if (newBucketMode != null && newBucketMode != bucketMode)
+            {
+                if (bucketMode == SLOWEST)
+                {
+                    slowest.clear();
+                    slowestLookup.clear();
+                    detachedEvents.clear();
+                }
                 this.bucketMode = newBucketMode;
+            }
             if (newBucketSize >= 0)
                 this.bucketSize = newBucketSize;
             if (newBucketSeen >= 0)
@@ -561,11 +843,19 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
                 this.traceEvents = newTraceEvents;
         }
 
-        synchronized void clear()
+        void clear()
         {
-            for (TxnId txnId : txnIds)
+            List<TxnId> untrace;
+            synchronized (this)
+            {
+                untrace = new ArrayList<>(txnIds);
+                txnIds.clear();
+                slowest.clear();
+                slowestLookup.clear();
+                detachedEvents.clear();
+            }
+            for (TxnId txnId : untrace)
                 untrace(txnId);
-            txnIds.clear();
         }
     }
 
@@ -607,15 +897,49 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         if (kind == CoordinationKind.FetchDurableBefore)
             return (cs, msg) -> logger.info("Catchup/FetchDurableBefore: {}", msg.length() <= 100 ? msg : msg.substring(0, 100));
 
-        if (!txnIdMap.containsKey(txnId) && null == maybeTrace(txnId, participants, kind, NewOrFailure.NEW, traceNewPatterns))
-            return null;
+        if (!txnIdMap.containsKey(txnId))
+        {
+            TxnEvents events = maybeTrace(txnId, participants, kind, NewOrFailure.NEW, traceNewPatterns);
+            if (events == null)
+                return null;
+
+            if (events.detached)
+            {
+                class RegisterDetached implements BiFunction<TxnId, TxnEvents, TxnEvents>
+                {
+                    TxnEvent event;
+
+                    @Override
+                    public TxnEvents apply(TxnId txnId, TxnEvents state)
+                    {
+                        if (state != null) event = state.trace(kind, globalCount);
+                        else
+                        {
+                            TracePatternState owner = events.owner;
+                            if (owner != null)
+                            {
+                                synchronized (owner)
+                                {
+                                    event = new TxnEvent(events, kind);
+                                    owner.detachedEvent.put(event.idMicros, event);
+                                }
+                            }
+                        }
+                        return state;
+                    }
+                }
+                RegisterDetached register = new RegisterDetached();
+                txnIdMap.compute(txnId, register);
+                return register.event;
+            }
+        }
 
         class Register implements BiFunction<TxnId, TxnEvents, TxnEvents>
         {
             TxnEvent event;
 
             @Override
-            public TxnEvents apply(TxnId id, TxnEvents state)
+            public TxnEvents apply(TxnId txnId, TxnEvents state)
             {
                 if (state == null)
                     return null;
@@ -627,6 +951,65 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         Register register = new Register();
         txnIdMap.compute(txnId, register);
         return register.event;
+    }
+
+    public void report(AccordTraceIn in, int nodeId)
+    {
+        txnIdMap.compute(in.txnId, (ignore, events) -> {
+            if (events != null)
+            {
+                report(in, nodeId, events);
+                return events;
+            }
+            else
+            {
+                for (TracePatternState patternState : allPatterns)
+                {
+                    synchronized (patternState)
+                    {
+                        TxnEvent detached = patternState.detachedEvent.get(in.idMicros);
+                        if (detached != null)
+                        {
+                            report(in, nodeId, detached);
+                            return null;
+                        }
+                    }
+                }
+                return null;
+            }
+        });
+
+    }
+
+    private boolean report(AccordTraceIn in, int nodeId, TxnEvents events)
+    {
+        for (int i = 0 ; i < events.size ; ++i)
+        {
+            TxnEvent event = events.get(i);
+            if (event.idMicros == in.idMicros)
+            {
+                report(in, nodeId, event);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void report(AccordTraceIn in, int nodeId, TxnEvent event)
+    {
+        synchronized (event)
+        {
+            long atNanos = Math.max(in.atNanos, event.atNanos);
+            int j = event.messages.size();
+            while (j > 0 && event.messages.get(j - 1).atNanos >= atNanos)
+                --j;
+            while (j < event.messages.size() && event.messages.get(j).atNanos == atNanos)
+            {
+                atNanos++;
+                j++;
+            }
+            event.messages.add(j, Message.withExactNanos(nodeId, in.commandStoreId, in.message, atNanos));
+        }
     }
 
     // null values, or values < 0, are ignored
@@ -641,7 +1024,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
                 if (newBucketSize < 0)
                     throw new IllegalArgumentException("Must specify bucket size for new trace config.");
 
-                cur = new TxnEvents();
+                cur = new TxnEvents(this, id);
                 if (newBucketSubSize < 0)
                     cur.bucketSubSize = newBucketSize;
             }
@@ -714,6 +1097,15 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         txnIdMap.keySet().forEach(this::stopTracing);
     }
 
+    public void eraseAll()
+    {
+        allPatterns.forEach(TracePatternState::clear);
+        txnIdMap.keySet().forEach(txnId -> {
+            eraseEvents(txnId);
+            stopTracing(txnId);
+        });
+    }
+
     public void forEach(Predicate<TxnId> include, ConsumeState forEach)
     {
         txnIdMap.forEach((txnId, state) -> {
@@ -721,7 +1113,8 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             {
                 // ensure lock is held for duration of callback
                 txnIdMap.compute(txnId, (id, cur) -> {
-                    forEach.accept(txnId, cur);
+                    if (cur != null)
+                        forEach.accept(txnId, cur);
                     return cur;
                 });
             }
@@ -815,6 +1208,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
                 if (cur != tracing)
                     return cur;
 
+                // TODO (desired): assign an idMicros that is based on coordinationId
                 TxnEvent event = tracing.forceTrace(coordination.kind(), globalCount);
                 if (event == null) // we still honour global limit
                     return cur;

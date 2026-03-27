@@ -67,6 +67,7 @@ import org.apache.cassandra.metrics.ShardedHitRate;
 import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForKey.CommandsForKeyCacheEntry;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
@@ -1248,6 +1249,14 @@ public class AccordCache implements CacheSize
         public Comparator<RoutingKey> keyComparator()
         {
             return RoutingKey::compareAsRoutingKey;
+        }
+
+        @Override
+        public AccordCacheEntry<RoutingKey, CommandsForKey> newEntry(RoutingKey key, Type<RoutingKey, CommandsForKey, ?>.Instance owner)
+        {
+            CommandsForKeyCacheEntry entry = new CommandsForKeyCacheEntry(key, owner);
+            entry.readyToLoad();
+            return entry;
         }
     }
 

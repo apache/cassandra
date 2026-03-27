@@ -98,7 +98,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Condition;
 
-import static accord.api.ProtocolModifiers.Toggles.SendStableMessages.TO_ALL;
+import static accord.api.ProtocolModifiers.SendStableMessages.TO_ALL;
 import static accord.primitives.Routables.Slice.Minimal;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.TxnId.FastPath.Unoptimised;
@@ -250,6 +250,8 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ProtocolModifiers.Configure.setPermittedFastPaths(new TxnId.FastPaths(Unoptimised));
+        ProtocolModifiers.Configure.setSendStableMessages(TO_ALL);
         Config.setOverrideLoadConfig(() -> {
             Config config = new YamlConfigurationLoader().loadConfig();
             config.accord.queue_shard_count = new OptionaldPositiveInt(1);
@@ -259,7 +261,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
             return config;
         });
         daemonInitialization();
-        ProtocolModifiers.Toggles.setSendStableMessages(TO_ALL);
 
         CQLTester.setUpClass();
         CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
@@ -615,7 +616,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @Test
     public void inflight() throws ExecutionException, InterruptedException
     {
-        ProtocolModifiers.Toggles.setPermitLocalExecution(false);
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try
@@ -655,8 +655,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @Test
     public void blocked() throws ExecutionException, InterruptedException
     {
-        ProtocolModifiers.Toggles.setPermitLocalExecution(false);
-        ProtocolModifiers.Toggles.setPermittedFastPaths(new TxnId.FastPaths(Unoptimised));
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try

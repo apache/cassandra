@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -74,7 +74,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
                      Keyspace.setInitialized();
 
-                     AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
+                     AccordConfig.JournalConfig spec = new AccordConfig.JournalConfig();
                      spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
 
                      State.journal = new Journal<>("AccordJournal",

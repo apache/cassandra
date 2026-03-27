@@ -52,7 +52,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  */
 public abstract class Tracing extends ExecutorLocals.Impl
 {
-    public static final IVersionedSerializer<TraceType> traceTypeSerializer = new IVersionedSerializer<TraceType>()
+    public static final IVersionedSerializer<TraceType> traceTypeSerializer = new IVersionedSerializer<>()
     {
         public void serialize(TraceType traceType, DataOutputPlus out, int version) throws IOException
         {

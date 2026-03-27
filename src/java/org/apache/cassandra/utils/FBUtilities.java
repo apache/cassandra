@@ -73,6 +73,7 @@ import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
@@ -501,6 +502,17 @@ public class FBUtilities
         // we use microsecond resolution for compatibility with other client libraries, even though
         // we can't actually get microsecond precision.
         return currentTimeMillis() * 1000;
+    }
+
+    public static long preciseTimestampMicros()
+    {
+        Instant now = Instant.now();
+        long seconds = now.getEpochSecond();
+        long nanos = now.getNano();
+        Invariants.require(seconds >= 0);
+        long micros = Math.multiplyExact(seconds, 1000_000);
+        micros = Math.addExact(micros, nanos/1000);
+        return micros;
     }
 
     public static long nowInSeconds()

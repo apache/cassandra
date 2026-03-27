@@ -20,9 +20,12 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 
+import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+
 import accord.api.RoutingKey;
+import accord.local.AbstractMaxConflictsTest;
 import accord.local.MaxConflicts;
-import accord.local.MaxConflictsTest;
 import accord.utils.RandomSource;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,7 +36,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
 
-public class MaxConflictsIntegrationTest extends MaxConflictsTest
+public class MaxConflictsIntegrationTest extends AbstractMaxConflictsTest
 {
     static
     {
@@ -41,6 +44,13 @@ public class MaxConflictsIntegrationTest extends MaxConflictsTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
+    @Override
+    protected void assertTrue(boolean isTrue)
+    {
+        Assertions.assertTrue(isTrue);
+    }
+
+    @Test
     @Override
     public void test()
     {

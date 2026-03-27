@@ -39,7 +39,6 @@ import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
-import accord.local.RejectBefore;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SaveStatus;
@@ -77,7 +76,7 @@ public class CommandStoreSerializers
     public static final UnversionedSerializer<MaxDecidedRX> maxDecidedRX = new ReducingRangeMapSerializer<>(new DecidedRXSerializer(), MaxDecidedRX.DecidedRX[]::new, MaxDecidedRX.SerializerSupport::create, MaxDecidedRX.EMPTY);
     public static final UnversionedSerializer<RedundantBefore.Bounds> redundantBeforeShortBounds = new RedundantBeforeShortBoundsSerializer();
     public static final UnversionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(redundantBeforeShortBounds, RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create, RedundantBefore.EMPTY);
-    public static final UnversionedSerializer<RejectBefore> rejectBefore = new ReducingRangeMapSerializer<>(CommandSerializers.timestamp, Timestamp[]::new, RejectBefore.SerializerSupport::create, RejectBefore.EMPTY);
+    public static final UnversionedSerializer<MaxConflicts> rejectBefore = new RejectBeforeSerializer();
     public static final UnversionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesMapSerializer<>(CommandSerializers.txnId);
     public static final UnversionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesMapSerializer<>(CommandSerializers.timestamp);
     public static final UnversionedSerializer<TxnListener> txnListener = new TxnListenerSerializer();
@@ -578,14 +577,15 @@ public class CommandStoreSerializers
     private static final class MaxConflictsSerializer extends BTreeReducingRangeMapSerializer<MaxConflicts.Entry, MaxConflicts>
     {
         // use top bits of a single byte vint, to leave room for base impl to fill other way
-        private static final int SEPARATE_WRITES = 0x40;
+        private static final int INCLUDES_WRITE = 0x40;
+        private static final int INCLUDES_REJECT = 0x20;
 
         private MaxConflictsSerializer() {}
 
         @Override
         protected int mapFlags()
         {
-            return SEPARATE_WRITES;
+            return INCLUDES_WRITE | INCLUDES_REJECT;
         }
 
         @Override
@@ -605,30 +605,78 @@ public class CommandStoreSerializers
         {
             CommandSerializers.timestamp.serialize(entry.any, out);
             CommandSerializers.timestamp.serialize(entry.write, out);
+            CommandSerializers.timestamp.serialize(entry.reject, out);
         }
 
         @Override
         long serializedSizeWithoutRange(MaxConflicts.Entry entry)
         {
             return CommandSerializers.timestamp.serializedSize(entry.any)
-                    + CommandSerializers.timestamp.serializedSize(entry.write);
+                    + CommandSerializers.timestamp.serializedSize(entry.write)
+                    + CommandSerializers.timestamp.serializedSize(entry.reject);
         }
 
         @Override
         MaxConflicts.Entry deserialize(RoutingKey start, RoutingKey end, DataInputPlus in, int mapFlags) throws IOException
         {
-            Timestamp all = CommandSerializers.timestamp.deserialize(in);
-            Timestamp writes = all;
-            if ((mapFlags & SEPARATE_WRITES) != 0)
-                writes = CommandSerializers.timestamp.deserialize(in);
-            return new MaxConflicts.Entry(start, end, all, writes);
+            Timestamp any = CommandSerializers.timestamp.deserialize(in);
+            Timestamp write = any;
+            if ((mapFlags & INCLUDES_WRITE) != 0)
+                write = CommandSerializers.timestamp.deserialize(in);
+            Timestamp reject = Timestamp.NONE;
+            if ((mapFlags & INCLUDES_REJECT) != 0)
+                reject = CommandSerializers.timestamp.deserialize(in);
+            return MaxConflicts.Entry.create(start, end, any, write, reject);
         }
 
         @Override
         MaxConflicts.Entry deserializeArrayModeWithoutRange(DataInputPlus in) throws IOException
         {
             Timestamp all = CommandSerializers.timestamp.deserialize(in);
-            return new MaxConflicts.Entry(all, all);
+            return MaxConflicts.Entry.create(all, all, Timestamp.NONE);
+        }
+    }
+
+    // legacy version that deserializes RejectsBefore into MaxConflicts
+    private static final class RejectBeforeSerializer extends BTreeReducingRangeMapSerializer<MaxConflicts.Entry, MaxConflicts>
+    {
+        private RejectBeforeSerializer() {}
+
+        @Override
+        MaxConflicts empty()
+        {
+            return MaxConflicts.EMPTY;
+        }
+
+        @Override
+        BTreeReducingRangeMap.Builder<MaxConflicts.Entry, MaxConflicts> builder()
+        {
+            return new MaxConflicts.Builder();
+        }
+
+        @Override
+        void serializeWithoutRange(MaxConflicts.Entry entry, DataOutputPlus out)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        long serializedSizeWithoutRange(MaxConflicts.Entry entry)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        MaxConflicts.Entry deserialize(RoutingKey start, RoutingKey end, DataInputPlus in, int mapFlags) throws IOException
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        MaxConflicts.Entry deserializeArrayModeWithoutRange(DataInputPlus in) throws IOException
+        {
+            Timestamp reject = CommandSerializers.timestamp.deserialize(in);
+            return MaxConflicts.Entry.create(Timestamp.NONE, Timestamp.NONE, reject);
         }
     }
 

@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,6 +73,8 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import accord.primitives.TxnId.FastPath;
+import accord.primitives.TxnId.FastPaths;
 import accord.topology.ActiveEpochs;
 import accord.topology.EpochReady;
 import accord.topology.Shard;
@@ -87,9 +90,9 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
 import org.apache.cassandra.concurrent.Shutdownable;
-import org.apache.cassandra.config.AccordSpec;
-import org.apache.cassandra.config.AccordSpec.CatchupMode;
-import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplaySavePoint;
+import org.apache.cassandra.config.AccordConfig;
+import org.apache.cassandra.config.AccordConfig.CatchupMode;
+import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplaySavePoint;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -158,23 +161,24 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
-import static accord.api.ProtocolModifiers.Toggles.FastExec.MAY_BYPASS_SAFESTORE;
+import static accord.api.ProtocolModifiers.FastExecution.MAY_BYPASS_SAFESTORE;
 import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Write;
+import static accord.primitives.TxnId.MediumPath.NoMediumPath;
+import static accord.primitives.TxnId.MediumPath.TrackStable;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag.JOB;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
-import static org.apache.cassandra.config.AccordSpec.CatchupMode.DISABLED;
-import static org.apache.cassandra.config.AccordSpec.CatchupMode.FALLBACK_TO_HARD;
-import static org.apache.cassandra.config.AccordSpec.CatchupMode.HARD;
-import static org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode.RESET;
+import static org.apache.cassandra.config.AccordConfig.CatchupMode.FALLBACK_TO_HARD;
+import static org.apache.cassandra.config.AccordConfig.CatchupMode.HARD;
+import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.RESET;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
@@ -276,12 +280,12 @@ public class AccordService implements IAccordService, Shutdownable
     private static final Future<Void> EPOCH_READY = ImmediateFuture.success(null);
     static
     {
-        ProtocolModifiers.Toggles.setPermitLocalExecution(true);
-        ProtocolModifiers.Toggles.setRequiresUniqueHlcs(true);
-        ProtocolModifiers.Toggles.setFastReadExecMayResendTxn(true);
-        ProtocolModifiers.Toggles.setFastReadExec(MAY_BYPASS_SAFESTORE);
-        ProtocolModifiers.Toggles.setFastWriteExec(MAY_BYPASS_SAFESTORE);
-        ProtocolModifiers.Toggles.setDataStoreDetectsFutureReads(true);
+        ProtocolModifiers.Configure.setPermitCoordinatorLocalExecution(true);
+        ProtocolModifiers.Configure.setDataStoreRequiresUniqueHlcs(true);
+        ProtocolModifiers.Configure.setFastReadExecMayResendTxn(true);
+        ProtocolModifiers.Configure.setFastReadExecution(MAY_BYPASS_SAFESTORE);
+        ProtocolModifiers.Configure.setFastWriteExecution(MAY_BYPASS_SAFESTORE);
+        ProtocolModifiers.Configure.setDataStoreDetectsFutureReads(true);
     }
 
     private enum State { INIT, STARTING, STARTED, STOPPED, SHUTTING_DOWN, SHUTDOWN }
@@ -448,14 +452,14 @@ public class AccordService implements IAccordService, Shutdownable
         AccordAgent agent = FBUtilities.construct(CassandraRelevantProperties.ACCORD_AGENT_CLASS.getString(AccordAgent.class.getName()), "AccordAgent");
         agent.setup(localId);
         AccordTimeService time = new AccordTimeService();
-        final RequestCallbacks callbacks = new RequestCallbacks(time);
         this.scheduler = new AccordScheduler();
+        final RequestCallbacks callbacks = new RequestCallbacks(time, scheduler);
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
         this.endpointMapper = new EndpointMapping.Updateable();
+        this.messageSink = new AccordMessageSink(endpointMapper, callbacks);
         this.topologyService = new AccordTopologyService(localId, endpointMapper);
         this.fastPathCoordinator = AccordFastPathCoordinator.create(localId, endpointMapper);
-        this.messageSink = new AccordMessageSink(endpointMapper, callbacks);
         this.node = new Node(localId,
                              messageSink,
                              topologyService,
@@ -479,6 +483,34 @@ public class AccordService implements IAccordService, Shutdownable
         this.responseHandler = new AccordResponseVerbHandler<>(callbacks, endpointMapper);
     }
 
+    public static void applyProtocolModifiers(AccordConfig config)
+    {
+        if (config.coordinator_backlog_execution != null)
+            ProtocolModifiers.Configure.setCoordinatorBacklogExecution(config.coordinator_backlog_execution);
+        if (config.permit_fast_path != null)
+            ProtocolModifiers.Configure.setPermittedFastPaths(new FastPaths(Stream.of(FastPath.values()).filter(fp -> fp.compareTo(config.permit_fast_path) <= 0).toArray(FastPath[]::new)));
+        if (config.permit_track_stable_medium_path != null)
+            ProtocolModifiers.Configure.setDefaultMediumPath(config.permit_track_stable_medium_path ? TrackStable : NoMediumPath);
+        if (config.permit_fast_quorum_medium_path != null)
+            ProtocolModifiers.Configure.setPermitFastQuorumMediumPath(config.permit_fast_quorum_medium_path);
+        if (config.always_inform_durable_single_key != null)
+            ProtocolModifiers.Configure.setInformOfSingleKeyDurabilityIfDepsSizeAtLeast(0);
+        if (config.replica_execution != null)
+            ProtocolModifiers.Configure.setReplicaExecution(config.replica_execution);
+        if (config.replica_execution_distributed_persist_chance != null)
+            ProtocolModifiers.Configure.setReplicaExecuteDistributedPersistChance(config.replica_execution_distributed_persist_chance);
+        if (config.fast_read_execution != null)
+            ProtocolModifiers.Configure.setFastReadExecution(config.fast_read_execution);
+        if (config.fast_write_execution != null)
+            ProtocolModifiers.Configure.setFastWriteExecution(config.fast_write_execution);
+        if (config.clean_cfk_before != null)
+            ProtocolModifiers.Configure.setCleanCfkBefore(config.clean_cfk_before);
+        if (config.send_stable != null)
+            ProtocolModifiers.Configure.setSendStableMessages(config.send_stable);
+        if (config.send_minimal != null)
+            ProtocolModifiers.Configure.setSendMinimalCommits(config.send_minimal);
+    }
+
     @Override
     public synchronized void localStartup()
     {
@@ -497,6 +529,7 @@ public class AccordService implements IAccordService, Shutdownable
                     case EXIT:
                         throw new RuntimeException("Stop marker is older than start marker (" + stopMarker + '<' + startMarker + ") , so cannot assume we have a complete log of our votes in any consensus groups. Exiting.");
 
+                    case ALLOW_UNSAFE_STARTUP:
                     case UNSAFE_STARTUP:
                         logger.warn("Stop marker is older than start marker ({}<{}), so cannot assume we have a complete log of our votes in any consensus groups. Continuing to startup as configured.", stopMarker, startMarker);
                         break;
@@ -611,7 +644,11 @@ public class AccordService implements IAccordService, Shutdownable
     private void distributedStartupInternal()
     {
         finishTopologyInitialization();
-        WatermarkCollector.fetchAndReportWatermarksAsync(topology());
+        WatermarkCollector.fetchAndReportWatermarksAsync(topology())
+                          .addCallback((success, failure) -> {
+                              topologyService.afterStartup(node);
+
+                          });
 
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
@@ -638,8 +675,8 @@ public class AccordService implements IAccordService, Shutdownable
 
     void catchup()
     {
-        AccordSpec spec = DatabaseDescriptor.getAccord();
-        if (spec.catchup_on_start == DISABLED)
+        AccordConfig spec = DatabaseDescriptor.getAccord();
+        if (spec.catchup_on_start == CatchupMode.DISABLED)
         {
             logger.info("Catchup disabled; continuing to startup");
             return;

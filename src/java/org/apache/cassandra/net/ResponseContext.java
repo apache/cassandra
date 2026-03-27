@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.net;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import accord.api.MessageSink;
@@ -36,6 +37,7 @@ public interface ResponseContext extends ReplyContext
     Verb verb();
     long expiresAtNanos();
     boolean hasFlag(MessageFlag flag);
+    Map<ParamType, Object> params();
 
     @Override
     default long expiresAt(TimeUnit units)

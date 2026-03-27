@@ -62,7 +62,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -1356,7 +1356,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void checkMixedTimeSourceHandling()
     {
-        AccordSpec.MixedTimeSourceHandling handling = DatabaseDescriptor.getAccord().mixedTimeSourceHandling;
+        AccordConfig.MixedTimeSourceHandling handling = DatabaseDescriptor.getAccord().mixedTimeSourceHandling;
         switch (handling)
         {
             case log:
@@ -1364,7 +1364,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 ClientWarn.instance.warn(UNSAFE_MIXED_MUTATIONS_MSG);
                 logger.warn(UNSAFE_MIXED_MUTATIONS_MSG);
-                if (handling == AccordSpec.MixedTimeSourceHandling.reject)
+                if (handling == AccordConfig.MixedTimeSourceHandling.reject)
                     throw new InvalidRequestException(UNSAFE_MIXED_MUTATIONS_MSG);
             }
             break;

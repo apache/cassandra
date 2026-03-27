@@ -81,11 +81,11 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return commandStore.unsafeGetRangesForEpoch();
     }
 
-    public static AccordSafeCommandStore create(AccordTask<?> operation,
+    public static AccordSafeCommandStore create(AccordTask<?> task,
                                                 @Nullable CommandSummaries commandsForRanges,
                                                 AccordCommandStore commandStore)
     {
-        return new AccordSafeCommandStore(operation, commandsForRanges, commandStore);
+        return new AccordSafeCommandStore(task, commandsForRanges, commandStore);
     }
 
     @VisibleForTesting

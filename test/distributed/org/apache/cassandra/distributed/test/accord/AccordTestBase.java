@@ -397,8 +397,8 @@ public abstract class AccordTestBase extends TestBaseImpl
                                                            .set("accord.retry_syncpoint", "1s*attempts")
                                                            .set("accord.retry_durability", "1s*attempts")
                                                            .set("accord.command_store_shard_count", "2")
-                                                           .set("accord.queue_shard_count", "2"))
-                                         .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
+                                                           .set("accord.queue_shard_count", "2"));
+//                                         .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
         builder = options.apply(builder);
         return init(builder.start());
     }

@@ -20,12 +20,11 @@ package org.apache.cassandra.service.accord.topology;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nullable;
@@ -62,6 +61,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryFetchWatermarks;
 
@@ -124,14 +124,18 @@ public class WatermarkCollector implements TopologyListener
     };
 
     @VisibleForTesting
-    public static void fetchAndReportWatermarksAsync(TopologyManager topologyManager)
+    public static Future<?> fetchAndReportWatermarksAsync(TopologyManager topologyManager)
     {
         SharedContext context = SharedContext.Global.instance;
-        Set<InetAddressAndPort> peers = new HashSet<>();
-        peers.addAll(ClusterMetadata.current().directory.allAddresses());
-        peers.remove(FBUtilities.getBroadcastAddressAndPort());
+        List<InetAddressAndPort> peers = new ArrayList<>();
+        for (InetAddressAndPort peer : ClusterMetadata.current().directory.allAddresses())
+        {
+            if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
+                peers.add(peer);
+        }
+        Collections.shuffle(peers);
 
-        context.messaging().<NoPayload, Snapshot>sendWithRetries(retryFetchWatermarks(),
+        return context.messaging().<NoPayload, Snapshot>sendWithRetries(retryFetchWatermarks(),
                                                                  context.optionalTasks()::schedule,
                                                                  Verb.ACCORD_FETCH_WATERMARKS_REQ,
                                                                  NoPayload.noPayload,

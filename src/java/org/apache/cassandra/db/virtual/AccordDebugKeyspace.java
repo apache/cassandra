@@ -74,7 +74,6 @@ import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.Node;
 import accord.local.PreLoadContext;
-import accord.local.RejectBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -107,7 +106,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
-import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode;
+import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -211,7 +210,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
     public static final String NODE_OPS           = "node_ops";
     public static final String PROGRESS_LOG       = "progress_log";
     public static final String REDUNDANT_BEFORE   = "redundant_before";
-    public static final String REJECT_BEFORE      = "reject_before";
     public static final String TXN                = "txn";
     public static final String TXN_CACHE          = "txn_cache";
     public static final String TXN_BLOCKED_BY     = "txn_blocked_by";
@@ -252,7 +250,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             new NodeOpsTable(),
             new ProgressLogTable(),
             new RedundantBeforeTable(),
-            new RejectBeforeTable(),
             new TxnBlockedByTable(),
             new TxnTable(),
             new TxnCacheTable(),
@@ -819,7 +816,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "  token_start 'TokenUtf8Type',\n" +
                         "  table_id text,\n" +
                         "  token_end 'TokenUtf8Type',\n" +
-                        "  timestamp text,\n" +
+                        "  any text,\n" +
+                        "  write text,\n" +
+                        "  reject text,\n" +
                         "  PRIMARY KEY (command_store_id, token_start)" +
                         ')', Int32Type.instance), FAIL, ASC);
         }
@@ -843,7 +842,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                                 .lazyCollect(columns -> {
                                     columns.add("token_end", entry.end(), AccordDebugKeyspace::printToken)
                                            .add("table_id", tableIdStr)
-                                           .add("timestamp", entry, TO_STRING);
+                                           .add("any", entry.any, TO_STRING)
+                                           .add("write", entry.write, TO_STRING)
+                                           .add("reject", entry.reject, TO_STRING);
                                 });
                              return rows;
                         }, rows
@@ -1084,47 +1085,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         }
     }
 
-    public static final class RejectBeforeTable extends AbstractLazyVirtualTable
-    {
-        private RejectBeforeTable()
-        {
-            super(parse(VIRTUAL_ACCORD_DEBUG, REJECT_BEFORE,
-                        "Accord per-CommandStore RejectBefore State",
-                        "CREATE TABLE %s (\n" +
-                        "  command_store_id int,\n" +
-                        "  token_start 'TokenUtf8Type',\n" +
-                        "  table_id text,\n" +
-                        "  token_end 'TokenUtf8Type',\n" +
-                        "  timestamp text,\n" +
-                        "  PRIMARY KEY (command_store_id, token_start)" +
-                        ')', UTF8Type.instance), FAIL, ASC);
-        }
-
-        @Override
-        protected void collect(PartitionsCollector collector)
-        {
-            CommandStores commandStores = AccordService.unsafeInstance().node().commandStores();
-            for (CommandStore commandStore : commandStores.all())
-            {
-                RejectBefore rejectBefore = commandStore.unsafeGetRejectBefore();
-                if (rejectBefore == null)
-                    continue;
-
-                collector.partition(commandStore.id()).collect(rows -> {
-                    TableId tableId = ((AccordCommandStore)commandStore).tableId();
-                    String tableIdStr = tableId.toString();
-                    rejectBefore.foldlWithBounds((timestamp, rs, start, end) -> {
-                        rs.add(printToken(start))
-                          .lazyCollect(columns -> columns.add("table_id", tableIdStr)
-                                                         .add("token_end", end, AccordDebugKeyspace::printToken)
-                                                         .add("timestamp", timestamp, AccordDebugKeyspace::toStringOrNull));
-                        return rs;
-                    }, rows, ignore -> false);
-                });
-            }
-        }
-    }
-
     /**
      * Usage:
      * collect N events (may be more than N messages)
@@ -1302,6 +1262,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         @Override
         public void collect(PartitionsCollector collector)
         {
+            int nodeId = AccordService.unsafeInstance().nodeId().id;
             tracing().forEach(id -> true, (txnId, events) -> {
                 events.forEach(e -> {
                     if (e.messages().isEmpty())
@@ -1316,7 +1277,8 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         e.messages().forEach(m -> {
                             collector.row(txnId.toString(), e.idMicros, e.kind.name(), NANOSECONDS.toMicros(m.atNanos - e.atNanos))
                             .eagerCollect(columns -> {
-                                columns.add("command_store_id", m.commandStoreId)
+                                columns.add("node_id", m.nodeId < 0 ? nodeId : m.nodeId)
+                                       .add("command_store_id", m.commandStoreId)
                                        .add("message", m.message);
                             });
                         });

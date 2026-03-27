@@ -343,10 +343,10 @@ public abstract class Lists
         }
 
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
         {
-            super.collectMarkerSpecification(boundNames);
-            idx.collectMarkerSpecification(boundNames);
+            super.collectMarkerSpecification(boundNames, owner);
+            idx.collectMarkerSpecification(boundNames, owner);
         }
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException

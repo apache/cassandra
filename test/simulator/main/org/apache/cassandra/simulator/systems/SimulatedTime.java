@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.Shared;
 
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -91,7 +92,7 @@ public class SimulatedTime
         @Override
         public MonotonicClockTranslation translate()
         {
-            return new AlmostSameTime(System.currentTimeMillis(), System.nanoTime(), 0L);
+            return new AlmostSameTime(System.currentTimeMillis(), MILLISECONDS, System.nanoTime(), 0L);
         }
 
         @Override
@@ -312,9 +313,9 @@ public class SimulatedTime
             return new MonotonicClockTranslation()
             {
                 @Override
-                public long fromMillisSinceEpoch(long currentTimeMillis)
+                public long fromMillisSinceEpoch(long millisSinceEpoch)
                 {
-                    return MILLISECONDS.toNanos(currentTimeMillis - millisEpoch);
+                    return MILLISECONDS.toNanos(millisSinceEpoch - millisEpoch);
                 }
 
                 @Override

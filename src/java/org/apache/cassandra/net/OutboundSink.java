@@ -18,7 +18,7 @@
 package org.apache.cassandra.net;
 
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
@@ -43,21 +43,65 @@ public class OutboundSink
         public boolean test(Message<?> message, InetAddressAndPort to, ConnectionType type);
     }
 
-    private static class Filtered implements Sink
+    public interface AsyncFilter
+    {
+        void filter(Message<?> message, InetAddressAndPort to, ConnectionType type, Sink next);
+    }
+
+    private static abstract class AbstractFiltered implements Sink
+    {
+        final Sink next;
+
+        private AbstractFiltered(Sink next)
+        {
+            this.next = next;
+        }
+
+        abstract AbstractFiltered withNext(Sink next);
+    }
+
+    private static class Filtered extends AbstractFiltered
     {
         final Filter condition;
-        final Sink next;
 
         private Filtered(Filter condition, Sink next)
         {
+            super(next);
             this.condition = condition;
-            this.next = next;
         }
 
         public void accept(Message<?> message, InetAddressAndPort to, ConnectionType connectionType)
         {
             if (condition.test(message, to, connectionType))
                 next.accept(message, to, connectionType);
+        }
+
+        @Override
+        AbstractFiltered withNext(Sink next)
+        {
+            return new Filtered(condition, next);
+        }
+    }
+
+    private static class AsyncFiltered extends AbstractFiltered
+    {
+        final AsyncFilter filter;
+
+        private AsyncFiltered(AsyncFilter filter, Sink next)
+        {
+            super(next);
+            this.filter = filter;
+        }
+
+        public void accept(Message<?> message, InetAddressAndPort to, ConnectionType connectionType)
+        {
+            filter.filter(message, to, connectionType, next);
+        }
+
+        @Override
+        AbstractFiltered withNext(Sink next)
+        {
+            return new AsyncFiltered(filter, next);
         }
     }
 
@@ -85,6 +129,16 @@ public class OutboundSink
         sinkUpdater.updateAndGet(this, sink -> without(sink, allow));
     }
 
+    public void add(AsyncFilter filter)
+    {
+        sinkUpdater.updateAndGet(this, sink -> new AsyncFiltered(filter, sink));
+    }
+
+    public void remove(AsyncFilter filter)
+    {
+        sinkUpdater.updateAndGet(this, sink -> without(sink, filter));
+    }
+
     public void clear()
     {
         sinkUpdater.updateAndGet(this, OutboundSink::clear);
@@ -99,15 +153,26 @@ public class OutboundSink
 
     private static Sink without(Sink sink, Filter condition)
     {
-        if (!(sink instanceof Filtered))
-            return sink;
-
-        Filtered filtered = (Filtered) sink;
-        Sink next = without(filtered.next, condition);
-        return condition.equals(filtered.condition) ? next
-                                                    : next == filtered.next
-                                                      ? sink
-                                                      : new Filtered(filtered.condition, next);
+        return without(sink, f -> f instanceof Filtered && condition.equals(((Filtered) f).condition));
     }
 
+    private static Sink without(Sink sink, AsyncFilter filter)
+    {
+        return without(sink, f -> f instanceof AsyncFiltered && filter.equals(((AsyncFiltered) f).filter));
+    }
+
+    private static Sink without(Sink sink, Predicate<AbstractFiltered> remove)
+    {
+        if (!(sink instanceof AbstractFiltered))
+            return sink;
+
+        AbstractFiltered filtered = (AbstractFiltered) sink;
+        if (remove.test(filtered))
+            return filtered.next;
+
+        Sink next = without(filtered.next, remove);
+        if (next == filtered.next)
+            return filtered;
+        return filtered.withNext(next);
+    }
 }

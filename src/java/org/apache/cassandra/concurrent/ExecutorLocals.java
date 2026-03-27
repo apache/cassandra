@@ -48,7 +48,7 @@ public class ExecutorLocals implements WithResources, Closeable
         @SuppressWarnings("resource")
         protected static void set(TraceState traceState, ClientWarn.State clientWarnState, boolean eligibleForArtificialLatency)
         {
-            if (traceState == null && clientWarnState == null) locals.set(none);
+            if (traceState == null && clientWarnState == null && !eligibleForArtificialLatency) locals.set(none);
             else locals.set(new ExecutorLocals(traceState, clientWarnState, eligibleForArtificialLatency));
         }
     }

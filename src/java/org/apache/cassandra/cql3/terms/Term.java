@@ -68,9 +68,10 @@ public interface Term
      * This is obviously a no-op if the term is Terminal.
      *
      * @param boundNames the variables specification where to collect the
-     * bind variables of this term in.
+     *                   bind variables of this term in.
+     * @param owner
      */
-    void collectMarkerSpecification(VariableSpecifications boundNames);
+    void collectMarkerSpecification(VariableSpecifications boundNames, Object owner);
 
     /**
      * Bind the values in this term to the values contained in the {@code options}.
@@ -246,7 +247,7 @@ public interface Term
     abstract class Terminal implements Term
     {
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames) {}
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner) {}
 
         @Override
         public Terminal bind(QueryOptions options) { return this; }

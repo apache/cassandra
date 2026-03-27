@@ -154,6 +154,12 @@ public class Message<T> implements ResponseContext
         return header.hasFlag(flag);
     }
 
+    @Override
+    public Map<ParamType, Object> params()
+    {
+        return header.params();
+    }
+
     /** For how long the message has lived. */
     public long elapsedSinceCreated(TimeUnit units)
     {
@@ -605,11 +611,6 @@ public class Message<T> implements ResponseContext
         boolean trackWarnings()
         {
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
-        }
-
-        boolean isFinal()
-        {
-            return !MessageFlag.NOT_FINAL.isIn(flags);
         }
 
         boolean permitsArtificialLatency()

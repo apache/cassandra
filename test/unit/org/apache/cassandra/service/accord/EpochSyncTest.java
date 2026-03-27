@@ -74,6 +74,7 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import accord.utils.async.Cancellable;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -673,7 +674,7 @@ public class EpochSyncTest
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
                 this.topologyService = new AccordTopologyService(id, mapper, messagingService, scheduler);
-                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time))
+                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time, ImmediateExecutor.INSTANCE))
                 {
                     @Override
                     protected EpochReady bootstrap(Supplier<EpochReady> bootstrap)

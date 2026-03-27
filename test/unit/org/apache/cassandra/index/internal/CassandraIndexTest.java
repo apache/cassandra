@@ -60,7 +60,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.throwAssert;
-import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
+import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;

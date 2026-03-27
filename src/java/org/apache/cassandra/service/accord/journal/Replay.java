@@ -36,7 +36,7 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.UnhandledEnum;
 
-import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode;
+import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.service.accord.AccordCommandStore;

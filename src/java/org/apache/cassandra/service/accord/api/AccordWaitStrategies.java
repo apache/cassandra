@@ -22,7 +22,7 @@ import javax.annotation.Nullable;
 
 import accord.primitives.TxnId;
 
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StringRetryStrategy;
 import org.apache.cassandra.net.Verb;
@@ -84,7 +84,7 @@ public class AccordWaitStrategies
 
     static
     {
-        AccordSpec config = DatabaseDescriptor.getAccord();
+        AccordConfig config = DatabaseDescriptor.getAccord();
         setSlowRead(config.slow_read);
         setSlowTxnPreaccept(config.slow_txn_preaccept);
         setSlowSyncPointPreaccept(config.slow_syncpoint_preaccept);

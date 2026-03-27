@@ -23,13 +23,17 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.agrona.collections.Object2LongHashMap;
+
+import accord.api.Tracing;
 
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Interruptible;
@@ -48,7 +52,6 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe
 import static org.apache.cassandra.config.CassandraRelevantProperties.ARTIFICIAL_LATENCY_LIMIT;
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /*
  * Mechanism to delay the sending of messages to peers
@@ -64,7 +67,7 @@ public class ArtificialLatency extends ExecutorLocals.Impl
 
     static
     {
-        setArtificialLatencyVerbs(CassandraRelevantProperties.ARTIFICIAL_LATENCY_VERBS.getString());
+        setArtificialLatencyVerbs(CassandraRelevantProperties.ARTIFICIAL_LATENCY_VERBS.getString(""));
         String latencies = CassandraRelevantProperties.ARTIFICIAL_LATENCIES.getString();
         String unsafeLatencies = CassandraRelevantProperties.ARTIFICIAL_LATENCIES_UNSAFE.getString();
         if (latencies != null) setArtificialLatencies(latencies);
@@ -113,7 +116,7 @@ public class ArtificialLatency extends ExecutorLocals.Impl
         set(current.traceState, current.clientWarnState, eligibleForArtificialLatency);
     }
 
-    static class Sink implements OutboundSink.Filter, Interruptible.Task
+    static class Sink implements OutboundSink.AsyncFilter, Interruptible.Task
     {
         final Interruptible executor = executorFactory().infiniteLoop("ArtificialLatency", this, SAFE, DAEMON, UNSYNCHRONIZED);
 
@@ -127,6 +130,7 @@ public class ArtificialLatency extends ExecutorLocals.Impl
         void stop()
         {
             isShutdown = true;
+            artificialLatencyNanos = ignore -> 0;
             instance().outboundSink.remove(this);
             executor.shutdownNow();
             try
@@ -145,13 +149,15 @@ public class ArtificialLatency extends ExecutorLocals.Impl
             final InetAddressAndPort to;
             final ConnectionType type;
             final long deadline;
+            final OutboundSink.Sink sink;
 
-            Delayed(Message<?> message, InetAddressAndPort to, ConnectionType type, long deadline)
+            Delayed(Message<?> message, InetAddressAndPort to, ConnectionType type, long deadline, OutboundSink.Sink sink)
             {
                 this.message = message;
                 this.to = to;
                 this.type = type;
                 this.deadline = deadline;
+                this.sink = sink;
             }
 
             @Override
@@ -163,28 +169,53 @@ public class ArtificialLatency extends ExecutorLocals.Impl
 
         volatile boolean isShutdown;
 
-        final BlockingQueue<Delayed> in = newBlockingQueue();
+        final ConcurrentLinkedQueue<Delayed> in = new ConcurrentLinkedQueue<>();
         // messages we have stashed in order to apply an artificial delay
         // note that this queue is not ordered, so that if the artificial delay is modified
         // it may not take effect until the difference between the two delays elapses
         final PriorityQueue<Delayed> out = new PriorityQueue<>();
 
-        @Override
-        public boolean test(Message<?> message, InetAddressAndPort to, ConnectionType type)
-        {
-            if (isShutdown)
-                return true;
+        volatile Thread waiting;
+        volatile long waitingUntil;
+        volatile long minQueued = Long.MAX_VALUE;
+        private static final AtomicLongFieldUpdater<Sink> minQueuedUpdater = AtomicLongFieldUpdater.newUpdater(Sink.class, "minQueued");
 
+        @Override
+        public void filter(Message<?> message, InetAddressAndPort to, ConnectionType type, OutboundSink.Sink next)
+        {
             if (artificialLatencyOnlyPermittedConsistencyLevels && !message.header.permitsArtificialLatency())
-                return true;
+            {
+                next.accept(message, to, type);
+                return;
+            }
 
             if (!artificialLatencyVerbs.contains(message.verb()))
-                return true;
+            {
+                next.accept(message, to, type);
+                return;
+            }
 
-            long deadline = nanoTime() + artificialLatencyNanos.applyAsLong(to);
-            Delayed delay = new Delayed(message, to, type, deadline);
+            long addNanos = artificialLatencyNanos.applyAsLong(to);
+            if (addNanos <= 0)
+            {
+                next.accept(message, to, type);
+                return;
+            }
+
+            long deadline = nanoTime() + addNanos;
+            Delayed delay = new Delayed(message, to, type, deadline, next);
             in.add(delay);
-            return isShutdown && in.remove(delay);
+
+            minQueuedUpdater.accumulateAndGet(this, deadline, Long::min);
+            if (deadline < waitingUntil)
+            {
+                Thread thread = waiting;
+                if (thread != null)
+                    LockSupport.unpark(thread);
+            }
+
+            if (isShutdown && in.remove(delay))
+                next.accept(message, to, type);
         }
 
         public void run(Interruptible.State state) throws InterruptedException
@@ -194,22 +225,26 @@ public class ArtificialLatency extends ExecutorLocals.Impl
                 default: throw new IllegalStateException();
                 case SHUTTING_DOWN:
                 {
-                    in.drainTo(out);
+                    drainIn();
                     out.forEach(d -> instance().send(d.message, d.to, d.type));
                     return;
                 }
                 case NORMAL:
                 {
-                    long blockFor = out.isEmpty()
-                                    ? Long.MAX_VALUE
-                                    : Math.max(0, out.peek().deadline - nanoTime());
+                    long deadline = out.isEmpty() ? Long.MAX_VALUE : out.peek().deadline;
+                    waiting = Thread.currentThread();
+                    waitingUntil = deadline;
 
-                    Delayed delayed = in.poll(blockFor, TimeUnit.NANOSECONDS);
-                    if (delayed != null)
+                    while (minQueued >= deadline)
                     {
-                        out.add(delayed);
-                        in.drainTo(out);
+                        long waitNanos = deadline - nanoTime();
+                        if (waitNanos <= 0)
+                            break;
+                        LockSupport.parkNanos(waitNanos);
                     }
+
+                    minQueued = Long.MAX_VALUE;
+                    drainIn();
                 }
                 case INTERRUPTED:
                 {
@@ -217,11 +252,20 @@ public class ArtificialLatency extends ExecutorLocals.Impl
                     long now = nanoTime();
                     while (null != (delayed = out.peek()) && delayed.deadline <= now)
                     {
-                        instance().send(delayed.message, delayed.to, delayed.type);
+                        Tracing tracing = (Tracing)delayed.message.params().get(ParamType.ACCORD_TRACING);
+                        if (tracing != null)
+                            tracing.trace(null, (delayed.message.verb().isResponse() ? "Reply" : "Request") + " delayed to " + ClusterMetadata.current().directory.peerId(delayed.to));
+                        delayed.sink.accept(delayed.message, delayed.to, delayed.type);
                         out.poll();
                     }
                 }
             }
+        }
+
+        private void drainIn()
+        {
+            for (Delayed delayed = in.poll(); delayed != null ; delayed = in.poll())
+                out.add(delayed);
         }
     }
 
@@ -282,7 +326,6 @@ public class ArtificialLatency extends ExecutorLocals.Impl
             };
         }
         artificialLatencies = latencies;
-//        artificialLatencyNanos = TimeUnit.MILLISECONDS.toNanos(ms);
     }
 
     public static String getArtificialLatencyVerbs()
@@ -326,5 +369,26 @@ public class ArtificialLatency extends ExecutorLocals.Impl
     public static void setArtificialLatencyOnlyPermittedConsistencyLevels(boolean onlyPermitted)
     {
         artificialLatencyOnlyPermittedConsistencyLevels = onlyPermitted;
+    }
+
+    public static String recommendedVerbs()
+    {
+        EnumSet<Verb> verbs = EnumSet.noneOf(Verb.class);
+        verbs.add(Verb.MUTATION_REQ);
+        verbs.add(Verb.MUTATION_RSP);
+        verbs.add(Verb.READ_REQ);
+        verbs.add(Verb.READ_RSP);
+        verbs.add(Verb.RANGE_REQ);
+        verbs.add(Verb.RANGE_RSP);
+        verbs.add(Verb.READ_REPAIR_REQ);
+        verbs.add(Verb.READ_REPAIR_RSP);
+        verbs.add(Verb.HINT_REQ);
+        verbs.add(Verb.HINT_RSP);
+        for (Verb verb : Verb.values())
+        {
+            if (verb.name().startsWith("ACCORD") || verb.name().startsWith("PAXOS"))
+                verbs.add(verb);
+        }
+        return verbs.stream().map(Verb::toString).collect(Collectors.joining(","));
     }
 }
