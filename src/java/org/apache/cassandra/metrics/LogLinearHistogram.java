@@ -317,4 +317,10 @@ public class LogLinearHistogram
         snapshot.totalCount += totalCount;
         snapshot.cumulative = null;
     }
+
+    public void clear()
+    {
+        totalCount = 0;
+        Arrays.fill(buckets, 0);
+    }
 }

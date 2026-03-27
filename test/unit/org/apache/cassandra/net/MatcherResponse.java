@@ -188,7 +188,7 @@ public class MatcherResponse implements Closeable
                         Message<?> response = fnResponse.apply(message, to);
                         if (response != null)
                         {
-                            if (response.verb().isResponse())
+                            if (response.verb().isManagedResponse())
                             {
                                 RequestCallbacks.CallbackInfo cb = MessagingService.instance().callbacks.get(message.id(), to);
                                 if (cb != null)

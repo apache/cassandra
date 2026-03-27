@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.RejectedExecutionException;
 
 import accord.utils.Invariants;
 
@@ -44,8 +45,12 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
 
         public final void tidy()
         {
-            if (executor != null) executor.execute(this);
-            else onUnreferenced();
+            if (executor != null)
+            {
+                try { executor.execute(this); return; }
+                catch (RejectedExecutionException rje) { /* fallthrough and call directly */ }
+            }
+            onUnreferenced();
         }
     }
 

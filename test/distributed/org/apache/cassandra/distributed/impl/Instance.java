@@ -138,6 +138,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
@@ -567,6 +568,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             TraceState state = Tracing.instance.initializeFromMessage(header);
             if (state != null)
                 state.trace("{} message received from {}", header.verb, header.from);
+            AccordRemoteTracing.traceOffWire(header);
 
             if (runOnCaller)
             {

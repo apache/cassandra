@@ -55,9 +55,9 @@ public final class Marker extends Term.NonTerminal
     }
 
     @Override
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        boundNames.add(bindIndex, receiver);
+        boundNames.add(bindIndex, receiver, owner);
     }
 
     @Override

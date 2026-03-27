@@ -29,14 +29,14 @@ import accord.local.Node;
 import static org.apache.cassandra.service.accord.AccordTestUtils.idList;
 import static org.apache.cassandra.service.accord.AccordTestUtils.idSet;
 
-public class SimpleFastPathStrategyTest
+public class UpFastPathStrategyTest
 {
     private static final Map<Node.Id, String> DCMAP = Collections.emptyMap();
 
     @Test
     public void testCalculation()
     {
-        FastPathStrategy strategy = SimpleFastPathStrategy.instance;
+        FastPathStrategy strategy = UpFastPathStrategy.instance;
         Assert.assertEquals(idSet(1, 2, 3, 4, 5), strategy.calculateFastPath(idList(1, 2, 3, 4, 5), idSet(), DCMAP));
         Assert.assertEquals(idSet(3, 4, 5), strategy.calculateFastPath(idList(1, 2, 3, 4, 5), idSet(1, 2, 3), DCMAP));
     }

@@ -35,7 +35,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -266,7 +266,7 @@ public class StandaloneJournalUtil implements Runnable
 
             setAccordJournalDirectory(journalSegments);
             Keyspace.setInitialized();
-            AccordJournal journal = new AccordJournal(new AccordSpec.JournalSpec().setFlushPeriod(new DurationSpec.IntMillisecondsBound("1500ms")), new File(journalSegments).parent(), Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL));
+            AccordJournal journal = new AccordJournal(new AccordConfig.JournalConfig().setFlushPeriod(new DurationSpec.IntMillisecondsBound("1500ms")), new File(journalSegments).parent(), Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL));
 
             Keyspace ks = Schema.instance.getKeyspaceInstance("system_accord");
             ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal");
@@ -388,7 +388,7 @@ public class StandaloneJournalUtil implements Runnable
 
             setAccordJournalDirectory(journalSegments);
             Keyspace.setInitialized();
-            AccordJournal journal = new AccordJournal(new AccordSpec.JournalSpec().setFlushPeriod(new DurationSpec.IntMillisecondsBound("1500ms")), new File(journalSegments).parent(), Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL));
+            AccordJournal journal = new AccordJournal(new AccordConfig.JournalConfig().setFlushPeriod(new DurationSpec.IntMillisecondsBound("1500ms")), new File(journalSegments).parent(), Keyspace.open(SchemaConstants.ACCORD_KEYSPACE_NAME).getColumnFamilyStore(AccordKeyspace.JOURNAL));
 
             Keyspace ks = Schema.instance.getKeyspaceInstance("system_accord");
             ColumnFamilyStore cfs = ks.getColumnFamilyStore("journal");

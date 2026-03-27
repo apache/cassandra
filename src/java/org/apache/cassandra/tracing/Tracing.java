@@ -52,7 +52,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  */
 public abstract class Tracing extends ExecutorLocals.Impl
 {
-    public static final IVersionedSerializer<TraceType> traceTypeSerializer = new IVersionedSerializer<TraceType>()
+    public static final IVersionedSerializer<TraceType> traceTypeSerializer = new IVersionedSerializer<>()
     {
         public void serialize(TraceType traceType, DataOutputPlus out, int version) throws IOException
         {
@@ -258,7 +258,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
 
         TraceType traceType = header.traceType();
 
-        if (header.verb.isResponse())
+        if (header.verb.isManagedResponse())
         {
             // received a message for a session we've already closed out.  see CASSANDRA-5668
             return new ExpiredTraceState(newTraceState(header.from, sessionId, traceType));
@@ -294,7 +294,7 @@ public abstract class Tracing extends ExecutorLocals.Impl
             else
             {
                 state.trace(logMessage);
-                if (message.verb().isResponse())
+                if (message.verb().isManagedResponse())
                     doneWithNonLocalSession(state);
             }
         }

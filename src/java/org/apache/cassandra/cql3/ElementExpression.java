@@ -140,9 +140,9 @@ public final class ElementExpression
      * @param boundNames the variables specification where to collect the
      * bind variables of the map key/collection element in.
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        keyOrIndex.collectMarkerSpecification(boundNames);
+        keyOrIndex.collectMarkerSpecification(boundNames, owner);
     }
 
     /**

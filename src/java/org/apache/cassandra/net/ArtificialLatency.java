@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
 
 import org.agrona.collections.Object2LongHashMap;
 
+import accord.api.Tracing;
+
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -258,6 +260,9 @@ public class ArtificialLatency extends ExecutorLocals.Impl
                     long now = nanoTime();
                     while (null != (delayed = out.peek()) && delayed.deadline <= now)
                     {
+                        Tracing tracing = (Tracing)delayed.message.params().get(ParamType.ACCORD_TRACING);
+                        if (tracing != null)
+                            tracing.trace(null, (delayed.message.verb().isResponse() ? "Reply" : "Request") + " delayed to " + ClusterMetadata.current().directory.peerId(delayed.to));
                         delayed.sink.accept(delayed.message, delayed.to, delayed.type);
                         out.poll();
                     }

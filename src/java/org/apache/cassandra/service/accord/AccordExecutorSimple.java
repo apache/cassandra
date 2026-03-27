@@ -63,13 +63,19 @@ class AccordExecutorSimple extends AccordExecutor
     }
 
     @Override
+    boolean isInLoop()
+    {
+        return executor.inExecutor();
+    }
+
+    @Override
     public boolean hasTasks()
     {
         return tasks + executor.getActiveTaskCount() + executor.getPendingTaskCount() > 0;
     }
 
     @Override
-    void beforeUnlock()
+    void beforeUnlockExternal()
     {
         if (hasWaitingToRun())
             executor.execute(this::run);
@@ -77,6 +83,7 @@ class AccordExecutorSimple extends AccordExecutor
 
     protected void run()
     {
+        Thread self = Thread.currentThread();
         lock.lock();
         try
         {
@@ -92,7 +99,7 @@ class AccordExecutorSimple extends AccordExecutor
                     return;
                 }
 
-                try { task.preRunExclusive(); task.runInternal(); }
+                try { task.preRunExclusive(self); task.runInternal(); }
                 catch (Throwable t) { task.fail(t); }
                 finally
                 {

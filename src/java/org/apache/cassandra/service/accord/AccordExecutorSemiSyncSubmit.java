@@ -31,6 +31,7 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     private final AccordExecutorLoops loops;
     private final ReentrantLock lock;
     private final Condition hasWork;
+    private int waiting;
 
     public AccordExecutorSemiSyncSubmit(int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
@@ -46,10 +47,29 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     }
 
     @Override
+    void loopYieldExclusive() throws InterruptedException
+    {
+        if (waiting > 0 && hasWaitingToRun())
+        {
+            pauseLoop();
+            hasWork.signal();
+            awaitWork();
+            resumeLoop();
+        }
+    }
+
+    @Override
     void awaitExclusive() throws InterruptedException
     {
         if (submitted.isEmpty())
-            hasWork.await();
+            awaitWork();
+    }
+
+    private void awaitWork() throws InterruptedException
+    {
+        waiting++;
+        try { hasWork.await(); }
+        finally { waiting--; }
     }
 
     @Override
@@ -67,19 +87,9 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     @Override
     void notifyWork()
     {
-        // we check running both sides of tryLock for ordering guarantees
-        boolean hadRunning = isHeldByExecutor;
-        if (lock.tryLock())
-        {
-            try { hasWork.signal(); }
-            finally { lock.unlock(); }
-        }
-        else if (!hadRunning || !isHeldByExecutor)
-        {
-            lock.lock();
-            try { hasWork.signal(); }
-            finally { lock.unlock(); }
-        }
+        lock.lock();
+        try { hasWork.signal(); }
+        finally { lock.unlock(); }
     }
     
     @Override

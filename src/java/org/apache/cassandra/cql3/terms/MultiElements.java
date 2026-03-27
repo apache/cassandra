@@ -116,12 +116,12 @@ public final class MultiElements
         }
 
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
         {
             if (type.supportsElementBindMarkers())
             {
                 for (int i = 0, m = elements.size(); i < m; i++)
-                    elements.get(i).collectMarkerSpecification(boundNames);
+                    elements.get(i).collectMarkerSpecification(boundNames, owner);
             }
         }
 

@@ -30,6 +30,7 @@ import accord.impl.CommandChange;
 import accord.local.Command;
 import accord.local.RedundantBefore;
 import accord.primitives.SaveStatus;
+import accord.primitives.Status;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.LazyToString;
@@ -108,10 +109,16 @@ public class CommandChangeTest
                         SoftAssertions checks = new SoftAssertions();
                         for (SaveStatus saveStatus : SaveStatus.values())
                         {
+                            if (cmdBuilder.txnId.awaitsOnlyDeps() && saveStatus.is(Status.Truncated))
+                                continue;
+
                             out.clear();
                             Command orig = cmdBuilder.build(saveStatus);
+                            CommandChangeWriter writer = CommandChangeWriter.make(null, orig);
+                            if (writer == null)
+                                continue;
 
-                            CommandChangeWriter.make(null, orig).write(out, version);
+                            writer.write(out, version);
                             CommandChanges builder = new CommandChanges(orig.txnId(), Load.ALL);
                             builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
                             // We are not persisting the result, so force it for strict equality
