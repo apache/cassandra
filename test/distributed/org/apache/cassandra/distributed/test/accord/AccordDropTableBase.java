@@ -148,7 +148,7 @@ public class AccordDropTableBase extends TestBaseImpl
                             if (safeCFK == null) // we read and found a key, but its null at load time... so ignore it
                                 continue;
                             CommandsForKey cfk = safeCFK.current();
-                            CommandsForKey.TxnInfo minUndecided = cfk.minUndecided();
+                            CommandsForKey.TxnInfo minUndecided = cfk.minUndecidedManaged();
                             if (minUndecided != null)
                                 throw new AssertionError("Undecided txn: " + minUndecided);
                             TxnId next = cfk.nextWaitingToApply();

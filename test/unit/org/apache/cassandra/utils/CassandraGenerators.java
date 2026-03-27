@@ -137,6 +137,7 @@ import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 import org.apache.cassandra.service.accord.topology.InheritKeyspaceFastPathStrategy;
 import org.apache.cassandra.service.accord.topology.ParameterizedFastPathStrategy;
 import org.apache.cassandra.service.accord.topology.SimpleFastPathStrategy;
+import org.apache.cassandra.service.accord.topology.UpFastPathStrategy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -868,6 +869,8 @@ public final class CassandraGenerators
                 {
                     case SIMPLE:
                         return SimpleFastPathStrategy.instance;
+                    case UP:
+                        return UpFastPathStrategy.instance;
                     case INHERIT_KEYSPACE:
                         return InheritKeyspaceFastPathStrategy.instance;
                     case PARAMETERIZED:

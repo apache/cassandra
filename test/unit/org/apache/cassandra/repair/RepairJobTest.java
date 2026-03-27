@@ -879,7 +879,7 @@ public class RepairJobTest
     private void interceptRepairMessages(Map<InetAddressAndPort, MerkleTrees> mockTrees,
                                          List<Message<?>> messageCapture)
     {
-        MessagingService.instance().inboundSink.add(message -> message.verb().isResponse());
+        MessagingService.instance().inboundSink.add(message -> message.verb().isManagedResponse());
         MessagingService.instance().outboundSink.add((message, to, type) -> {
                 if (message == null || !(message.payload instanceof RepairMessage))
                     return false;

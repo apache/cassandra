@@ -110,6 +110,7 @@ public class AccordWriteInteroperabilityTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder.withConfig(config -> config.set("accord.range_migration", "auto")
+                                                                                  .set("accord.permit_local_delivery", "false") // this test counts messages sent, so for compatibility we go through the messaging service
                                                                                   .set("paxos_variant", "v2")),
                                     3);
     }

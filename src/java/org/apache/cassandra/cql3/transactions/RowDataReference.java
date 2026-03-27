@@ -77,10 +77,10 @@ public class RowDataReference extends Term.NonTerminal
     }
 
     @Override
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
         if (elementPath != null)
-            elementPath.collectMarkerSpecification(boundNames);
+            elementPath.collectMarkerSpecification(boundNames, owner);
     }
 
     @Override

@@ -61,7 +61,6 @@ import static org.apache.cassandra.net.MessageFlag.ARTIFICIAL_LATENCY;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.VERSION_60;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
@@ -154,6 +153,12 @@ public class Message<T> implements ResponseContext
         return header.hasFlag(flag);
     }
 
+    @Override
+    public Map<ParamType, Object> params()
+    {
+        return header.params();
+    }
+
     /** For how long the message has lived. */
     public long elapsedSinceCreated(TimeUnit units)
     {
@@ -223,8 +228,6 @@ public class Message<T> implements ResponseContext
      */
     public static <T> Message<T> out(Verb verb, T payload)
     {
-        assert !verb.isResponse() : verb;
-
         return outWithParam(nextId(), verb, payload, null, null);
     }
 
@@ -240,7 +243,6 @@ public class Message<T> implements ResponseContext
 
     public static <T> Message<T> out(Verb verb, T payload, boolean isUrgent)
     {
-        assert !verb.isResponse();
         if (isUrgent)
             return outWithFlag(verb, payload,  MessageFlag.URGENT);
         else
@@ -249,7 +251,6 @@ public class Message<T> implements ResponseContext
 
     public static <T> Message<T> outWithFlag(Verb verb, T payload, MessageFlag flag)
     {
-        assert !verb.isResponse();
         return outWithParam(nextId(), verb, 0, payload, flag.addTo(0), null, null);
     }
 
@@ -260,24 +261,7 @@ public class Message<T> implements ResponseContext
 
     public static <T> Message<T> outWithFlags(Verb verb, T payload, Dispatcher.RequestTime requestTime, int encodedFlags)
     {
-        assert !verb.isResponse();
-        if (ArtificialLatency.isEligibleForArtificialLatency())
-            encodedFlags = ARTIFICIAL_LATENCY.addTo(encodedFlags);
-
-        return newWithFlags(nextId(), verb, payload, requestTime.startedAtNanos(), requestTime.computeDeadline(verb.expiresAfterNanos()), encodedFlags);
-    }
-
-    private static <T> Message<T> newWithFlags(long id, Verb verb, T payload, long startedAtNanos, long expiresAtNanos, int encodedFlags)
-    {
-        return new Message<>(new Header(id,
-                                        epochSupplier.get(),
-                                        verb,
-                                        getBroadcastAddressAndPort(),
-                                        startedAtNanos,
-                                        expiresAtNanos,
-                                        encodedFlags,
-                                        buildParams(null, null)),
-                             payload);
+        return outWithParam(nextId(), verb, requestTime.computeDeadline(verb.expiresAfterNanos()), payload, encodedFlags, null, null);
     }
 
     @VisibleForTesting
@@ -293,10 +277,11 @@ public class Message<T> implements ResponseContext
 
     private static <T> Message<T> outWithParam(long id, Verb verb, long expiresAtNanos, T payload, int flags, ParamType paramType, Object paramValue)
     {
-        return withParam(getBroadcastAddressAndPort(), id, verb, expiresAtNanos, payload, flags, paramType, paramValue);
+        assert !verb.isManagedResponse();
+        return withParam(id, verb, expiresAtNanos, payload, flags, paramType, paramValue);
     }
 
-    private static <T> Message<T> withParam(InetAddressAndPort from, long id, Verb verb, long expiresAtNanos, T payload, int flags, ParamType paramType, Object paramValue)
+    private static <T> Message<T> withParam(long id, Verb verb, long expiresAtNanos, T payload, int flags, ParamType paramType, Object paramValue)
     {
         if (payload == null)
             throw new IllegalArgumentException();
@@ -307,13 +292,14 @@ public class Message<T> implements ResponseContext
         if (ArtificialLatency.isEligibleForArtificialLatency())
             flags = ARTIFICIAL_LATENCY.addTo(flags);
 
+        InetAddressAndPort from = getBroadcastAddressAndPort();
         return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue)), payload);
     }
 
     public static <T> Message<T> internalResponse(Verb verb, T payload)
     {
-        assert verb.isResponse();
-        return outWithParam(0, verb, payload, null, null);
+        assert verb.isManagedResponse();
+        return withParam(0, verb, 0, payload, 0, null, null);
     }
 
     /**
@@ -323,7 +309,7 @@ public class Message<T> implements ResponseContext
     @VisibleForTesting
     public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
     {
-        assert verb.isResponse();
+        assert verb.isManagedResponse();
         long createdAtNanos = approxTime.now();
         long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
         return new Message<>(new Header(0, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
@@ -336,7 +322,7 @@ public class Message<T> implements ResponseContext
     @VisibleForTesting
     public static <T> Message<T> remoteResponseForTests(long id, InetAddressAndPort from, Verb verb, T payload)
     {
-        assert verb.isResponse();
+        assert verb.isManagedResponse();
         long createdAtNanos = approxTime.now();
         long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
         return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
@@ -368,7 +354,7 @@ public class Message<T> implements ResponseContext
     public static <T> Message<T> responseWith(T payload, ResponseContext respondTo)
     {
         int encodedFlags = respondTo.hasFlag(ARTIFICIAL_LATENCY) ? ARTIFICIAL_LATENCY.addTo(0) : 0;
-        return newWithFlags(respondTo.id(), respondTo.verb().responseVerb, payload, nanoTime(), respondTo.expiresAtNanos(), encodedFlags);
+        return withParam(respondTo.id(), respondTo.verb().responseVerb, respondTo.expiresAtNanos(), payload, encodedFlags, null, null);
     }
 
     /** Builds a response Message with no payload, and all the right fields inferred from request Message */
@@ -395,7 +381,7 @@ public class Message<T> implements ResponseContext
 
     static Message<RequestFailure> failureResponse(long id, long expiresAtNanos, RequestFailure reason)
     {
-        return outWithParam(id, Verb.FAILURE_RSP, expiresAtNanos, reason, null, null);
+        return withParam(id, Verb.FAILURE_RSP, expiresAtNanos, reason, 0, null, null);
     }
 
     public <V> Message<V> withPayload(V newPayload)
@@ -603,11 +589,6 @@ public class Message<T> implements ResponseContext
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
         }
 
-        boolean isFinal()
-        {
-            return !MessageFlag.NOT_FINAL.isIn(flags);
-        }
-
         boolean permitsArtificialLatency()
         {
             return ARTIFICIAL_LATENCY.isIn(flags);
@@ -763,7 +744,7 @@ public class Message<T> implements ResponseContext
             this.verb = verb;
             if (expiresAtNanos == 0 && verb != null && createdAtNanos != 0)
                 expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
-            if (!this.verb.isResponse() && from == null) // default to sending from self if we're a request verb
+            if (!this.verb.isManagedResponse() && from == null) // default to sending from self if we're a request verb
                 from = getBroadcastAddressAndPort();
             return this;
         }

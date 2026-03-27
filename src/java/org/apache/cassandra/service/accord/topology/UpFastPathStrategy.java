@@ -24,32 +24,56 @@ import java.util.Set;
 import com.google.common.collect.ImmutableMap;
 
 import accord.local.Node;
+import accord.topology.Shard;
+import accord.utils.ArrayBuffers;
+import accord.utils.Invariants;
 import accord.utils.SortedArrays.SortedArrayList;
 
-public class SimpleFastPathStrategy implements FastPathStrategy
+public class UpFastPathStrategy implements FastPathStrategy
 {
-    public static final SimpleFastPathStrategy instance = new SimpleFastPathStrategy();
+    public static final UpFastPathStrategy instance = new UpFastPathStrategy();
 
-    private static final Map<String, String> SCHEMA_PARAMS = ImmutableMap.of(Kind.KEY, Kind.SIMPLE.name());
+    private static final Map<String, String> SCHEMA_PARAMS = ImmutableMap.of(Kind.KEY, Kind.UP.name());
 
-    private SimpleFastPathStrategy() {}
+    private UpFastPathStrategy() {}
 
     @Override
     public SortedArrayList<Node.Id> calculateFastPath(SortedArrayList<Node.Id> nodes, Set<Node.Id> unavailable, Map<Node.Id, String> dcMap)
     {
-        return nodes;
+        int maxFailures = Shard.maxToleratedFailures(nodes.size());
+        int discarded = 0;
+
+        if (unavailable.isEmpty())
+            return nodes;
+
+        Object[] tmp = ArrayBuffers.cachedAny().get(nodes.size());
+        for (int i=0,mi=nodes.size(); i<mi; i++)
+        {
+            Node.Id node = nodes.get(i);
+            if (unavailable.contains(node) && discarded < maxFailures)
+                discarded++;
+            else
+                tmp[i - discarded] = node;
+        }
+
+        Node.Id[] array = new Node.Id[nodes.size() - discarded];
+        System.arraycopy(tmp, 0, array, 0, nodes.size() - discarded);
+        ArrayBuffers.cachedAny().forceDiscard(tmp, array.length);
+        SortedArrayList<Node.Id> fastPath = new SortedArrayList<>(array);
+        Invariants.require(fastPath.size() >= Shard.slowQuorumSize(nodes.size()));
+        return fastPath;
     }
 
     @Override
     public Kind kind()
     {
-        return Kind.SIMPLE;
+        return Kind.UP;
     }
 
     @Override
     public String toString()
     {
-        return "simple";
+        return "up";
     }
 
     public Map<String, String> asMap()
@@ -60,6 +84,6 @@ public class SimpleFastPathStrategy implements FastPathStrategy
     @Override
     public String asCQL()
     {
-        return "'simple'";
+        return "'up'";
     }
 }

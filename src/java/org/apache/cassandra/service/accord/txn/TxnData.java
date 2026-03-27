@@ -222,13 +222,13 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
     }
 
     @Override
-    public boolean validateReply(TxnId txnId, Timestamp executeAt, boolean futureReadPossible)
+    public boolean validateReply(TxnId txnId, Timestamp executeAt, long safeToReadHlc)
     {
-        if (futureReadPossible)
+        if (safeToReadHlc > 0)
         {
             for (TxnDataValue value : values())
             {
-                if (value.maxTimestamp() >= executeAt.hlc())
+                if (value.maxTimestamp() >= safeToReadHlc)
                     return false;
             }
         }
@@ -238,7 +238,7 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
     @Override
     public long estimatedSizeOnHeap()
     {
-        long size = EMPTY_SIZE + (size() * TypeSizes.INT_SIZE);
+        long size = EMPTY_SIZE + ObjectSizes.sizeOfReferenceArray(capacity()) + (capacity() * TypeSizes.INT_SIZE);
         for (TxnDataValue value : values())
             size += value.estimatedSizeOnHeap();
         return size;

@@ -32,9 +32,7 @@ public enum MessageFlag
     TRACK_WARNINGS      (2),
     /** whether this message should be sent on an URGENT channel despite its Verb default priority */
     URGENT              (3),
-    /** Allow a single callback to receive multiple responses until a final response is received **/
-    NOT_FINAL           (4),
-    ARTIFICIAL_LATENCY  (5)
+    ARTIFICIAL_LATENCY  (4)
     ;
 
     private final int id;

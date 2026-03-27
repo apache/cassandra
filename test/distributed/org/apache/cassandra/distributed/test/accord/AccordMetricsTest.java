@@ -41,9 +41,11 @@ import accord.primitives.TxnId.FastPaths;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.AccordCoordinatorMetrics;
@@ -76,10 +78,14 @@ public class AccordMetricsTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupCluster(Function.identity(), 2);
+        AccordTestBase.setupCluster(builder -> builder.withInstanceInitializer((cl, num) -> {
+            Instance.transferAdhoc((IIsolatedExecutor.SerializableRunnable)() -> {
+                ProtocolModifiers.Configure.setPermittedFastPaths(new FastPaths(FastPath.Unoptimised));
+                ProtocolModifiers.Configure.setPermitLocalDelivery(false);
+            }, cl).run();
+        }), 2);
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> {
             AccordService.instance().setCacheSize(0);
-            ProtocolModifiers.Toggles.setPermittedFastPaths(new FastPaths(FastPath.Unoptimised));
         }));
         for (int i = 0; i < SHARED_CLUSTER.size(); i++) // initialize metrics
             logger.trace(SHARED_CLUSTER.get(i + 1).callOnInstance(() -> AccordCoordinatorMetrics.readMetrics.toString() + AccordCoordinatorMetrics.writeMetrics.toString()));

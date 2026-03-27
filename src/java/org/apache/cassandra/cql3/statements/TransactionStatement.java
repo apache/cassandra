@@ -205,6 +205,25 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     }
 
     @Override
+    public short[] getPartitionKeyBindVariableIndexes()
+    {
+        if (returningSelect != null)
+        {
+            short[] result = returningSelect.select.getPartitionKeyBindVariableIndexes();
+            if (result != null)
+                return result;
+        }
+
+        for (ModificationStatement stmt : updates)
+        {
+            short[] result = stmt.getPartitionKeyBindVariableIndexes();
+            if (result != null)
+                return result;
+        }
+        return null;
+    }
+
+    @Override
     public void authorize(ClientState state)
     {
         // Assess read permissions for all data from both explicit LET statements and generated reads.
@@ -733,6 +752,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             if (select != null || returning != null)
                 checkTrue(select != null ^ returning != null, "Cannot specify both a full SELECT and a SELECT w/ LET references.");
 
+            bindVariables.setSaveTargetOwners(true);
             List<NamedSelect> preparedAssignments = new ArrayList<>(assignments.size());
             Map<Integer, RowDataReference.ReferenceSource> refSources = new HashMap<>();
             Set<String> selectNames = new HashSet<>();

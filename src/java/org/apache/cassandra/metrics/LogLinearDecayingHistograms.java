@@ -167,6 +167,13 @@ public class LogLinearDecayingHistograms
             Invariants.require(buffer.histograms == LogLinearDecayingHistograms.this);
             buffer.add(histogramIndex, value);
         }
+
+        public void clear()
+        {
+            flush();
+            totalCount = 0;
+            Arrays.fill(buckets, 0);
+        }
     }
 
     private static final long ANTI_DECAY_REFRESH_RATE = TimeUnit.SECONDS.toNanos(1L);

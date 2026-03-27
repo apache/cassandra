@@ -95,9 +95,10 @@ public interface Terms
      * This is obviously a no-op if the terms are Terminals.
      *
      * @param boundNames the variables specification where to collect the
-     * bind variables of the terms in.
+     *                   bind variables of the terms in.
+     * @param owner
      */
-    void collectMarkerSpecification(VariableSpecifications boundNames);
+    void collectMarkerSpecification(VariableSpecifications boundNames, Object owner);
 
     /**
      * Bind the values in these terms to the values contained in {@code options}.
@@ -453,7 +454,7 @@ public interface Terms
             }
         };
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames) {}
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner) {}
 
         @Override
         public final Terminals bind(QueryOptions options)
@@ -621,9 +622,9 @@ public interface Terms
                 }
 
                 @Override
-                public void collectMarkerSpecification(VariableSpecifications boundNames)
+                public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
                 {
-                    term.collectMarkerSpecification(boundNames);
+                    term.collectMarkerSpecification(boundNames, owner);
                 }
 
                 @Override
@@ -687,12 +688,12 @@ public interface Terms
                 }
 
                 @Override
-                public void collectMarkerSpecification(VariableSpecifications boundNames)
+                public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
                 {
                     for (int i = 0, m = terms.size(); i < m; i++)
                     {
                         Term term = terms.get(i);
-                        term.collectMarkerSpecification(boundNames);
+                        term.collectMarkerSpecification(boundNames, owner);
                     }
                 }
 

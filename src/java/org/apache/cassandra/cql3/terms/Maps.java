@@ -276,10 +276,10 @@ public final class Maps
         }
 
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
         {
-            super.collectMarkerSpecification(boundNames);
-            k.collectMarkerSpecification(boundNames);
+            super.collectMarkerSpecification(boundNames, owner);
+            k.collectMarkerSpecification(boundNames, owner);
         }
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException

@@ -23,8 +23,9 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @Shared(scope = SIMULATION)
 public interface MonotonicClockTranslation
 {
+    default public long fromMicrosSinceEpoch(long microsSinceEpoch) { return fromMillisSinceEpoch(microsSinceEpoch/1000); }
     /** accepts millis since epoch, returns nanoTime in the related clock */
-    public long fromMillisSinceEpoch(long currentTimeMillis);
+    public long fromMillisSinceEpoch(long millisSinceEpoch);
     /** accepts nanoTime in the related MonotinicClock, returns millis since epoch */
     public long toMillisSinceEpoch(long nanoTime);
     /** Nanoseconds of probable error in the translation */

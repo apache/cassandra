@@ -31,7 +31,7 @@ import java.util.function.Function;
 
 import com.vdurmont.semver4j.Semver;
 
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.OptionaldPositiveInt;
 import org.apache.cassandra.distributed.api.Feature;
@@ -77,7 +77,7 @@ public class InstanceConfig implements IInstanceConfig
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           AccordSpec accord,
+                           AccordConfig accord,
                            Collection<String> initial_token,
                            int storage_port,
                            int native_transport_port,
@@ -327,11 +327,11 @@ public class InstanceConfig implements IInstanceConfig
                                           int datadirCount)
     {
         int seedNode = provisionStrategy.seedNodeNum();
-        AccordSpec accordSpec = new AccordSpec();
-        accordSpec.enabled = DTEST_ACCORD_ENABLED.getBoolean();
-        accordSpec.journal_directory = String.format("%s/node%d/accord_journal", root, nodeNum);
-        accordSpec.queue_shard_count = new OptionaldPositiveInt(2);
-        accordSpec.command_store_shard_count = new OptionaldPositiveInt(4);
+        AccordConfig accordConfig = new AccordConfig();
+        accordConfig.enabled = DTEST_ACCORD_ENABLED.getBoolean();
+        accordConfig.journal_directory = String.format("%s/node%d/accord_journal", root, nodeNum);
+        accordConfig.queue_shard_count = new OptionaldPositiveInt(2);
+        accordConfig.command_store_shard_count = new OptionaldPositiveInt(4);
         return new InstanceConfig(nodeNum,
                                   networkTopology,
                                   provisionStrategy.ipAddress(nodeNum),
@@ -345,7 +345,7 @@ public class InstanceConfig implements IInstanceConfig
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  accordSpec,
+                                  accordConfig,
                                   tokens,
                                   provisionStrategy.storagePort(nodeNum),
                                   provisionStrategy.nativeTransportPort(nodeNum),

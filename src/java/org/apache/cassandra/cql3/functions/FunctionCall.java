@@ -61,10 +61,10 @@ public class FunctionCall extends Term.NonTerminal
         fun.addFunctionsTo(functions);
     }
 
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
         for (Term t : terms)
-            t.collectMarkerSpecification(boundNames);
+            t.collectMarkerSpecification(boundNames, owner);
     }
 
     @Override

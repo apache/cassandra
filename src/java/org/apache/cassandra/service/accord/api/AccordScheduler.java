@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.api;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +30,7 @@ import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.Shutdownable;
 
-public class AccordScheduler implements Scheduler, Shutdownable
+public class AccordScheduler implements Scheduler, Shutdownable, Executor
 {
     private final ScheduledExecutorPlus scheduledExecutor = ExecutorFactory.Global.executorFactory().scheduled(false, "AccordScheduled");
 
@@ -111,5 +112,11 @@ public class AccordScheduler implements Scheduler, Shutdownable
     public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
     {
         return scheduledExecutor.awaitTermination(timeout, units);
+    }
+
+    @Override
+    public void execute(Runnable command)
+    {
+        scheduledExecutor.execute(command);
     }
 }
