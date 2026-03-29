@@ -1,4 +1,5 @@
 6.0-alpha1
+ * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
  * Improve performance when calculating settled placements during range movements (CASSANDRA-21144)
  * Make shadow gossip round parameters configurable for testing (CASSANDRA-21149)
