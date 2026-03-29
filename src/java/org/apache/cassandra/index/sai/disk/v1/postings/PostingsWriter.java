@@ -213,6 +213,8 @@ public class PostingsWriter implements Closeable
         {
             if (posting < lastPosting)
                 throw new IllegalArgumentException(String.format(POSTINGS_MUST_BE_SORTED_ERROR_MSG, posting, lastPosting));
+            // TODO: if the posting < lastPosting, it means we are dealing with the prefix/postfix. add the last posting value until the buffer is full
+            // to avoid the reader thinking its the end. since the delta is 0, we can skip while reading.
             long delta = posting - lastPosting;
             maxDelta = max(maxDelta, delta);
             deltaBuffer[bufferUpto++] = delta;

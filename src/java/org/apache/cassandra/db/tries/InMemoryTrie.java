@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import com.google.common.annotations.VisibleForTesting;
 
+
 import org.agrona.concurrent.UnsafeBuffer;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.compress.BufferType;
@@ -809,6 +810,10 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
          * @return The combined value to use. Cannot be null.
          */
         T apply(T existing, U update);
+
+        default T apply(T existing, U rowID, U type) {
+            return apply(existing, rowID);
+        }
     }
 
     /**
@@ -901,9 +906,18 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
 
     private <R> int putRecursive(int node, ByteSource key, R value, final UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
     {
+        Integer type = 0;
+        Integer prefixType = 1;
+        @SuppressWarnings("unchecked")
+        R exactMatch = (R) type;
+        @SuppressWarnings("unchecked")
+        R prefix = (R) prefixType;
+
         int transition = key.next();
         if (transition == ByteSource.END_OF_STREAM)
-            return applyContent(node, value, transformer);
+            return applyContent(node, value, transformer, exactMatch);
+
+        applyContent(node, value, transformer, prefix); //prefix
 
         int child = getChild(node, transition);
 
@@ -919,26 +933,26 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
         return preserveContent(node, skippedContent, attachedChild);
     }
 
-    private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
+    private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer, R type) throws SpaceExhaustedException
     {
         if (isNull(node))
-            return ~addContent(transformer.apply(null, value));
+            return ~addContent(transformer.apply(null, value, type));
 
         if (isLeaf(node))
         {
             int contentIndex = ~node;
-            setContent(contentIndex, transformer.apply(getContent(contentIndex), value));
+            setContent(contentIndex, transformer.apply(getContent(contentIndex), value, type));
             return node;
         }
 
         if (offset(node) == PREFIX_OFFSET)
         {
             int contentIndex = getInt(node + PREFIX_CONTENT_OFFSET);
-            setContent(contentIndex, transformer.apply(getContent(contentIndex), value));
+            setContent(contentIndex, transformer.apply(getContent(contentIndex), value, type));
             return node;
         }
         else
-            return createPrefixNode(addContent(transformer.apply(null, value)), node, false);
+            return createPrefixNode(addContent(transformer.apply(null, value, type)), node, false);
     }
 
     /**
