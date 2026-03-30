@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -32,15 +30,20 @@ import org.apache.cassandra.utils.CollectionSerializers;
 
 public class BroadcastLogOffsets
 {
-    private final String keyspace;
-    private final Range<Token> range;
+    private final ShardMetadata shardMetadata;
     private final List<Offsets.Immutable> replicatedOffsets;
     private final boolean durable;
 
-    public BroadcastLogOffsets(String keyspace, Range<Token> range, List<Offsets.Immutable> offsets, boolean durable)
+    public BroadcastLogOffsets(
+        String keyspace, long sinceEpoch, Range<Token> range, Participants participants,
+        List<Offsets.Immutable> offsets, boolean durable)
     {
-        this.keyspace = keyspace;
-        this.range = range;
+        this(new ShardMetadata(keyspace, sinceEpoch, range, participants), offsets, durable);
+    }
+
+    public BroadcastLogOffsets(ShardMetadata shardMetadata, List<Offsets.Immutable> offsets, boolean durable)
+    {
+        this.shardMetadata = shardMetadata;
         this.replicatedOffsets = offsets;
         this.durable = durable;
     }
@@ -62,17 +65,19 @@ public class BroadcastLogOffsets
             isFirst = false;
         }
         sb.append(']');
-        return "ShardReplicatedOffsets{" + keyspace + ", " + range + ", " + sb + ", " + durable + '}';
+        return "ShardReplicatedOffsets{" + shardMetadata + ", " + sb + ", " + durable + '}';
     }
 
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
         MutationTrackingService.ensureEnabled();
         BroadcastLogOffsets replicatedOffsets = message.payload;
-        MutationTrackingService.instance().updateReplicatedOffsets(replicatedOffsets.keyspace,
-                                                                 replicatedOffsets.range,
-                                                                 replicatedOffsets.replicatedOffsets,
-                                                                 replicatedOffsets.durable,
-                                                                 message.from());
+        MutationTrackingService.instance().updateReplicatedOffsets(replicatedOffsets.shardMetadata.keyspace,
+                                                                   replicatedOffsets.shardMetadata.sinceEpoch,
+                                                                   replicatedOffsets.shardMetadata.range,
+                                                                   replicatedOffsets.shardMetadata.participants,
+                                                                   replicatedOffsets.replicatedOffsets,
+                                                                   replicatedOffsets.durable,
+                                                                   message.from());
     };
 
     public static final VersionedSerializer<BroadcastLogOffsets> serializer = new VersionedSerializer<>()
@@ -80,8 +85,7 @@ public class BroadcastLogOffsets
         @Override
         public void serialize(BroadcastLogOffsets status, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeUTF(status.keyspace);
-            AbstractBounds.tokenSerializer.serialize(status.range, out, version.messagingVersion());
+            ShardMetadata.serializer.serialize(status.shardMetadata, out, version);
             CollectionSerializers.serializeList(status.replicatedOffsets, out, Offsets.serializer);
             out.writeBoolean(status.durable);
         }
@@ -89,19 +93,17 @@ public class BroadcastLogOffsets
         @Override
         public BroadcastLogOffsets deserialize(DataInputPlus in, Version version) throws IOException
         {
-            String keyspace = in.readUTF();
-            Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+            ShardMetadata shardMetadata = ShardMetadata.serializer.deserialize(in, version);
             List<Offsets.Immutable> replicatedOffsets = CollectionSerializers.deserializeList(in, Offsets.serializer);
             boolean durable = in.readBoolean();
-            return new BroadcastLogOffsets(keyspace, range, replicatedOffsets, durable);
+            return new BroadcastLogOffsets(shardMetadata, replicatedOffsets, durable);
         }
 
         @Override
         public long serializedSize(BroadcastLogOffsets replicatedOffsets, Version version)
         {
             long size = 0;
-            size += TypeSizes.sizeof(replicatedOffsets.keyspace);
-            size += AbstractBounds.tokenSerializer.serializedSize(replicatedOffsets.range, version.messagingVersion());
+            size += ShardMetadata.serializer.serializedSize(replicatedOffsets.shardMetadata, version);
             size += CollectionSerializers.serializedListSize(replicatedOffsets.replicatedOffsets, Offsets.serializer);
             size += TypeSizes.sizeof(replicatedOffsets.durable);
             return size;

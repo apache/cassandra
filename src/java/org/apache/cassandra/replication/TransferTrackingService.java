@@ -42,7 +42,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.repair.RepairJob;
 import org.apache.cassandra.repair.SyncStat;
 import org.apache.cassandra.repair.SyncTask;
@@ -122,7 +121,7 @@ public class TransferTrackingService
     /**
      * Track a repair as a set of {@link TrackedRepairTransfer} instances corresponding to sync tasks prior to task 
      * execution so when the syncs are done, we can activate them via {@link ActivationRequest} or fail by 
-     * sending {@link TransferFailed} to all replicas. In other words, one {@link RepairJob} will have as many
+     * sending {@link TransferFailedRequest} to all replicas. In other words, one {@link RepairJob} will have as many
      * transfers as sync tasks.
      */
     public void onRepairSyncExecution(SyncTasks tasks)
@@ -307,7 +306,7 @@ public class TransferTrackingService
         }
     }
 
-    private void purge(TransferFailed failed)
+    private void purge(TransferFailedRequest failed)
     {
         lock.writeLock().lock();
         try
@@ -424,8 +423,8 @@ public class TransferTrackingService
         }
     }
 
-    public static IVerbHandler<TransferFailed> verbHandler = message -> {
+    public static IVerbHandler<TransferFailedRequest> verbHandler = message -> {
         TransferTrackingService.instance().purge(message.payload);
-        MessagingService.instance().respond(NoPayload.noPayload, message);
+        MessagingService.instance().respond(TransferFailedResponse.instance, message);
     };
 }

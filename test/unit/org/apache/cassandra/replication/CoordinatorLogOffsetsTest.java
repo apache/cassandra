@@ -20,9 +20,7 @@ package org.apache.cassandra.replication;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,8 +42,6 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -291,10 +287,10 @@ public class CoordinatorLogOffsetsTest
             ImmutableCoordinatorLogOffsets logOffsets = new ImmutableCoordinatorLogOffsets.Builder()
                     .add(mutation.id())
                     .build();
-            Range<Token> range = getShardRange(mutation);
+            Shard shard = getShard(mutation);
             List<? extends Offsets> offsets = Collections.singletonList(logOffsets.mutations().offsets(mutation.id().logId()));
-            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr2);
-            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr3);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, 0L, shard.range, shard.participants, offsets, true, addr2);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, 0L, shard.range, shard.participants, offsets, true, addr3);
 
             Assertions.assertThat(MutationTrackingService.instance().isDurablyReconciled(logOffsets)).isTrue();
         }
@@ -325,10 +321,10 @@ public class CoordinatorLogOffsetsTest
                     .add(mutation.id())
                     .build();
 
-            Range<Token> range = getShardRange(mutation);
+            Shard shard = getShard(mutation);
             List<? extends Offsets> offsets = Collections.singletonList(logOffsets.mutations().offsets(mutation.id().logId()));
-            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr2);
-            MutationTrackingService.instance().updateReplicatedOffsets(ks, range, offsets, true, addr3);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, 0L, shard.range, shard.participants, offsets, true, addr2);
+            MutationTrackingService.instance().updateReplicatedOffsets(ks, 0L, shard.range, shard.participants, offsets, true, addr3);
 
             Assertions.assertThat(MutationTrackingService.instance().isDurablyReconciled(logOffsets)).isFalse();
         }
@@ -360,13 +356,8 @@ public class CoordinatorLogOffsetsTest
         CommitLog.instance.stopUnsafe(true);
     }
 
-    private Range<Token> getShardRange(Mutation mutation)
+    private Shard getShard(Mutation mutation)
     {
-        Map<String, Range<Token>> ksRanges = new HashMap<>();
-        MutationTrackingService.instance().forEachKeyspace(shards -> {
-            Shard shard = shards.lookUp(mutation);
-            ksRanges.put(shard.keyspace, shard.range);
-        });
-        return ksRanges.get(mutation.getKeyspaceName());
+        return MutationTrackingService.instance().getShard(mutation.id().asLogId());
     }
 }

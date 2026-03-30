@@ -1112,7 +1112,8 @@ public class StorageProxy implements StorageProxyMBean
 
         // Generate mutation ID for tracked keyspace, preserving the commit subclass
         MutationId mutationId;
-        if (proposal.mutation.id().isNone())
+        boolean mustAllocateMutationId = proposal.mutation.id().isNone();
+        if (mustAllocateMutationId)
         {
             mutationId = MutationTrackingService.instance().nextMutationId(keyspaceName, tk);
             proposal = proposal.withMutationId(mutationId);
@@ -1146,21 +1147,26 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         // Execute local commit SYNCHRONOUSLY first to ensure journal write completes
-        if (localReplica != null)
+        try
         {
-            try
+            if (localReplica != null)
             {
                 PaxosState.commitDirect(proposal);
                 if (shouldBlock)
                     responseHandler.onResponse(null);
             }
-            catch (Exception ex)
-            {
-                if (!(ex instanceof WriteTimeoutException))
-                    logger.error("Failed to apply paxos commit locally", ex);
-                if (shouldBlock)
-                    responseHandler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
-            }
+        }
+        catch (Exception ex)
+        {
+            if (!(ex instanceof WriteTimeoutException))
+                logger.error("Failed to apply paxos commit locally", ex);
+            if (shouldBlock)
+                responseHandler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
+        }
+        finally
+        {
+            if (mustAllocateMutationId) // 'release' the allocated mutation id
+                MutationTrackingService.instance().completeLocalWrite(mutationId);
         }
 
         // Now send to remote replicas

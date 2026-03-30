@@ -17,11 +17,17 @@
  */
 package org.apache.cassandra.replication;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
 
 import org.agrona.collections.IntHashSet;
+
+import org.apache.cassandra.io.UnversionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ArraySerializers;
 
 public class Participants
 {
@@ -32,6 +38,12 @@ public class Participants
         int i = 0;
         int[] hosts = new int[participants.size()];
         for (int host : participants) hosts[i++] = host;
+        Arrays.sort(hosts);
+        this.hosts = hosts;
+    }
+
+    private Participants(int[] hosts)
+    {
         Arrays.sort(hosts);
         this.hosts = hosts;
     }
@@ -76,11 +88,38 @@ public class Participants
         return Arrays.equals(this.hosts, that.hosts);
     }
 
-    Set<Integer> asSet()
+    @Override
+    public int hashCode()
+    {
+        return Arrays.hashCode(hosts);
+    }
+
+    public Set<Integer> asSet()
     {
         IntHashSet set = new IntHashSet(hosts.length);
         for (int host : hosts)
             set.add(host);
         return set;
     }
+
+    public static final UnversionedSerializer<Participants> serializer = new UnversionedSerializer<>()
+    {
+        @Override
+        public void serialize(Participants participants, DataOutputPlus out) throws IOException
+        {
+            ArraySerializers.serializeVIntArray(participants.hosts, out);
+        }
+
+        @Override
+        public Participants deserialize(DataInputPlus in) throws IOException
+        {
+            return new Participants(ArraySerializers.deserializeVIntArray(in));
+        }
+
+        @Override
+        public long serializedSize(Participants participants)
+        {
+            return ArraySerializers.serializedVIntArraySize(participants.hosts);
+        }
+    };
 }

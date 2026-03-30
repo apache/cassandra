@@ -48,6 +48,8 @@ import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SealingCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
@@ -300,10 +302,15 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                     return continuable();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);
+
+                if (MutationTrackingService.isEnabled())
+                    SealingCoordinator.sealShardsAtFinishJoin(metadata, finishJoin.delta());
+
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with join from " + next));
         }
+
         return continuable();
     }
 
@@ -380,6 +387,15 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
         }
 
         StorageService.instance.repairPaxosForTopologyChange("bootstrap");
+
+        if (MutationTrackingService.isEnabled())
+        {
+            if (beingReplaced == null)
+                SealingCoordinator.sealShardsAtMidJoin(metadata, movements);
+            else
+                SealingCoordinator.sealShardsAtMidReplace(metadata, movements, metadata.directory.peerId(beingReplaced));
+        }
+
         List<Future<?>> bootstraps = new ArrayList<>();
         if (AccordService.instance().isEnabled())
         {

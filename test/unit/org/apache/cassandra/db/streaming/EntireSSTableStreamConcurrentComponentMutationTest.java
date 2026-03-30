@@ -215,7 +215,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
         ByteBuf serializedFile = Unpooled.buffer(8192);
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         StreamSession session = setupStreamingSessionForTest();
-        Collection<OutgoingStream> outgoingStreams = store.getStreamManager().createOutgoingStreams(session, rangesAtEndpoint, NO_PENDING_REPAIR, PreviewKind.NONE, null);
+        Collection<OutgoingStream> outgoingStreams = store.getStreamManager().createOutgoingStreams(session, rangesAtEndpoint, NO_PENDING_REPAIR, PreviewKind.NONE);
         CassandraOutgoingFile outgoingFile = (CassandraOutgoingFile) Iterables.getOnlyElement(outgoingStreams);
 
         Future<?> streaming = executeAsync(() -> {

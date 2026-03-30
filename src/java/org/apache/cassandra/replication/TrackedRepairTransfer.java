@@ -55,12 +55,12 @@ public class TrackedRepairTransfer extends CoordinatedTransfer
 
     public TrackedRepairTransfer(SyncTasks.ShardedSyncTask shardedTask)
     {
-        this(shardedTask.task.getTransferId(), shardedTask.participants, shardedTask.task, shardedTask.keyspace, shardedTask.range);
+        this(shardedTask.task.getTransferId(), shardedTask.participants, shardedTask.task, shardedTask.keyspace, shardedTask.sinceEpoch, shardedTask.range);
     }
 
-    private TrackedRepairTransfer(ShortMutationId id, Participants participants, SyncTask task, String keyspace, Range<Token> range)
+    private TrackedRepairTransfer(ShortMutationId id, Participants participants, SyncTask task, String keyspace, long sinceEpoch, Range<Token> range)
     {
-        super(id, keyspace, range);
+        super(id, keyspace, sinceEpoch, range);
 
         Set<Integer> replicaNodeIds = participants.asSet();
         Set<InetAddressAndPort> participating = new HashSet<>();
@@ -113,7 +113,7 @@ public class TrackedRepairTransfer extends CoordinatedTransfer
     @Override
     protected ActivationRequest createActivation(Pair<InetAddressAndPort, InetAddressAndPort> pair, ActivationRequest.Phase phase)
     {
-        return new ActivationRequest(StreamOperation.REPAIR, pair, phase, id(), ClusterMetadata.current().myNodeId(), range, keyspace, streamResults.get(pair).planId());
+        return new ActivationRequest(StreamOperation.REPAIR, pair, phase, id(), ClusterMetadata.current().myNodeId(), range, sinceEpoch, keyspace, streamResults.get(pair).planId());
     }
 
     @Override

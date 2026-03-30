@@ -63,6 +63,7 @@ public abstract class CoordinatorLog
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorLog.class);
 
     protected final int localNodeId;
+    protected final long sinceEpoch;
     protected final String keyspace;
     protected final Range<Token> range;
     protected final CoordinatorLogId logId;
@@ -80,6 +81,7 @@ public abstract class CoordinatorLog
     abstract void receivedWriteResponse(ShortMutationId mutationId, int fromNodeId);
 
     CoordinatorLog(String keyspace,
+                   long sinceEpoch,
                    Range<Token> range,
                    int localNodeId,
                    CoordinatorLogId logId,
@@ -89,6 +91,7 @@ public abstract class CoordinatorLog
                    UnreconciledMutations unreconciledMutations)
     {
         this.localNodeId = localNodeId;
+        this.sinceEpoch = sinceEpoch;
         this.keyspace = keyspace;
         this.range = range;
         this.logId = logId;
@@ -100,90 +103,23 @@ public abstract class CoordinatorLog
         this.reconciledPersistedOffsets = persistedOffsets.intersection();
     }
 
-    CoordinatorLog(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
+    CoordinatorLog(String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
     {
-        this(keyspace, range, localNodeId, logId, participants, forParticipants(logId, participants), forParticipants(logId, participants), new UnreconciledMutations());
+        this(keyspace, sinceEpoch, range, localNodeId, logId, participants, forParticipants(logId, participants), forParticipants(logId, participants), new UnreconciledMutations());
     }
 
-    static CoordinatorLog create(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants)
+    static CoordinatorLog create(String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants)
     {
-        return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, range, localNodeId, id, participants)
-                                        : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants);
+        return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, sinceEpoch, range, localNodeId, id, participants)
+                                        : new CoordinatorLogReplica(keyspace, sinceEpoch, range, localNodeId, id, participants);
     }
 
     static CoordinatorLog recreate(
-        String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants,
+        String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId id, Participants participants,
         Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
     {
-        return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations)
-                                        : new CoordinatorLogReplica(keyspace, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
-    }
-
-    abstract CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations);
-
-    CoordinatorLog withParticipants(Participants newParticipants)
-    {
-        if (participants.equals(newParticipants))
-            return this;
-
-        lock.readLock().lock();
-        try
-        {
-            Node2OffsetsMap newWitnessedOffsets = new Node2OffsetsMap();
-            Node2OffsetsMap newPersistedOffsets = new Node2OffsetsMap();
-            Offsets passivelyReconciled = null;
-            for (int newIndex = 0; newIndex < newParticipants.size(); newIndex++)
-            {
-                int participantId = newParticipants.get(newIndex);
-
-                Offsets.Mutable offsets;
-                if (participants.contains(participantId))
-                {
-                    offsets = witnessedOffsets.get(participantId);
-                }
-                else
-                {
-                    offsets = new Offsets.Mutable(logId);
-
-                    // the new node doesn't actually have these reconciled offsets yet, but they will receive them
-                    // as part of the topology change. We preemptively mark them as reconciled here to prevent so
-                    // we don't stream journal entries that the new node will receive in sstables and to prevent
-                    // retroactively un-reconciling previously reconciled offsets for the other replicas.
-                    offsets.addAll(reconciledOffsets);
-                }
-                Offsets.Mutable persisted = participants.contains(participantId)
-                                                     ? persistedOffsets.get(participantId)
-                                                     : new Offsets.Mutable(logId);
-                passivelyReconciled = passivelyReconciled != null
-                                      ? Offsets.Immutable.intersection(passivelyReconciled, offsets)
-                                      : offsets;
-                newWitnessedOffsets.add(participantId, offsets);
-                newPersistedOffsets.add(participantId, persisted);
-            }
-
-            UnreconciledMutations newUnreconciledMutations;
-            passivelyReconciled = Offsets.Immutable.difference(passivelyReconciled, reconciledOffsets);
-            if (!passivelyReconciled.isEmpty())
-            {
-                logger.debug("Toplogy change implicitly reconciled offsets: {}", passivelyReconciled);
-                newUnreconciledMutations = unreconciledMutations.copy();
-                passivelyReconciled.forEach(id -> newUnreconciledMutations.remove(id.offset));
-            }
-            else
-            {
-                newUnreconciledMutations = unreconciledMutations;
-            }
-
-            if (logger.isTraceEnabled())
-                logger.trace("Updating coordinator log {} participants: {} -> {}. Passively reconciled: {}",
-                             logId, participants, newParticipants, passivelyReconciled);
-
-            return withUpdatedParticipants(newParticipants, newWitnessedOffsets, newPersistedOffsets, newUnreconciledMutations);
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        return id.hostId == localNodeId ? new CoordinatorLogPrimary(keyspace, sinceEpoch, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations)
+                                        : new CoordinatorLogReplica(keyspace, sinceEpoch, range, localNodeId, id, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
     }
 
     void updateReplicatedOffsets(Offsets offsets, boolean persisted, int onNodeId)
@@ -238,20 +174,6 @@ public abstract class CoordinatorLog
         logger.debug("done applying PO, now {}", persistedOffsets);
         reconciledPersistedOffsets.addAll(persistedOffsets.intersection());
         logger.debug("done applying PRO, now {}", reconciledPersistedOffsets);
-    }
-
-    public void recordFullyReconciledOffsets(Offsets.Immutable reconciled)
-    {
-        lock.writeLock().lock();
-        try {
-            for (int i = 0; i < participants.size(); ++i)
-            {
-                int participant = participants.get(i);
-                updateWitnessedReplicatedOffsets(reconciled, participant);
-            }
-        } finally {
-            lock.writeLock().unlock();
-        }
     }
 
     @Nullable
@@ -442,7 +364,7 @@ public abstract class CoordinatorLog
     }
 
     /*
-    - On local replicas after they've completed activation (onHostId == me)
+     * On local replicas after they've completed activation (onHostId == me)
      */
     void finishActivation(Bounds<Token> bounds, ActivationRequest activation)
     {
@@ -704,23 +626,15 @@ public abstract class CoordinatorLog
         private final AtomicLong sequenceId = new AtomicLong(-1);
 
         CoordinatorLogPrimary(
-            String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
+            String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
             Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
         {
-            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
+            super(keyspace, sinceEpoch, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
         }
 
-        CoordinatorLogPrimary(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
+        CoordinatorLogPrimary(String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
         {
-            super(keyspace, range, localNodeId, logId, participants);
-        }
-
-        @Override
-        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
-        {
-            CoordinatorLogPrimary next = new CoordinatorLogPrimary(keyspace, range, localNodeId, logId, newParticipants, witnessedOffsets, persistedOffsets, unreconciledMutations);
-            next.sequenceId.set(sequenceId.get());
-            return next;
+            super(keyspace, sinceEpoch, range, localNodeId, logId, participants);
         }
 
         @Override
@@ -786,21 +700,15 @@ public abstract class CoordinatorLog
     static class CoordinatorLogReplica extends CoordinatorLog
     {
         CoordinatorLogReplica(
-            String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
+            String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants,
             Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
         {
-            super(keyspace, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
+            super(keyspace, sinceEpoch, range, localNodeId, logId, participants, witnessedOffsets, persistedOffsets, unreconciledMutations);
         }
 
-        CoordinatorLogReplica(String keyspace, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
+        CoordinatorLogReplica(String keyspace, long sinceEpoch, Range<Token> range, int localNodeId, CoordinatorLogId logId, Participants participants)
         {
-            super(keyspace, range, localNodeId, logId, participants);
-        }
-
-        @Override
-        CoordinatorLog withUpdatedParticipants(Participants newParticipants, Node2OffsetsMap witnessedOffsets, Node2OffsetsMap persistedOffsets, UnreconciledMutations unreconciledMutations)
-        {
-            return new CoordinatorLogReplica(keyspace, range, localNodeId, logId, newParticipants, witnessedOffsets, persistedOffsets, unreconciledMutations);
+            super(keyspace, sinceEpoch, range, localNodeId, logId, participants);
         }
 
         @Override
@@ -815,9 +723,17 @@ public abstract class CoordinatorLog
      */
 
     private static final String INSERT_QUERY =
-        format("INSERT INTO %s.%s (keyspace_name, range_start, range_end, host_id, host_log_id, participants, witnessed_offsets, persisted_offsets) "
-               + "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        format("INSERT INTO %s.%s (keyspace_name, since_epoch, range_start, range_end, host_id, host_log_id, participants, witnessed_offsets, persisted_offsets) "
+               + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS);
+
+    private static void persistToSystemTable(
+            String keyspace, long sinceEpoch, Range<Token> range, CoordinatorLogId logId, Participants participants,
+            Map<Integer, List<Integer>> witnessedOffsets, Map<Integer, List<Integer>> persistedOffsets)
+    {
+        executeInternal(INSERT_QUERY, keyspace, sinceEpoch, range.left.toString(), range.right.toString(), logId.hostId,
+                        logId.hostLogId, participants.asSet(), witnessedOffsets, persistedOffsets);
+    }
 
     void persistToSystemTable()
     {
@@ -834,8 +750,7 @@ public abstract class CoordinatorLog
         {
             lock.readLock().unlock();
         }
-        executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId,
-                        logId.hostLogId, participants.asSet(), witnessed, persisted);
+        persistToSystemTable(keyspace, sinceEpoch, range, logId, participants, witnessed, persisted);
     }
 
     void updateLogsInSystemTable()
@@ -859,8 +774,7 @@ public abstract class CoordinatorLog
             lock.readLock().unlock();
         }
 
-        executeInternal(INSERT_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId,
-                        logId.hostLogId, participants.asSet(), witnessed, persisted);
+        persistToSystemTable(keyspace, sinceEpoch, range, logId, participants, witnessed, persisted);
 
         lock.writeLock().lock();
         try
@@ -875,13 +789,13 @@ public abstract class CoordinatorLog
     }
 
     private static final String SELECT_QUERY =
-        format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND range_start = ? AND range_end = ?",
+        format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND range_start = ? AND range_end = ? AND since_epoch = ?",
                SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS);
 
-    static List<CoordinatorLog> loadFromSystemTable(String keyspace, Range<Token> range, int localNodeId)
+    static List<CoordinatorLog> loadFromSystemTable(String keyspace, long sinceEpoch, Range<Token> range, int localNodeId)
     {
         ArrayList<CoordinatorLog> logs = new ArrayList<>();
-        for (UntypedResultSet.Row row : executeInternal(SELECT_QUERY, keyspace, range.left.toString(), range.right.toString()))
+        for (UntypedResultSet.Row row : executeInternal(SELECT_QUERY, keyspace, range.left.toString(), range.right.toString(), sinceEpoch))
         {
             int nodeId = row.getInt("host_id");
             int hostLogId = row.getInt("host_log_id");
@@ -895,19 +809,23 @@ public abstract class CoordinatorLog
             Node2OffsetsMap persisted = fromPrimitiveMap(logId, persistedOffsets);
             UnreconciledMutations unreconciled = UnreconciledMutations.loadFromJournal(witnessed, localNodeId);
             CoordinatorLog log =
-                CoordinatorLog.recreate(keyspace, range, localNodeId, logId, new Participants(participants), witnessed, persisted, unreconciled);
+                CoordinatorLog.recreate(keyspace, sinceEpoch, range, localNodeId, logId, new Participants(participants), witnessed, persisted, unreconciled);
             logs.add(log);
         }
         return logs;
     }
 
     private static final String DELETE_QUERY =
-        format("DELETE FROM %s.%s WHERE keyspace_name = ? AND range_start = ? AND range_end = ? AND host_id = ? AND host_log_id = ?",
+        format("DELETE FROM %s.%s WHERE keyspace_name = ? AND range_start = ? AND range_end = ? AND since_epoch = ? AND host_id = ? AND host_log_id = ?",
                SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COORDINATOR_LOGS);
 
+    /**
+     * Currently exists for tests only. Not sure if it'll ever be used outside of tests.
+     */
+    @VisibleForTesting
     void deleteFromSystemTable()
     {
-        executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), logId.hostId, logId.hostLogId);
+        executeInternal(DELETE_QUERY, keyspace, range.left.toString(), range.right.toString(), sinceEpoch, logId.hostId, logId.hostLogId);
     }
 
     @VisibleForTesting

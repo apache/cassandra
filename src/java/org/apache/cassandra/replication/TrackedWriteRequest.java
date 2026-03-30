@@ -206,6 +206,7 @@ public class TrackedWriteRequest
         writeMetrics.localRequests.mark();
 
         MutationId id = MutationTrackingService.instance().nextMutationId(keyspaceName, token);
+
         mutation = mutation.withMutationId(id);
 
         if (logger.isTraceEnabled())
@@ -445,18 +446,18 @@ public class TrackedWriteRequest
         @Override
         public final void run()
         {
-            long now = MonotonicClock.Global.approxTime.now();
-            long deadline = getRequestTime(handler).computeDeadline(MUTATION_REQ.expiresAfterNanos());
-
-            if (now > deadline)
-            {
-                long timeTakenNanos = now - startTimeNanos();
-                MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
-                return;
-            }
-
             try
             {
+                long now = MonotonicClock.Global.approxTime.now();
+                long deadline = getRequestTime(handler).computeDeadline(MUTATION_REQ.expiresAfterNanos());
+
+                if (now > deadline)
+                {
+                    long timeTakenNanos = now - startTimeNanos();
+                    MessagingService.instance().metrics.recordSelfDroppedMessage(Verb.MUTATION_REQ, timeTakenNanos, NANOSECONDS);
+                    return;
+                }
+
                 mutation.apply();
                 handler.onResponse(null);
             }
@@ -465,6 +466,10 @@ public class TrackedWriteRequest
                 if (!(ex instanceof WriteTimeoutException))
                     logger.error("Failed to apply mutation locally : ", ex);
                 handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
+            }
+            finally
+            {
+                MutationTrackingService.instance().completeLocalWrite(mutation.id());
             }
         }
 
@@ -510,18 +515,18 @@ public class TrackedWriteRequest
         @Override
         public void run()
         {
-            long now = MonotonicClock.Global.approxTime.now();
-            long deadline = getReqestTime().computeDeadline(COUNTER_MUTATION_REQ.expiresAfterNanos());
-
-            if (now > deadline)
-            {
-                long timeTakenNanos = now - startTimeNanos();
-                MessagingService.instance().metrics.recordSelfDroppedMessage(COUNTER_MUTATION_REQ, timeTakenNanos, NANOSECONDS);
-                return;
-            }
-
             try
             {
+                long now = MonotonicClock.Global.approxTime.now();
+                long deadline = getReqestTime().computeDeadline(COUNTER_MUTATION_REQ.expiresAfterNanos());
+
+                if (now > deadline)
+                {
+                    long timeTakenNanos = now - startTimeNanos();
+                    MessagingService.instance().metrics.recordSelfDroppedMessage(COUNTER_MUTATION_REQ, timeTakenNanos, NANOSECONDS);
+                    return;
+                }
+
                 Mutation result = counterMutation.applyCounterMutation(counterMutation.id());
                 handler.onResponse(null);
                 sendToReplicas(result, plan, handler, null);
@@ -531,6 +536,10 @@ public class TrackedWriteRequest
                 if(!(ex instanceof WriteTimeoutException))
                     logger.error("Failed to apply counter mutation locally:  ", ex);
                 handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
+            }
+            finally
+            {
+                MutationTrackingService.instance().completeLocalWrite(counterMutation.id());
             }
         }
 
