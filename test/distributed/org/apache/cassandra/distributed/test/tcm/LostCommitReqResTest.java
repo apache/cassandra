@@ -33,11 +33,18 @@ import static org.junit.Assert.assertEquals;
 
 public class LostCommitReqResTest extends TestBaseImpl
 {
+
     @Test
     public void lostMoveCommitResponseTest() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(2)
-                                             .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("cms_await_timeout", "1s").set("cms_default_max_retries", "5"))
+                                             .withConfig(
+                                             c -> c.with(Feature.NETWORK, Feature.GOSSIP)
+                                                   .set("cms_await_timeout", "1s")
+                                                   .set("cms_default_max_retries", "5")
+                                                   .set("cms_commit_timeout", "3s")
+                                                   .set("cms_commit_retry_initial_delay", "200ms")
+                                                   .set("cms_commit_retry_max_delay", "1s"))
                                              .start()))
         {
             // no commit responses
@@ -60,7 +67,13 @@ public class LostCommitReqResTest extends TestBaseImpl
     public void lostMoveCommitRequestTest() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(2)
-                                             .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("cms_await_timeout", "1s").set("cms_default_max_retries", "5"))
+                                             .withConfig(
+                                             c -> c.with(Feature.NETWORK, Feature.GOSSIP)
+                                                   .set("cms_await_timeout", "1s")
+                                                   .set("cms_default_max_retries", "5")
+                                                   .set("cms_commit_timeout", "3s")
+                                                   .set("cms_commit_retry_initial_delay", "200ms")
+                                                   .set("cms_commit_retry_max_delay", "1s"))
                                              .start()))
         {
             // no commit requests
@@ -81,7 +94,13 @@ public class LostCommitReqResTest extends TestBaseImpl
     public void lostDecomCommitResponseTest() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(2)
-                                             .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("cms_await_timeout", "1s").set("cms_default_max_retries", "5"))
+                                             .withConfig(
+                                             c -> c.with(Feature.NETWORK, Feature.GOSSIP)
+                                                   .set("cms_await_timeout", "1s")
+                                                   .set("cms_default_max_retries", "5")
+                                                   .set("cms_commit_timeout", "3s")
+                                                   .set("cms_commit_retry_initial_delay", "200ms")
+                                                   .set("cms_commit_retry_max_delay", "1s"))
                                              .start()))
         {
             cluster.filters().verbs(Verb.TCM_COMMIT_RSP.id).from(1).to(2).drop();
@@ -99,7 +118,13 @@ public class LostCommitReqResTest extends TestBaseImpl
     public void lostDecomCommitRequestTest() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(2)
-                                             .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("cms_await_timeout", "1s").set("cms_default_max_retries", "5"))
+                                             .withConfig(
+                                             c -> c.with(Feature.NETWORK, Feature.GOSSIP)
+                                                   .set("cms_await_timeout", "1s")
+                                                   .set("cms_default_max_retries", "5")
+                                                   .set("cms_commit_timeout", "3s")
+                                                   .set("cms_commit_retry_initial_delay", "200ms")
+                                                   .set("cms_commit_retry_max_delay", "1s"))
                                              .start()))
         {
             cluster.filters().verbs(Verb.TCM_COMMIT_REQ.id).from(2).to(1).drop();

@@ -6167,6 +6167,15 @@ public class DatabaseDescriptor
         return conf.cms_commit_member_preference_policy;
     }
 
+    public static void setCmsAwaitTimeout(long timeoutInMillis)
+    {
+        if (timeoutInMillis != conf.cms_await_timeout.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_await_timeout to {}ms", timeoutInMillis);
+            conf.cms_await_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+        }
+    }
+
     public static void setCmsCommitMemberPreferencePolicy(Config.CMSCommitMemberPreferencePolicy policy)
     {
         conf.cms_commit_member_preference_policy = policy;
@@ -6175,6 +6184,48 @@ public class DatabaseDescriptor
     public static void setCmsCommitMemberPreferencePolicy(String policy)
     {
         setCmsCommitMemberPreferencePolicy(Config.CMSCommitMemberPreferencePolicy.valueOf(toLowerCaseLocalized(policy)));
+    }
+
+    public static DurationSpec getCmsCommitTimeout()
+    {
+        return conf.cms_commit_timeout;
+    }
+
+    public static void setCmsCommitTimeout(long timeoutInMillis)
+    {
+        if (timeoutInMillis != conf.cms_commit_timeout.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_commit_timeout to {}ms", timeoutInMillis);
+            conf.cms_commit_timeout = new DurationSpec.LongMillisecondsBound(timeoutInMillis);
+        }
+    }
+
+    public static DurationSpec getCmsCommitRetryInitialDelay()
+    {
+        return conf.cms_commit_retry_initial_delay;
+    }
+
+    public static void setCmsCommitRetryInitialDelay(long delayInMillis)
+    {
+        if (delayInMillis != conf.cms_commit_retry_initial_delay.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_commit_retry_initial_delay to {}ms", delayInMillis);
+            conf.cms_commit_retry_initial_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
+        }
+    }
+
+    public static DurationSpec getCmsCommitRetryMaxDelay()
+    {
+        return conf.cms_commit_retry_max_delay;
+    }
+
+    public static void setCmsCommitRetryMaxDelay(long delayInMillis)
+    {
+        if (delayInMillis != conf.cms_commit_retry_max_delay.to(TimeUnit.MILLISECONDS))
+        {
+            logger.info("Setting cms_commit_retry_max_delay to {}ms", delayInMillis);
+            conf.cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
+        }
     }
 
     public static int getEpochAwareDebounceInFlightTrackerMaxSize()

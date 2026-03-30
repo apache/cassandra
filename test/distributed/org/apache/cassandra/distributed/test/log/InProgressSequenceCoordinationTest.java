@@ -332,10 +332,15 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     @Test
     public void inProgressSequenceRetryTest() throws Throwable
     {
+        // This test expects ~50% of TCM_COMMIT_REQ messages to be dropped, so s
+        // ignificantly lower the timeout, backoff, and retry params
         try (Cluster cluster = builder().withNodes(1)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
-                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("request_timeout_in_ms", "1000"))
+                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
+                                                                      .set("cms_await_timeout", "100ms")
+                                                                      .set("cms_commit_retry_initial_delay", "10ms")
+                                                                      .set("cms_commit_retry_max_delay", "5000ms"))
                                         .start())
         {
             cluster.filters()

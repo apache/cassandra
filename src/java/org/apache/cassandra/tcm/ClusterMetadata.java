@@ -62,6 +62,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
@@ -221,7 +222,11 @@ public class ClusterMetadata
             return Collections.emptySet();
 
         if (fullCMSEndpoints == null)
+        {
+            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
+                return Collections.emptySet();
             this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet());
+        }
         return fullCMSEndpoints;
     }
 
@@ -231,7 +236,11 @@ public class ClusterMetadata
             return Collections.emptySet();
 
         if (fullCMSIds == null)
+        {
+            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
+                return Collections.emptySet();
             this.fullCMSIds = placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet().stream().map(directory::peerId).collect(toImmutableSet());
+        }
         return fullCMSIds;
     }
 
@@ -241,7 +250,11 @@ public class ClusterMetadata
             return EndpointsForRange.empty(MetaStrategy.entireRange);
 
         if (fullCMSReplicas == null)
+        {
+            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
+                return EndpointsForRange.empty(MetaStrategy.entireRange);
             fullCMSReplicas = placements.get(ReplicationParams.meta(this)).reads.forRange(MetaStrategy.entireRange).get();
+        }
         return fullCMSReplicas;
     }
 

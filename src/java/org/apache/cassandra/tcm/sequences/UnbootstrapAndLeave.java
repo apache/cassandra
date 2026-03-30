@@ -183,6 +183,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing startLeave, will retry", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -206,7 +207,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
-                    logger.warn("Error committing midLeave", t);
+                    logger.warn("Exception committing midLeave, will retry", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -219,6 +220,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing finishLeave, will retry", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }

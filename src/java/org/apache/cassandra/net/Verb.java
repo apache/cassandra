@@ -301,6 +301,7 @@ public enum Verb
 
     // transactional cluster metadata
     TCM_COMMIT_RSP         (801, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         RESPONSE_HANDLER                                 ),
+    // message timeout is overridden in RemoteProcessor to cmsAwaitTimeout for non-client facing commit requests
     TCM_COMMIT_REQ         (802, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
     TCM_FETCH_CMS_LOG_RSP  (803, P0, shortTimeout,    FETCH_METADATA,       MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
     TCM_FETCH_CMS_LOG_REQ  (804, P0, rpcTimeout,      FETCH_METADATA,       () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),

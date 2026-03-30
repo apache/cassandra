@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +51,7 @@ import org.apache.cassandra.tcm.transformations.cms.AdvanceCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration.needsReconfiguration;
 
 public class CMSOperations implements CMSOperationsMBean
@@ -78,6 +81,65 @@ public class CMSOperations implements CMSOperationsMBean
     private CMSOperations(ClusterMetadataService cms)
     {
         this.cms = cms;
+    }
+
+    // TCM CMS await timeout
+    public long getCmsAwaitTimeoutMillis()
+    {
+        return DatabaseDescriptor.getCmsAwaitTimeout().to(MILLISECONDS);
+    }
+
+    public void setCmsAwaitTimeoutMillis(long timeoutInMillis)
+    {
+        Preconditions.checkState(timeoutInMillis > 0);
+        DatabaseDescriptor.setCmsAwaitTimeout(timeoutInMillis);
+    }
+
+    // CMS commit timeout with exponential backoff
+    public long getCmsCommitTimeoutMillis()
+    {
+        return DatabaseDescriptor.getCmsCommitTimeout().to(MILLISECONDS);
+    }
+
+    public void setCmsCommitTimeoutMillis(long timeoutInMillis)
+    {
+        Preconditions.checkState(timeoutInMillis > 0);
+        DatabaseDescriptor.setCmsCommitTimeout(timeoutInMillis);
+    }
+
+    public long getCmsCommitRetryInitialDelayMillis()
+    {
+        return DatabaseDescriptor.getCmsCommitRetryInitialDelay().to(MILLISECONDS);
+    }
+
+    public void setCmsCommitRetryInitialDelayMillis(long delayInMillis)
+    {
+        Preconditions.checkState(delayInMillis > 0);
+        DatabaseDescriptor.setCmsCommitRetryInitialDelay(delayInMillis);
+    }
+
+    public long getCmsCommitRetryMaxDelayMillis()
+    {
+        return DatabaseDescriptor.getCmsCommitRetryMaxDelay().to(MILLISECONDS);
+    }
+
+    public void setCmsCommitRetryMaxDelayMillis(long delayInMillis)
+    {
+        Preconditions.checkState(delayInMillis > 0);
+        DatabaseDescriptor.setCmsCommitRetryMaxDelay(delayInMillis);
+    }
+
+    @Override
+    public String getCmsCommitMemberPreferencePolicy()
+    {
+        return DatabaseDescriptor.getCmsCommitMemberPreferencePolicy().name();
+    }
+
+    @Override
+    public void setCmsCommitMemberPreferencePolicy(String policy)
+    {
+        DatabaseDescriptor.setCmsCommitMemberPreferencePolicy(policy);
+        logger.info("Set cms_commit_member_preference_policy to {}", policy);
     }
 
     @Override

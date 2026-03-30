@@ -29,8 +29,10 @@ import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public abstract class AbstractLocalProcessor implements Processor
 {
@@ -50,6 +52,9 @@ public abstract class AbstractLocalProcessor implements Processor
     @Override
     public final Commit.Result commit(Entry.Id entryId, Transformation transform, final Epoch lastKnown, Retry retryPolicy)
     {
+        String transformStr = transform.toString(); // convert once as idempotent and used in multiple logs
+        logger.debug("Starting local commit of {} with policy {}", transformStr, retryPolicy);
+        long commitStart = nanoTime();
         while (!retryPolicy.hasExpired())
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
@@ -66,7 +71,7 @@ public abstract class AbstractLocalProcessor implements Processor
             Transformation.Result result;
             if (!transform.eligibleToCommit(previous))
             {
-                result = new Transformation.Rejected(INVALID, "Transformation rejected, can't commit " + transform +
+                result = new Transformation.Rejected(INVALID, "Transformation rejected, can't commit " + transformStr +
                                                               " it not supported with cluster common serialization version " + previous.directory.commonSerializationVersion +
                                                               " and min/max serialization versions " + previous.directory.clusterMinVersion + "/" + previous.directory.clusterMaxVersion);
             }
@@ -96,12 +101,18 @@ public abstract class AbstractLocalProcessor implements Processor
             {
                 Epoch nextEpoch = result.success().metadata.epoch;
                 // If metadata applies, try committing it to the log
+                long casStart = nanoTime();
                 boolean applied = tryCommitOne(entryId, transform, previous.epoch, nextEpoch);
+                long casElapsedUs = NANOSECONDS.toMicros(nanoTime() - casStart);
+                logger.debug("tryCommitOne for {} epoch {}->{}: applied={}, took {}us",
+                             transform.kind(), previous.epoch, nextEpoch, applied, casElapsedUs);
 
                 // Application here semantially means "succeeded in committing to the distributed log".
                 if (applied)
                 {
-                    logger.info("Committed {}. New epoch is {}", transform, nextEpoch);
+                    logger.info("Committed {}. New epoch is {}. Took {} attempts in {}us total.",
+                                transformStr, nextEpoch, retryPolicy.attempts(),
+                                NANOSECONDS.toMicros(nanoTime() - commitStart));
                     log.append(new Entry(entryId, nextEpoch, new Transformation.Executed(transform, result)));
                     log.awaitAtLeast(nextEpoch);
 
@@ -124,8 +135,12 @@ public abstract class AbstractLocalProcessor implements Processor
                     break;
             }
         }
-        return Commit.Result.failed(SERVER_ERROR,
-                                    String.format("Could not perform commit; policy %s gave up", retryPolicy));
+        long remainingMillis = NANOSECONDS.toMillis(retryPolicy.remainingNanos());
+        String failureMsg = String.format("Could not perform commit after %d attempts. Time remaining: %dms",
+                                          retryPolicy.attempts(), remainingMillis);
+        logger.debug("Commit {} failed in {}us total. {}",
+                     transformStr, NANOSECONDS.toMicros(nanoTime() - commitStart), failureMsg);
+        return Commit.Result.failed(SERVER_ERROR, failureMsg);
     }
 
     public Commit.Result maybeFailure(Entry.Id entryId, Epoch lastKnown, Supplier<Commit.Result.Failure> orElse)
