@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -64,6 +65,10 @@ public class Assassinate extends PrepareLeave
         // Gossip implementation of assassinate was a no-op. Preserving this behaviour.
         if (!metadata.directory.isRegistered(endpoint))
             return;
+
+        // TODO (required): mutation tracking shard sealing for assassinate (dead participant) is not yet implemented
+        if (MutationTrackingService.isEnabled())
+            throw new IllegalStateException("Cannot assassinate a node with mutation tracking enabled.");
 
         ReconfigureCMS.maybeReconfigureCMS(metadata, endpoint);
 

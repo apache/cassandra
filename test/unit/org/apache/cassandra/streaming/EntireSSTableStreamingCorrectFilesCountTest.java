@@ -123,8 +123,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
         Collection<OutgoingStream> outgoingStreams = store.getStreamManager().createOutgoingStreams(session,
                                                                                                     rangesAtEndpoint,
                                                                                                     NO_PENDING_REPAIR,
-                                                                                                    PreviewKind.NONE,
-                                                                                                    null);
+                                                                                                    PreviewKind.NONE);
 
         session.addTransferStreams(outgoingStreams);
         AsyncStreamingOutputPlus out = constructDataOutputStream();

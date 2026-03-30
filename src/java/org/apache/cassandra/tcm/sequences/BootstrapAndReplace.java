@@ -46,6 +46,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SealingCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -289,6 +291,9 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                     return halted();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);
+
+                if (MutationTrackingService.isEnabled())
+                    SealingCoordinator.sealShardsAtFinishReplace(metadata, finishReplace.delta(), startReplace.replaced());
 
                 break;
             default:

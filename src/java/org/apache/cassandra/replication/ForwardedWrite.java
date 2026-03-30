@@ -246,7 +246,15 @@ public class ForwardedWrite
             // here to make sure it's already cached/computed when it's concurrently used later.
             // Side note: we have one cached buffers for each used EncodingVersion and this only pre-compute the one for
             // the current version, but it's just an optimization, and we're ok not optimizing for mixed-version clusters.
-            Mutation.serializer.prepareSerializedBuffer(mutation, MessagingService.current_version);
+            try
+            {
+                Mutation.serializer.prepareSerializedBuffer(mutation, MessagingService.current_version);
+            }
+            catch (Throwable t)
+            {
+                MutationTrackingService.instance().completeLocalWrite(mutation.id());
+                throw t;
+            }
 
             for (NodeId recipient : recipients)
             {
@@ -492,7 +500,16 @@ public class ForwardedWrite
         LeaderCallback leaderCallback = new LeaderCallback(id, coordinatorAckInfo);
 
         // Apply counter mutation with ID to get result
-        Mutation result = counterMutation.applyCounterMutation(id);
+        Mutation result;
+        try
+        {
+            result = counterMutation.applyCounterMutation(id);
+        }
+        catch (Throwable t)
+        {
+            MutationTrackingService.instance().completeLocalWrite(id);
+            throw t;
+        }
 
         // Apply locally using the leader callback
         TrackedWriteRequest.applyMutationLocally(result, leaderCallback);

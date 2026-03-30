@@ -100,6 +100,10 @@ public class PrepareRefreshForwardHandler implements IVerbHandler<PrepareRefresh
             {
                 logger.warn("Failed to execute local commit for tracked keyspace mutation {}", mutationId, e);
             }
+            finally
+            {
+                MutationTrackingService.instance().completeLocalWrite(mutationId);
+            }
 
             if (localResponse == null)
             {
