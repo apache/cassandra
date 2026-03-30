@@ -747,7 +747,7 @@ public abstract class Offsets implements Iterable<ShortMutationId>
                 return new Immutable(logId, bounds, size);
             }
         };
-        private static int[] EMPTY = new int[0];
+        private static final int[] EMPTY = new int[0];
 
         public Immutable(CoordinatorLogId logId, int[] bounds)
         {
@@ -1569,31 +1569,46 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         @Override
         public void serialize(Offsets.Immutable offsets, DataOutputPlus out) throws IOException
         {
-            CoordinatorLogId.serializer.serialize(offsets.logId, out);
-            out.writeInt(offsets.size);
-            for (int i = 0; i < offsets.size; i++)
-                out.writeInt(offsets.bounds[i]);
+            offsets.serialize(out);
         }
 
         @Override
         public Offsets.Immutable deserialize(DataInputPlus in) throws IOException
         {
-            CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in);
-            int size = in.readInt();
-            Preconditions.checkArgument(size >= 0 && size % 2 == 0);
-            int[] bounds = new int[size];
-            for (int i = 0; i < size; i++)
-                bounds[i] = in.readInt();
-            return new Offsets.Immutable(logId, bounds);
+            return Offsets.deserialize(in);
         }
 
         @Override
         public long serializedSize(Offsets.Immutable offsets)
         {
-            long size = CoordinatorLogId.serializer.serializedSize(offsets.logId);
-            size += TypeSizes.sizeof(offsets.size);
-            size += (long) TypeSizes.INT_SIZE * offsets.size;
-            return size;
+            return offsets.serializedSize();
         }
     };
+
+    void serialize(DataOutputPlus out) throws IOException
+    {
+        CoordinatorLogId.serializer.serialize(logId, out);
+        out.writeUnsignedVInt32(size);
+        for (int i = 0; i < size; i++)
+            out.writeInt(bounds[i]);
+    }
+
+    static Offsets.Immutable deserialize(DataInputPlus in) throws IOException
+    {
+        CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in);
+        int size = in.readUnsignedVInt32();
+        Preconditions.checkArgument(size >= 0 && size % 2 == 0);
+        int[] bounds = new int[size];
+        for (int i = 0; i < size; i++)
+            bounds[i] = in.readInt();
+        return new Offsets.Immutable(logId, bounds);
+    }
+
+    long serializedSize()
+    {
+        long size = CoordinatorLogId.serializer.serializedSize(logId);
+        size += TypeSizes.sizeofUnsignedVInt(this.size);
+        size += (long) TypeSizes.INT_SIZE * this.size;
+        return size;
+    }
 }

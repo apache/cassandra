@@ -125,19 +125,13 @@ public class CoordinatorLogId implements Serializable
 
     public static final Comparator<CoordinatorLogId> comparator = (l, r) -> Long.compareUnsigned(l.asLong(), r.asLong());
 
-    public static final class Serializer implements UnversionedSerializer<CoordinatorLogId>
+    public static final UnversionedSerializer<CoordinatorLogId> serializer = new UnversionedSerializer<>()
     {
         @Override
         public void serialize(CoordinatorLogId logId, DataOutputPlus out) throws IOException
         {
             out.writeInt(logId.hostId);
             out.writeInt(logId.hostLogId);
-        }
-
-        public void serialize(long logId, DataOutputPlus out) throws IOException
-        {
-            out.writeInt(hostId(logId));
-            out.writeInt(hostLogId(logId));
         }
 
         @Override
@@ -153,12 +147,5 @@ public class CoordinatorLogId implements Serializable
         {
             return TypeSizes.sizeof(logId.hostId) + TypeSizes.sizeof(logId.hostLogId);
         }
-
-        public long serializedSize(long logId)
-        {
-            return TypeSizes.sizeof(logId);
-        }
-    }
-
-    public static final Serializer serializer = new Serializer();
+    };
 }

@@ -72,7 +72,7 @@ public class ShardTest
         MutableInteger logId = new MutableInteger();
         LongSupplier logIdProvider = () -> CoordinatorLogId.asLong(LOCAL_HOST_ID, logId.getAndIncrement());
 
-        Shard original = new Shard(LOCAL_HOST_ID, KEYSPACE, range, participants, logIdProvider, (s, l) -> {});
+        Shard original = new Shard(LOCAL_HOST_ID, KEYSPACE, 1L, range, participants, logIdProvider, (s, l) -> {});
         original.persistToSystemTables();
 
         ArrayList<Shard> loadedShards = Shard.loadFromSystemTables(LOCAL_HOST_ID, logIdProvider, (s, l) -> {});
@@ -96,13 +96,13 @@ public class ShardTest
             Participants participants = new Participants(List.of(LOCAL_HOST_ID, REMOTE_HOST_ID_1, REMOTE_HOST_ID_2));
             MutableInteger logId = new MutableInteger();
             LongSupplier logIdProvider = () -> CoordinatorLogId.asLong(LOCAL_HOST_ID, logId.getAndIncrement());
-            Shard shard = new Shard(LOCAL_HOST_ID, KEYSPACE, range, participants, logIdProvider, (s, l) -> {
+            Shard shard = new Shard(LOCAL_HOST_ID, KEYSPACE, 1L, range, participants, logIdProvider, (s, l) -> {
             });
 
-            MutationId firstId = shard.nextId();
+            MutationId firstId = shard.nextMutationId();
             for (int i = 0; i < 100; i++)
-                assertEquals(firstId.hostLogId, shard.nextId().hostLogId);
-            assertEquals(firstId.hostLogId + 1, shard.nextId().hostLogId);
+                assertEquals(firstId.hostLogId, shard.nextMutationId().hostLogId);
+            assertEquals(firstId.hostLogId + 1, shard.nextMutationId().hostLogId);
         }
         finally
         {

@@ -282,6 +282,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                     return;
                 }
 
+                // TODO (required): use the same path for other tracked straming caused by topology changes
                 if (session.streamOperation() == StreamOperation.BOOTSTRAP)
                 {
                     cfs.addSSTableForBootstrap(readers);

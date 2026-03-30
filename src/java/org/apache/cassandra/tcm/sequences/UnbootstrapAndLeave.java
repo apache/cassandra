@@ -34,6 +34,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.SealingCoordinator;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -211,9 +213,10 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 break;
             case FINISH_LEAVE:
+                ClusterMetadata postFinish;
                 try
                 {
-                    ClusterMetadataService.instance().commit(finishLeave);
+                    postFinish = ClusterMetadataService.instance().commit(finishLeave);
                     StorageService.instance.clearTransientMode();
                 }
                 catch (Throwable t)
@@ -221,6 +224,12 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
+
+                // Seal the shards obsoleted by FINISH_LEAVE: the departed node's over-replicated generations created
+                // during START_LEAVE, plus the merge-half folded into the departed node's range by the merge.
+                if (MutationTrackingService.isEnabled())
+                    if (streams.kind() == LeaveStreams.Kind.UNBOOTSTRAP || streams.kind() == LeaveStreams.Kind.REMOVENODE)
+                        SealingCoordinator.sealShardsAtFinishLeave(postFinish, finishLeave.delta(), finishLeave.nodeId(), streams.kind());
                 break;
             default:
                 return error(new IllegalStateException("Can't proceed with leave from " + next));

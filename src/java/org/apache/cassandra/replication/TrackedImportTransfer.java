@@ -93,15 +93,17 @@ public class TrackedImportTransfer extends CoordinatedTransfer
     @VisibleForTesting
     TrackedImportTransfer(Range<Token> range, MutationId id)
     {
-        super(id, null, range);
+        super(id, null, 0L, range);
         this.sstables = Collections.emptyList();
         this.positionForSSTables = Collections.emptyMap();
         this.cl = null;
     }
 
-    TrackedImportTransfer(String keyspace, Range<Token> range, Participants participants, Collection<SSTableReader> sstables, Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionForSSTables, ConsistencyLevel cl, Supplier<MutationId> nextId)
+    TrackedImportTransfer(String keyspace, Range<Token> range, long sinceEpoch, Participants participants,
+        Collection<SSTableReader> sstables, Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionForSSTables,
+        ConsistencyLevel cl, Supplier<MutationId> nextId)
     {
-        super(nextId.get(), participants, keyspace, range);
+        super(nextId.get(), participants, keyspace, sinceEpoch, range);
         this.sstables = sstables;
         this.positionForSSTables = positionForSSTables;
         this.cl = cl;
@@ -351,7 +353,7 @@ public class TrackedImportTransfer extends CoordinatedTransfer
     @Override
     protected ActivationRequest createActivation(Pair<InetAddressAndPort, InetAddressAndPort> pair, Phase phase)
     {
-        return new ActivationRequest(StreamOperation.IMPORT, pair, phase, id(), ClusterMetadata.current().myNodeId(), range, keyspace, streamResults.get(pair).planId());
+        return new ActivationRequest(StreamOperation.IMPORT, pair, phase, id(), ClusterMetadata.current().myNodeId(), range, sinceEpoch, keyspace, streamResults.get(pair).planId());
     }
 
     private SingleTransferResult streamTask(InetAddressAndPort to) throws StreamException, ExecutionException, InterruptedException, TimeoutException
