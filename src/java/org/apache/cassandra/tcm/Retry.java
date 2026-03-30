@@ -24,7 +24,9 @@ import com.codahale.metrics.Meter;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.service.RetryStrategy;
+import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.TimeoutStrategy.LatencySourceFactory;
 import org.apache.cassandra.service.WaitStrategy;
 
@@ -35,6 +37,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 public class Retry implements WaitStrategy
 {
     private static final WaitStrategy DEFAULT_STRATEGY;
+    private static final Retry RETRY_INDEFINITELY;
     static
     {
         DurationSpec.IntMillisecondsBound defaultBackoff = DatabaseDescriptor.getDefaultRetryBackoff();
@@ -47,6 +50,12 @@ public class Retry implements WaitStrategy
                           + ",retries=" + DatabaseDescriptor.getCmsDefaultRetryMaxTries();
         }
         DEFAULT_STRATEGY = RetryStrategy.parse(defaultSpec, LatencySourceFactory.none());
+
+        Meter retryMeter = TCMMetrics.instance.commitRetries;
+        String spec = (defaultBackoff == null ? "100ms" : defaultBackoff.toMilliseconds() + "ms")
+                      + "*attempts <=" + (defaultMaxBackoff == null ? "10s" : defaultMaxBackoff.toMilliseconds() + "ms");
+        WaitStrategy wait = RetryStrategy.parse(spec, TimeoutStrategy.LatencySourceFactory.none());
+        RETRY_INDEFINITELY = Retry.withNoTimeLimit(retryMeter, wait);
     }
 
     public final long deadlineNanos;
@@ -59,6 +68,15 @@ public class Retry implements WaitStrategy
         this.deadlineNanos = deadlineNanos;
         this.retryMeter = retryMeter;
         this.delegate = delegate;
+    }
+
+    /**
+     * To be used only when submitting a STARTUP transformation when a node is restarted with a new set of addresses or
+     * running a new release version.
+     */
+    static Retry unsafeRetryIndefinitely()
+    {
+        return RETRY_INDEFINITELY;
     }
 
     public Retry(long deadlineNanos, Meter retryMeter)
@@ -140,6 +158,11 @@ public class Retry implements WaitStrategy
     public static Retry until(long deadlineNanos, Meter retryMeter)
     {
         return new Retry(deadlineNanos, retryMeter, DEFAULT_STRATEGY);
+    }
+
+    public static Retry until(long deadlineNanos, Meter retryMeter, WaitStrategy waitStrategy)
+    {
+        return new Retry(deadlineNanos, retryMeter, waitStrategy);
     }
 
     public static Retry untilElapsed(long timeoutNanos, Meter retryMeter)

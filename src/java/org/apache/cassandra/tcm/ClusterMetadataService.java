@@ -57,6 +57,7 @@ import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
@@ -562,7 +563,6 @@ public class ClusterMetadataService
 
     /**
      * dumps the cluster metadata at the given epoch, returns path to the generated file
-     *
      * if the given Epoch is EMPTY, we dump the current metadata
      *
      * @param epoch dump clustermetadata at this epoch
@@ -637,19 +637,41 @@ public class ClusterMetadataService
 
     /**
      * Attempt to commit the transformation (with retries).
-     *
+     * <p>
      * Since we can not rely on reliability of the network or even the fact that the committing node will stay alive
      * for the duration of commit, we have to allow for subsequent discovery of the transformation effects, which can
      * be made visible either by replaying the log, or receiving the metadata snapshot.
-     *
+     * <p>
      * In other words, there is no reliable way to find out whether _this particular_ transformation has been executed
      * while we are allowing replay from snapshot, since even failure response from the CMS does not guarantee
      * Paxos re-proposal, which would place the transformation into the log during proposal _by some other_ CMS node.
-     *
+     * <p>
      * Protocol does foresee the concept of EntryId that would allow discovery of the committed transformations
      * without changes to binary protocol, but this change was left out from the initial implementation of TCM.
+     * <p>
+     * TCM Commit Timeouts
+     * <p>
+     * Timeout passed to the TCM Processor
+     *   - STARTUP: retries indefinitely with Jitter(cms_default_retry_backoff 50ms)
+     *   - SCHEMA_CHANGE: rpc_timeout + Jitter(cms_default_retry_backoff 50ms) - fast retry, fail fast for DDL
+     *   - Everything else (LOCAL/CMS & REMOTE/non-CMS): cms_commit_timeout (1h) + ExponentialJitter(5s-60s) - full jitter exponential backoff
+     * <p>
+     * The Processor changes behavior based on whether the node is a member of the CMS or not.
+     * For non-CMS members (REMOTE state / RemoteProcessor):
+     *   - Sends the commit with a TCM_COMMIT_REQ message
+     *   - Message expires after min(cms_await_timeout, remaining sender deadline) to account for CMS node failures.
+     *   - On failure/timeout retries use exponential backoff with full jitter to decorrelate cms await timeouts.
+     * For CMS members (LOCAL state / AbstractLocalProcessor) for local TCM commits:
+     *   - The main outer retry policy described below for TCM_COMMIT_REQ is used without the message expiry,
+     *     as the commit runs locally through Paxos without a remote message hop.
+     * For CMS members handling TCM_COMMIT_REQ messages (Commit.Handler):
+     *   - Deadline is max(now + write_rpc_timeout, message.expiresAtNanos() - write_rpc_timeout), with exponential
+     *     backoff and full jitter using the TCM admin initial/max delay. The floor guarantees at least one attempt
+     *     window even when cms_await_timeout is misconfigured close to write_rpc_timeout.
+     *   - The CMS member reduces its own retry deadline by write_rpc_timeout before the message expiry so it exhausts
+     *     retries and returns an explicit failure before the sender's per-message callback fires (see Commit.Handler).
      *
-     * @param onFailure handler checks if rejection has resulted from a retry of the same trasformation.
+     * @param onFailure     handler checks if rejection has resulted from a retry of the same trasformation.
      */
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitFailureHandler<T1> onFailure)
     {
@@ -662,7 +684,9 @@ public class ClusterMetadataService
         // discover-own-commits via entry id in case of lost messages (in remote case) and Paxos re-proposals (in local case)
         Epoch highestConsecutive = log.waitForHighestConsecutive().epoch;
 
-        Commit.Result result = processor.commit(entryIdGen.get(), transform, highestConsecutive);
+        Retry retryPolicy = getRetryPolicy(transform.kind());
+        logger.info("Committing {} with {}", transform.kind(), retryPolicy);
+        Commit.Result result = processor.commit(entryIdGen.get(), transform, highestConsecutive, retryPolicy);
 
         try
         {
@@ -674,6 +698,9 @@ public class ClusterMetadataService
             else
             {
                 TCMMetrics.instance.recordCommitFailureLatency(nanoTime() - startTime, NANOSECONDS, result.failure().rejected);
+                logger.debug("Failed to commit {} after {} attempts ({}): {} {}",
+                             transform.kind(), retryPolicy.attempts(), retryPolicy,
+                             result.failure().code, result.failure().message);
                 return onFailure.accept(result.failure().code, result.failure().message);
             }
         }
@@ -685,6 +712,30 @@ public class ClusterMetadataService
         {
             throw new IllegalStateException("Couldn't commit the transformation. Is the node shutting down?", e);
         }
+    }
+
+    private static Retry getRetryPolicy(Transformation.Kind kind)
+    {
+        Retry retryPolicy;
+        if (kind == Transformation.Kind.STARTUP)
+        {
+            retryPolicy = Retry.unsafeRetryIndefinitely();
+        }
+        else if (kind == Transformation.Kind.SCHEMA_CHANGE)
+        {
+            long deadlineNanos = nanoTime() + DatabaseDescriptor.getRpcTimeout(TimeUnit.NANOSECONDS);
+            retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries);
+        }
+        else
+        {
+            // On non-CMS members, which send commit requests via messaging to the CMS members, the exponential backoff
+            // with jitter works to desynchronize retry waves after a CMS await timeout. For CMS members committing
+            // locally, it helps to space Paxos CAS retries in the local commit loop.
+            long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsCommitTimeout().to(TimeUnit.NANOSECONDS);
+            RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
+            retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
+        }
+        return retryPolicy;
     }
 
     /**
@@ -760,7 +811,6 @@ public class ClusterMetadataService
 
     /**
      * Fetches log entries from directly from CMS, at least to the specified epoch.
-     *
      * This operation is blocking and also waits for all retrieved log entries to be
      * enacted, so on return all transformations to ClusterMetadata will be visible.
      * @return metadata with all currently committed entries enacted.
@@ -814,9 +864,7 @@ public class ClusterMetadataService
     }
 
     /**
-     *
      * IMPORTANT: this call can return _without_ catching us up, so should only be used privately.
-     *
      * Attempts to synchronously retrieve log entries from a non-CMS peer.
      * Fetches the log state representing the delta between the current local epoch and the one supplied.
      * This is to be used when a message from a peer contains an epoch higher than the current local epoch. As

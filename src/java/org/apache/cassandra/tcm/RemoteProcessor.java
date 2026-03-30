@@ -57,8 +57,8 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -305,8 +305,24 @@ public final class RemoteProcessor implements Processor
         }
 
         InetAddressAndPort candidate = candidates.next();
-        long waitNanos = Math.min(verb.expiresAfterNanos(), Math.max(0, retry.remainingNanos()));
-        Message<REQ> msg = Message.outWithFlag(verb, request, MessageFlag.CALL_BACK_ON_FAILURE, Clock.Global.nanoTime() + waitNanos);
+        long msgExpiresAfterNanos;
+        if (verb == Verb.TCM_COMMIT_REQ)
+        {
+            long cmsAwaitNanos = DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS);
+            long remainingNanos = retry.remainingNanos();
+            msgExpiresAfterNanos = Math.min(cmsAwaitNanos, remainingNanos);
+            logger.debug("Sending {} to {}, per-message expiry {}ms (cmsAwait={}ms, remaining={}ms)",
+                         verb, candidate,
+                         TimeUnit.NANOSECONDS.toMillis(msgExpiresAfterNanos),
+                         TimeUnit.NANOSECONDS.toMillis(cmsAwaitNanos),
+                         TimeUnit.NANOSECONDS.toMillis(remainingNanos));
+        }
+        else
+        {
+            msgExpiresAfterNanos = verb.expiresAfterNanos();
+        }
+        long msgExpiresAtNanos = MonotonicClock.Global.preciseTime.now() + msgExpiresAfterNanos;
+        Message<REQ> msg = Message.outWithFlag(verb, request, MessageFlag.CALL_BACK_ON_FAILURE, msgExpiresAtNanos);
         MessagingService.instance().sendWithCallback(msg, candidate, new RequestCallbackWithFailure<RSP>()
         {
             @Override

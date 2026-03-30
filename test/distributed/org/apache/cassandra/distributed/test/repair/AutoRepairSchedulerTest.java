@@ -103,7 +103,10 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
                                                .set("auto_repair.global_settings.repair_by_keyspace", "true")
                                                .set("auto_repair.global_settings.repair_retry_backoff", "5s")
                                                .set("auto_repair.repair_task_min_duration", "0s")
-                                               .set("auto_repair.repair_check_interval", "5s"))
+                                               .set("auto_repair.repair_check_interval", "5s")
+                                               .set("cms_await_timeout", "100ms")
+                                               .set("cms_commit_retry_initial_delay", "10ms")
+                                               .set("cms_commit_retry_max_delay", "5000ms"))
                          .start();
 
         cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
