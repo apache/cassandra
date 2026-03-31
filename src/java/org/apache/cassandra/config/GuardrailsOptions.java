@@ -18,15 +18,20 @@
 
 package org.apache.cassandra.config;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
+import com.vdurmont.semver4j.Semver;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -113,6 +118,8 @@ public class GuardrailsOptions implements GuardrailsConfig
                                  false);
         validatePasswordPolicy(config.password_policy);
         validateRoleNamePolicy(config.role_name_policy);
+        validateAndSanitizeClientDriverVersions(config.minimum_client_driver_versions_warned, "minimum_client_driver_versions_warned");
+        validateAndSanitizeClientDriverVersions(config.minimum_client_driver_versions_disallowed, "minimum_client_driver_versions_disallowed");
     }
 
     @Override
@@ -195,7 +202,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     {
         return config.keyspace_properties_warned;
     }
-    
+
     public void setKeyspacePropertiesWarned(Set<String> properties)
     {
         updatePropertyWithLogging("keyspace_properties_warned",
@@ -209,7 +216,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     {
         return config.keyspace_properties_ignored;
     }
-    
+
     public void setKeyspacePropertiesIgnored(Set<String> properties)
     {
         updatePropertyWithLogging("keyspace_properties_ignored",
@@ -223,7 +230,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     {
         return config.keyspace_properties_disallowed;
     }
-    
+
     public void setKeyspacePropertiesDisallowed(Set<String> properties)
     {
         updatePropertyWithLogging("keyspace_properties_disallowed",
@@ -1368,6 +1375,34 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.unset_training_min_frequency_enabled;
     }
 
+    @Override
+    public Map<String, String> getMinimumClientDriverVersionsWarned()
+    {
+        return config.minimum_client_driver_versions_warned;
+    }
+
+    @Override
+    public Map<String, String> getMinimumClientDriverVersionsDisallowed()
+    {
+        return config.minimum_client_driver_versions_disallowed;
+    }
+
+    public void setMinimumClientDriverVersionsWarned(Map<String, String> versions)
+    {
+        updatePropertyWithLogging("minimum_client_driver_versions_warned",
+                                  versions,
+                                  () -> config.minimum_client_driver_versions_warned,
+                                  x -> config.minimum_client_driver_versions_warned = x);
+    }
+
+    public void setMinimumClientDriverVersionsDisallowed(Map<String, String> versions)
+    {
+        updatePropertyWithLogging("minimum_client_driver_versions_disallowed",
+                                  versions,
+                                  () -> config.minimum_client_driver_versions_disallowed,
+                                  x -> config.minimum_client_driver_versions_disallowed = x);
+    }
+
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
     {
         T oldValue = getter.get();
@@ -1600,5 +1635,58 @@ public class GuardrailsOptions implements GuardrailsConfig
     private static void validateRoleNamePolicy(CustomGuardrailConfig config)
     {
         ValueGenerator.getGenerator("role_name_policy", config).generate(ValueValidator.getValidator("role_name_policy", config), Map.of());
+    }
+
+    @VisibleForTesting
+    public static void validateAndSanitizeClientDriverVersions(Map<String, String> map, String guardrailName)
+    {
+        if (map == null || map.isEmpty())
+            return;
+
+        List<String> invalidEntries = new ArrayList<>();
+
+        for (Map.Entry<String, String> entry : map.entrySet())
+        {
+            String sanitized = sanitizeVersion(entry.getValue());
+            if (!isValidVersion(sanitized))
+                invalidEntries.add(entry.getKey());
+        }
+
+        if (!invalidEntries.isEmpty())
+            throw new IllegalArgumentException("Invalid version entries for " + guardrailName + " guardrail, they do not follow semver: " + invalidEntries);
+
+        map.replaceAll((driver, version) -> sanitizeVersion(version));
+    }
+
+    public static boolean isValidVersion(String version)
+    {
+        if (version == null)
+            return false;
+
+        // try to construct it
+        try
+        {
+            new Semver(version);
+        }
+        catch (Throwable t)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static final Pattern VERSION_SANITATION_PATTERN = Pattern.compile("^[vV]");
+
+    public static String sanitizeVersion(String driverVersion)
+    {
+        String sanitizedVersionId = driverVersion == null ? null : driverVersion.trim();
+        if (sanitizedVersionId != null)
+            sanitizedVersionId = VERSION_SANITATION_PATTERN.matcher(sanitizedVersionId).replaceFirst("");
+
+        if (sanitizedVersionId == null || sanitizedVersionId.isBlank())
+            return null;
+
+        return sanitizedVersionId;
     }
 }

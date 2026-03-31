@@ -1190,4 +1190,28 @@ public interface GuardrailsMBean
      * dictionary compressor as frequently as needed, without any limits, false otherwise.
      */
     boolean getUnsetTrainingMinFrequencyEnabled();
+
+    /**
+     * @return JSON representation of the minimum client driver versions that trigger a warning.
+     */
+    String getMinimumClientDriverVersionsWarned();
+
+    /**
+     * @return JSON representation of the minimum client driver versions that trigger a failure.
+     */
+    String getMinimumClientDriverVersionsDisallowed();
+
+    /**
+     * Sets the minimum client driver versions that trigger a warning.
+     *
+     * @param value JSON representation of a map of driver name to minimum version string.
+     */
+    void setMinimumClientDriverVersionsWarned(String value);
+
+    /**
+     * Sets the minimum client driver versions that trigger a failure.
+     *
+     * @param value JSON representation of a map of driver name to minimum version string.
+     */
+    void setMinimumClientDriverVersionsDisallowed(String value);
 }
