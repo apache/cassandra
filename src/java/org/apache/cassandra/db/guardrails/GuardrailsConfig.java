@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -682,4 +683,16 @@ public interface GuardrailsConfig
      * dictionary compressor as frequently as needed, without any limits, false otherwise.
      */
     boolean getUnsetTrainingMinFrequencyEnabled();
+
+    /**
+     * @return a map of driver name to minimum version that triggers a warning when the client's
+     * driver version is below the specified minimum.
+     */
+    Map<String, String> getMinimumClientDriverVersionsWarned();
+
+    /**
+     * @return a map of driver name to minimum version that triggers a failure when the client's
+     * driver version is below the specified minimum.
+     */
+    Map<String, String> getMinimumClientDriverVersionsDisallowed();
 }
