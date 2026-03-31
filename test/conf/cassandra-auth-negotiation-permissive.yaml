@@ -17,7 +17,8 @@
 #
 
 #
-# Minimal cassandra.yaml for testing authenticator negotiation.
+# Minimal cassandra.yaml for testing permissive authenticator negotiation (some authenticators don't
+# require authentication).
 #
 cluster_name: Test Cluster
 memtable_allocation_type: offheap_objects
@@ -87,15 +88,14 @@ authenticator:
   class_name : org.apache.cassandra.auth.PasswordAuthenticator
 authenticator_negotiation:
   enabled: true
-  require_authentication: true
+  require_authentication: false
   default_authenticator:
-    class_name: PasswordAuthenticator
+    class_name: AllowAllAuthenticator
   authenticators:
     - class_name: MutualTlsAuthenticator
       parameters:
         validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
     - class_name: PasswordAuthenticator
-    - class_name: AllowAllAuthenticator
 role_manager:
   class_name: CassandraRoleManager
   parameters:

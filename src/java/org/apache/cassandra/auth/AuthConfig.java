@@ -175,11 +175,30 @@ public final class AuthConfig
 
         DatabaseDescriptor.setNegotiableAuthenticators(negotiableAuthenticators);
 
+        // Defensive check: Verify default authenticator is in negotiable list
+        // This is critical for security - many code paths assume default is always available
+        // TODO - This will probably need to be removed before the PR ... at least we should try.
+        if (negotiationConfigured && !DatabaseDescriptor.getNegotiableAuthenticators().contains(defaultAuthenticator))
+        {
+            throw new ConfigurationException("Default authenticator must be in negotiable authenticators list. " +
+                                           "This indicates a bug in authenticator initialization.", false);
+        }
+
+        // Validate require_authentication setting if negotiation is configured
+        if (negotiationConfigured)
+        {
+            validateRequireAuthentication(conf, defaultAuthenticator, negotiableAuthenticators);
+        }
+
         // authorizer
 
         IAuthorizer authorizer = authInstantiate(conf.authorizer, AllowAllAuthorizer.class);
 
-        if (!defaultAuthenticator.requireAuthentication() && authorizer.requireAuthorization())
+        if (negotiationConfigured)
+        {
+            validateAuthenticatorAuthorizerCompatibility(conf, authorizer, negotiableAuthenticators);
+        }
+        else if (!defaultAuthenticator.requireAuthentication() && authorizer.requireAuthorization())
         {
             throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
                                              defaultAuthenticator.getClass().getName() + " to enable authentication", false);
@@ -206,7 +225,11 @@ public final class AuthConfig
 
         INetworkAuthorizer networkAuthorizer = authInstantiate(conf.network_authorizer, AllowAllNetworkAuthorizer.class);
 
-        if (networkAuthorizer.requireAuthorization() && !defaultAuthenticator.requireAuthentication())
+        if (negotiationConfigured)
+        {
+            validateAuthenticatorNetworkAuthorizerCompatibility(conf, networkAuthorizer, negotiableAuthenticators);
+        }
+        else if (networkAuthorizer.requireAuthorization() && !defaultAuthenticator.requireAuthentication())
         {
             throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator.class_name, false);
         }
@@ -217,7 +240,11 @@ public final class AuthConfig
 
         ICIDRAuthorizer cidrAuthorizer = authInstantiate(conf.cidr_authorizer, AllowAllCIDRAuthorizer.class);
 
-        if (cidrAuthorizer.requireAuthorization() && !defaultAuthenticator.requireAuthentication())
+        if (negotiationConfigured)
+        {
+            validateAuthenticatorCIDRAuthorizerCompatibility(conf, cidrAuthorizer, negotiableAuthenticators);
+        }
+        else if (cidrAuthorizer.requireAuthorization() && !defaultAuthenticator.requireAuthentication())
         {
             throw new ConfigurationException(conf.cidr_authorizer + " can't be used with " + conf.authenticator, false);
         }
@@ -258,6 +285,113 @@ public final class AuthConfig
         catch (InstantiationException | IllegalAccessException  e)
         {
             throw new ConfigurationException("Failed to instantiate " + defaultCls.getName(), e);
+        }
+    }
+
+    /**
+     * Validates the require_authentication setting when authenticator negotiation is configured.
+     * If require_authentication is true, all authenticators must require authentication.
+     * If require_authentication is false and non-authenticating authenticators are present, logs a warning.
+     */
+    private static void validateRequireAuthentication(Config conf,
+                                                      IAuthenticator defaultAuthenticator,
+                                                      List<IAuthenticator> negotiableAuthenticators)
+    {
+        boolean requireAuthentication = conf.authenticator_negotiation.require_authentication;
+        
+        // Check all negotiable authenticators (includes default)
+        for (IAuthenticator auth : negotiableAuthenticators)
+        {
+            if (!auth.requireAuthentication())
+            {
+                if (requireAuthentication)
+                {
+                    throw new ConfigurationException(
+                        "require_authentication is true but authenticator doesn't require authentication: " 
+                        + auth.getClass().getName(), false);
+                }
+                else
+                {
+                    logger.warn("require_authentication is false and authenticator doesn't require authentication: {}. " +
+                               "This allows unauthenticated access. Set require_authentication: true to enforce authentication.",
+                               auth.getClass().getName());
+                }
+            }
+        }
+    }
+
+    /**
+     * Validates compatibility between authenticators and authorizer when negotiation is configured.
+     * If any authenticator doesn't require authentication and authorizer requires authorization:
+     * - require_authentication: true -> fail (strict mode)
+     * - require_authentication: false -> warn (permissive mode for migration)
+     */
+    private static void validateAuthenticatorAuthorizerCompatibility(Config conf,
+                                                                     IAuthorizer authorizer,
+                                                                     List<IAuthenticator> negotiableAuthenticators)
+    {
+        if (!authorizer.requireAuthorization())
+            return;
+        
+        validateAuthorizerCompatibility(conf, authorizer.getClass().getName(), 
+                                       negotiableAuthenticators, "limited access based on 'anonymous' role permissions");
+    }
+
+    /**
+     * Validates compatibility between authenticators and network authorizer when negotiation is configured.
+     */
+    private static void validateAuthenticatorNetworkAuthorizerCompatibility(Config conf,
+                                                                            INetworkAuthorizer networkAuthorizer,
+                                                                            List<IAuthenticator> negotiableAuthenticators)
+    {
+        if (!networkAuthorizer.requireAuthorization())
+            return;
+        
+        validateAuthorizerCompatibility(conf, networkAuthorizer.getClass().getName(), 
+                                       negotiableAuthenticators, "limited network access");
+    }
+
+    /**
+     * Validates compatibility between authenticators and CIDR authorizer when negotiation is configured.
+     */
+    private static void validateAuthenticatorCIDRAuthorizerCompatibility(Config conf,
+                                                                         ICIDRAuthorizer cidrAuthorizer,
+                                                                         List<IAuthenticator> negotiableAuthenticators)
+    {
+        if (!cidrAuthorizer.requireAuthorization())
+            return;
+        
+        validateAuthorizerCompatibility(conf, cidrAuthorizer.getClass().getName(), 
+                                       negotiableAuthenticators, "limited CIDR-based access");
+    }
+
+    /**
+     * Common validation logic for authorizer compatibility.
+     * Checks if any authenticator doesn't require authentication when an authorizer requires authorization.
+     */
+    private static void validateAuthorizerCompatibility(Config conf,
+                                                        String authorizerName,
+                                                        List<IAuthenticator> negotiableAuthenticators,
+                                                        String accessDescription)
+    {
+        boolean hasNonAuthenticating = negotiableAuthenticators.stream()
+            .anyMatch(auth -> !auth.requireAuthentication());
+        
+        if (hasNonAuthenticating)
+        {
+            if (conf.authenticator_negotiation.require_authentication)
+            {
+                throw new ConfigurationException(
+                    "require_authentication is true but some negotiable authenticators don't require authentication. " +
+                    "This is incompatible with " + authorizerName + " which requires authorization.", false);
+            }
+            else
+            {
+                logger.warn("{} requires authorization but some negotiable authenticators don't require authentication. " +
+                           "Unauthenticated clients will have {}. " +
+                           "Set require_authentication: true to enforce authentication.",
+                           authorizerName, accessDescription);
+            }
         }
     }
 }

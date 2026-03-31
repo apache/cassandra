@@ -27,11 +27,14 @@ import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -55,6 +58,9 @@ public class AuthConfigTest
 
     private static final String CREDENTIALS_CACHE_MBEAN = MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME;
 
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     @Before
     public void setup()
     {
@@ -70,20 +76,50 @@ public class AuthConfigTest
     @Test
     public void testConfigureAuthenticatorNegotiation()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
+        Config config = load("cassandra-auth-negotiation-permissive.yaml");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
         IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertThat(authenticator instanceof PasswordAuthenticator);
         assertNotNull(authenticator);
         assertTrue(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
+        assertTrue(DatabaseDescriptor.isAuthenticationRequired());
         List<IAuthenticator> negotiableAuthenticators = DatabaseDescriptor.getNegotiableAuthenticators();
         assertNotNull(negotiableAuthenticators);
-        // TODO - See TODO in AuthConfig. Right now we're adding the PasswordAuthenticator twice.
         assertEquals(3, negotiableAuthenticators.size());
         assertTrue(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class).isPresent());
         assertTrue(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class).isPresent());
         assertTrue(DatabaseDescriptor.getAuthenticator(AllowAllAuthenticator.class).isPresent());
+    }
+
+    @Test
+    public void testConfigureAuthenticatorNegotiationStrict()
+    {
+        Config config = load("cassandra-auth-negotiation-strict.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
+        assertThat(authenticator instanceof PasswordAuthenticator);
+        assertNotNull(authenticator);
+        assertTrue(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
+        assertTrue(DatabaseDescriptor.isAuthenticationRequired());
+        List<IAuthenticator> negotiableAuthenticators = DatabaseDescriptor.getNegotiableAuthenticators();
+        assertNotNull(negotiableAuthenticators);
+        assertEquals(2, negotiableAuthenticators.size());
+        assertTrue(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class).isPresent());
+        assertTrue(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class).isPresent());
+        assertFalse(DatabaseDescriptor.getAuthenticator(AllowAllAuthenticator.class).isPresent());
+    }
+
+    @Test
+    public void testRequireAuthenticationRejectsAllowAll()
+    {
+        expectedException.expect(ConfigurationException.class);
+        expectedException.expectMessage("require_authentication");
+        expectedException.expectMessage("AllowAllAuthenticator");
+        
+        Config config = load("cassandra-auth-negotiation-invalid.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
     }
 
     @Test
@@ -116,6 +152,9 @@ public class AuthConfigTest
 
         IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
+
+        // Verify negotiation is NOT enabled for legacy config
+        assertFalse(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
 
         assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class))
             .isPresent()

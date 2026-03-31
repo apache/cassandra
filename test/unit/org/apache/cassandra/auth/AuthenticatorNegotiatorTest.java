@@ -17,12 +17,15 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,11 +37,26 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Tests the authenticator negotiation logic in {@link AuthenticatorNegotiator}.
+ * Runs the same tests with both permissive (allows AllowAllAuthenticator) and strict
+ * (requires authentication) configurations.
  */
+@RunWith(Parameterized.class)
 public class AuthenticatorNegotiatorTest
 {
     private static final String IDENTITIES_CACHE_MBEAN = MBEAN_NAME_BASE + MutualTlsAuthenticator.CACHE_NAME;
     private static final String CREDENTIALS_CACHE_MBEAN = MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME;
+
+    @Parameterized.Parameter
+    public String configFile;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static Collection<String> configs()
+    {
+        return Arrays.asList(
+            "test/conf/cassandra-auth-negotiation-permissive.yaml",
+            "test/conf/cassandra-auth-negotiation-strict.yaml"
+        );
+    }
 
     @Before
     public void setup()
@@ -67,14 +85,20 @@ public class AuthenticatorNegotiatorTest
         catch (Exception ignored) {}
     }
 
+    private void initializeWithConfig()
+    {
+        Config config = load(configFile);
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+    }
+
     // Server will use the default authenticator if the client doesn't provide any options.
     @Test
     public void testEmptyClientAuthenticators()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
-        IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(Collections.emptySet());
+        Set<String> clientModes = Set.of();
+        IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
 
         assertSame(DatabaseDescriptor.getDefaultAuthenticator(), result);
     }
@@ -84,8 +108,7 @@ public class AuthenticatorNegotiatorTest
     @Test
     public void testMatchesServersPreferredAuthenticator()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
         Set<String> clientModes = Set.of("MutualTls", "Password");
         IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
@@ -99,8 +122,7 @@ public class AuthenticatorNegotiatorTest
     @Test
     public void testMatchesServersAcceptedAuthenticator()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
         Set<String> clientModes = Set.of("Password", "Unauthenticated");
         IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
@@ -115,8 +137,7 @@ public class AuthenticatorNegotiatorTest
     @Test
     public void testNoMatchingAuthenticatorUsesDefaultAuthenticator()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
         Set<String> clientModes = Set.of("Kerberos", "JWT", "OAuth");
         IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
@@ -129,8 +150,7 @@ public class AuthenticatorNegotiatorTest
     @Test
     public void testCaseInsensitiveMatching()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
         Set<String> clientModes = Set.of("password", "MUTUALTLS");
         IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
@@ -138,27 +158,12 @@ public class AuthenticatorNegotiatorTest
         assertTrue(result instanceof MutualTlsAuthenticator);
     }
 
-    // Server is not configured to support negotiation. Client attempts to offer authentication options anyway.
-    // Server should simplu respond with its default authenticator (password auth).
-    @Test
-    public void testNegotiationDisabled()
-    {
-        Config config = load("cassandra-passwordauth.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
-
-        Set<String> clientModes = Set.of("MutualTls");
-        IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
-
-        assertSame(DatabaseDescriptor.getDefaultAuthenticator(), result);
-    }
-
-    // Server supports MTLS, Password and AllowAll. Client supports no-auth, Password and MTLS. Server should
+    // Server supports MTLS, Password and AllowAll. Client supports AllowAll, Password and MTLS. Server should
     // select its most preferred option (MTLS) even though it's not the first option offered by the client.
     @Test
     public void testPriorityOrderWithMultipleMatches()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
         Set<String> clientModes = Set.of("Unauthenticated", "Password", "MutualTls");
         IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
@@ -171,12 +176,25 @@ public class AuthenticatorNegotiatorTest
     @Test
     public void testDuplicateClientAuthenticators()
     {
-        Config config = load("cassandra-auth-negotiation.yaml");
-        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+        initializeWithConfig();
 
         Set<String> clientModes = Set.of("Password", "MutualTls", "password");
         IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
 
         assertTrue(result instanceof MutualTlsAuthenticator);
+    }
+
+    // Server is not configured for negotiation. Client attempts to offer authentication options anyway.
+    // Server should simply respond with its default authenticator (password auth).
+    @Test
+    public void testNegotiationDisabled()
+    {
+        Config config = load("cassandra-passwordauth.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+
+        Set<String> clientModes = Set.of("MutualTls");
+        IAuthenticator result = AuthenticatorNegotiator.negotiateAuthenticator(clientModes);
+
+        assertSame(DatabaseDescriptor.getDefaultAuthenticator(), result);
     }
 }
