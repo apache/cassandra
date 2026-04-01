@@ -18,62 +18,41 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.StorageService;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class AccordNodetoolCleanupTest extends AccordTestBase
+public class AccordNodetoolCleanupTest extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordNodetoolCleanupTest.class);
-
-    @Override
-    protected Logger logger()
-    {
-        return logger;
-    }
-
-    @BeforeClass
-    public static void setupClass() throws IOException
-    {
-        AccordTestBase.setupCluster(builder -> builder
-                                               .withoutVNodes()
-                                               .withConfig(config ->
-                                                           config
-                                                           .set("accord.shard_durability_target_splits", "1")
-                                                           .set("accord.shard_durability_cycle", "20s")
-                                                           .with(Feature.NETWORK, Feature.GOSSIP)), 2);
-    }
-
     @Test
     public void accordNodetoolCleanupTest() throws Throwable
     {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
-        test(ddls, cluster -> {
+        String tableName = "tbl0";
+        String qualifiedTableName = KEYSPACE + '.' + tableName;
+        try (Cluster cluster = init(builder().withNodes(2).withoutVNodes().withConfig((config) ->
+                                                                                      config
+                                                                                      .set("accord.shard_durability_target_splits", "1")
+                                                                                      .set("accord.shard_durability_cycle", "20s")
+                                                                                      .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+            cluster.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
 
-            String tableName = accordTableName;
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
 
-            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
-
-            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
 
             cluster.get(1).flush(withKeyspace("%s"));
 
@@ -99,25 +78,30 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
                 fail();
             }
 
-            cluster.get(1).nodetool("cleanup", KEYSPACE, accordTableName);
+            cluster.get(1).nodetool("cleanup", KEYSPACE, tableName);
 
             assertEquals(0, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-        });
+        }
     }
 
     @Test
     public void accordNodetoolCleanupRangeInUseTest() throws Throwable
     {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
-        test(ddls, cluster -> {
+        String tableName = "tbl0";
+        String qualifiedTableName = KEYSPACE + '.' + tableName;
+        try (Cluster cluster = init(builder().withNodes(2).withoutVNodes().withConfig((config) ->
+                                                                                      config
+                                                                                      .set("accord.shard_durability_target_splits", "1")
+                                                                                      .set("accord.shard_durability_cycle", "20s")
+                                                                                      .with(Feature.NETWORK, Feature.GOSSIP)).start())) {
 
-            String tableName = accordTableName;
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+            cluster.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
 
-            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
 
-            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
 
             cluster.get(1).flush(withKeyspace("%s"));
 
@@ -131,26 +115,31 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             cluster.get(1).runOnInstance(() -> StorageService.instance.move(Long.toString(token - 1000)));
 
-            String accordTableName = qualifiedAccordTableName;
-
-            cluster.get(1).nodetool("cleanup", KEYSPACE, accordTableName);
+            cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-        });
+        }
     }
 
     @Test
     public void nodetoolCleanupForNonAccordTableTest() throws Throwable
     {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
-                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
-        test(ddls, cluster -> {
-            String tableName = regularTableName;
+        String tableName = "tbl0";
+        String qualifiedTableName = KEYSPACE + '.' + tableName;
+        try (Cluster cluster = init(builder().withNodes(2).withoutVNodes().withConfig((config) ->
+                                                                                      config
+                                                                                      .set("accord.shard_durability_target_splits", "1")
+                                                                                      .set("accord.shard_durability_cycle", "20s")
+                                                                                      .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
 
-            cluster.coordinator(1).execute("INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (?, ?)", ConsistencyLevel.ALL, 1, 2);
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+            cluster.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int)");
 
-            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedRegularTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (?, ?)", ConsistencyLevel.ALL, 1, 2);
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
 
             cluster.get(1).flush(withKeyspace("%s"));
 
@@ -166,10 +155,10 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
                 StorageService.instance.move(Long.toString(token - 1000));
             });
 
-            cluster.get(1).nodetool("cleanup", KEYSPACE, regularTableName);
+            cluster.get(1).nodetool("cleanup", KEYSPACE, tableName);
 
             assertEquals(0, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-        });
+        }
     }
 }
 
