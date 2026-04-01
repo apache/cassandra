@@ -65,6 +65,7 @@ import net.openhft.chronicle.core.util.ThrowingSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.AbstractRanges;
 import accord.primitives.Ranges;
 
 import org.apache.cassandra.cache.AutoSavingCache;
@@ -618,7 +619,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 FBUtilities.waitOnFutures(futures);
                 assert compacting.originals().isEmpty();
                 logger.info("Finished {} for {}.{} successfully", operationType, keyspace, table);
-                return AllSSTableOpStatus.SUCCESSFUL;
+
+                // Some SSTables were not fully cleaned up because Accord is still using those ranges
+                if (operation.incompleteOperation())
+                    return AllSSTableOpStatus.INCOMPLETE;
+                else
+                    return AllSSTableOpStatus.SUCCESSFUL;
             }
             finally
             {
@@ -640,15 +646,18 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     private static interface OneSSTableOperation
     {
+
         Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction);
         void execute(LifecycleTransaction input) throws IOException;
+        boolean incompleteOperation();
     }
 
     public enum AllSSTableOpStatus
     {
         SUCCESSFUL(0),
         ABORTED(1),
-        UNABLE_TO_CANCEL(2);
+        UNABLE_TO_CANCEL(2),
+        INCOMPLETE(3);
 
         public final int statusCode;
 
@@ -672,6 +681,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction input)
             {
                 scrubOne(cfs, input, options, active);
+            }
+
+            @Override
+            public boolean incompleteOperation()
+            {
+                return false;
             }
         }, jobs, OperationType.SCRUB);
     }
@@ -700,6 +715,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction input)
             {
                 verifyOne(cfs, input.onlyOne(), options, active);
+            }
+
+            @Override
+            public boolean incompleteOperation()
+            {
+                return false;
             }
         }, 0, OperationType.VERIFY);
     }
@@ -765,6 +786,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 task.setCompactionType(OperationType.UPGRADE_SSTABLES);
                 task.execute(active);
             }
+
+            @Override
+            public boolean incompleteOperation()
+            {
+                return false;
+            }
         }, jobs, OperationType.UPGRADE_SSTABLES);
     }
 
@@ -801,6 +828,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
+            boolean incompleteOperation = false;
+
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
             {
@@ -808,16 +837,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 Iterator<SSTableReader> sstableIter = sortedSSTables.iterator();
                 int totalSSTables = 0;
                 int skippedSStables = 0;
+                int sstablesInUseByAccord = 0;
                 while (sstableIter.hasNext())
                 {
                     SSTableReader sstable = sstableIter.next();
                     boolean needsCleanupFull = needsCleanup(sstable, fullRanges);
                     boolean needsCleanupTransient = !transientRanges.isEmpty() && sstable.isRepaired() && needsCleanup(sstable, transientRanges);
-                    boolean sstableRangesIntersectWithCommandStores = sstableContainsRangesNeededByAccord(cfStore.getTableId(), sstable);
+                    totalSSTables++;
 
-                    // If there still exists Command Stores that own this range, don't cleanup this specific range
-                    // as Accord still needs it even though we no longer own the range
-                    if (sstableRangesIntersectWithCommandStores)
+                    if (sstableContainsRangesNeededByAccord(cfStore.getTableId(), sstable))
                     {
                         logger.debug("Skipping {} ([{}, {}]) for cleanup; as Accord still needs the ranges.",
                                      sstable,
@@ -825,13 +853,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                      sstable.getLast().getToken());
                         sstableIter.remove();
                         transaction.cancel(sstable);
-                        skippedSStables++;
+                        sstablesInUseByAccord++;
+                        incompleteOperation = true;
                     }
-
                     //If there are no ranges for which the table needs cleanup either due to lack of intersection or lack
                     //of the table being repaired.
-                    totalSSTables++;
-                    if (!needsCleanupFull && !needsCleanupTransient)
+                    else if (!needsCleanupFull && !needsCleanupTransient)
                     {
                         logger.debug("Skipping {} ([{}, {}]) for cleanup; all rows should be kept. Needs cleanup full ranges: {} Needs cleanup transient ranges: {} Repaired: {}",
                                     sstable,
@@ -845,8 +872,13 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                         skippedSStables++;
                     }
                 }
-                logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
-                            skippedSStables, totalSSTables, cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, transientRanges);
+
+                logger.info("Skipping cleanup for {} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
+                            skippedSStables, cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, transientRanges);
+                logger.info("Skipping cleanup for {} sstables for {}.{} since they are still being used by Accord",
+                            sstablesInUseByAccord, cfStore.getKeyspaceName(), cfStore.getTableName());
+                logger.info("Cleaned up {} sstables for {}.{}", totalSSTables, cfStore.getKeyspaceName(), cfStore.getTableName());
+
                 sortedSSTables.sort(SSTableReader.sizeComparator);
                 return sortedSSTables;
             }
@@ -856,6 +888,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
                 doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes);
+            }
+
+            @Override
+            public boolean incompleteOperation()
+            {
+                return incompleteOperation;
             }
         }, jobs, OperationType.CLEANUP);
     }
@@ -924,6 +962,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 task.setCompactionType(OperationType.GARBAGE_COLLECT);
                 task.execute(active);
             }
+
+            @Override
+            public boolean incompleteOperation()
+            {
+                return false;
+            }
         }, jobs, OperationType.GARBAGE_COLLECT);
     }
 
@@ -991,6 +1035,12 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.RELOCATE);
                 task.execute(active);
+            }
+
+            @Override
+            public boolean incompleteOperation()
+            {
+                return false;
             }
         }, jobs, OperationType.RELOCATE);
     }
@@ -1625,13 +1675,24 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         if (!AccordService.isSetup())
             return false;
 
-        Ranges accordOwnedRanges = AccordService.instance().node().commandStores().commandStoresOwnedRanges();
+        Future<List<Ranges>> futureAccordOwnedRanges = AccordService.toFuture(AccordService.instance().node().commandStores().getInUseRanges());
+        logger.info("Waiting for Accord to be ready");
 
-        if (sstable.getFirst().equals(sstable.getLast()))
-            return accordOwnedRanges.intersects(new TokenKey(tableId, sstable.getFirst().getToken()));
+        try
+        {
+            Ranges accordOwnedRanges = futureAccordOwnedRanges.get().stream().reduce(Ranges.EMPTY, (acc, r) -> acc.union(AbstractRanges.UnionMode.MERGE_ADJACENT, r));
 
-        Ranges sstableRanges = Ranges.of(TokenRange.create(tableId, sstable.getFirst().getToken(), sstable.getLast().getToken()));
-        return accordOwnedRanges.intersects(sstableRanges);
+            if (sstable.getFirst().equals(sstable.getLast()))
+                return accordOwnedRanges.intersects(new TokenKey(tableId, sstable.getFirst().getToken()));
+
+            Ranges sstableRanges = Ranges.of(TokenRange.create(tableId, sstable.getFirst().getToken(), sstable.getLast().getToken()));
+            return accordOwnedRanges.intersects(sstableRanges);
+        }
+        catch (Throwable e)
+        {
+            logger.error("Error while waiting for Accord in use ranges", e);
+            return true;
+        }
     }
 
     /**

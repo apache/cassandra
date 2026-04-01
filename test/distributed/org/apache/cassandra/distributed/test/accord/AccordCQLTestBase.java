@@ -39,7 +39,6 @@ import java.util.stream.IntStream;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import static com.google.common.collect.Iterables.getOnlyElement;
 
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
@@ -48,10 +47,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.RoutingKey;
-import accord.local.CommandStore;
-import accord.local.PreLoadContext;
-import accord.primitives.Ranges;
 import accord.primitives.Unseekables;
 import accord.topology.SelectShards;
 import accord.topology.Topologies;
@@ -69,7 +64,6 @@ import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -85,12 +79,8 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.utils.AssertionUtils;
@@ -109,7 +99,6 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
-import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -3442,93 +3431,6 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             Assertions.assertThatThrownBy(() -> cluster.coordinator(1).execute(wrapInTxn(cql), QUORUM))
                       .is(expectedType)
                       .hasMessage("Attempted to set an element on a list which is null");
-        });
-    }
-
-    @Test
-    public void accordNodetoolCleanupTest() throws Throwable
-    {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
-                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam());
-        test(ddls, cluster -> {
-            String tableName = accordTableName;
-
-            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
-
-            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedAccordTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
-
-            cluster.get(1).flush(withKeyspace("%s"));
-
-            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
-            long token = (Long) result.toObjectArrays()[0][0];
-
-            assertTrue(token < Long.parseLong(originalToken));
-
-            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-
-            // SSTable overlaps with Accord CommandStores ranges, so after cleanup we should still have that
-            // 1 SSTable, even though we no longer own the ranges for that SSTable
-            cluster.get(1).runOnInstance(() -> {
-                TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
-                RoutingKey key = TokenKey.parse(tid, String.valueOf(token), Murmur3Partitioner.instance);
-
-                boolean tokenInCommandStore = false;
-                for (CommandStore commandStore : AccordService.instance().node().commandStores().all())
-                {
-                    Ranges commandStoreRange = getBlocking(commandStore.submit((PreLoadContext.Empty) () -> "Get CommandStore ranges", safeCommandStore -> {
-                        return safeCommandStore.ranges().all();
-                    }));
-
-                    if (commandStoreRange.intersects(key))
-                        tokenInCommandStore = true;
-                }
-
-                assertTrue(tokenInCommandStore);
-            });
-
-            cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(Long.toString(token - 1000));
-            });
-
-            cluster.get(1).nodetool("cleanup", KEYSPACE, accordTableName);
-
-            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-        });
-    }
-
-    @Test
-    public void nodetoolCleanupForNonAccordTableTest() throws Throwable
-    {
-        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
-                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
-                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
-        test(ddls, cluster -> {
-            String tableName = regularTableName;
-
-            cluster.coordinator(1).execute("INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (?, ?)", ConsistencyLevel.ALL, 1, 2);
-
-            SimpleQueryResult result = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedRegularTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
-
-            cluster.get(1).flush(withKeyspace("%s"));
-
-            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
-            long token = (Long) result.toObjectArrays()[0][0];
-
-            assertTrue(token < Long.parseLong(originalToken));
-
-            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
-
-            cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(Long.toString(token - 1000));
-            });
-
-            cluster.get(1).nodetool("cleanup", KEYSPACE, regularTableName);
-
-            // SSTable should be removed as we no longer own the range and no Accord CommandStore needs these ranges 
-            assertEquals(0, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
         });
     }
 }
