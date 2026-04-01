@@ -48,6 +48,7 @@ import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadKind;
 import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -101,6 +102,7 @@ import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.reads.tracked.TrackedDataResponse;
+import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -573,6 +575,28 @@ public class Paxos
         {
             return keyspace.getMetadata().params.replication.isMeta();
         }
+
+        /**
+         * Hook called after electorate messages are sent during a tracked prepare phase.
+         * Base implementation is a no-op. SRS overrides this to fire satellite summary
+         * read requests in parallel with electorate prepare messages.
+         */
+        public void onPrepareStarted(TrackedRead.Id readId, int dataNodeId, int[] summaryHostIds, ReadCommand readCommand)
+        {
+        }
+
+        /**
+         * Returns additional summary host IDs to include in tracked read reconciliation.
+         * These are nodes that should participate in the ReadReconciliations protocol
+         * but are not part of the paxos electorate (e.g., satellite DC endpoints for SRS).
+         * Base implementation returns an empty array.
+         */
+        public int[] additionalSummaryHostIds(ClusterMetadata metadata)
+        {
+            return EMPTY_HOST_IDS;
+        }
+
+        private static final int[] EMPTY_HOST_IDS = new int[0];
     }
 
     /**
@@ -1207,6 +1231,10 @@ public class Paxos
         // replicas using the supplied token as this can actually be of the incorrect type (for example when
         // performing Paxos repair).
         Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
+
+        if (keyspace.getReplicationStrategy().shouldRejectPaxos(token))
+            return false;
+
         return (includesRead ? EndpointsForToken.natural(keyspace, token).get()
                              : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all()
         ).contains(getBroadcastAddressAndPort());

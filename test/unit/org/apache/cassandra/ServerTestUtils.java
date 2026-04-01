@@ -155,9 +155,6 @@ public final class ServerTestUtils
     {
         daemonInitialization();
 
-        // Need to happen after daemonInitialization for config to be set, but before CFS initialization
-        MutationJournal.start();
-
         if (isServerPrepared)
             return;
 
@@ -173,6 +170,10 @@ public final class ServerTestUtils
             logger.error("Failed to cleanup and recreate directories.");
             throw new RuntimeException(e);
         }
+
+        // Need to happen after daemonInitialization for config to be set and after
+        // cleanupAndLeaveDirs for directories to exist, but before CFS initialization
+        MutationJournal.start();
 
         try
         {

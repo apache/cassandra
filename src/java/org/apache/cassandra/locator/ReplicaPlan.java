@@ -134,11 +134,12 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
                         E contacts,
                         E liveAndDown,
                         Function<ClusterMetadata, P> recompute,
-                        Epoch epoch)
+                        Epoch epoch,
+                        int readQuorum)
         {
             super(keyspace, replicationStrategy, consistencyLevel, contacts, liveAndDown, recompute, epoch);
             this.candidates = candidates;
-            this.readQuorum = consistencyLevel.blockFor(replicationStrategy);
+            this.readQuorum = readQuorum;
         }
 
         public int readQuorum() { return readQuorum; }
@@ -208,15 +209,30 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
                             EndpointsForToken liveAndDown,
                             Function<ClusterMetadata, ReplicaPlan.ForTokenRead> recompute,
                             Function<ReplicaPlan<?, ?>, ReplicaPlan.ForWrite> repairPlan,
+                            Epoch epoch,
+                            int readQuorum)
+        {
+            super(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, liveAndDown, recompute, epoch, readQuorum);
+            this.repairPlan = repairPlan;
+        }
+
+
+        public ForTokenRead(Keyspace keyspace,
+                            AbstractReplicationStrategy replicationStrategy,
+                            ConsistencyLevel consistencyLevel,
+                            EndpointsForToken candidates,
+                            EndpointsForToken contacts,
+                            EndpointsForToken liveAndDown,
+                            Function<ClusterMetadata, ReplicaPlan.ForTokenRead> recompute,
+                            Function<ReplicaPlan<?, ?>, ReplicaPlan.ForWrite> repairPlan,
                             Epoch epoch)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, liveAndDown, recompute, epoch);
-            this.repairPlan = repairPlan;
+            this(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, liveAndDown, recompute, repairPlan, epoch, consistencyLevel.blockFor(replicationStrategy));
         }
 
         public ForTokenRead withContacts(EndpointsForToken newContacts)
         {
-            ForTokenRead res = new ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, newContacts, liveAndDown, recompute, repairPlan, epoch);
+            ForTokenRead res = new ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, newContacts, liveAndDown, recompute, repairPlan, epoch, readQuorum);
             res.contacted.addAll(contacted);
             return res;
         }
@@ -246,12 +262,29 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
                             int vnodeCount,
                             Function<ClusterMetadata, ReplicaPlan.ForRangeRead> recompute,
                             BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan,
-                            Epoch epoch)
+                            Epoch epoch,
+                            int readQuorum)
         {
-            super(keyspace, replicationStrategy, consistencyLevel, candidates, contact, liveAndDown, recompute, epoch);
+            super(keyspace, replicationStrategy, consistencyLevel, candidates, contact, liveAndDown, recompute, epoch, readQuorum);
             this.range = range;
             this.vnodeCount = vnodeCount;
             this.repairPlan = repairPlan;
+        }
+
+
+        public ForRangeRead(Keyspace keyspace,
+                            AbstractReplicationStrategy replicationStrategy,
+                            ConsistencyLevel consistencyLevel,
+                            AbstractBounds<PartitionPosition> range,
+                            EndpointsForRange candidates,
+                            EndpointsForRange contact,
+                            EndpointsForRange liveAndDown,
+                            int vnodeCount,
+                            Function<ClusterMetadata, ReplicaPlan.ForRangeRead> recompute,
+                            BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan,
+                            Epoch epoch)
+        {
+            this(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, liveAndDown, vnodeCount, recompute, repairPlan, epoch, consistencyLevel.blockFor(replicationStrategy));
         }
 
         public AbstractBounds<PartitionPosition> range() { return range; }
@@ -263,7 +296,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
 
         public ForRangeRead withContacts(EndpointsForRange newContact)
         {
-            ForRangeRead res = new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, readCandidates(), newContact, liveAndDown, vnodeCount, recompute, repairPlan, epoch);
+            ForRangeRead res = new ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, readCandidates(), newContact, liveAndDown, vnodeCount, recompute, repairPlan, epoch, readQuorum);
             res.contacted.addAll(contacted);
             return res;
         }
@@ -289,13 +322,27 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
                                 EndpointsForRange contact,
                                 EndpointsForRange liveAndDown,
                                 int vnodeCount,
-                                Epoch epoch)
+                                Epoch epoch,
+                                int readQuorum)
         {
             // A FullRangeRead plan, as part of a top K query, is not recomputed to check that it still applies should
             // the epoch change during the course of query execution so no recomputation function is supplied. Likewise,
             // no read repair is expected to be performed during this type of query so a null is also used in place of a
             // function for calculating the repair plan.
-            super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, liveAndDown, vnodeCount, null, null, epoch);
+            super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, liveAndDown, vnodeCount, null, null, epoch, readQuorum);
+        }
+
+        public ForFullRangeRead(Keyspace keyspace,
+                                AbstractReplicationStrategy replicationStrategy,
+                                ConsistencyLevel consistencyLevel,
+                                AbstractBounds<PartitionPosition> range,
+                                EndpointsForRange candidates,
+                                EndpointsForRange contact,
+                                EndpointsForRange liveAndDown,
+                                int vnodeCount,
+                                Epoch epoch)
+        {
+            this(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, liveAndDown, vnodeCount, epoch, consistencyLevel.blockFor(replicationStrategy));
         }
 
         @Override

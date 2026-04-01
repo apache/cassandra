@@ -31,10 +31,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmbeddableSinglePartitionReadCommand;
 import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -471,6 +473,16 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 summaryHostIds[summaryIndex++] = metadata.directory.peerId(replica.endpoint()).id();
         }
 
+        // Merge additional summary host IDs (for SRS)
+        int[] additionalIds = participants.additionalSummaryHostIds(metadata);
+        if (additionalIds.length > 0 || summaryIndex < summaryHostIds.length)
+        {
+            int[] merged = new int[summaryIndex + additionalIds.length];
+            System.arraycopy(summaryHostIds, 0, merged, 0, summaryIndex);
+            System.arraycopy(additionalIds, 0, merged, summaryIndex, additionalIds.length);
+            summaryHostIds = merged;
+        }
+
         for (int i = 0, size = participants.sizeOfPoll() ; i < size ; ++i)
         {
             Replica replica = participants.voterReplica(i);
@@ -500,6 +512,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             Message<R> selfMessageFinal = selfMessage;
             send.verb().stage.execute(() -> prepare.executeOnSelfAsync(selfMessageFinal.payload, new RequestTime(selfMessageFinal.createdAtNanos()), selfHandler));
         }
+
+        participants.onPrepareStarted(readId, dataNodeId, summaryHostIds, (ReadCommand) prepare.request.read);
     }
 
     private static <R extends AbstractRequest<R>> void startUntracked(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)

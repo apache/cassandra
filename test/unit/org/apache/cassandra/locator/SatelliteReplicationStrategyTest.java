@@ -17,87 +17,29 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.After;
 import org.junit.Test;
 
-import org.apache.cassandra.CassandraTestBase;
-import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.membership.Location;
 
-import static org.apache.cassandra.CassandraTestBase.DisableMBeanRegistration;
-import static org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@PrepareServerNoRegister
-@DisableMBeanRegistration
-@UseMurmur3Partitioner
-public class SatelliteReplicationStrategyTest extends CassandraTestBase
+public class SatelliteReplicationStrategyTest extends SatelliteReplicationStrategyTestBase
 {
-    private static final String KEYSPACE = "test";
-
-    @After
-    public void teardown()
-    {
-        ServerTestUtils.resetCMS();
-    }
-
-    private void addToken(long token, String address, Location location) throws UnknownHostException
-    {
-        InetAddressAndPort addr = InetAddressAndPort.getByName(address);
-        ClusterMetadataTestHelper.addEndpoint(addr, new LongToken(token), location);
-    }
-
-    private void setupDCs() throws UnknownHostException
-    {
-        Location dc1 = new Location("dc1", "rack1");
-        Location dc2 = new Location("dc2", "rack1");
-        Location sat1 = new Location("sat1", "rack1");
-        Location sat2 = new Location("sat2", "rack1");
-
-        // DC1
-        addToken(100, "10.0.0.10", dc1);
-        addToken(200, "10.0.0.11", dc1);
-        addToken(300, "10.0.0.12", dc1);
-
-        // DC2
-        addToken(400, "10.1.0.10", dc2);
-        addToken(500, "10.1.0.11", dc2);
-        addToken(600, "10.1.0.12", dc2);
-
-        // SAT1
-        addToken(700, "10.2.0.10", sat1);
-        addToken(800, "10.2.0.11", sat1);
-
-        // SAT2
-        addToken(900, "10.3.0.10", sat2);
-        addToken(1000, "10.3.0.11", sat2);
-    }
-
-    private static SatelliteReplicationStrategy getSRS(String keyspace)
-    {
-        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(keyspace);
-        return (SatelliteReplicationStrategy) ksm.replicationStrategy;
-    }
-
     @Test
     public void testValidSingleDCWithSatellite() throws Exception
     {
-        setupDCs();
-
         String cql = "CREATE KEYSPACE " + KEYSPACE + " WITH replication = {" +
                      "'class': 'SatelliteReplicationStrategy', " +
                      "'dc1': '3', " +
@@ -119,8 +61,6 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
     @Test
     public void testValidMultipleDCsWithSatellites() throws Exception
     {
-        setupDCs();
-
         String cql = "CREATE KEYSPACE " + KEYSPACE + " WITH replication = {" +
                      "'class': 'SatelliteReplicationStrategy', " +
                      "'dc1': '3', " +
@@ -139,10 +79,8 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
         assertEquals(2, strategy.getSatellites().size());
     }
 
-    private void testConfigurationException(Map<String, String> options, String messageContains) throws UnknownHostException
+    private void testConfigurationException(Map<String, String> options, String messageContains)
     {
-        setupDCs();
-
         try
         {
             new SatelliteReplicationStrategy(KEYSPACE, options, ReplicationType.tracked);
@@ -176,8 +114,6 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
     @Test
     public void testUntrackedReplicationFails() throws Exception
     {
-        setupDCs();
-
         Map<String, String> options = new HashMap<>();
         options.put("dc1", "3");
         options.put("primary", "dc1");
@@ -193,6 +129,33 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
         catch (ConfigurationException e)
         {
             assertTrue(e.getMessage().contains("requires tracked replication"));
+        }
+    }
+
+    @Test
+    public void testPaxosV1Fails() throws Exception
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put("dc1", "3");
+        options.put("primary", "dc1");
+
+        SatelliteReplicationStrategy strategy = new SatelliteReplicationStrategy(
+            KEYSPACE, options, ReplicationType.tracked);
+
+        Config.PaxosVariant prev = DatabaseDescriptor.getPaxosVariant();
+        try
+        {
+            DatabaseDescriptor.setPaxosVariant(Config.PaxosVariant.v1);
+            strategy.validateExpectedOptions(ClusterMetadata.current());
+            fail("ConfigurationException expected");
+        }
+        catch (ConfigurationException e)
+        {
+            assertTrue(e.getMessage().contains("requires paxos_variant=v2"));
+        }
+        finally
+        {
+            DatabaseDescriptor.setPaxosVariant(prev);
         }
     }
 
@@ -242,12 +205,10 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
     @Test
     public void testReplicaCalculationWithSatellites() throws Exception
     {
-        setupDCs();
-
         String cql = "CREATE KEYSPACE " + KEYSPACE + " WITH replication = {" +
                      "'class': 'SatelliteReplicationStrategy', " +
                      "'dc1': '3', " +
-                     "'dc1.satellite.sat1': '2/2', " +
+                     "'dc1.satellite.sat1': '3/3', " +
                      "'primary': 'dc1'" +
                      "} AND replication_type = 'tracked'";
 
@@ -258,8 +219,8 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
         EndpointsForRange replicas = strategy.calculateNaturalReplicas(
             new LongToken(150), ClusterMetadata.current());
 
-        // Should have 3 full replicas from dc1 + 2 satellite replicas from sat1
-        assertEquals(5, replicas.size());
+        // Should have 3 full replicas from dc1 + 3 satellite replicas from sat1
+        assertEquals(6, replicas.size());
 
         int fullCount = 0;
         int witnessCount = 0;
@@ -272,14 +233,12 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
         }
 
         assertEquals(3, fullCount);
-        assertEquals(2, witnessCount);
+        assertEquals(3, witnessCount);
     }
 
     @Test
     public void testDisableNonPrimaryDC() throws Exception
     {
-        setupDCs();
-
         Map<String, String> options = new HashMap<>();
         options.put("dc1", "3");
         options.put("dc2", "3");
@@ -331,14 +290,12 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
     @Test
     public void testDisabledDCSatelliteStillGetsReplicas() throws Exception
     {
-        setupDCs();
-
         String cql = "CREATE KEYSPACE " + KEYSPACE + " WITH replication = {" +
                      "'class': 'SatelliteReplicationStrategy', " +
                      "'dc1': '3', " +
-                     "'dc1.satellite.sat1': '2/2', " +
+                     "'dc1.satellite.sat1': '3/3', " +
                      "'dc2': '3', " +
-                     "'dc2.satellite.sat2': '2/2', " +
+                     "'dc2.satellite.sat2': '3/3', " +
                      "'dc2.disabled': 'true', " +
                      "'primary': 'dc1'" +
                      "} AND replication_type = 'tracked'";
@@ -351,8 +308,8 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
             new LongToken(150), ClusterMetadata.current());
 
         // Disabled does not affect placement — all DCs and satellites still get replicas
-        // 3 full from dc1 + 3 full from dc2 + 2 witness from sat1 + 2 witness from sat2
-        assertEquals(10, replicas.size());
+        // 3 full from dc1 + 3 full from dc2 + 3 witness from sat1 + 3 witness from sat2
+        assertEquals(12, replicas.size());
     }
 
     @Test
@@ -370,8 +327,6 @@ public class SatelliteReplicationStrategyTest extends CassandraTestBase
     @Test
     public void testHasSameSettingsWithDisabled() throws Exception
     {
-        setupDCs();
-
         Map<String, String> optionsA = new HashMap<>();
         optionsA.put("dc1", "3");
         optionsA.put("dc2", "3");

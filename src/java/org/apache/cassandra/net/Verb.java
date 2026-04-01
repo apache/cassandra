@@ -36,6 +36,7 @@ import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.CounterMutationVerbHandler;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationVerbHandler;
+import org.apache.cassandra.db.PaxosCommitRemoteMutationVerbHandler;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadCommandVerbHandler;
 import org.apache.cassandra.db.ReadRepairVerbHandler;
@@ -304,7 +305,7 @@ public enum Verb
     SNAPSHOT_RSP           (87,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     SNAPSHOT_REQ           (27,  P0, rpcTimeout,      MISC,              () -> SnapshotCommand.serializer,           () -> SnapshotVerbHandler.instance,        SNAPSHOT_RSP        ),
 
-    PAXOS2_COMMIT_REMOTE_REQ         (38, P2, writeTimeout,  MUTATION,          () -> Mutation.serializer,                     () -> MutationVerbHandler.instance,                          MUTATION_RSP                     ),
+    PAXOS2_COMMIT_REMOTE_REQ         (38, P2, writeTimeout,  MUTATION,          () -> Mutation.serializer,                     () -> PaxosCommitRemoteMutationVerbHandler.instance,         MUTATION_RSP                     ),
     PAXOS2_COMMIT_REMOTE_RSP         (39, P2, writeTimeout,  REQUEST_RESPONSE,  () -> NoPayload.serializer,                    RESPONSE_HANDLER                                                            ),
     PAXOS2_PREPARE_RSP               (50, P2, writeTimeout,  REQUEST_RESPONSE,  () -> PaxosPrepare.responseSerializer,         RESPONSE_HANDLER                                                            ),
     PAXOS2_PREPARE_REQ               (40, P2, writeTimeout,  MUTATION,          () -> PaxosPrepare.requestSerializer,          () -> PaxosPrepare.requestHandler,                           PAXOS2_PREPARE_RSP               ),

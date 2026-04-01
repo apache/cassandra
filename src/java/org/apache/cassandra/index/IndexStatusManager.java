@@ -80,28 +80,36 @@ public class IndexStatusManager
      */
     public final Map<InetAddressAndPort, Map<String, Index.Status>> peerIndexStatus = new HashMap<>();
 
-    private IndexStatusManager() {}
+    public Index.Status getUnqueryableStatus(String keyspace, InetAddressAndPort endpoint, Index.QueryPlan indexQueryPlan)
+    {
+        Index.Status result = null;
+        for (Index index : indexQueryPlan.getIndexes())
+        {
+            Index.Status status = getIndexStatus(endpoint, keyspace, index.getIndexMetadata().name);
+            if (result == null || !index.isQueryable(status))
+                result = status;
+        }
+        return result;
+    }
 
     /**
      * Remove endpoints whose indexes are not queryable for the specified {@link Index.QueryPlan}.
      *
-     * @param liveEndpoints current live endpoints where non-queryable endpoints will be removed
-     * @param keyspace to be queried
+     * @param liveEndpoints  current live endpoints where non-queryable endpoints will be removed
+     * @param keyspace       to be queried
      * @param indexQueryPlan index query plan used in the read command
-     * @param level consistency level of read command
      */
-    public <E extends Endpoints<E>> E filterForQuery(E liveEndpoints, Keyspace keyspace, Index.QueryPlan indexQueryPlan, ConsistencyLevel level)
+    public <E extends Endpoints<E>> E filterForQuery(E liveEndpoints, String keyspace, Index.QueryPlan indexQueryPlan, Map<InetAddressAndPort, Index.Status> indexStatusMap)
     {
         // UNKNOWN states are transient/rare; only a few replicas should have this state at any time. See CASSANDRA-19400
         Set<Replica> queryableNonSucceeded = new HashSet<>(4);
-        Map<InetAddressAndPort, Index.Status> indexStatusMap = new HashMap<>();
 
         E queryableEndpoints = liveEndpoints.filter(replica -> {
 
             boolean allBuilt = true;
             for (Index index : indexQueryPlan.getIndexes())
             {
-                Index.Status status = getIndexStatus(replica.endpoint(), keyspace.getName(), index.getIndexMetadata().name);
+                Index.Status status = getIndexStatus(replica.endpoint(), keyspace, index.getIndexMetadata().name);
                 if (!index.isQueryable(status))
                 {
                     indexStatusMap.put(replica.endpoint(), status);
@@ -122,6 +130,28 @@ public class IndexStatusManager
         if (!queryableNonSucceeded.isEmpty() && queryableNonSucceeded.size() != queryableEndpoints.size())
             queryableEndpoints = queryableEndpoints.sorted(Comparator.comparingInt(e -> queryableNonSucceeded.contains(e) ? 1 : -1));
 
+        return queryableEndpoints;
+    }
+
+
+    public void readFailureException(int filtered, Iterable<Replica> removed, Map<InetAddressAndPort, Index.Status> indexStatusMap, ConsistencyLevel level, int required)
+    {
+        Map<InetAddressAndPort, RequestFailureReason> failureReasons = new HashMap<>();
+        removed.forEach(replica -> {
+            Index.Status status = indexStatusMap.get(replica.endpoint());
+            if (status == Index.Status.FULL_REBUILD_STARTED)
+                failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_BUILD_IN_PROGRESS);
+            else
+                failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_NOT_AVAILABLE);
+        });
+
+        throw new ReadFailureException(level, filtered, required, false, failureReasons);
+    }
+
+    public <E extends Endpoints<E>> E filterForQueryOrThrow(E liveEndpoints, Keyspace keyspace, Index.QueryPlan indexQueryPlan, ConsistencyLevel level)
+    {
+        Map<InetAddressAndPort, Index.Status> indexStatusMap = new HashMap<>();
+        E queryableEndpoints = filterForQuery(liveEndpoints, keyspace.getName(), indexQueryPlan, indexStatusMap);
         int initial = liveEndpoints.size();
         int filtered = queryableEndpoints.size();
 
@@ -132,17 +162,7 @@ public class IndexStatusManager
             int required = level.blockFor(keyspace.getReplicationStrategy());
             if (required <= initial && required > filtered)
             {
-                Map<InetAddressAndPort, RequestFailureReason> failureReasons = new HashMap<>();
-                liveEndpoints.without(queryableEndpoints.endpoints())
-                             .forEach(replica -> {
-                                 Index.Status status = indexStatusMap.get(replica.endpoint());
-                                 if (status == Index.Status.FULL_REBUILD_STARTED)
-                                     failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_BUILD_IN_PROGRESS);
-                                 else
-                                     failureReasons.put(replica.endpoint(), RequestFailureReason.INDEX_NOT_AVAILABLE);
-                             });
-
-                throw new ReadFailureException(level, filtered, required, false, failureReasons);
+                readFailureException(filtered, liveEndpoints.without(queryableEndpoints.endpoints()), indexStatusMap, level, level.blockFor(keyspace.getReplicationStrategy()));
             }
         }
 

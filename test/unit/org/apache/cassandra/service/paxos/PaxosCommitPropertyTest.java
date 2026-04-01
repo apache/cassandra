@@ -139,7 +139,7 @@ public class PaxosCommitPropertyTest extends ResponseHandlerPropertyTestBase
      * Testable subclass that overrides the DC membership check using topology knowledge,
      * bypassing the InOurDc/Locator infrastructure which isn't fully initialized in unit tests.
      */
-    private static class TestableCommit<T extends Consumer<? super PaxosCommit.Status>>
+    static class TestableCommit<T extends Consumer<? super PaxosCommit.Status>>
         extends PaxosCommit<T>
     {
         private final Set<InetAddressAndPort> localEndpoints;

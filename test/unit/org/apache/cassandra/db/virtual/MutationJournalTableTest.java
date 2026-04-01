@@ -50,7 +50,8 @@ public class MutationJournalTableTest extends CQLTester
     @Before
     public void setUp()
     {
-        schemaChange("CREATE TABLE " + KEYSPACE + ".tbl(pk int PRIMARY KEY, v int)");
+        schemaChange("CREATE KEYSPACE ks WITH replication={'class':'SimpleStrategy', 'replication_factor':1} AND replication_type='tracked'");
+        schemaChange("CREATE TABLE ks.tbl(pk int PRIMARY KEY, v int)");
     }
 
     @Test
@@ -58,12 +59,15 @@ public class MutationJournalTableTest extends CQLTester
     {
         // Start the mutation journal
         MutationJournal.start();
+        enableCoordinatorExecution();
 
         // Write data to trigger journal writes
         for (int i = 0; i < 100; i++)
         {
-            execute("INSERT INTO " + KEYSPACE + ".tbl(pk, v) VALUES (?, ?)", i, i);
+            execute("INSERT INTO ks.tbl(pk, v) VALUES (?, ?)", i, i);
         }
+
+        Thread.sleep(15000);
 
         // Query the virtual table
         ResultSet result = executeNet("SELECT * FROM vts.mutation_journal");

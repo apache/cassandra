@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 /**
  * This class blocks for a quorum of responses _in all datacenters_ (CL.EACH_QUORUM).
  *
- * The PerDcResponseTracker handles per-datacenter counting.
+ * The CompositeTracker handles per-datacenter counting.
  */
 public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {

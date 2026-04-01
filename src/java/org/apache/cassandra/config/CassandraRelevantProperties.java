@@ -526,6 +526,12 @@ public enum CassandraRelevantProperties
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
+
+    /**
+     * enables additional correctness checks in the satellite datacenter replication strategy
+     */
+    SATELLITE_REPLICATION_ADDITIONAL_CHECKS("cassandra.satellite_replication_addl_checks", "true"),
+
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
 

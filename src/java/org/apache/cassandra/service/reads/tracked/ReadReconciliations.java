@@ -161,6 +161,8 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
     {
         private static final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
+        // FIXME: this will probably break per-DC consistency semantica of SatelliteReplicationStrategy
+        //  once read speculation is implemented
         private static final AtomicLongFieldUpdater<Coordinator> remainingUpdater =
             AtomicLongFieldUpdater.newUpdater(Coordinator.class, "remaining");
         private volatile long remaining; // three values packed into one atomic long
@@ -191,12 +193,31 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         }
 
         /**
+         * Confirm that we're only counting responses from nodes initially chosen by the read coordinator
+         * This is to prevent the implementation of tracked read speculation (doesn't exist yet) from breaking
+         * the per-dc consistency semantics of SatelliteReplicationStrategy because of the simple count completion
+         * mechanics this class uses for tracking received summarys / syncAcks
+         */
+        private void checkNodeIsExpected(int check)
+        {
+            if (check == dataNode)
+                return;
+
+            for (int node : summaryNodes)
+                if (check == node)
+                    return;
+
+            throw new IllegalStateException("Not expecting response from node " + check);
+        }
+
+        /**
          * For all the logs in the summary that are owned by us, preemptively prioritise delivery of
          * any mutations that are absent from other participating nodes according to our primary coordinator
          * log knowledge. This is an optimisation, and it can be omitted without affecting correctness.
          */
         boolean acceptLocalSummary(MutationSummary summary)
         {
+            checkNodeIsExpected(LOCAL_NODE);
             IntArrayList remoteNodes = new IntArrayList(summaryNodes.length, Integer.MIN_VALUE);
             if (dataNode != LOCAL_NODE)
                 remoteNodes.addInt(dataNode);
@@ -238,6 +259,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
          */
         boolean acceptRemoteSummary(MutationSummary summary, int remoteNode)
         {
+            checkNodeIsExpected(remoteNode);
             Log2OffsetsMap.Mutable missingMutations = new Log2OffsetsMap.Mutable();
             MutationTrackingService.instance().collectLocallyMissingMutations(summary, missingMutations);
 
@@ -257,8 +279,9 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return updateRemainingAndMaybeComplete(missingCount, -1, 0);
         }
 
-        boolean acceptSyncAck(int ignoredSyncId)
+        boolean acceptSyncAck(int node)
         {
+            checkNodeIsExpected(node);
             return updateRemainingAndMaybeComplete(0, 0, -1);
         }
 

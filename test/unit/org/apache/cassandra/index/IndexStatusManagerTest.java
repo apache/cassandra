@@ -393,7 +393,7 @@ public class IndexStatusManagerTest
         Index.QueryPlan qp = mockedQueryPlan(indexes);
         ConsistencyLevel cl = mockedConsistencyLevel(testcase.numRequired);
 
-        EndpointsForRange actual = IndexStatusManager.instance.filterForQuery(endpoints, ks, qp, cl);
+        EndpointsForRange actual = IndexStatusManager.instance.filterForQueryOrThrow(endpoints, ks, qp, cl);
 
         assertArrayEquals(
                 testcase.expected.stream().toArray(),

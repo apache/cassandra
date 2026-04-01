@@ -19,11 +19,14 @@
 package org.apache.cassandra.service.paxos;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import org.agrona.collections.IntHashSet;
 import org.slf4j.Logger;
@@ -33,9 +36,11 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -54,6 +59,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.emptyMap;
@@ -117,6 +123,150 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
     @Nullable
     final IntHashSet remoteReplicas;
+
+    /**
+     * Handles composition of paxos and additional commit mutations for replication strategies that
+     * need to send additional mutations (SRS).
+     *
+     * @param <OnDone>
+     */
+    static class AugmentedCommit<OnDone extends Consumer<? super PaxosCommit.Status>>
+    {
+        private static final AtomicReferenceFieldUpdater<AugmentedCommit, State> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(AugmentedCommit.class, AugmentedCommit.State.class, "state");
+
+        static abstract class State
+        {
+            abstract State onPaxosComplete(Status status);
+            abstract State onMutationComplete(Status status);
+            boolean isComplete()
+            {
+                return false;
+            }
+            Complete asComplete()
+            {
+                throw new IllegalStateException();
+            }
+        }
+
+        static class Pending extends State
+        {
+            final Status commit;
+            final Status addl;
+
+            public Pending(Status commit, Status addl)
+            {
+                this.commit = commit;
+                this.addl = addl;
+            }
+
+            public Pending()
+            {
+                this(null, null);
+            }
+
+            private static State next(Status commit, Status addl)
+            {
+                if (commit != null && !commit.isSuccess())
+                    return new Complete(commit);
+
+                if (addl != null && !addl.isSuccess())
+                    return new Complete(addl);
+
+                if (commit == null || addl == null)
+                    return new Pending(commit, addl);
+
+                return new Complete(commit);
+            }
+
+            @Override
+            State onPaxosComplete(Status status)
+            {
+                Preconditions.checkState(commit == null);
+                return next(status, addl);
+            }
+
+            @Override
+            State onMutationComplete(Status status)
+            {
+                Preconditions.checkState(addl == null);
+                return next(commit, status);
+            }
+        }
+
+        static class Complete extends State
+        {
+            final Status result;
+
+            public Complete(Status result)
+            {
+                this.result = result;
+            }
+
+            @Override
+            State onPaxosComplete(Status status)
+            {
+                return this;
+            }
+
+            @Override
+            State onMutationComplete(Status status)
+            {
+                return this;
+            }
+
+            @Override
+            boolean isComplete()
+            {
+                return true;
+            }
+
+            @Override
+            Complete asComplete()
+            {
+                return this;
+            }
+        }
+
+        volatile State state = new Pending();
+
+        final OnDone onDone;
+
+        public AugmentedCommit(OnDone onDone)
+        {
+            this.onDone = onDone;
+        }
+
+        private void onCompletion(BiFunction<State, Status, State> update, Status status)
+        {
+            for (;;)
+            {
+                State current = state;
+                if (current.isComplete())
+                    return;
+
+                State next = update.apply(current, status);
+                if (stateUpdater.compareAndSet(this, current, next))
+                {
+                    if (next.isComplete())
+                        onDone.accept(next.asComplete().result);
+                    return;
+                }
+            }
+        }
+
+        void onPaxosComplete(Status status)
+        {
+            onCompletion(State::onPaxosComplete, status);
+        }
+
+        void onMutationComplete(Status status)
+        {
+            onCompletion(State::onMutationComplete, status);
+        }
+    }
+
+    @Nullable
+    volatile AugmentedCommit<OnDone> augmentedCommit = null;
 
     /**
      * packs two 32-bit integers;
@@ -274,6 +424,24 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
                      consistencyForConsensus, consistencyForCommit, allowHints, onDone);
     }
 
+    void setAugmentedCommitFuture(Future<Void> future)
+    {
+        if (future != null)
+        {
+            augmentedCommit = new AugmentedCommit<>(onDone);
+            future.addCallback((result, failure) -> {
+                if (failure != null)
+                {
+                    augmentedCommit.onMutationComplete(new Status(new Paxos.MaybeFailure(true, replicas.size(), required, accepts(responses), emptyMap())));
+                }
+                else
+                {
+                    augmentedCommit.onMutationComplete(success);
+                }
+            });
+        }
+    }
+
     /**
      * Send commit messages to peers (or self)
      */
@@ -292,6 +460,19 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         boolean isTrackedKeyspace = remoteReplicas != null;
         boolean localExecutedSynchronously = false;
         InetAddressAndPort localEndpoint = FBUtilities.getBroadcastAddressAndPort();
+
+        // Set up additional commit work from the replication strategy (e.g., satellite writes for SRS).
+        // This needs to happen before executeOnSelf() can trigger onPaxosDecision(), so that
+        // additionalCommitFuture is set before it's read. The base strategy returns an
+        // already-completed future, so this is a no-op for non-SRS keyspaces.
+        // For SRS, satellite messages are sent here (in parallel with local execution below).
+        // MutationTrackingService.retryFailedWrite for down satellite endpoints schedules async retries,
+        // which will find the mutation in the journal after executeOnSelf() completes below.
+        if (isTrackedKeyspace)
+        {
+            AbstractReplicationStrategy strategy = Keyspace.open(commit.metadata().keyspace).getReplicationStrategy();
+            setAugmentedCommitFuture(strategy.sendPaxosCommitMutations(commit, isUrgent));
+        }
 
         if (isTrackedKeyspace)
         {
@@ -330,7 +511,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             }
         }
 
-        // Now send to remote replicas (and record local execution for non-tracked keyspaces)
+        // Now send to remote replicas in the electorate (and record local execution for non-tracked keyspaces)
         boolean executeOnSelf = false;
         for (int i = 0, mi = allLive.size(); i < mi ; ++i)
         {
@@ -490,9 +671,21 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         long responses = responsesUpdater.addAndGet(this, success ? 0x1L : 0x100000000L);
         // next two clauses mutually exclusive to ensure we only invoke onDone once, when either failed or succeeded
         if (accepts(responses) == required) // if we have received _precisely_ the required accepts, we have succeeded
-            onDone.accept(status());
+            onPaxosDecision();
         else if (replicas.size() - failures(responses) == required - 1) // if we are _unable_ to receive the required accepts, we have failed
+            onPaxosDecision();
+    }
+
+    /**
+     * Called exactly once when the paxos consensus decision (success or failure) is made.
+     * If an additional commit future exists, onDone is deferred until it also completes.
+     */
+    private void onPaxosDecision()
+    {
+        if (augmentedCommit == null)
             onDone.accept(status());
+        else
+            augmentedCommit.onPaxosComplete(status());
     }
 
     /**
