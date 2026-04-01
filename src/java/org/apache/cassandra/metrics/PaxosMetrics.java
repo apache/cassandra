@@ -29,6 +29,7 @@ public class PaxosMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
     public static final Counter linearizabilityViolations = Metrics.counter(factory.createMetricName("LinearizabilityViolations"));
     public static final Meter repairPaxosTopologyRetries = Metrics.meter(factory.createMetricName("RepairPaxosTopologyRetries"));
+    public static final Meter rejectedOperations = Metrics.meter(factory.createMetricName("RejectedOperations"));
 
     public static void initialize() {}
 }

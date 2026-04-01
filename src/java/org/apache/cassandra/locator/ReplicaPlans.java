@@ -821,7 +821,7 @@ public class ReplicaPlans
     {
         E replicas = consistencyLevel.isDatacenterLocal() ? liveNaturalReplicas.filter(InOurDc.replicas()) : liveNaturalReplicas;
 
-        return indexQueryPlan != null ? IndexStatusManager.instance.filterForQuery(replicas, keyspace, indexQueryPlan, consistencyLevel) : replicas;
+        return indexQueryPlan != null ? IndexStatusManager.instance.filterForQueryOrThrow(replicas, keyspace, indexQueryPlan, consistencyLevel) : replicas;
     }
 
     private static <E extends Endpoints<E>> E contactForEachQuorumRead(Locator locator, NetworkTopologyStrategy replicationStrategy, E candidates)
@@ -982,6 +982,31 @@ public class ReplicaPlans
         return forRead(metadata, keyspace, tableId, token, indexQueryPlan, consistencyLevel, retry, coordinator, true);
     }
 
+    public static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata,
+                                                   Keyspace keyspace,
+                                                   TableId tableId,
+                                                   Token token,
+                                                   AbstractReplicationStrategy replicationStrategy,
+                                                   ReplicaLayout.ForTokenRead forTokenReadLiveAndDown,
+                                                   ReplicaLayout.ForTokenRead forTokenReadLive,
+                                                   @Nullable Index.QueryPlan indexQueryPlan,
+                                                   ConsistencyLevel consistencyLevel,
+                                                   SpeculativeRetryPolicy retry,
+                                                   ReadCoordinator coordinator,
+                                                   boolean throwOnInsufficientLiveReplicas)
+    {
+        EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forTokenReadLive.all());
+        EndpointsForToken contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
+
+        if (throwOnInsufficientLiveReplicas)
+            assureSufficientLiveReplicasForRead(metadata.locator, replicationStrategy, consistencyLevel, contacts);
+
+        return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, forTokenReadLiveAndDown.all(),
+                                            (newClusterMetadata) -> forRead(newClusterMetadata, keyspace, tableId, token, indexQueryPlan, consistencyLevel, retry, coordinator, false),
+                                            (self) -> forReadRepair(self, metadata, keyspace, tableId, consistencyLevel, token, FailureDetector.isReplicaAlive, coordinator),
+                                            metadata.epoch);
+    }
+
     private static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata,
                                                     Keyspace keyspace,
                                                     TableId tableId,
@@ -995,16 +1020,7 @@ public class ReplicaPlans
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         ReplicaLayout.ForTokenRead forTokenReadLiveAndDown = ReplicaLayout.forTokenReadSorted(metadata, keyspace, replicationStrategy, tableId, token, coordinator);
         ReplicaLayout.ForTokenRead forTokenReadLive = forTokenReadLiveAndDown.filter(FailureDetector.isReplicaAlive);
-        EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forTokenReadLive.all());
-        EndpointsForToken contacts = contactForRead(metadata.locator, replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
-
-        if (throwOnInsufficientLiveReplicas)
-            assureSufficientLiveReplicasForRead(metadata.locator, replicationStrategy, consistencyLevel, contacts);
-
-        return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts, forTokenReadLiveAndDown.all(),
-                                            (newClusterMetadata) -> forRead(newClusterMetadata, keyspace, tableId, token, indexQueryPlan, consistencyLevel, retry, coordinator, false),
-                                            (self) -> forReadRepair(self, metadata, keyspace, tableId, consistencyLevel, token, FailureDetector.isReplicaAlive, coordinator),
-                                            metadata.epoch);
+        return forRead(metadata, keyspace, tableId, token, replicationStrategy, forTokenReadLiveAndDown, forTokenReadLive, indexQueryPlan, consistencyLevel, retry, coordinator, throwOnInsufficientLiveReplicas);
     }
 
     /**

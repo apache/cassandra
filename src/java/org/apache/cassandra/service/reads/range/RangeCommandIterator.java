@@ -26,9 +26,6 @@ import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.service.reads.DataResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +45,7 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -59,6 +57,7 @@ import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.RangeReadTarget;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.RangeReadWithTarget;
+import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.ReadRepair;

@@ -40,8 +40,8 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -59,6 +59,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
@@ -69,6 +70,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.locator.ReplicaLayout.forTokenWriteLiveAndDown;
 
@@ -471,23 +473,13 @@ public abstract class AbstractReplicationStrategy
         return new CoordinationPlan.ForWrite(plan, tracker);
     }
 
-    protected ReplicaPlan.ForWrite createReplicaPlanForWrite(ClusterMetadata metadata,
-                                                             Keyspace keyspace,
-                                                             ConsistencyLevel consistencyLevel,
-                                                             Function<ClusterMetadata, ReplicaLayout.ForTokenWrite> liveAndDown,
-                                                             ReplicaPlans.Selector selector)
-    {
-        return ReplicaPlans.forWrite(metadata, keyspace, consistencyLevel, liveAndDown, selector);
-    }
-
     public CoordinationPlan.ForWriteWithIdeal planForWrite(ClusterMetadata metadata,
                                                            Keyspace keyspace,
                                                            ConsistencyLevel consistencyLevel,
                                                            Function<ClusterMetadata, ReplicaLayout.ForTokenWrite> liveAndDown,
                                                            ReplicaPlans.Selector selector)
     {
-        ReplicaPlan.ForWrite plan = createReplicaPlanForWrite(metadata, keyspace, consistencyLevel, liveAndDown, selector);
-        ResponseTracker tracker = createTrackerForWrite(consistencyLevel, plan, plan.pending, metadata);
+        CoordinationPlan.ForWrite actual = planForWriteInternal(metadata, keyspace, consistencyLevel, liveAndDown, selector);
 
         CoordinationPlan.ForWrite ideal = null;
         ConsistencyLevel idealCL = DatabaseDescriptor.getIdealConsistencyLevel();
@@ -495,16 +487,15 @@ public abstract class AbstractReplicationStrategy
         {
             if (idealCL == consistencyLevel)
             {
-                ideal = new CoordinationPlan.ForWrite(plan, tracker);
+                ideal = actual;
             }
             else
             {
-                ideal = new CoordinationPlan.ForWrite(createReplicaPlanForWrite(metadata, keyspace, idealCL, liveAndDown, selector),
-                                                      createTrackerForWrite(idealCL, plan, plan.pending, metadata));
+                ideal = planForWriteInternal(metadata, keyspace, idealCL, liveAndDown, selector);
             }
         }
 
-        return new CoordinationPlan.ForWriteWithIdeal(plan, tracker, ideal);
+        return new CoordinationPlan.ForWriteWithIdeal(actual.replicas(), actual.responses(), ideal);
     }
 
     public CoordinationPlan.ForWriteWithIdeal planForWrite(ClusterMetadata metadata,
@@ -694,6 +685,27 @@ public abstract class AbstractReplicationStrategy
     }
 
     /**
+     * Hook for replication strategies to send additional mutations alongside a paxos commit.
+     * Called from PaxosCommit.start() after local synchronous execution for tracked keyspaces.
+     *
+     * If the method doesn't return null, the returned future is composed with the paxos consensus:
+     * onDone fires only after both the paxos quorum decision AND this future complete, or after
+     * one of them fails.
+     */
+    public Future<Void> sendPaxosCommitMutations(Agreed commit, boolean isUrgent)
+    {
+        return null;
+    }
+
+    /**
+     * Check whether paxos operations should be rejected for the given token.
+     */
+    public boolean shouldRejectPaxos(Token token)
+    {
+        return false;
+    }
+
+    /**
      * Create ResponseTracker for write operation based on consistency level.
      */
     @VisibleForTesting
@@ -749,7 +761,7 @@ public abstract class AbstractReplicationStrategy
             }
 
             case EACH_QUORUM:
-                return createPerDcTracker(plan, pending, metadata);
+                return createCompositeTracker(plan, pending, metadata);
 
             default:
                 throw new UnsupportedOperationException("Unsupported consistency level for writes: " + cl);
@@ -759,7 +771,7 @@ public abstract class AbstractReplicationStrategy
     /**
      * Create per-datacenter tracker for EACH_QUORUM.
      */
-    private ResponseTracker createPerDcTracker(ReplicaPlan.ForWrite plan, Endpoints<?> pending, ClusterMetadata metadata)
+    private ResponseTracker createCompositeTracker(ReplicaPlan.ForWrite plan, Endpoints<?> pending, ClusterMetadata metadata)
     {
         Map<String, ResponseTracker> trackerPerDc = new HashMap<>();
         Locator locator = metadata.locator;
@@ -807,6 +819,6 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
-        return new PerDcResponseTracker(trackerPerDc, locator);
+        return new CompositeTracker(trackerPerDc.size(), trackerPerDc.values());
     }
 }
