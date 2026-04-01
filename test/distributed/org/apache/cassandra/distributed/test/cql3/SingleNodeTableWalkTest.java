@@ -392,23 +392,15 @@ public class SingleNodeTableWalkTest extends StatefulASTBase
 
 
         String annotation;
-        if (rs.nextBoolean())
-        {
-            builder.between(ckSymbol, state.value(rs, low, ckSymbol.type()), state.value(rs, high, ckSymbol.type()));
-            annotation = "clustering BETWEEN";
-        }
-        else if (rs.nextBoolean())
-        {
-            builder.where(ckSymbol, Inequality.GREATER_THAN_EQ, low);
-            builder.where(ckSymbol, Inequality.LESS_THAN_EQ, high);
-            annotation = "clustering >= AND <=";
-        }
-        else
-        {
-            builder.where(ckSymbol, Inequality.GREATER_THAN, low);
-            builder.where(ckSymbol, Inequality.LESS_THAN, high);
-            annotation = "clustering > AND <";
-        }
+        ASTGenerators.RangeType rangeType = rs.pick(ASTGenerators.RangeType.BOUND, ASTGenerators.RangeType.BETWEEN);
+
+        ASTGenerators.applyRangeCondition(builder, rangeType, ckSymbol,
+                                          state.greaterThanGen.next(rs),
+                                          state.lessThanGen.next(rs),
+                                          state.value(rs, low, ckSymbol.type()),
+                                          state.value(rs, high, ckSymbol.type()));
+
+        annotation = "clustering " + rangeType.name();
 
         if (rs.nextBoolean())
             builder.orderByColumn(ckSymbol, rs.pick(Select.OrderBy.Ordering.values()));
