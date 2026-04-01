@@ -52,8 +52,7 @@ public class AuthTest extends TestBaseImpl
 {
     /**
      * Simply tests that initialisation of a test Instance results in
-     * StorageService.instance.doAuthSetup being called as the regular
-     * startup does in CassandraDaemon.setup
+     * CassandraDaemon.doAuthSetup being called just as the regular startup does.
      */
     @Test
     public void authSetupIsCalledAfterStartup() throws IOException
