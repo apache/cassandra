@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.transform;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
@@ -51,27 +52,29 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
     public static UnfilteredRowIterator validate(UnfilteredRowIterator partition, Stage stage, boolean enforceIsClosed)
     {
-        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        return Transformation.apply(partition, new RowsTransformation(stage, partition.partitionKey(), partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
     }
 
     @Override
     public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
-        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        return Transformation.apply(partition, new RowsTransformation(stage, partition.partitionKey(), partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
     }
 
     private final static class RowsTransformation extends Transformation
     {
         private final Stage stage;
+        private final DecoratedKey partitionKey;
         private final TableMetadata metadata;
         private final boolean isReverseOrder;
         private final boolean enforceIsClosed;
 
         private DeletionTime openMarkerDeletionTime;
 
-        private RowsTransformation(Stage stage, TableMetadata metadata, boolean isReverseOrder, boolean enforceIsClosed)
+        private RowsTransformation(Stage stage, DecoratedKey partitionKey, TableMetadata metadata, boolean isReverseOrder, boolean enforceIsClosed)
         {
             this.stage = stage;
+            this.partitionKey = partitionKey;
             this.metadata = metadata;
             this.isReverseOrder = isReverseOrder;
             this.enforceIsClosed = enforceIsClosed;
@@ -116,7 +119,12 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
         private IllegalStateException ise(String why)
         {
             String message =
-                String.format("%s UnfilteredRowIterator for %s has an illegal RT bounds sequence: %s", stage, metadata, why);
+                    String.format("%s UnfilteredRowIterator for %s (partition key: %s) has an illegal RT bounds sequence (isReverseOrder=%b): %s",
+                            stage,
+                            metadata,
+                            metadata.partitionKeyType.getString(this.partitionKey.getKey()),
+                            isReverseOrder,
+                            why);
             throw new IllegalStateException(message);
         }
     }
