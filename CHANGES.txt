@@ -310,6 +310,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Update cassandra-stress to support TLS 1.3 by default by auto-negotiation (CASSANDRA-21007)
  * Refactor SAI ANN query execution to use score ordered iterators for correctness and speed (CASSANDRA-20086)
  * Fix ConcurrentModificationException in compaction garbagecollect (CASSANDRA-21065)
  * Dynamically skip sharding L0 when SAI Vector index present (CASSANDRA-19661)
