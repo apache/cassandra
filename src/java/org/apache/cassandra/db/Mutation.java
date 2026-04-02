@@ -110,21 +110,6 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
     // because it is being applied by one or in a context where transaction conflicts don't occur
     private PotentialTxnConflicts potentialTxnConflicts;
 
-    // Transient: not serialized on the wire. Set by ReadRepairVerbHandler on the
-    // receiving side so downstream code (Keyspace.apply, write handlers) can route
-    // read repair mutations through the untracked write path during migration.
-    private transient boolean isReadRepair;
-
-    public void setReadRepair(boolean readRepair)
-    {
-        this.isReadRepair = readRepair;
-    }
-
-    public boolean isReadRepair()
-    {
-        return isReadRepair;
-    }
-
     public Mutation(MutationId id, PartitionUpdate update)
     {
         this(id, update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc, PotentialTxnConflicts.DISALLOW);
@@ -165,9 +150,7 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
     @Override
     public Mutation withMutationId(MutationId mutationId)
     {
-        Mutation m = new Mutation(mutationId, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled, potentialTxnConflicts);
-        m.isReadRepair = this.isReadRepair;
-        return m;
+        return new Mutation(mutationId, keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled, potentialTxnConflicts);
     }
 
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
@@ -201,9 +184,7 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
 
         Map<TableId, PartitionUpdate> updates = builder.build();
         checkState(!updates.isEmpty(), "Updates should not be empty");
-        Mutation result = new Mutation(id, keyspaceName, key, builder.build(), approxCreatedAtNanos, potentialTxnConflicts);
-        result.isReadRepair = this.isReadRepair;
-        return result;
+        return new Mutation(id, keyspaceName, key, builder.build(), approxCreatedAtNanos, potentialTxnConflicts);
     }
 
     public @Nullable Mutation without(TableId tableId)

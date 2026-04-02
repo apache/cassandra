@@ -38,6 +38,12 @@ public class ReadRepairMetrics
     public static final Meter repairedBlockingViaAccord = Metrics.meter(factory.createMetricName("RepairedBlockingViaAccord"));
 
     /**
+     * Blocking read repair was sent as a tracked write. This happens when the token is migrating to tracked replication
+     * but migration hasn't completed
+     */
+    public static final Meter repairedBlockingViaTrackedWrite = Metrics.meter(factory.createMetricName("RepairedBlockingViaTrackedWrite"));
+
+    /**
      * This should be zero if you are trying to run Accord in a 100% correct way and interoperating with non-transactional writes.
      *
      * An Accord transaction read at QUORUM and ended up having to do BRR to make something it read monotonic. While it

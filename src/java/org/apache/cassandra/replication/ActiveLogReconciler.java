@@ -120,8 +120,11 @@ public final class ActiveLogReconciler implements Shutdownable
             Task task;
             while ((task = highPriorityTasks.poll()) != null)
                 task.send();
-            while ((task = regularPriorityTasks.poll()) != null)
-                task.send();
+            if (!isRegularPriorityPaused)
+            {
+                while ((task = regularPriorityTasks.poll()) != null)
+                    task.send();
+            }
 
             haveWork.acquire(1);
         }
@@ -261,6 +264,7 @@ public final class ActiveLogReconciler implements Shutdownable
 
     private volatile boolean isShutdown = false;
     private volatile boolean isPaused = false;
+    private volatile boolean isRegularPriorityPaused = false;
 
     @Override
     public boolean isTerminated()
@@ -306,5 +310,23 @@ public final class ActiveLogReconciler implements Shutdownable
     void resumeForTesting()
     {
         isPaused = false;
+    }
+
+    /**
+     * Pause only regular-priority (background write retry) task delivery.
+     * High-priority tasks (needed by tracked read reconciliation) continue to be processed.
+     * This allows tests to prevent the reconciler from proactively fixing inconsistencies
+     * while still allowing tracked reads to pull missing mutations.
+     */
+    @VisibleForTesting
+    void pauseRegularPriorityForTesting()
+    {
+        isRegularPriorityPaused = true;
+    }
+
+    @VisibleForTesting
+    void resumeRegularPriorityForTesting()
+    {
+        isRegularPriorityPaused = false;
     }
 }

@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -83,7 +84,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private final Condition condition = newOneTimeCondition();
     protected final ReplicaPlan.ForWrite replicaPlan;
 
-    protected final Runnable callback;
+    protected final Consumer<AbstractWriteResponseHandler<?>> callback;
     protected final WriteType writeType;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater =
         AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
@@ -117,7 +118,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      * @param hintOnFailure
      * @param requestTime
      */
-    protected AbstractWriteResponseHandler(ForWrite replicaPlan, Runnable callback, WriteType writeType,
+    protected AbstractWriteResponseHandler(ForWrite replicaPlan, Consumer<AbstractWriteResponseHandler<?>> callback, WriteType writeType,
                                            Supplier<Mutation> hintOnFailure, Dispatcher.RequestTime requestTime)
     {
         this.replicaPlan = replicaPlan;
@@ -358,7 +359,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
         condition.signalAll();
         if (callback != null)
-            callback.run();
+            callback.accept(this);
     }
 
     @Override

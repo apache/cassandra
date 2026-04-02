@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
@@ -298,6 +299,13 @@ public class ForwardedWrite
 
     public static AbstractWriteResponseHandler<Object> forwardMutation(Mutation mutation, ReplicaPlan.ForWrite plan, AbstractReplicationStrategy strategy, Dispatcher.RequestTime requestTime)
     {
+        return forwardMutationInternal(mutation, plan, strategy, requestTime, null);
+    }
+
+    private static AbstractWriteResponseHandler<Object> forwardMutationInternal(
+        Mutation mutation, ReplicaPlan.ForWrite plan, AbstractReplicationStrategy strategy,
+        Dispatcher.RequestTime requestTime, Consumer<AbstractWriteResponseHandler<?>> onComplete)
+    {
         // find leader
         NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
         ClusterMetadata cm = ClusterMetadata.current();
@@ -318,7 +326,7 @@ public class ForwardedWrite
         // create callback and forward to leader
         logger.trace("Selected {} as leader for mutation with key {}", leader.endpoint(), mutation.key());
 
-        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime);
+        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, onComplete, WriteType.SIMPLE, null, requestTime);
 
         // Add callbacks for replicas to respond directly to coordinator
         Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
@@ -349,6 +357,14 @@ public class ForwardedWrite
                                                                               AbstractReplicationStrategy strategy,
                                                                               Dispatcher.RequestTime requestTime)
     {
+        return forwardCounterMutationInternal(counterMutation, plan, strategy, requestTime, null);
+    }
+
+    private static AbstractWriteResponseHandler<Object> forwardCounterMutationInternal(
+        CounterMutation counterMutation, ReplicaPlan.ForWrite plan,
+        AbstractReplicationStrategy strategy, Dispatcher.RequestTime requestTime,
+        Consumer<AbstractWriteResponseHandler<?>> onComplete)
+    {
         Preconditions.checkArgument(counterMutation.id().isNone(), "CounterMutation should not have an ID when forwarding");
 
         ClusterMetadata cm = ClusterMetadata.current();
@@ -373,7 +389,7 @@ public class ForwardedWrite
         logger.trace("Forwarding tracked counter mutation to leader replica {}", leader);
 
         // Create response handler for all replicas
-        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, null, WriteType.COUNTER, null, requestTime);
+        AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, onComplete, WriteType.COUNTER, null, requestTime);
 
         // Add callbacks for all live replicas to respond directly to coordinator
         Message<CounterMutation> forwardMessage = Message.outWithRequestTime(Verb.COUNTER_MUTATION_REQ, counterMutation, requestTime);
@@ -415,6 +431,33 @@ public class ForwardedWrite
             return forwardCounterMutation((CounterMutation) mutation, plan, strategy, requestTime);
         else
             return forwardMutation((Mutation) mutation, plan, strategy, requestTime);
+    }
+
+    /**
+     * Forward a mutation to a replica leader for processing.
+     * Dispatches to the appropriate method based on mutation type.
+     *
+     * <p>Like {@link #forward(IMutation, ReplicaPlan.ForWrite, AbstractReplicationStrategy, Dispatcher.RequestTime)},
+     * but wires a completion callback on the handler before any messages are sent, avoiding races where the handler
+     * is signaled before the caller can observe it.
+     *
+     * @param mutation    the mutation to forward (can be Mutation or CounterMutation)
+     * @param plan        the replica plan
+     * @param strategy    the replication strategy
+     * @param requestTime the request time
+     * @param onComplete  callback invoked when the write response handler completes
+     * @return the write response handler
+     */
+    static AbstractWriteResponseHandler<?> forward(IMutation mutation,
+                                                   ReplicaPlan.ForWrite plan,
+                                                   AbstractReplicationStrategy strategy,
+                                                   Dispatcher.RequestTime requestTime,
+                                                   Consumer<AbstractWriteResponseHandler<?>> onComplete)
+    {
+        if (mutation instanceof CounterMutation)
+            return forwardCounterMutationInternal((CounterMutation) mutation, plan, strategy, requestTime, onComplete);
+        else
+            return forwardMutationInternal((Mutation) mutation, plan, strategy, requestTime, onComplete);
     }
 
     /**

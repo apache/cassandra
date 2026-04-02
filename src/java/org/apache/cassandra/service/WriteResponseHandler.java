@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -47,7 +48,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
             = AtomicIntegerFieldUpdater.newUpdater(WriteResponseHandler.class, "responses");
 
     public WriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                Runnable callback,
+                                Consumer<AbstractWriteResponseHandler<?>> callback,
                                 WriteType writeType,
                                 Supplier<Mutation> hintOnFailure,
                                 Dispatcher.RequestTime requestTime)

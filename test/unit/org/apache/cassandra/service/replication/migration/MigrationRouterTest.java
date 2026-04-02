@@ -394,33 +394,31 @@ public class MigrationRouterTest
         assertTrue(splits.get(2).useTracked);
     }
 
+    /**
+     * tracked→untracked migration is instant (no migration state). Attempting to construct
+     * ClusterMetadata with migration state for an untracked keyspace should be rejected.
+     */
     @Test
-    public void testToUntrackedDirection_CorrectProtocols()
+    public void testMigrationStateRejectedForUntrackedKeyspace()
     {
-        // For migration to untracked: all reads use untracked (no splitting needed)
-        // This matches single partition behavior: shouldUseTrackedForReads returns false for all ranges
-        Token queryStart = createToken(-800L);
-        Token queryEnd = createToken(800L);
-        Token pendingStart = createToken(0L);
-        Token pendingEnd = createToken(200L);
+        ClusterMetadata metadata = new ClusterMetadata(partitioner);
+        KeyspaceMetadata ksm = createKeyspaceMetadata(TEST_KEYSPACE, ReplicationType.untracked, TEST_TABLE);
+        metadata = withKeyspace(metadata, ksm);
 
-        Range<Token> pendingRange = new Range<>(pendingStart, pendingEnd);
+        Range<Token> pendingRange = new Range<>(createToken(-200L), createToken(200L));
+        KeyspaceMigrationInfo migrationInfo = createMigrationInfo(ksm, Collections.singletonList(pendingRange));
+        MutationTrackingMigrationState migrationState = new MutationTrackingMigrationState(
+            Epoch.create(1), Collections.singletonMap(TEST_KEYSPACE, migrationInfo));
 
-        ClusterMetadata metadata = createMetadata(false, Collections.singletonList(pendingRange));
-        TableMetadata testTable = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
-
-        PartitionRangeReadCommand command = createRangeCommand(testTable, queryStart, queryEnd);
-        List<MigrationRouter.RangeReadWithReplication> splits = MigrationRouter.splitRangeRead(metadata, command);
-
-        // Should have 1 split (no splitting needed - all reads use untracked)
-        assertEquals(1, splits.size());
-
-        // Entire range: untracked
-        assertFalse(splits.get(0).useTracked);
-
-        // Verify it covers the entire query range
-        assertEquals(queryStart, splits.get(0).read.dataRange().startKey().getToken());
-        assertEquals(queryEnd, splits.get(0).read.dataRange().stopKey().getToken());
+        try
+        {
+            metadata.transformer().with(migrationState).build();
+            Assert.fail("Should have thrown IllegalStateException for migration state on untracked keyspace");
+        }
+        catch (IllegalStateException e)
+        {
+            assertTrue(e.getMessage().contains("tracked-to-untracked migration should be instant"));
+        }
     }
 
     @Test
@@ -592,60 +590,6 @@ public class MigrationRouterTest
         assertTrue(MigrationRouter.shouldUseTrackedForWrites(metadata, TEST_KEYSPACE, testTable.id, tokenOutsidePending));
     }
 
-    /**
-     * Test write routing through MigrationRouter for migration to untracked replication.
-     * Writes use tracked for tokens in pending ranges (still migrating),untracked for completed ranges.
-     */
-    @Test
-    public void testWriteRoutingToUntracked_PerRangeRouting()
-    {
-        Token tokenInPending = createToken(0L);
-        Token tokenOutsidePending = createToken(500L);
-
-        Range<Token> pendingRange = new Range<>(createToken(-200L), createToken(200L));
-
-        ClusterMetadata metadata = createMetadata(false, Collections.singletonList(pendingRange));
-        TableMetadata testTable = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
-
-        assertTrue(MigrationRouter.shouldUseTrackedForWrites(metadata, TEST_KEYSPACE, testTable.id, tokenInPending));
-        assertFalse(MigrationRouter.shouldUseTrackedForWrites(metadata, TEST_KEYSPACE, testTable.id, tokenOutsidePending));
-    }
-
-    @Test
-    public void testMultiTableMutationRouting_ToUntracked()
-    {
-        ClusterMetadata metadata = new ClusterMetadata(partitioner);
-
-        KeyspaceMetadata ksm = createKeyspaceMetadata(TEST_KEYSPACE, ReplicationType.untracked, "table1", "table2");
-        metadata = withKeyspace(metadata, ksm);
-
-        TableMetadata table1 = ksm.getTableNullable("table1");
-        TableMetadata table2 = ksm.getTableNullable("table2");
-
-        ClusterMetadata.Transformer transformer = metadata.transformer();
-
-        // table1 migrating to untracked, table2 complete
-        MutationTrackingMigrationState migrationState = metadata.mutationTrackingMigrationState.withKeyspaceMigrating(ksm.name, Collections.singleton(table1.id), transformer.epoch());
-        metadata = transformer.with(migrationState).build().metadata;
-
-        // Create a mutation with both tables
-        DecoratedKey key = partitioner.decorateKey(UTF8Type.instance.decompose("key"));
-        PartitionUpdate update1 = PartitionUpdate.emptyUpdate(table1, key);
-        PartitionUpdate update2 = PartitionUpdate.emptyUpdate(table2, key);
-
-        Mutation mutation = new Mutation(MutationId.none(), TEST_KEYSPACE, key, ImmutableMap.of(table1.id, update1, table2.id, update2), Clock.Global.nanoTime(), ReadCommand.PotentialTxnConflicts.ALLOW);
-
-        MigrationRouter.RoutedMutations routed = MigrationRouter.routeMutations(metadata, Collections.singletonList(mutation));
-
-        Mutation trackedMutation = (Mutation) routed.trackedMutations.get(0);
-        Mutation untrackedMutation = (Mutation) routed.untrackedMutations.get(0);
-
-        // table 1 is still migrating, so it should be in the tracked mutation
-        assertEquals(Collections.singleton(table1.id), trackedMutation.getTableIds());
-
-        // table 2 is done migrating, so it should appear in the untracked mutation
-        assertEquals(Collections.singleton(table2.id), untrackedMutation.getTableIds());
-    }
 
     /**
      * Test mutation routing with multiple tables - some tracked, some untracked.

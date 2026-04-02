@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
@@ -93,7 +94,7 @@ public abstract class AbstractReplicationStrategy
     public abstract DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata);
 
     public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                                                       Runnable callback,
+                                                                       Consumer<AbstractWriteResponseHandler<?>> callback,
                                                                        WriteType writeType,
                                                                        Supplier<Mutation> hintOnFailure,
                                                                        Dispatcher.RequestTime requestTime)
@@ -103,7 +104,7 @@ public abstract class AbstractReplicationStrategy
     }
 
     public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                                                       Runnable callback,
+                                                                       Consumer<AbstractWriteResponseHandler<?>> callback,
                                                                        WriteType writeType,
                                                                        Supplier<Mutation> hintOnFailure,
                                                                        Dispatcher.RequestTime requestTime,

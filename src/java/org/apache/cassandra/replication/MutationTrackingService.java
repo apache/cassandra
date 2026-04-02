@@ -1073,6 +1073,7 @@ public class MutationTrackingService
                     return NONE;
                 }
 
+                // TODO (CASSANDRA-20955): hasExisting should not be possible here once shard cleanup is implemented
                 if (prevKsm == null)
                     return nextKsm.useMutationTracking() ? (hasExisting ? UpdateDecision.REPLICA_GROUP : UpdateDecision.CREATE) : UpdateDecision.NONE;
 
@@ -1093,8 +1094,12 @@ public class MutationTrackingService
 
                 if (!prevKsm.useMutationTracking() && nextKsm.useMutationTracking())
                 {
-                    Preconditions.checkState(!hasExisting, "Existing shard found for keyspace, but prev ksn has mutation tracking disabled");
-                    return UpdateDecision.MIGRATE_TO;
+                    // TODO (CASSANDRA-20955): hasExisting should not be possible here once shard cleanup is implemented.
+                    // Shards from a prior tracked phase can survive a round-trip migration
+                    // (tracked→untracked→tracked) because shard cleanup is not yet implemented.
+                    // Update the replica group instead of failing.
+//                    Preconditions.checkState(!hasExisting, "Existing shard found for keyspace, but prev ksn has mutation tracking disabled");
+                    return hasExisting ? UpdateDecision.REPLICA_GROUP : UpdateDecision.MIGRATE_TO;
                 }
 
                 if (!calculateParticipantsForRange(nextKsm, next).equals(calculateParticipantsForRange(prevKsm, prev)))
@@ -1489,6 +1494,22 @@ public class MutationTrackingService
     public void resumeActiveReconciler()
     {
         activeReconciler.resumeForTesting();
+    }
+
+    /**
+     * Pause only regular-priority (background write retry) delivery in the active reconciler.
+     * High-priority tasks (needed by tracked read reconciliation) continue to be processed.
+     */
+    @VisibleForTesting
+    public void pauseActiveReconcilerRegularPriority()
+    {
+        activeReconciler.pauseRegularPriorityForTesting();
+    }
+
+    @VisibleForTesting
+    public void resumeActiveReconcilerRegularPriority()
+    {
+        activeReconciler.resumeRegularPriorityForTesting();
     }
 
     @VisibleForTesting

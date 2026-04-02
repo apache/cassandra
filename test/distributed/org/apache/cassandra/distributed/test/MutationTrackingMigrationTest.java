@@ -292,49 +292,28 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
                                                        ConsistencyLevel.QUORUM);
         assertEquals(100, initialResults.length);
 
-        // start migration to untracked replication
+        // switch to untracked replication — tracked→untracked is instant, no migration needed
         coordinator.execute(format("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='untracked'",
                                  testKeyspace),
                           ConsistencyLevel.ALL);
 
         waitForEpochOf(SHARED_CLUSTER, 1);
 
-        verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.MIGRATING_TO_UNTRACKED);
-
-        long journalEntriesBeforeMigrationWrites = countJournalEntries();
-
-        // Write more data during migration
-        for (int i = 100; i < 200; i++)
-        {
-            coordinator.execute(format("INSERT INTO %s.%s (pk, value) VALUES (%d, 'migration_%d')",
-                                     testKeyspace, TEST_TABLE, i, i),
-                              ConsistencyLevel.QUORUM);
-        }
-
-        // writes should also be tracked during migration
-        long journalEntriesAfterMigrationWrites = countJournalEntries();
-        assertTrue("Migration writes should still create journal entries (tracked mechanism still active)",
-                   journalEntriesAfterMigrationWrites > journalEntriesBeforeMigrationWrites);
-
-        // complete migration
-        SHARED_CLUSTER.get(1).nodetoolResult("repair", testKeyspace, TEST_TABLE).asserts().success();
-
-        waitForEpochOf(SHARED_CLUSTER, 1);
-
+        // Should go directly to UNTRACKED — no migration state
         verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.UNTRACKED);
 
         long journalEntriesBeforeUntracked = countJournalEntries();
 
-        for (int i = 200; i < 210; i++)
+        for (int i = 100; i < 210; i++)
         {
             coordinator.execute(format("INSERT INTO %s.%s (pk, value) VALUES (%d, 'untracked_%d')",
                                      testKeyspace, TEST_TABLE, i, i),
                               ConsistencyLevel.QUORUM);
         }
 
-        // but they should not be tracked after migration
+        // writes should not be tracked after instant switch to untracked
         long journalEntriesAfterUntracked = countJournalEntries();
-        assertEquals("Post-migration untracked writes should NOT create journal entries",
+        assertEquals("Post-switch untracked writes should NOT create journal entries",
                      journalEntriesBeforeUntracked, journalEntriesAfterUntracked);
 
         Object[][] finalResults = coordinator.execute(format("SELECT * FROM %s.%s", testKeyspace, TEST_TABLE),
@@ -344,10 +323,6 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
         Object[][] initialRecord = coordinator.execute(format("SELECT value FROM %s.%s WHERE pk = 50", testKeyspace, TEST_TABLE),
                                                       ConsistencyLevel.QUORUM);
         assertEquals("initial_50", initialRecord[0][0]);
-
-        Object[][] migrationRecord = coordinator.execute(format("SELECT value FROM %s.%s WHERE pk = 150", testKeyspace, TEST_TABLE),
-                                                        ConsistencyLevel.QUORUM);
-        assertEquals("migration_150", migrationRecord[0][0]);
     }
 
     @Test
@@ -393,20 +368,14 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
         waitForEpochOf(SHARED_CLUSTER, 1);
         verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.MIGRATING_TO_TRACKED);
 
-        // Reverse the migration by changing back to untracked
+        // Reverse the migration by changing back to untracked — tracked→untracked is instant
         coordinator.execute(format("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='untracked'",
                                  testKeyspace),
                           ConsistencyLevel.ALL);
 
         waitForEpochOf(SHARED_CLUSTER, 1);
 
-        verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.MIGRATING_TO_UNTRACKED);
-
-        // Complete the reversed migration
-        SHARED_CLUSTER.get(1).nodetoolResult("repair", "-pr", testKeyspace, TEST_TABLE).asserts().success();
-
-        waitForEpochOf(SHARED_CLUSTER, 1);
-
+        // Should go directly to UNTRACKED — no migration state
         verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.UNTRACKED);
 
         Object[][] results = coordinator.execute(format("SELECT * FROM %s.%s", testKeyspace, TEST_TABLE),
@@ -455,20 +424,14 @@ public class MutationTrackingMigrationTest extends TestBaseImpl
         coordinator.execute(format("INSERT INTO %s.%s (pk, value) VALUES (1, 'new_table_data')", testKeyspace, newTable),
                           ConsistencyLevel.QUORUM);
 
-        // Reverse the migration
+        // Reverse the migration — tracked→untracked is instant
         coordinator.execute(format("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='untracked'",
                                  testKeyspace),
                           ConsistencyLevel.ALL);
 
         waitForEpochOf(SHARED_CLUSTER, 1);
 
-        verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.MIGRATING_TO_UNTRACKED);
-
-        // Complete migration (both tables should be in migration)
-        SHARED_CLUSTER.get(1).nodetoolResult("repair", testKeyspace).asserts().success();
-
-        waitForEpochOf(SHARED_CLUSTER, 1);
-
+        // Should go directly to UNTRACKED — no migration state
         verifyKeyspaceState(testKeyspace, ExpectedKeyspaceState.UNTRACKED);
 
         Object[][] results = coordinator.execute(format("SELECT value FROM %s.%s WHERE pk = 1", testKeyspace, newTable),

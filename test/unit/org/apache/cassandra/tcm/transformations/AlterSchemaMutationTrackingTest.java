@@ -104,7 +104,7 @@ public class AlterSchemaMutationTrackingTest
     }
 
     @Test
-    public void testAutoStartToUntrackedMigration() throws Throwable
+    public void testTrackedToUntrackedIsInstant() throws Throwable
     {
         String ksName = nextKsName();
         // tracked replication
@@ -118,25 +118,12 @@ public class AlterSchemaMutationTrackingTest
         ClusterMetadata metadata = ClusterMetadata.current();
         assertFalse(metadata.mutationTrackingMigrationState.isMigrating(ksName));
 
-        // Alter keyspace to untracked
+        // Alter keyspace to untracked — should be instant with no migration state
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'untracked'", ksName));
 
         metadata = ClusterMetadata.current();
-        TableId tableId = metadata.schema.getKeyspaceMetadata(ksName).getTableOrViewNullable("tbl").id;
-        Range<Token> fullRing = new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
-
-        MutationTrackingMigrationState actualState = metadata.mutationTrackingMigrationState;
-        KeyspaceMigrationInfo actualInfo = actualState.getKeyspaceInfo(ksName);
-
-        MutationTrackingMigrationState expectedState = createExpectedState(
-            actualState.lastModified,
-            ksName,
-            tableId,
-            fullRing,
-            actualInfo.startedAtEpoch
-        );
-
-        assertStatesEqual(expectedState, actualState, ksName);
+        assertFalse("tracked->untracked should be instant with no migration state",
+                    metadata.mutationTrackingMigrationState.isMigrating(ksName));
     }
 
     @Test
@@ -183,29 +170,31 @@ public class AlterSchemaMutationTrackingTest
         // Alter to tracked
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'tracked'", ks1));
 
-        // Alter to untracked
+        // Alter to untracked — instant, no migration state
         schemaChange(String.format("ALTER KEYSPACE %s WITH replication_type = 'untracked'", ks2));
 
         ClusterMetadata metadata = ClusterMetadata.current();
         Range<Token> fullRing = new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken());
 
         TableId table1Id = metadata.schema.getKeyspaceMetadata(ks1).getTableOrViewNullable("tbl").id;
-        TableId table2Id = metadata.schema.getKeyspaceMetadata(ks2).getTableOrViewNullable("tbl").id;
 
         MutationTrackingMigrationState actualState = metadata.mutationTrackingMigrationState;
         KeyspaceMigrationInfo actual1 = actualState.getKeyspaceInfo(ks1);
-        KeyspaceMigrationInfo actual2 = actualState.getKeyspaceInfo(ks2);
 
-        ImmutableMap.Builder<String, KeyspaceMigrationInfo> expectedKeyspaces = ImmutableMap.builder();
-        expectedKeyspaces.put(ks1, createKeyspaceMigrationInfo(ks1, table1Id, fullRing, actual1.startedAtEpoch));
-        expectedKeyspaces.put(ks2, createKeyspaceMigrationInfo(ks2, table2Id, fullRing, actual2.startedAtEpoch));
-
-        MutationTrackingMigrationState expectedState = new MutationTrackingMigrationState(
+        // ks1 (untracked→tracked) should have migration state
+        MutationTrackingMigrationState expectedState = createExpectedState(
             actualState.lastModified,
-            expectedKeyspaces.build()
+            ks1,
+            table1Id,
+            fullRing,
+            actual1.startedAtEpoch
         );
 
-        assertStatesEqual(expectedState, actualState, ks1, ks2);
+        assertStatesEqual(expectedState, actualState, ks1);
+
+        // ks2 (tracked→untracked) should have no migration state — instant transition
+        assertFalse("tracked->untracked should be instant with no migration state",
+                    actualState.isMigrating(ks2));
     }
 
     @Test

@@ -63,7 +63,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertIdsForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertMatchingSummaryIdSpaceForKey;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.row;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
