@@ -51,13 +51,15 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
     public static UnfilteredRowIterator validate(UnfilteredRowIterator partition, Stage stage, boolean enforceIsClosed)
     {
-        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        String partitionKey = partition.metadata().partitionKeyType.getString(partition.partitionKey().getKey());
+        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed, partitionKey));
     }
 
     @Override
     public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
-        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed));
+        String partitionKey = partition.metadata().partitionKeyType.getString(partition.partitionKey().getKey());
+        return Transformation.apply(partition, new RowsTransformation(stage, partition.metadata(), partition.isReverseOrder(), enforceIsClosed, partitionKey));
     }
 
     private final static class RowsTransformation extends Transformation
@@ -69,12 +71,15 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
         private DeletionTime openMarkerDeletionTime;
 
-        private RowsTransformation(Stage stage, TableMetadata metadata, boolean isReverseOrder, boolean enforceIsClosed)
+        private String partitionKey;
+
+        private RowsTransformation(Stage stage, TableMetadata metadata, boolean isReverseOrder, boolean enforceIsClosed, String partitionKey)
         {
             this.stage = stage;
             this.metadata = metadata;
             this.isReverseOrder = isReverseOrder;
             this.enforceIsClosed = enforceIsClosed;
+            this.partitionKey = partitionKey;
         }
 
         @Override
@@ -116,7 +121,7 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
         private IllegalStateException ise(String why)
         {
             String message =
-                String.format("%s UnfilteredRowIterator for %s has an illegal RT bounds sequence: %s", stage, metadata, why);
+                String.format("%s UnfilteredRowIterator for %s (partition key: %s) has an illegal RT bounds sequence (isReverseOrder=%b): %s", stage, metadata, partitionKey, isReverseOrder, why);
             throw new IllegalStateException(message);
         }
     }
