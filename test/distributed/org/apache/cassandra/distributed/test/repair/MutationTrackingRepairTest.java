@@ -29,6 +29,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -86,16 +88,17 @@ public class MutationTrackingRepairTest extends TestBaseImpl
     @BeforeClass
     public static void setupCluster() throws IOException
     {
-        executor = Executors.newCachedThreadPool();
+        executor = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setDaemon(true).build());
         CLUSTER = Cluster.build()
-                .withNodes(NUM_NODES)
-                .withConfig(cfg -> cfg.set("mutation_tracking_sync_timeout", "10s")
-                        .set("request_timeout", "1000ms")
-                        .set("repair.retries.max_attempts", 10)
-                        .set("repair.retries.base_sleep_time", "100ms")
-                        .set("repair.retries.max_sleep_time", "500ms")
-                        .with(Feature.GOSSIP, Feature.NETWORK))
-                .start();
+                         .withNodes(NUM_NODES)
+                         .withConfig(cfg -> cfg.set("hinted_handoff_enabled", false)
+                                               .set("mutation_tracking_sync_timeout", "10s")
+                                               .set("request_timeout", "1000ms")
+                                               .set("repair.retries.max_attempts", 10)
+                                               .set("repair.retries.base_sleep_time", "100ms")
+                                               .set("repair.retries.max_sleep_time", "500ms")
+                                               .with(Feature.GOSSIP, Feature.NETWORK))
+                         .start();
     }
 
     @AfterClass
@@ -120,23 +123,19 @@ public class MutationTrackingRepairTest extends TestBaseImpl
     public void tearDown()
     {
         CLUSTER.filters().reset();
-        for (int i = 1; i <= CLUSTER.size(); i++)
-        {
-            CLUSTER.get(i).runOnInstance(() -> {
-                Gossiper.runInGossipStageBlocking(() -> {
-                    for (var entry : Gossiper.instance.endpointStateMap.entrySet())
+        CLUSTER.forEach(() ->
+            Gossiper.runInGossipStageBlocking(() -> {
+                for (var entry : Gossiper.instance.endpointStateMap.entrySet())
+                {
+                    InetAddressAndPort ep = entry.getKey();
+                    EndpointState state = entry.getValue();
+                    if (!ep.equals(FBUtilities.getBroadcastAddressAndPort()) && !state.isAlive())
                     {
-                        InetAddressAndPort ep = entry.getKey();
-                        EndpointState state = entry.getValue();
-                        if (!ep.equals(FBUtilities.getBroadcastAddressAndPort()) && !state.isAlive())
-                        {
-                            FailureDetector.instance.report(ep);
-                            Gossiper.instance.realMarkAlive(ep, state);
-                        }
+                        FailureDetector.instance.report(ep);
+                        Gossiper.instance.realMarkAlive(ep, state);
                     }
-                });
-            });
-        }
+                }
+            }));
     }
 
     private void setupUntracked()
@@ -239,10 +238,7 @@ public class MutationTrackingRepairTest extends TestBaseImpl
     {
         List<Future<NodeToolResult>> futures = new ArrayList<>();
         for (int node : nodes)
-        {
-            int n = node;
-            futures.add(executor.submit(() -> nodetoolRepair(n, args)));
-        }
+            futures.add(executor.submit(() -> nodetoolRepair(node, args)));
         List<NodeToolResult> results = new ArrayList<>();
         for (Future<NodeToolResult> f : futures)
         {
@@ -291,10 +287,7 @@ public class MutationTrackingRepairTest extends TestBaseImpl
 
         List<Future<NodeToolResult>> futures = new ArrayList<>();
         for (int node : nodes)
-        {
-            int n = node;
-            futures.add(executor.submit(() -> nodetoolRepair(n, args)));
-        }
+            futures.add(executor.submit(() -> nodetoolRepair(node, args)));
 
         Thread.sleep(2000);
         assertTrue("Repair should be blocked while node " + isolatedNode + " is isolated",
@@ -538,9 +531,27 @@ public class MutationTrackingRepairTest extends TestBaseImpl
     }
 
     @Test
-    public void testDataAccessibleDuringMigrationToUntracked() throws Exception
+    public void testDataAccessibleAfterSwitchToUntracked()
     {
-        dataAccessibleDuringMigration(() -> alterKeyspaceToUntracked());
+        insertDataWithInconsistency("tbl", 0, 50);
+
+        alterKeyspaceToUntracked();
+        assertFalse("Migration should NOT be in progress (tracked->untracked is instant)",
+                    isMigrationInProgress());
+
+        // Read at CL.ALL triggers blocking read repair to fix inconsistencies
+        Object[][] results = CLUSTER.coordinator(1).execute(
+                "SELECT k, v FROM " + ksName + ".tbl", ConsistencyLevel.ALL);
+        assertEquals("Pre-switch data should be readable", 50, results.length);
+
+        // Write and read more data
+        insertData("tbl", 50, 50);
+
+        results = CLUSTER.coordinator(1).execute(
+                "SELECT k, v FROM " + ksName + ".tbl", ConsistencyLevel.ALL);
+        assertEquals("All data should be readable after switch", 100, results.length);
+
+        assertDataOnAllNodes("tbl", 0, 100);
     }
 
     private void dataAccessibleDuringMigration(Runnable alterKeyspace) throws Exception
@@ -575,15 +586,14 @@ public class MutationTrackingRepairTest extends TestBaseImpl
     }
 
     @Test
-    public void testMigrationTrackedToUntrackedCompletesViaRepair() throws Exception
+    public void testMigrationTrackedToUntrackedIsInstant()
     {
-        insertDataWithInconsistency("tbl", 0, 100);
+        insertData("tbl", 0, 100);
 
         alterKeyspaceToUntracked();
-        assertTrue("Migration should be in progress after ALTER", isMigrationInProgress());
-
-        repairResolvingInconsistency(ksName);
-        assertTrue("Migration should complete after repair", isMigrationComplete());
+        assertFalse("Migration should NOT be in progress after ALTER (tracked->untracked is instant)",
+                    isMigrationInProgress());
+        assertTrue("Migration should be complete", isMigrationComplete());
 
         assertDataOnAllNodes("tbl", 0, 100);
     }

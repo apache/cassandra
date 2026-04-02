@@ -283,6 +283,13 @@ public class MutationTrackingMigrationState implements MetadataValue<MutationTra
             if (ksm == null)
                 continue;
 
+            // Migration state should only exist for keyspaces migrating TO tracked.
+            // tracked->untracked is instant and should never create migration state.
+            checkState(ksm.params.replicationType.isTracked(),
+                      "Migration state exists for untracked keyspace %s; " +
+                      "tracked-to-untracked migration should be instant with no migration state",
+                      keyspace);
+
             // Validate all tables in migration exist in schema
             for (TableId tableId : info.pendingRangesPerTable.keySet())
             {

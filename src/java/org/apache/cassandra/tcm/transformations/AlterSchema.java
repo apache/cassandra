@@ -61,6 +61,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata.Transformer;
@@ -383,15 +384,43 @@ public class AlterSchema implements Transformation
             // Check if replication type changed
             if (beforeType != afterType)
             {
-                // Auto-start migration for this keyspace
-                logger.info("Auto-starting mutation tracking migration for keyspace {} (replication_type={})",
-                          diff.after.name, afterType);
+                if (afterType.isTracked())
+                {
+                    // untracked -> tracked: requires migration with repair because tracked reads
+                    // do single-replica data reads and the chosen replica must reflect all prior
+                    // writes for read monotonicity. The writes made while the keyspace was untracked
+                    // are not in the mutation journal, so mutation tracking cannot reconcile them.
+                    // Repair must ensure all replicas are consistent with those pre-tracking writes
+                    // before tracked single-replica reads can safely begin.
+                    logger.info("Auto-starting mutation tracking migration for keyspace {} (replication_type={})",
+                              diff.after.name, afterType);
 
-                Collection<TableId> tableIds = diff.after.tables.stream()
-                    .map(table -> table.id)
-                    .collect(Collectors.toList());
+                    Collection<TableId> tableIds = diff.after.tables.stream()
+                        .map(table -> table.id)
+                        .collect(Collectors.toList());
 
-                migrationState = migrationState.withKeyspaceMigrating(diff.after.name, tableIds, nextEpoch);
+                    migrationState = migrationState.withKeyspaceMigrating(diff.after.name, tableIds, nextEpoch);
+                }
+                else
+                {
+                    // tracked -> untracked: instant, no migration needed. Tracked writes are
+                    // already quorum writes and the target state (untracked) just uses regular
+                    // quorum reads, which is strictly less demanding.
+                    KeyspaceMigrationInfo existing = migrationState.getKeyspaceInfo(diff.after.name);
+                    if (existing != null)
+                    {
+                        // An in-progress untracked->tracked migration is being reversed.
+                        // Remove it since tracked->untracked is instant.
+                        logger.info("Removing in-progress migration for keyspace {} (switching to untracked is instant)",
+                                  diff.after.name);
+                        migrationState = migrationState.dropKeyspaces(nextEpoch, Collections.singleton(diff.after.name));
+                    }
+                    else
+                    {
+                        logger.info("Switching keyspace {} to untracked (instant, no migration needed)",
+                                  diff.after.name);
+                    }
+                }
             }
         }
 

@@ -192,17 +192,18 @@ public class MutationTrackingIncrementalRepairTaskTest extends TestBaseImpl
                              "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
                              "AND replication_type='untracked'");
 
-        // During reverse migration, both should still apply
+        // During reverse migration, tracked->untracked is instant; no migration state
         Boolean shouldUseAfter = CLUSTER.get(1).callOnInstance(() -> {
             ClusterMetadata metadata = ClusterMetadata.current();
             return MutationTrackingIncrementalRepairTask.shouldUseMutationTrackingRepair(metadata, ksName);
         });
         assertFalse("Keyspace migrating from tracked should not use mutation tracking repair", shouldUseAfter);
 
+        // tracked->untracked is instant, no migration state created
         Boolean migrationAfter = CLUSTER.get(1).callOnInstance(() -> {
             ClusterMetadata metadata = ClusterMetadata.current();
             return MutationTrackingIncrementalRepairTask.isMutationTrackingMigrationInProgress(metadata, ksName);
         });
-        assertTrue("Keyspace migrating from tracked should have migration in progress", migrationAfter);
+        assertFalse("Keyspace migrating from tracked should NOT have migration in progress (instant)", migrationAfter);
     }
 }

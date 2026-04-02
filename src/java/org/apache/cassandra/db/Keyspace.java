@@ -439,7 +439,7 @@ public class Keyspace
                       boolean updateIndexes,
                       boolean isDroppable)
     {
-        if (MigrationRouter.isFullyTracked(mutation) && !mutation.isReadRepair())
+        if (MigrationRouter.isFullyTracked(mutation))
             applyInternalTracked(mutation, null);
         else
             applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
@@ -462,7 +462,7 @@ public class Keyspace
                                                boolean isDeferrable,
                                                Promise<?> future)
     {
-        Preconditions.checkState((!getMetadata().useMutationTracking() || mutation.isReadRepair()) && mutation.id().isNone());
+        Preconditions.checkState(!MigrationRouter.isFullyTracked(mutation) && mutation.id().isNone());
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");

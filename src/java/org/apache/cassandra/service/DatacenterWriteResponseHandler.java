@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.service;
 
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -36,7 +37,7 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     private final Predicate<InetAddressAndPort> waitingFor = InOurDc.endpoints();
 
     public DatacenterWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                          Runnable callback,
+                                          Consumer<AbstractWriteResponseHandler<?>> callback,
                                           WriteType writeType,
                                           Supplier<Mutation> hintOnFailure,
                                           Dispatcher.RequestTime requestTime)

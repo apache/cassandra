@@ -38,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
@@ -2194,7 +2195,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                        ConsistencyLevel consistencyLevel,
                                                                        String localDataCenter,
                                                                        WritePerformer performer,
-                                                                       Runnable callback,
+                                                                       Consumer<AbstractWriteResponseHandler<?>> callback,
                                                                        WriteType writeType,
                                                                        Dispatcher.RequestTime requestTime)
     {
@@ -2243,7 +2244,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                             Dispatcher.RequestTime requestTime)
     {
         AbstractReplicationStrategy replicationStrategy = replicaPlan.replicationStrategy();
-        AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, () -> {
+        AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, handler -> {
             long delay = Math.max(0, currentTimeMillis() - baseComplete.get());
             viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS);
         }, writeType, mutation, requestTime);
@@ -2582,7 +2583,7 @@ public class StorageProxy implements StorageProxyMBean
 
     // Must be called on a replica of the mutation. This replica becomes the
     // leader of this mutation.
-    public static AbstractWriteResponseHandler<IMutation> applyCounterMutationOnLeader(CounterMutation cm, String localDataCenter, Runnable callback, Dispatcher.RequestTime requestTime)
+    public static AbstractWriteResponseHandler<IMutation> applyCounterMutationOnLeader(CounterMutation cm, String localDataCenter, Consumer<AbstractWriteResponseHandler<?>> callback, Dispatcher.RequestTime requestTime)
     throws UnavailableException, OverloadedException
     {
         return performWrite(cm, cm.consistency(), localDataCenter, counterWritePerformer, callback, WriteType.COUNTER, requestTime);

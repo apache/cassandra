@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,7 +48,7 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     private final AtomicInteger acks = new AtomicInteger(0);
 
     public DatacenterSyncWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
-                                              Runnable callback,
+                                              Consumer<AbstractWriteResponseHandler<?>> callback,
                                               WriteType writeType,
                                               Supplier<Mutation> hintOnFailure,
                                               Dispatcher.RequestTime requestTime)

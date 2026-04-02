@@ -61,7 +61,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
     protected final ColumnFamilyStore cfs;
 
-    private volatile DigestRepair<E, P> digestRepair = null;
+    private DigestRepair<E, P> digestRepair = null;
+    private boolean repairMeterMarked = false;
 
     private static class DigestRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     {
@@ -119,10 +120,27 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     abstract Meter getRepairMeter();
 
+    /**
+     * Mark the repair meter at most once per read command. Single-partition reads mark
+     * via {@code startRepair()} on digest mismatch. Range reads never call {@code startRepair()}
+     * — they go through {@code DataResolver.resolveWithReadRepair()} which calls
+     * {@code repairPartition()} directly for each inconsistent partition. Without this
+     * guard, range reads would either miss the metric entirely (if only marked in
+     * {@code startRepair()}) or over-count (if marked per partition in {@code repairPartition()}).
+     */
+    protected void markRepairMeter()
+    {
+        if (!repairMeterMarked)
+        {
+            repairMeterMarked = true;
+            getRepairMeter().mark();
+        }
+    }
+
     // digestResolver isn't used here because we resend read requests to all participants
     public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
-        getRepairMeter().mark();
+        markRepairMeter();
 
         /*
          * When repaired data tracking is enabled, a digest will be created from data reads from repaired SSTables.

@@ -27,7 +27,6 @@ public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
 
     public void applyMutation(Mutation mutation)
     {
-        mutation.setReadRepair(true);
         mutation.apply();
     }
 

@@ -44,6 +44,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -190,7 +191,9 @@ public abstract class AbstractReadExecutor implements ReadExecutor
                                                        ReadCoordinator coordinator,
                                                        Dispatcher.RequestTime requestTime) throws UnavailableException
     {
-        Preconditions.checkArgument(!command.metadata().replicationType().isTracked());
+        // During migration, a tracked table may have pending ranges that use untracked reads.
+        // MigrationRouter.shouldUseTracked() returns false for those tokens, routing them here.
+        Preconditions.checkArgument(!MigrationRouter.shouldUseTracked(command));
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;

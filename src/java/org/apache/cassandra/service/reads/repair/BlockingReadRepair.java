@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -42,12 +44,20 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.replication.TrackedWriteRequest;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
@@ -60,15 +70,19 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -199,6 +213,7 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     @Override
     public void repairPartition(DecoratedKey dk, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan, ReadRepairSource rrSource)
     {
+        markRepairMeter();
         // non-Accord reads only ever touch one table and key so all mutations need to be applied either transactionally
         // or non-transactionally (not a mix). There is no retry loop here because read repair is relatively rare so it racing
         // with changes to migrating ranges should also be pretty rare so it isn't worth the added complexity. If you were
@@ -209,10 +224,181 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
         // then we take the non-transactional path and the mutations are intercepted in ReadCoordinator.sendRepairMutation
         // which will ensure the repair mutation runs in the command store thread after preceding transactions are done
         ClusterMetadata cm = ClusterMetadata.current();
-        if (coordinator.isEventuallyConsistent() && ConsensusMigrationMutationHelper.tokenShouldBeWrittenThroughAccord(cm, command.metadata().id, dk.getToken(), TransactionalMode::readRepairsThroughAccord, TransactionalMigrationFromMode::readRepairsThroughAccord))
+        if (MigrationRouter.shouldUseTrackedForWrites(cm, command.metadata().keyspace, command.metadata().id, dk.getToken()))
+            repairViaTrackedWrite(dk, mutations, writePlan);
+        else if (coordinator.isEventuallyConsistent() && ConsensusMigrationMutationHelper.tokenShouldBeWrittenThroughAccord(cm, command.metadata().id, dk.getToken(), TransactionalMode::readRepairsThroughAccord, TransactionalMigrationFromMode::readRepairsThroughAccord))
             repairViaAccordTransaction(dk, mutations, writePlan);
         else
             repairViaReadCoordinator(dk, mutations, writePlan, rrSource);
+    }
+
+    /*
+     * Send each per-replica mutation as a separate tracked write via TrackedWriteRequest.perform().
+     * We do NOT merge mutations because merging can create oversized mutations that make partitions unreadable.
+     * Each tracked write gets a proper MutationId and is recorded in the mutation journal.
+     *
+     * If a tracked write fails with RetryOnDifferentSystemException or CoordinatorBehindException (migration raced),
+     * we refetch ClusterMetadata and retry through the correct path (tracked or untracked).
+     */
+    private void repairViaTrackedWrite(DecoratedKey dk, Map<Replica, Mutation> mutations, ForWrite writePlan)
+    {
+        ReadRepairMetrics.repairedBlockingViaTrackedWrite.mark();
+        ConsistencyLevel cl = writePlan.consistencyLevel();
+
+        List<AsyncPromise<Void>> promises = new ArrayList<>(mutations.size());
+
+        for (Map.Entry<Replica, Mutation> entry : mutations.entrySet())
+        {
+            Replica replica = entry.getKey();
+            Mutation mutation = entry.getValue();
+            AsyncPromise<Void> promise = new AsyncPromise<>();
+            promises.add(promise);
+            startTrackedWriteAttempt(dk, replica, mutation, cl, promise, true);
+        }
+
+        // Compute blockFor using the same logic as BlockingPartitionRepair: writeQuorum adjusted
+        // for contacts that don't have mutations to send
+        int adjustedBlockFor = writePlan.writeQuorum();
+        for (Replica participant : writePlan.contacts())
+        {
+            if (!mutations.containsKey(participant))
+                adjustedBlockFor--;
+        }
+        final int blockFor = adjustedBlockFor;
+
+        repairs.add(new PendingPartitionRepair()
+        {
+            @Override
+            public boolean awaitRepairs(long remaining, TimeUnit timeUnit) throws InterruptedException
+            {
+                long deadlineNanos = nanoTime() + timeUnit.toNanos(remaining);
+                Throwable error = null;
+                for (AsyncPromise<Void> promise : promises)
+                {
+                    long remainingNanos = deadlineNanos - nanoTime();
+                    if (remainingNanos <= 0)
+                        return false;
+                    try
+                    {
+                        promise.get(remainingNanos, NANOSECONDS);
+                    }
+                    catch (TimeoutException e)
+                    {
+                        return false;
+                    }
+                    catch (ExecutionException e)
+                    {
+                        error = Throwables.merge(error, e.getCause());
+                    }
+                }
+                Throwables.maybeFail(error);
+                return true;
+            }
+
+            @Override
+            public ForWrite repairPlan()
+            {
+                return writePlan;
+            }
+
+            @Override
+            public int blockFor()
+            {
+                return blockFor;
+            }
+
+            @Override
+            public int waitingOn()
+            {
+                int count = 0;
+                for (AsyncPromise<Void> promise : promises)
+                {
+                    if (!promise.isDone())
+                        count++;
+                }
+                return count;
+            }
+        });
+    }
+
+    /**
+     * Start a tracked write attempt for a single read repair mutation.
+     * Wires a callback on the handler that resolves the promise on success, retries on retriable errors,
+     * or fails the promise on non-retriable errors.
+     *
+     * @param allowRetry if true, retriable errors (migration races) will refetch metadata and retry once
+     *                   through the correct path; if false, any error fails the promise directly
+     */
+    private void startTrackedWriteAttempt(DecoratedKey dk, Replica replica, Mutation mutation,
+                                          ConsistencyLevel cl, AsyncPromise<Void> promise, boolean allowRetry)
+    {
+        TrackedWriteRequest.perform(mutation, cl, requestTime, handler -> {
+            try
+            {
+                handler.get();  // non-blocking — condition already signaled when callback fires
+                promise.trySuccess(null);
+            }
+            catch (CoordinatorBehindException e)
+            {
+                if (allowRetry)
+                {
+                    logger.debug("Tracked write read repair failed with retriable error, retrying: {}", e.getMessage());
+                    retryRepairMutation(dk, replica, mutation, cl, promise);
+                }
+                else
+                {
+                    logger.debug("Tracked write read repair retry failed again, not retrying further: {}", e.getMessage());
+                    promise.tryFailure(e);
+                }
+            }
+            catch (Throwable t)
+            {
+                promise.tryFailure(t);
+            }
+        });
+    }
+
+    /**
+     * Retry a single read repair mutation after a migration race. Checks updated ClusterMetadata and
+     * sends the mutation through the correct path (tracked or untracked), resolving the promise
+     * when complete.
+     */
+    private void retryRepairMutation(DecoratedKey dk, Replica replica, Mutation mutation,
+                                     ConsistencyLevel cl, AsyncPromise<Void> promise)
+    {
+        ClusterMetadata cm = ClusterMetadata.current();
+
+        if (MigrationRouter.shouldUseTrackedForWrites(cm, command.metadata().keyspace, command.metadata().id, dk.getToken()))
+        {
+            throw new IllegalStateException("Retrying BRR for tracked write repair, but it looks like it should still be tracked. " +
+                                            "Should be untracked if it needs retry.");
+        }
+        else
+        {
+            // No longer tracked — send classic READ_REPAIR_REQ and wait for the response
+            MessagingService.instance().sendWithCallback(Message.outWithRequestTime(READ_REPAIR_REQ, mutation, requestTime),
+                                                         replica.endpoint(),
+                                                         new RequestCallback<NoPayload>()
+            {
+                @Override
+                public void onResponse(Message<NoPayload> msg)
+                {
+                    promise.trySuccess(null);
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
+                {
+                    promise.tryFailure(new RuntimeException("Read repair retry failed on " + from + ": " + failure.reason));
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+            });
+        }
     }
 
     /*

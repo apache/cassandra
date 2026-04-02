@@ -70,7 +70,7 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
         // it's own in that case.
         StorageProxy.applyCounterMutationOnLeader(cm,
                                                   localDataCenter,
-                                                  () -> MessagingService.instance().send(message.emptyResponse(), respondToAddress),
+                                                  handler -> MessagingService.instance().send(message.emptyResponse(), respondToAddress),
                                                   Dispatcher.RequestTime.forImmediateExecution());
     }
 }

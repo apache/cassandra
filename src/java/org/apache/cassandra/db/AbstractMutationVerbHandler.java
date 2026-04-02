@@ -202,13 +202,6 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
      */
     protected ClusterMetadata checkReplicationMigration(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {
-        // Read repair mutations always bypass mutation tracking and use the untracked
-        // write path, so skip the replication migration routing check. The isReadRepair
-        // flag on the mutation hasn't been set yet at this point — it's set later in
-        // applyMutation() — so we check the handler type instead.
-        if (this instanceof ReadRepairVerbHandler)
-            return metadata;
-
         IMutation mutation = message.payload;
         MutationRouting expected = mutation.id().isNone() ? MutationRouting.UNTRACKED : MutationRouting.TRACKED;
         if (expected == MigrationRouter.getMutationRouting(metadata, mutation))

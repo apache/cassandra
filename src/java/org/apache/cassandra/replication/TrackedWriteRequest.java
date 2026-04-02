@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 
@@ -167,6 +168,23 @@ public class TrackedWriteRequest
     public static AbstractWriteResponseHandler<?> perform(
         IMutation mutation, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
+        return perform(mutation, consistencyLevel, requestTime, null);
+    }
+
+    /**
+     * Like {@link #perform}, but wires a completion callback on the handler before any messages are sent,
+     * avoiding the race where the handler is signaled before the caller can wire callbacks.
+     *
+     * @param mutation the mutation to be applied
+     * @param consistencyLevel the consistency level for the write operation
+     * @param requestTime object holding times when request got enqueued and started execution
+     * @param onComplete callback invoked when the handler is signaled; receives the handler
+     */
+    public static AbstractWriteResponseHandler<?> perform(
+        IMutation mutation, ConsistencyLevel consistencyLevel,
+        Dispatcher.RequestTime requestTime,
+        Consumer<AbstractWriteResponseHandler<?>> onComplete)
+    {
         Tracing.trace("Determining replicas for mutation");
 
         Preconditions.checkArgument(mutation.id().isNone());
@@ -181,7 +199,7 @@ public class TrackedWriteRequest
         {
             logger.trace("Remote tracked request {} {}", mutation, plan);
             writeMetrics.remoteRequests.mark();
-            return ForwardedWrite.forward(mutation, plan, rs, requestTime);
+            return ForwardedWrite.forward(mutation, plan, rs, requestTime, onComplete);
         }
 
         logger.trace("Local tracked request {} {}", mutation, plan);
@@ -199,12 +217,12 @@ public class TrackedWriteRequest
         final TrackedWriteResponseHandler handler;
         if (mutation instanceof CounterMutation)
         {
-            handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.COUNTER, null, requestTime), id);
+            handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, onComplete, WriteType.COUNTER, null, requestTime), id);
             applyCounterMutationLocally((CounterMutation) mutation, plan, handler);
         }
         else
         {
-            handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, null, WriteType.SIMPLE, null, requestTime), id);
+            handler = TrackedWriteResponseHandler.wrap(rs.getWriteResponseHandler(plan, onComplete, WriteType.SIMPLE, null, requestTime), id);
             applyLocallyAndSendToReplicas((Mutation) mutation, plan, handler);
         }
         return handler;
