@@ -1,6 +1,13 @@
-6.0-alpha1
+6.0-alpha2
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
+Merged from 5.0:
+ * Update cassandra-stress to support TLS 1.3 by default by auto-negotiation (CASSANDRA-21007)
+Merged from 4.1:
+Merged from 4.0:
+
+
+6.0-alpha1
  * Improve performance when calculating settled placements during range movements (CASSANDRA-21144)
  * Make shadow gossip round parameters configurable for testing (CASSANDRA-21149)
  * Avoid potential gossip thread deadlock during decommission (CASSANDRA-21143)
@@ -324,6 +331,22 @@ Merged from 4.1:
  * Fix ant generate-eclipse-files (CASSANDRA-21215)
  * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
  * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
+ * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
+ * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
+ * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
+ * Improve CommitLogSegmentReader to skip SyncBlocks correctly in case of CRC errors (CASSANDRA-20664)
+ * Do not crash on first boot with data_disk_usage_max_disk_size set when data directory is not created yet (CASSANDRA-20787)
+ * Rework / simplification of nodetool get/setguardrailsconfig commands (CASSANDRA-20778)
+ * IntrusiveStack.accumulate is not accumulating correctly (CASSANDRA-20670)
+ * Add nodetool get/setguardrailsconfig commands (CASSANDRA-19552)
+ * Fix mixed mode paxos ttl commit hang (CASSANDRA-20514)
+ * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
+ * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
+ * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
+ * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
+ * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
+ * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
+ * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
 Merged from 4.0:
  * Add option to disable cqlsh history (CASSANDRA-21180)
  * Rate limit password changes (CASSANDRA-21202)
@@ -408,24 +431,6 @@ Merged from 4.0:
  * Deprecate and ignore use_deterministic_table_id (CASSANDRA-19809)
  * Prioritize built indexes in IndexStatusManager (CASSANDRA-19400)
  * Add java.base/java.lang.reflect among opens for jvm11-client.options (CASSANDRA-19780)
-Merged from 4.1:
- * Disk usage guardrail cannot be disabled when failure threshold is reached (CASSANDRA-21057)
- * ReadCommandController should close fast to avoid deadlock when building secondary index (CASSANDRA-19564)
- * Redact security-sensitive information in system_views.settings (CASSANDRA-20856)
- * Improve CommitLogSegmentReader to skip SyncBlocks correctly in case of CRC errors (CASSANDRA-20664)
- * Do not crash on first boot with data_disk_usage_max_disk_size set when data directory is not created yet (CASSANDRA-20787)
- * Rework / simplification of nodetool get/setguardrailsconfig commands (CASSANDRA-20778)
- * IntrusiveStack.accumulate is not accumulating correctly (CASSANDRA-20670)
- * Add nodetool get/setguardrailsconfig commands (CASSANDRA-19552)
- * Fix mixed mode paxos ttl commit hang (CASSANDRA-20514)
- * Fix paxos mixed mode infinite loop (CASSANDRA-20493)
- * Optionally skip exception logging on invalid legacy protocol magic exception (CASSANDRA-19483)
- * Fix SimpleClient ability to release acquired capacity (CASSANDRA-20202)
- * Fix WaitQueue.Signal.awaitUninterruptibly may block forever if invoking thread is interrupted (CASSANDRA-20084)
- * Run audit_logging_options through santiation and validation on startup (CASSANDRA-20208)
- * Enforce CQL message size limit on multiframe messages (CASSANDRA-20052)
- * Fix race condition in DecayingEstimatedHistogramReservoir during rescale (CASSANDRA-19365)
-Merged from 4.0:
  * Obsolete expired SSTables before compaction starts (CASSANDRA-19776)
  * Switch lz4-java to at.yawk.lz4 version due to CVE (CASSANDRA-21052)
  * Restrict BytesType compatibility to scalar types only (CASSANDRA-20982)
