@@ -1,9 +1,9 @@
 6.0-alpha2
- * Add tooling to repair system peers and peers_v2 if inconsistent with cluster metadata (CASSANDRA-21187) 
+ * In-tree docs are included in binary artifacts (tarball, deb, rpm) as html and man pages (CASSANDRA-17260)
+ * Add tooling to repair system peers and peers_v2 if inconsistent with cluster metadata (CASSANDRA-21187)
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
 Merged from 5.0:
- * Backport Automated Repair Inside Cassandra for CEP-37 (CASSANDRA-21138)
 Merged from 4.1:
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 Merged from 4.0:

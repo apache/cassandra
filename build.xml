@@ -614,6 +614,7 @@
     <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
+            <arg value="manpages"/>
         </exec>
     </target>
 
@@ -697,7 +698,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test,gen-doc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,build-test,gen-asciidoc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
@@ -993,6 +994,8 @@
     </target>
 
     <target name="_artifacts-init" depends="jar">
+      <!-- gen-doc should be depended on, but it requires antora and pandoc installed,
+            so for now it's seperated to artifacts-with-docs -->
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />
@@ -1012,8 +1015,12 @@
         </fileset>
       </copy>
       <copy todir="${dist.dir}/doc/html" failonerror="false">
-        <fileset dir="doc" />
-        <globmapper from="build/html/*" to="*"/>
+        <fileset dir="build/html" />
+      </copy>
+      <copy todir="${dist.dir}/doc/man" failonerror="false">
+        <fileset dir="build/man">
+          <include name="*.gz" />
+        </fileset>
       </copy>
       <copy todir="${dist.dir}/bin">
         <fileset dir="bin"/>
@@ -1047,6 +1054,10 @@
         </fileset>
       </copy>
     </target>
+
+    <!-- creates release tarballs with documentation -->
+    <target name="artifacts-with-docs" depends="gen-doc,artifacts"
+            description="Create Cassandra tarball and maven artifacts with documentation"/>
 
     <!-- creates release tarballs -->
     <target name="artifacts" depends="_artifacts-init,check,sources-jar,sstableloader-sources-jar"
