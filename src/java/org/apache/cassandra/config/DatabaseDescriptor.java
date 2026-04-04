@@ -3201,6 +3201,21 @@ public class DatabaseDescriptor
         conf.dynamic_snitch_badness_threshold = dynamicBadnessThreshold;
     }
 
+    public static boolean isDynamicSnitch()
+    {
+        return conf.dynamic_snitch;
+    }
+
+    public static void setDynamicSnitch(boolean enabled)
+    {
+        conf.dynamic_snitch = enabled;
+    }
+
+    public static void setEndpointSnitchClassName(String endpointSnitch)
+    {
+        conf.endpoint_snitch = endpointSnitch;
+    }
+
     public static EncryptionOptions.ServerEncryptionOptions getInternodeMessagingEncyptionOptions()
     {
         return conf.server_encryption_options;
