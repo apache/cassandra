@@ -38,6 +38,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ExpMovingAverage;
+import org.apache.cassandra.utils.MovingAverage;
 
 import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
 
@@ -224,6 +226,9 @@ public abstract class ReadResponse
     // built on the owning node responding to a query
     private static class LocalDataResponse extends DataResponse
     {
+        // Moving average of response sizes, used to set initial size of output buffer.
+        private static final MovingAverage estimatedResponseBytes = ExpMovingAverage.decayBy1000();
+
         private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi)
         {
             super(build(iter, command.columnFilter()),
@@ -239,9 +244,15 @@ public abstract class ReadResponse
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
         {
-            try (DataOutputBuffer buffer = new DataOutputBuffer())
+            // Size output buffer to 10% above the moving average to absorb minor variance and limit rebuffering.
+            double bufferSizeEstimate = Double.isNaN(estimatedResponseBytes.get()) ? 128 : estimatedResponseBytes.get();
+            int initialBufferSize = (int) (bufferSizeEstimate * 1.1);
+
+            try (DataOutputBuffer buffer = new DataOutputBuffer(initialBufferSize))
             {
                 UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, selection, buffer, MessagingService.current_version);
+                estimatedResponseBytes.update(buffer.position());
+
                 return buffer.buffer();
             }
             catch (IOException e)
