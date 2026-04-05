@@ -205,6 +205,8 @@ public enum CassandraRelevantProperties
     /** Controls the type of bufffer (heap/direct) used for shared scratch buffers */
     DATA_OUTPUT_BUFFER_ALLOCATE_TYPE("cassandra.dob.allocate_type"),
     DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE("cassandra.data_output_stream_plus_temp_buffer_size", "8192"),
+    DATA_RESPONSE_BUFFER_INITIAL_SIZE_MAX("cassandra.data_response_buffer_initial_size_max", "4096"),
+    DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN("cassandra.data_response_buffer_initial_size_min", "128"),
     DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT("cassandra.dehr_stripe_count", "2"),
     DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES("default.provide.overlapping.tombstones"),
     /** determinism properties for testing */

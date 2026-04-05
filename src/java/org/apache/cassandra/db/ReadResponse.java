@@ -24,6 +24,7 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -38,6 +39,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ExpMovingAverage;
+import org.apache.cassandra.utils.MovingAverage;
 
 import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
 
@@ -224,6 +227,11 @@ public abstract class ReadResponse
     // built on the owning node responding to a query
     private static class LocalDataResponse extends DataResponse
     {
+        // Exponential moving average of response sizes, used to set initial size of output buffer.
+        private static final MovingAverage estimatedResponseBytes = ExpMovingAverage.decayBy1000();
+        private static final int bufferInitialSizeMin = CassandraRelevantProperties.DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN.getInt();
+        private static final int bufferInitialSizeMax = CassandraRelevantProperties.DATA_RESPONSE_BUFFER_INITIAL_SIZE_MAX.getInt();
+
         private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi)
         {
             super(build(iter, command.columnFilter()),
@@ -239,10 +247,21 @@ public abstract class ReadResponse
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
         {
-            try (DataOutputBuffer buffer = new DataOutputBuffer())
+            int initialBufferSize = bufferInitialSizeMin;
+
+            if (bufferInitialSizeMax > bufferInitialSizeMin)
+            {
+                // Size output buffer to 10% above the moving average to absorb minor variance and limit rebuffering.
+                double estimatedResponseSize = estimatedResponseBytes.get();
+                double bufferSizeEstimate = Double.isNaN(estimatedResponseSize) ? bufferInitialSizeMin : estimatedResponseSize * 1.1;
+                initialBufferSize = Math.min((int) bufferSizeEstimate, bufferInitialSizeMax);
+            }
+
+            try (DataOutputBuffer buffer = new DataOutputBuffer(initialBufferSize))
             {
                 UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, selection, buffer, MessagingService.current_version);
-                return buffer.buffer();
+                estimatedResponseBytes.update(buffer.position());
+                return buffer.buffer(false);
             }
             catch (IOException e)
             {
