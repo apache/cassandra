@@ -245,7 +245,8 @@ public abstract class ReadResponse
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
         {
             // Size output buffer to 10% above the moving average to absorb minor variance and limit rebuffering.
-            double bufferSizeEstimate = Double.isNaN(estimatedResponseBytes.get()) ? 128 : estimatedResponseBytes.get();
+            double estimatedResponseSize = estimatedResponseBytes.get();
+            double bufferSizeEstimate = Double.isNaN(estimatedResponseSize) ? 128 : estimatedResponseSize;
             int initialBufferSize = (int) (bufferSizeEstimate * 1.1);
 
             try (DataOutputBuffer buffer = new DataOutputBuffer(initialBufferSize))
@@ -253,7 +254,7 @@ public abstract class ReadResponse
                 UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, selection, buffer, MessagingService.current_version);
                 estimatedResponseBytes.update(buffer.position());
 
-                return buffer.buffer();
+                return buffer.buffer(false);
             }
             catch (IOException e)
             {
