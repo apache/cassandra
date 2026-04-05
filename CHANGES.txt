@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Reduce allocations and array copies due to buffer resizing in LocalDataResponse during row serialization (CASSANDRA-21285)
  * Implement a guardrail for client driver versions (CASSANDRA-21146)
  * Enable IAuthenticator to declare supported and alterable role options (CASSANDRA-20834)
  * Avoid capturing lambda allocation in UnfilteredSerializer.deserializeRowBody (CASSANDRA-21289)
