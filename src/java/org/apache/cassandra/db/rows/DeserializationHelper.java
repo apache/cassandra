@@ -21,16 +21,21 @@ import java.io.DataInput;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.DroppedColumn;
 import org.apache.cassandra.schema.TableMetadata;
 
+@NotThreadSafe
 public class DeserializationHelper
 {
     /**
@@ -58,6 +63,14 @@ public class DeserializationHelper
     private final boolean hasDroppedColumns;
     private final Map<ByteBuffer, DroppedColumn> droppedColumns;
     private DroppedColumn currentDroppedComplex;
+
+    // reusable fields to avoid extra allocation during cells processing
+    // within org.apache.cassandra.db.rows.UnfilteredSerializer.deserializeRowBody
+    DataInputPlus in;
+    SerializationHeader header;
+    Row.Builder builder;
+    LivenessInfo livenessInfo;
+    boolean hasComplexDeletion;
 
     // Reusable per-partition tracker for row-size-bounded reads in SSTable deserialization.
     private TrackedDataInputPlus trackedInput;

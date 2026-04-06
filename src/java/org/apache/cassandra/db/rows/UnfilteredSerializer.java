@@ -625,20 +625,12 @@ public class UnfilteredSerializer
 
             try
             {
-                DataInputPlus finalIn = in;
-                columns.apply(column -> {
-                    try
-                    {
-                        if (column.isSimple())
-                            readSimpleColumn(column, finalIn, header, helper, builder, livenessInfo);
-                        else
-                            readComplexColumn(column, finalIn, header, helper, hasComplexDeletion, builder, livenessInfo);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new WrappedException(e);
-                    }
-                });
+                helper.in = in;
+                helper.header = header;
+                helper.builder = builder;
+                helper.livenessInfo = livenessInfo;
+                helper.hasComplexDeletion = hasComplexDeletion;
+                columns.apply(UnfilteredSerializer::readColumn, helper);
             }
             catch (WrappedException e)
             {
@@ -660,7 +652,22 @@ public class UnfilteredSerializer
         }
     }
 
-    private void readSimpleColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, Row.Builder builder, LivenessInfo rowLiveness)
+    private static void readColumn(DeserializationHelper helper, ColumnMetadata column)
+    {
+        try
+        {
+            if (column.isSimple())
+                readSimpleColumn(column, helper.in, helper.header, helper, helper.builder, helper.livenessInfo);
+            else
+                readComplexColumn(column, helper.in, helper.header, helper, helper.hasComplexDeletion, helper.builder, helper.livenessInfo);
+        }
+        catch (IOException e)
+        {
+            throw new WrappedException(e);
+        }
+    }
+
+    private static void readSimpleColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, Row.Builder builder, LivenessInfo rowLiveness)
     throws IOException
     {
         if (helper.includes(column))
@@ -675,7 +682,7 @@ public class UnfilteredSerializer
         }
     }
 
-    private void readComplexColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, boolean hasComplexDeletion, Row.Builder builder, LivenessInfo rowLiveness)
+    private static void readComplexColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, boolean hasComplexDeletion, Row.Builder builder, LivenessInfo rowLiveness)
     throws IOException
     {
         if (helper.includes(column))
@@ -732,7 +739,7 @@ public class UnfilteredSerializer
         in.skipBytesFully(markerSize);
     }
 
-    private void skipComplexColumn(DataInputPlus in, ColumnMetadata column, SerializationHeader header, boolean hasComplexDeletion)
+    private static void skipComplexColumn(DataInputPlus in, ColumnMetadata column, SerializationHeader header, boolean hasComplexDeletion)
     throws IOException
     {
         if (hasComplexDeletion)
