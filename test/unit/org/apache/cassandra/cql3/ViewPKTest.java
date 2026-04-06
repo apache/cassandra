@@ -466,16 +466,16 @@ public class ViewPKTest extends ViewAbstractTest
                    "  PRIMARY KEY (id1, v1, id2)" +
                    "  WITH CLUSTERING ORDER BY (v1 DESC, id2 ASC)");
 
-        execute("INSERT INTO %s (id1, id2, v1, v2) VALUES (?, ?, ?, ?)", 0, 1, "foo", "bar");
+        updateView("INSERT INTO %s (id1, id2, v1, v2) VALUES (?, ?, ?, ?)", 0, 1, "foo", "bar");
 
         assertRowsNet(executeNet("SELECT * FROM %s"), row(0, 1, "foo", "bar"));
         assertRowsNet(executeViewNet("SELECT * FROM %s"), row(0, "foo", 1, "bar"));
 
-        executeNet("UPDATE %s SET v1=? WHERE id1=? AND id2=?", null, 0, 1);
+        updateView("UPDATE %s SET v1=? WHERE id1=? AND id2=?", null, 0, 1);
         assertRowsNet(executeNet("SELECT * FROM %s"), row(0, 1, null, "bar"));
         assertRowsNet(executeViewNet("SELECT * FROM %s"));
 
-        executeNet("UPDATE %s SET v2=? WHERE id1=? AND id2=?", "rab", 0, 1);
+        updateView("UPDATE %s SET v2=? WHERE id1=? AND id2=?", "rab", 0, 1);
         assertRowsNet(executeNet("SELECT * FROM %s"), row(0, 1, null, "rab"));
         assertRowsNet(executeViewNet("SELECT * FROM %s"));
     }
