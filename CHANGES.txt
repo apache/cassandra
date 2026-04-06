@@ -1,5 +1,6 @@
 6.0-alpha2
- * Avoid Cell iterator for alive rows in MetricsRecording transformation of ReadCommand (CASSANDRA-21288)
+ * Avoid capturing lambda allocation in UnfilteredSerializer.deserializeRowBody (CASSANDRA-21289)
+ * Avoid Cell iterator allocation for alive rows in MetricsRecording transformation of ReadCommand (CASSANDRA-21288)
  * Reuse a single TrackedDataInputPlus instance per UnfilteredSerializer (CASSANDRA-21296)
  * In-tree docs are included in binary artifacts (tarball, deb, rpm) as html and man pages (CASSANDRA-17260)
  * Add tooling to repair system peers and peers_v2 if inconsistent with cluster metadata (CASSANDRA-21187)
