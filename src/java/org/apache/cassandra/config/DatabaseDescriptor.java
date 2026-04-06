@@ -2066,6 +2066,7 @@ public class DatabaseDescriptor
 
     /**
      * Returns the default authenticator configured for this node.
+     * @deprecated Use {@link #getDefaultAuthenticator()} instead.
      */
     @Deprecated(since = "6.0.0")
     public static IAuthenticator getAuthenticator()

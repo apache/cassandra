@@ -20,7 +20,6 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.security.cert.Certificate;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -31,6 +30,8 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public interface IAuthenticator
 {
@@ -258,7 +259,7 @@ public interface IAuthenticator
         public AuthenticationMode(@Nonnull String displayName)
         {
             this.displayName = displayName;
-            this.normalizedDisplayName = displayName.toLowerCase(Locale.ROOT);
+            this.normalizedDisplayName = toLowerCaseLocalized(displayName);
         }
 
         /**
