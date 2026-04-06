@@ -644,19 +644,24 @@ public abstract class ReadCommand extends AbstractReadQuery
             public Row applyToRow(Row row)
             {
                 boolean hasTombstones = false;
-                for (Cell<?> cell : row.cells())
+                final long nowInSec = ReadCommand.this.nowInSec();
+                final boolean rowHasDeletion = row.hasDeletion(nowInSec);
+                if (rowHasDeletion) // perf optimization, to avoid iteration if all cells are alive
                 {
-                    if (!cell.isLive(ReadCommand.this.nowInSec()))
+                    for (Cell<?> cell : row.cells())
                     {
-                        countTombstone(row.clustering());
-                        hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        if (!cell.isLive(nowInSec))
+                        {
+                            countTombstone(row.clustering());
+                            hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        }
                     }
                 }
 
-                if (row.hasLiveData(ReadCommand.this.nowInSec(), enforceStrictLiveness))
+                if (row.hasLiveData(nowInSec, enforceStrictLiveness))
                     ++liveRows;
-                else if (!row.primaryKeyLivenessInfo().isLive(ReadCommand.this.nowInSec())
-                        && row.hasDeletion(ReadCommand.this.nowInSec())
+                else if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
+                        && rowHasDeletion
                         && !hasTombstones)
                 {
                     // We're counting primary key deletions only here.
