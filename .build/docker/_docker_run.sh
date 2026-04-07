@@ -113,8 +113,8 @@ fi
 
 # Run build script through docker
 random_string="$(LC_ALL=C tr -dc A-Za-z0-9 </dev/urandom | head -c 6 ; echo '')"
-run_script_name=$(echo ${run_script} | sed  's/.sh//' | sed 's/_//')
-container_name="cassandra_${dockerfile/.docker/}_${un_script_name}_jdk${java_version}__${random_string}"
+run_script_name=$(echo "${run_script}" | sed 's#.*/##' | sed 's/.sh//' | sed 's/_//')
+container_name="cassandra_${dockerfile/.docker/}_${run_script_name}_jdk${java_version}__${random_string}"
 
 [ $DEBUG ] && docker_envs="${docker_envs} --env DEBUG=1"
 
