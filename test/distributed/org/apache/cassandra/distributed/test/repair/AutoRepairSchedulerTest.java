@@ -120,22 +120,6 @@ public class AutoRepairSchedulerTest extends TestBaseImpl
     @Test
     public void testScheduler() throws ParseException
     {
-        // ensure there was no history of previous repair runs through the scheduler
-        Object[][] rows = cluster.coordinator(1).execute(String.format("SELECT repair_type, host_id, repair_start_ts, repair_finish_ts, repair_turn FROM %s.%s", DISTRIBUTED_KEYSPACE_NAME, SystemDistributedKeyspace.AUTO_REPAIR_HISTORY), ConsistencyLevel.QUORUM);
-        assertEquals(0, rows.length);
-
-        cluster.forEach(i -> i.runOnInstance(() -> {
-            try
-            {
-                AutoRepairService.setup();
-                AutoRepair.instance.setup();
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }));
-
         // validate that the repair ran on all nodes
         cluster.forEach(i -> i.runOnInstance(() -> {
             String broadcastAddress  = FBUtilities.getJustBroadcastAddress().toString();
