@@ -688,6 +688,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             TableParams params = attrs.asAlteredTableParams(table.params);
 
+            // Validate against the altered (merged) params, not the validate()-time defaults, so we see the
+            // table's actual compaction strategy when only compression (e.g. auto_training) is being changed.
+            validateCompactionStrategySupportsAutoTraining(params);
+
             if (table.isCounter() && params.defaultTimeToLive > 0)
                 throw ire("Cannot set default_time_to_live on a table with counters");
 

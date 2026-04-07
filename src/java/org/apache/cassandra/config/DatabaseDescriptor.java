@@ -1280,6 +1280,15 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException(ex.getMessage());
         }
+
+        // The auto-training scheduler uses this as the fixed delay between check cycles, so it must be strictly
+        // positive: ScheduledExecutorService.scheduleWithFixedDelay rejects a non-positive period. A negative value
+        // is already rejected by DurationSpec at parse time; this additionally rejects zero. The initial delay may be
+        // zero (run immediately) and the enabled flag is a boolean, so neither needs validation here.
+        if (conf.compression_dictionary_auto_training_interval == null ||
+            conf.compression_dictionary_auto_training_interval.toSeconds() <= 0)
+            throw new ConfigurationException("compression_dictionary_auto_training_interval must be positive, but was " +
+                                             conf.compression_dictionary_auto_training_interval, false);
     }
 
     @VisibleForTesting
@@ -4643,6 +4652,21 @@ public class DatabaseDescriptor
     public static int getCompressionDictionaryCacheExpireSeconds()
     {
         return conf.compression_dictionary_cache_expire.toSeconds();
+    }
+
+    public static boolean getCompressionDictionaryAutoTrainingEnabled()
+    {
+        return conf.compression_dictionary_auto_training_enabled;
+    }
+
+    public static int getCompressionDictionaryAutoTrainingInterval()
+    {
+        return conf.compression_dictionary_auto_training_interval.toSeconds();
+    }
+
+    public static int getCompressionDictionaryAutoTrainingInitialDelay()
+    {
+        return conf.compression_dictionary_auto_training_initial_delay.toSeconds();
     }
 
     public static int getStreamingKeepAlivePeriod()
