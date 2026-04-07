@@ -64,6 +64,11 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     CompressionDictionary trainDictionary(boolean force);
 
     /**
+     * Get compression ratio of a given dictionary bytes against sampled data this trainer holds
+     */
+    double computeSampleCompressionRatio(byte[] dictBytes);
+
+    /**
      * Trains and produces a compression dictionary from collected samples asynchronously.
      *
      * @param force force the dictionary training even if there are not enough samples
