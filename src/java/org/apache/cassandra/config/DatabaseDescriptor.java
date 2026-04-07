@@ -1855,6 +1855,16 @@ public class DatabaseDescriptor
         conf.write_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
+    public static boolean isReplicaSlotGroupingEnabled()
+    {
+        return conf.replica_slot_grouping_enabled;
+    }
+
+    public static void setReplicaSlotGroupingEnabled(boolean value)
+    {
+        conf.replica_slot_grouping_enabled = value;
+    }
+
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
         return conf.counter_write_request_timeout.to(unit);
