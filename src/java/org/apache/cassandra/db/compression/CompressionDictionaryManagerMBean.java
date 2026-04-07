@@ -104,4 +104,14 @@ public interface CompressionDictionaryManagerMBean
      *                                  is configured for
      */
     void importCompressionDictionary(CompositeData dictionary);
+
+    /**
+     * Returns if auto-training is enabled on a table this mananger manages.
+     * The fact a table is allowed to be auto-trained does not mean a node this
+     * method is called on will be the one which will conduct autotraining. Consult
+     * {@link CompressionDictionaryAutoTrainingManager} for more details how this is mananged.
+     *
+     * @return true if auto-training is enabled, false otherwise.
+     */
+    boolean isAutoTrainingEnabled();
 }

@@ -20,20 +20,23 @@ package org.apache.cassandra.db.compression;
 
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Manages scheduled tasks for compression dictionary operations.
@@ -57,6 +60,18 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
 
     private volatile ScheduledFuture<?> scheduledRefreshTask;
     private volatile boolean isEnabled;
+
+    /**
+     * Dictionary training samples from disk and runs training, which might take minutes for a large table.
+     * It gets its own thread rather than one of the shared single-threaded pools: NonPeriodicTasks in particular
+     * also runs SSTable tidying and LogTransaction deletions, so blocking it stalls the removal of obsoleted
+     * SSTables. Node-wide and deliberately never shut down by close(), which runs per table on drop and when an
+     * ALTER disables dictionary compression; shutting a shared executor down there would stop training for every
+     * other table. Its threads are daemon, so an idle pool cannot hold the JVM open. It is terminated only
+     * at node shutdown, through {@link #shutdownNowAndWait(long, TimeUnit)}.
+     */
+    private static final ScheduledExecutorPlus TRAINING_EXECUTOR =
+        ExecutorFactory.Global.executorFactory().scheduled(false, "CompressionDictionaryTraining");
 
     public CompressionDictionaryScheduler(String keyspaceName,
                                           String tableName,
@@ -88,11 +103,11 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     }
 
     @Override
-    public void scheduleSSTableBasedTraining(ColumnFamilyStore.RefViewFragment refViewFragment,
-                                             CompressionParams compressionParams,
-                                             CompressionDictionaryTrainingConfig config,
-                                             Consumer<CompressionDictionary> listener,
-                                             boolean force)
+    public Future<?> scheduleSSTableBasedTraining(ColumnFamilyStore.RefViewFragment refViewFragment,
+                                                  CompressionParams compressionParams,
+                                                  CompressionDictionaryTrainingConfig config,
+                                                  Consumer<CompressionDictionary> listener,
+                                                  boolean force)
     {
         if (!trainingInProgress.compareAndSet(false, true))
         {
@@ -124,13 +139,24 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             SSTableSamplingTask task = new SSTableSamplingTask(refViewFragment, trainer, config, force);
             // trainer is eventually closed here, as well as indicating
             // in manualTrainingInProgress that it was finished
-            ScheduledExecutors.nonPeriodicTasks.submit(task);
+            try
+            {
+                return TRAINING_EXECUTOR.submit(task);
+            }
+            catch (Throwable t)
+            {
+                // the task will never run, so nothing else will release these
+                finishTraining(trainer.getTrainingState());
+                cleanup(refViewFragment, trainer);
+                throw t;
+            }
         }
         else
         {
             finishTraining(trainer.getTrainingState());
             cleanup(refViewFragment, trainer);
         }
+        return null;
     }
 
     /**
@@ -187,6 +213,12 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
     }
 
     @Override
+    public boolean isTrainingRunning()
+    {
+        return trainingInProgress.get();
+    }
+
+    @Override
     public void close()
     {
         if (scheduledRefreshTask != null)
@@ -196,6 +228,15 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
         }
 
         finishTraining(TrainingState.notStarted());
+    }
+
+    /**
+     * Terminates the node-wide training executor. For node shutdown only: per-table {@link #close()} must not call
+     * this, or disabling dictionary compression on one table would stop training for every other table.
+     */
+    public static void shutdownNowAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, TRAINING_EXECUTOR);
     }
 
     /**
@@ -234,27 +275,34 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
                 logger.info("Completed sampling for {}.{}, now training dictionary",
                             keyspaceName, tableName);
 
+                Throwable trainingThrowable = null;
                 // Use the force parameter from the task
-                trainer.trainDictionaryAsync(force)
-                       .addCallback((dictionary, throwable) -> {
-                           if (throwable != null)
-                           {
-                               logger.error("SSTable-based dictionary training failed for {}.{}: {}",
-                                            keyspaceName, tableName, throwable.getMessage());
-                           }
-                           else
-                           {
-                               logger.info("SSTable-based dictionary training completed for {}.{}",
-                                           keyspaceName, tableName);
-                           }
+                try
+                {
+                    trainer.trainDictionary(force);
+                }
+                catch (Throwable t)
+                {
+                    trainingThrowable = t;
+                }
 
-                           finishTraining(trainer.getTrainingState());
-                           cleanup(refViewFragment, trainer);
-                       });
+                if (trainingThrowable != null)
+                {
+                    logger.error("SSTable-based dictionary training failed for {}.{}: {}",
+                                 keyspaceName, tableName, trainingThrowable.getMessage());
+                }
+                else
+                {
+                    logger.info("SSTable-based dictionary training completed for {}.{}",
+                                keyspaceName, tableName);
+                }
             }
             catch (Exception e)
             {
                 logger.error("Failed to sample from SSTables for {}.{}", keyspaceName, tableName, e);
+            }
+            finally
+            {
                 finishTraining(trainer.getTrainingState());
                 cleanup(refViewFragment, trainer);
             }
@@ -272,11 +320,5 @@ public class CompressionDictionaryScheduler implements ICompressionDictionarySch
             logger.debug("Unable to close trainer.", t);
         }
         refViewFragment.close();
-    }
-
-    @VisibleForTesting
-    boolean isTrainingRunning()
-    {
-        return trainingInProgress.get();
     }
 }

@@ -108,6 +108,7 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionaryAutoTrainingManager;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -3888,6 +3889,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             SnapshotManager.instance.close();
+            CompressionDictionaryAutoTrainingManager.instance.close();
             HintsService.instance.pauseDispatch();
 
             if (daemon != null)

@@ -65,6 +65,7 @@ import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compression.CompressionDictionaryAutoTrainingManager;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.db.virtual.AccordDebugRemoteKeyspace;
 import org.apache.cassandra.db.virtual.ExceptionsTable;
@@ -443,6 +444,9 @@ public class CassandraDaemon
                                                                 DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
                                                                 DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
                                                                 NANOSECONDS);
+
+        // periodically retrain compression dictionaries, adopting a freshly trained one only when it compresses better
+        CompressionDictionaryAutoTrainingManager.instance.start();
 
         initializeClientTransports();
 
