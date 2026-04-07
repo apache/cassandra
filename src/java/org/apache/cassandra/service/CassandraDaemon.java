@@ -65,12 +65,14 @@ import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compression.CompressionDictionaryAutoTrainingManager;
 import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.db.virtual.AccordDebugRemoteKeyspace;
 import org.apache.cassandra.db.virtual.ExceptionsTable;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.db.virtual.SlowQueriesTable;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
+import org.apache.cassandra.db.virtual.SystemViewsRemoteKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
@@ -444,6 +446,9 @@ public class CassandraDaemon
                                                                 DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
                                                                 NANOSECONDS);
 
+        // periodically retrain compression dictionaries, adopting a freshly trained one only when it compresses better
+        CompressionDictionaryAutoTrainingManager.instance.start();
+
         initializeClientTransports();
 
         // Ensure you've registered all caches during startup you want pre-warmed before this call -> be wary of adding
@@ -642,6 +647,7 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+        VirtualKeyspaceRegistry.instance.register(SystemViewsRemoteKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(VIRTUAL_METRICS, createMetricsKeyspaceTables()));
 
         if (DatabaseDescriptor.getAccord().enable_virtual_debug_only_keyspace)

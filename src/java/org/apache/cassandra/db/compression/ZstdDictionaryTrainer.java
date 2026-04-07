@@ -19,10 +19,14 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import com.github.luben.zstd.Zstd;
+import com.github.luben.zstd.ZstdDictCompress;
 import com.github.luben.zstd.ZstdDictTrainer;
 import com.google.common.annotations.VisibleForTesting;
 
@@ -32,8 +36,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -57,10 +63,13 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     private volatile Consumer<CompressionDictionary> dictionaryTrainedListener;
     // TODO: manage the samples in this class for auto-train (follow-up). The ZstdDictTrainer cannot be re-used for multiple training runs.
     private volatile ZstdDictTrainer zstdTrainer;
+    // Retained copies of every sample fed to the ZstdDictTrainer, so the trained dictionary can be tagged with
+    // the compression ratio it achieves on these samples. This ratio is used in auto-training later on as well.
+    // Bounded by maxTotalSampleSize; cleared once training finishes.
+    private final List<byte[]> trainingSamples = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean closed = false;
     private volatile TrainingStatus currentTrainingStatus;
     private volatile String failureMessage;
-
     public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel)
     {
         this.keyspaceName = keyspaceName;
@@ -85,6 +94,8 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             // Update the totalSampleSize and sampleCount if the sample is added
             totalSampleSize.addAndGet(sampleBytes.length);
             sampleCount.incrementAndGet();
+            // Keep the same bytes so we can measure the dictionary's ratio on the sample after training.
+            trainingSamples.add(sampleBytes);
         }
     }
 
@@ -120,7 +131,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             currentTrainingStatus = TrainingStatus.COMPLETED;
             logger.debug("New dictionary is trained with {}", dictId);
             int checksum = CompressionDictionary.calculateChecksum((byte) dictId.kind.ordinal(), dictId.id, dictBytes);
-            CompressionDictionary dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum);
+            CompressionDictionary dictionary = Kind.ZSTD.createDictionary(dictId, dictBytes, checksum, FBUtilities.now());
             notifyDictionaryTrainedListener(dictionary);
             return dictionary;
         }
@@ -130,6 +141,30 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
             currentTrainingStatus = TrainingStatus.FAILED;
             throw new RuntimeException(failureMessage, e);
         }
+    }
+
+    @Override
+    public double computeSampleCompressionRatio(byte[] dictBytes)
+    {
+        long uncompressed = 0;
+        long compressed = 0;
+        ZstdDictCompress dictCompress = new ZstdDictCompress(dictBytes, compressionLevel);
+        try
+        {
+            synchronized (trainingSamples)
+            {
+                for (byte[] sample : trainingSamples)
+                {
+                    uncompressed += sample.length;
+                    compressed += Zstd.compress(sample, dictCompress).length;
+                }
+            }
+        }
+        finally
+        {
+            dictCompress.close();
+        }
+        return uncompressed > 0 ? (double) compressed / uncompressed : MetadataCollector.NO_COMPRESSION_RATIO;
     }
 
     @Override
@@ -321,6 +356,7 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         {
             totalSampleSize.set(0);
             sampleCount.set(0);
+            trainingSamples.clear();
             try
             {
                 zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
