@@ -18,11 +18,14 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.io.util.File;
@@ -49,14 +52,13 @@ public class StartupChecksTest
     public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
     StartupChecks startupChecks;
     Path sstableDir;
-    static File heartbeatFile;
+    File heartbeatFile;
 
     StartupChecksOptions options = new StartupChecksOptions();
 
     @BeforeClass
     public static void setupServer()
     {
-        heartbeatFile = createTempFile("cassandra-heartbeat-", "");
         SchemaLoader.prepareServer();
     }
 
@@ -72,6 +74,8 @@ public class StartupChecksTest
         sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
 
+        heartbeatFile = createTempFile("cassandra-heartbeat-" + UUID.randomUUID(), "");
+
         options.enable(check_data_resurrection);
         options.getConfig(check_data_resurrection)
                .put(HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
@@ -83,11 +87,6 @@ public class StartupChecksTest
     public void tearDown() throws IOException
     {
         new File(sstableDir).deleteRecursive();
-    }
-
-    @AfterClass
-    public static void tearDownClass()
-    {
         heartbeatFile.delete();
     }
 
@@ -194,6 +193,43 @@ public class StartupChecksTest
         startupChecks.withTest(check);
 
         verifyFailure(startupChecks, "Invalid tables: abc.def");
+    }
+
+    @Test
+    public void testDataResurrectionCheckLastModifiedFallback() throws Exception
+    {
+        DataResurrectionCheck check = new DataResurrectionCheck() {
+            @Override
+            List<String> getKeyspaces()
+            {
+                return singletonList("test_ks");
+            }
+
+            @Override
+            List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
+            {
+                return singletonList(new TableGCPeriod("test_table", 10));
+            }
+        };
+
+        // Empty file
+        Files.write(heartbeatFile.toPath(), "".getBytes(StandardCharsets.UTF_8));
+        Instant recentTimestamp = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+        Files.setLastModifiedTime(heartbeatFile.toPath(), FileTime.from(recentTimestamp));
+
+        startupChecks.withTest(check);
+        verifySuccess(startupChecks);
+    }
+
+    private void verifySuccess(StartupChecks tests) {
+        try
+        {
+            tests.verify(options);
+        }
+        catch (StartupException e)
+        {
+            fail("Failed startup check with error: " + e.getMessage());
+        }
     }
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
