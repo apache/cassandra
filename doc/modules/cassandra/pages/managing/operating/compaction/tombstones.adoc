@@ -69,22 +69,21 @@ This is basically the same as in the "Deletes without Tombstones" section.
 
 === Deletes without tombstones
 
-Imagine a three node cluster which has the value [A] replicated to every
-node.:
+Imagine a three node cluster which has the value [A] replicated to every node:
 
 [source,none]
 ----
 [A], [A], [A]
 ----
 
-If one of the nodes fails and and our delete operation only removes existing values, we can end up with a cluster that looks like:
+If one of the nodes fails and our delete operation only removes existing values, we can end up with a cluster that looks like:
 
 [source,none]
 ----
 [], [], [A]
 ----
 
-Then a repair operation would replace the value of [A] back onto the two nodes which are missing the value.:
+Then a repair operation would replace the value of [A] back onto the two nodes which are missing the value:
 
 [source,none]
 ----
@@ -95,7 +94,7 @@ This would cause our data to be resurrected as a zombie even though it had been 
 
 === Deletes with tombstones
 
-Starting again with a three node cluster which has the value [A] replicated to every node.:
+Starting again with a three node cluster which has the value [A] replicated to every node:
 
 [source,none]
 ----
