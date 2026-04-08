@@ -18,11 +18,13 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.HashMap;
@@ -248,6 +250,46 @@ public class StartupChecksTest
         startupChecks.withTest(check);
 
         verifyFailure(startupChecks, "Invalid tables: abc.def");
+    }
+
+    @Test
+    public void testDataResurrectionCheckLastModifiedFallback() throws Exception
+    {
+        DataResurrectionCheck check = new DataResurrectionCheck() {
+            @Override
+            List<String> getKeyspaces()
+            {
+                return singletonList("test_ks");
+            }
+
+            @Override
+            List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
+            {
+                return singletonList(new TableGCPeriod("test_table", 10));
+            }
+        };
+
+        try
+        {
+            // Empty file
+            Files.write(heartbeatFile.toPath(), "".getBytes(StandardCharsets.UTF_8));
+            Instant recentTimestamp = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+            Files.setLastModifiedTime(heartbeatFile.toPath(), FileTime.from(recentTimestamp));
+
+            startupChecks.withTest(check);
+            verifySuccess(startupChecks);
+        }
+    }
+
+    private void verifySuccess(StartupChecks tests) {
+        try
+        {
+            tests.verify(options);
+        }
+        catch (StartupException e)
+        {
+            fail("Failed startup check with error: " + e.getMessage());
+        }
     }
 
     @Test
