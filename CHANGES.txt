@@ -2,6 +2,7 @@
  * Fix a removed TTLed row re-appearance in a materialized view after a cursor compaction (CASSANDRA-21152)
  * Rework ZSTD dictionary compression logic to create a trainer per training (CASSANDRA-21209)
 Merged from 5.0:
+ * Backport Automated Repair Inside Cassandra for CEP-37 (CASSANDRA-21138)
 Merged from 4.1:
 Merged from 4.0:
  * Rate limit password changes (CASSANDRA-21202)

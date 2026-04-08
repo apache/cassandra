@@ -132,6 +132,7 @@ public class AutoRepair
             }
 
             AutoRepairUtils.setup();
+            AutoRepairUtils.migrateAutoRepairHistoryForUpgrade();
 
             for (AutoRepairConfig.RepairType repairType : AutoRepairConfig.RepairType.values())
             {
