@@ -269,16 +269,13 @@ public class StartupChecksTest
             }
         };
 
-        try
-        {
-            // Empty file
-            Files.write(heartbeatFile.toPath(), "".getBytes(StandardCharsets.UTF_8));
-            Instant recentTimestamp = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
-            Files.setLastModifiedTime(heartbeatFile.toPath(), FileTime.from(recentTimestamp));
+        // Empty file
+        Files.write(heartbeatFile.toPath(), "".getBytes(StandardCharsets.UTF_8));
+        Instant recentTimestamp = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+        Files.setLastModifiedTime(heartbeatFile.toPath(), FileTime.from(recentTimestamp));
 
-            startupChecks.withTest(check);
-            verifySuccess(startupChecks);
-        }
+        startupChecks.withTest(check);
+        verifySuccess(startupChecks);
     }
 
     private void verifySuccess(StartupChecks tests) {
