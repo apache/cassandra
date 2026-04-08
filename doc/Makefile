@@ -11,6 +11,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+GENERATE_ANTORA_YML = ./scripts/gen-antora-yml.py
 GENERATE_NODETOOL_DOCS = ./scripts/gen-nodetool-docs.py
 MAKE_CASSANDRA_YAML = ./scripts/convert_yaml_to_adoc.py ../conf/cassandra.yaml ./modules/cassandra/pages/managing/configuration/cass_yaml_file.adoc
 PROCESS_NATIVE_PROC_SPECS = ./scripts/process-native-protocol-specs-in-docker.sh
@@ -21,6 +22,7 @@ html:
 
 .PHONY: gen-asciidoc
 gen-asciidoc:
+	python3 $(GENERATE_ANTORA_YML)
 	@mkdir -p modules/cassandra/pages/managing/tools/nodetool
 	@mkdir -p modules/cassandra/examples/TEXT/NODETOOL
 	python3 $(GENERATE_NODETOOL_DOCS)
