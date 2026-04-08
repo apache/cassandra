@@ -183,6 +183,8 @@ public interface IAccordService
 
     void awaitDone(TableId id, long epoch);
 
+    List<Ranges> getInUseRanges();
+
     AccordEndpointMapper endpointMapper();
 
     AccordTopologyService topologyService();
@@ -350,6 +352,12 @@ public interface IAccordService
         public void awaitDone(TableId id, long epoch)
         {
 
+        }
+
+        @Override
+        public List<Ranges> getInUseRanges()
+        {
+            return List.of(Ranges.EMPTY);
         }
 
         @Override
@@ -560,6 +568,12 @@ public interface IAccordService
         public void awaitDone(TableId id, long epoch)
         {
             delegate.awaitDone(id, epoch);
+        }
+
+        @Override
+        public List<Ranges> getInUseRanges()
+        {
+            return delegate.getInUseRanges();
         }
 
         @Override

@@ -1175,6 +1175,12 @@ public class AccordService implements IAccordService, Shutdownable
         getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', ExclusiveSyncPoint, TxnId.minForEpoch(epoch), ranges, Self, All, DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), NANOSECONDS), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
     }
 
+    @Override
+    public List<Ranges> getInUseRanges()
+    {
+        return getBlocking(node.commandStores().getInUseRanges());
+    }
+
     public Params journalConfiguration()
     {
         return journal.configuration();

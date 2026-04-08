@@ -85,6 +85,58 @@ public class AccordNodetoolCleanupTest extends TestBaseImpl
     }
 
     @Test
+    public void accordNodetoolCleanupPartialSSTableTest() throws Throwable
+    {
+        String tableName = "tbl0";
+        String qualifiedTableName = KEYSPACE + '.' + tableName;
+        try (Cluster cluster = init(builder().withNodes(2).withoutVNodes().withConfig((config) ->
+                                                                                      config
+                                                                                      .set("accord.shard_durability_target_splits", "1")
+                                                                                      .set("accord.shard_durability_cycle", "20s")
+                                                                                      .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
+            cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+            cluster.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
+
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 1, 2);
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedTableName + " (k, v) VALUES (?, ?)"), ConsistencyLevel.SERIAL, 2, 2);
+
+            SimpleQueryResult result1 = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedTableName + " WHERE k = 2 LIMIT 1", ConsistencyLevel.SERIAL);
+            SimpleQueryResult result2 = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
+
+            cluster.get(1).flush(withKeyspace("%s"));
+
+            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
+
+            long token1 = (Long) result1.toObjectArrays()[0][0];
+            long token2 = (Long) result2.toObjectArrays()[0][0];
+
+            assertTrue(token2 < token1 && token1 < Long.parseLong(originalToken));
+
+            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+
+            cluster.get(1).runOnInstance(() -> {
+                StorageService.instance.move(Long.toString(token1 - 1));
+            });
+
+            // Wait until Accord retires range
+            try
+            {
+                Thread.sleep(20000);
+            }
+            catch (InterruptedException e)
+            {
+                fail();
+            }
+
+            cluster.get(1).nodetool("cleanup", KEYSPACE, tableName);
+
+            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
+        }
+    }
+
+    @Test
     public void accordNodetoolCleanupRangeInUseTest() throws Throwable
     {
         String tableName = "tbl0";
