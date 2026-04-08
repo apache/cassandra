@@ -856,12 +856,49 @@ public class FBUtilities
         }
     }
 
+    public static void serializeToJsonFileAtomic(Object object, File outputFile) throws IOException
+    {
+        // Try to write then perform atomic move so that file can't be corrupted
+        // by process crash in the middle of the write.
+        File tempFile = new File(outputFile.path() + ".tmp");
+        try
+        {
+            // Serialize to bytes first so we can flush and fsync before close.
+            // Jackson's writeValue(OutputStream, ...) auto-closes the stream,
+            // which would prevent us from calling sync() afterwards.
+            byte[] data = jsonMapper.writeValueAsBytes(object);
+            try (FileOutputStreamPlus out = tempFile.newOutputStream(OVERWRITE))
+            {
+                out.write(data);
+                // Force data to disk before rename to ensure durability.
+                // Without this, a crash after rename but before OS flushes to disk
+                // can leave the file with zero-filled or corrupted blocks.
+                out.sync();
+            }
+            tempFile.move(outputFile);
+            // Fsync the parent directory to ensure the rename is durable.
+            // Without this, a crash after rename can revert to the old directory entry.
+            // See: https://transactional.blog/how-to-learn/disk-io
+            SyncUtil.trySyncDir(outputFile.parent());
+        }
+        catch (IOException ex)
+        {
+            tempFile.deleteIfExists();
+            throw ex;
+        }
+    }
+
     public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
     {
         try (FileInputStreamPlus in = file.newInputStream())
         {
             return jsonMapper.readValue((InputStream) in, tClass);
         }
+    }
+
+    public static <T> T deserializeFromJsonBytes(Class<T> tClass, byte[] bytes) throws IOException
+    {
+        return jsonMapper.readValue(bytes, tClass);
     }
 
     public static String prettyPrintMemory(long size)

@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.utils.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +55,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_DISK_STATE;
 import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_MACHINE_STATE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -86,12 +87,24 @@ public class DataResurrectionCheck implements StartupCheck
 
         public void serializeToJsonFile(File outputFile) throws IOException
         {
-            FBUtilities.serializeToJsonFile(this, outputFile);
+            FBUtilities.serializeToJsonFileAtomic(this, outputFile);
         }
 
         public static Heartbeat deserializeFromJsonFile(File file) throws IOException
         {
-            return FBUtilities.deserializeFromJsonFile(Heartbeat.class, file);
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            try
+            {
+                return FBUtilities.deserializeFromJsonBytes(Heartbeat.class, bytes);
+            }
+            catch (IOException ex)
+            {
+                int maxLogBytes = Math.min(bytes.length, 1024);
+                String hexContent = bytes.length > 0 ? Hex.bytesToHex(bytes, 0, maxLogBytes) : "(empty)";
+                LOGGER.error("Failed to deserialize heartbeat file {} (length: {} bytes, first {} bytes hex: {})",
+                        file, bytes.length, maxLogBytes, hexContent, ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -173,7 +186,11 @@ public class DataResurrectionCheck implements StartupCheck
         }
         catch (IOException ex)
         {
-            throw new StartupException(ERR_WRONG_DISK_STATE, "Failed to deserialize heartbeat file " + heartbeatFile);
+            LOGGER.warn("Failed to deserialize heartbeat file "
+                    + heartbeatFile
+                    + ". Falling back to file last modified time.", ex);
+            Instant lastModified = Instant.ofEpochMilli(heartbeatFile.lastModified());
+            heartbeat = new Heartbeat(lastModified);
         }
 
         if (heartbeat.lastHeartbeat == null)
