@@ -207,7 +207,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         }
     }
 
-    Partition getPartition(DecoratedKey key)
+    AtomicBTreePartition getPartition(DecoratedKey key)
     {
         return partitions.get(key);
     }
@@ -227,6 +227,13 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     {
         Partition p = getPartition(key);
         return p != null ? p.unfilteredIterator() : null;
+    }
+
+    @Override
+    public Partition snapshotPartition(DecoratedKey partitionKey)
+    {
+        AtomicBTreePartition partition = getPartition(partitionKey);
+        return partition == null ? null : partition.asImmutable();
     }
 
     private static int estimateRowOverhead(final int count)

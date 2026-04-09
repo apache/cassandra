@@ -18,8 +18,19 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.*;
@@ -46,18 +57,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
@@ -249,7 +248,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         return metadata.directory.peerId(replica.endpoint()).id();
     }
 
-    private void start(Dispatcher.RequestTime requestTime, Consumer<PartialTrackedRead> partialReadConsumer)
+    private void start(Dispatcher.RequestTime requestTime, Consumer<PartialTrackedRead> partialReadConsumer, TrackedLocalReads.Completer completer)
     {
         // TODO: skip local coordination if this node knows its recovering from an outage
         // TODO: read speculation
@@ -279,7 +278,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             logger.trace("Locally coordinating {}", readId);
             Stage.READ.submit(() -> {
                 AsyncPromise<TrackedDataResponse> promise =
-                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime);
+                    MutationTrackingService.instance.localReads().beginRead(readId, ClusterMetadata.current(), command, consistencyLevel, summaryNodes, requestTime, completer);
                 promise.addCallback((response, error) -> {
                     if (error != null)
                     {
@@ -326,12 +325,12 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
 
     public void start(Dispatcher.RequestTime requestTime)
     {
-        start(requestTime, null);
+        start(requestTime, null, TrackedLocalReads.Completer.DEFAULT);
     }
 
-    public void startLocal(Dispatcher.RequestTime requestTime, Consumer<PartialTrackedRead> partialReadConsumer)
+    public void startLocal(Dispatcher.RequestTime requestTime, Consumer<PartialTrackedRead> partialReadConsumer, TrackedLocalReads.Completer completer)
     {
-        start(requestTime, partialReadConsumer);
+        start(requestTime, partialReadConsumer, completer);
     }
 
     private void onResponse(TrackedDataResponse response)
@@ -450,7 +449,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             AsyncPromise<TrackedDataResponse> promise =
                 MutationTrackingService.instance
                                        .localReads()
-                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime);
+                                       .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, TrackedLocalReads.Completer.DEFAULT);
             promise.addCallback((response, error) -> {
                 if (error != null)
                 {

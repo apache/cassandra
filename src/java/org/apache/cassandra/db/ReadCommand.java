@@ -130,7 +130,42 @@ public abstract class ReadCommand extends AbstractReadQuery
 {
     private interface ReadCompleter<T>
     {
-        T complete(UnfilteredPartitionIterator iterator, ReadExecutionController executionController, Index.Searcher searcher, ColumnFamilyStore cfs, long startTimeNanos);
+        T complete(ReadCommand command, UnfilteredPartitionIterator iterator, ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos);
+        T complete(ReadCommand command, Index.Searcher searcher, ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos);
+
+        ReadCompleter<UnfilteredPartitionIterator> IMMEDIATE = new ReadCompleter<>()
+        {
+            @Override
+            public UnfilteredPartitionIterator complete(ReadCommand command, UnfilteredPartitionIterator iterator, ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
+            {
+                return command.completeRead(iterator, executionController, null, cfs, startTimeNanos);
+            }
+
+            @Override
+            public UnfilteredPartitionIterator complete(ReadCommand command, Index.Searcher searcher, ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
+            {
+                UnfilteredPartitionIterator iterator = searcher.search(executionController);
+                return command.completeRead(iterator, executionController, searcher, cfs, startTimeNanos);
+            }
+        };
+
+        ReadCompleter<PartialTrackedRead> TRACKED = new ReadCompleter<>()
+        {
+            @Override
+            public PartialTrackedRead complete(ReadCommand command, UnfilteredPartitionIterator iterator, ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
+            {
+                return command.createInProgressRead(iterator, executionController, cfs, startTimeNanos);
+            }
+
+            @Override
+            public PartialTrackedRead complete(ReadCommand command, Index.Searcher searcher, ReadExecutionController executionController, ColumnFamilyStore cfs, long startTimeNanos)
+            {
+                if (!searcher.isMultiStep())
+                    throw new IllegalStateException("Cannot use " + searcher.getClass().getName() + " with tracked reads");
+
+                return searcher.asMultiStep().beginRead(executionController, cfs, startTimeNanos);
+            }
+        };
     }
 
     private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
@@ -483,28 +518,26 @@ public abstract class ReadCommand extends AbstractReadQuery
                 ConsensusRequestRouter.validateSafeToReadNonTransactionally(this, cm);
             Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
-            Index.Searcher searcher = null;
             if (indexQueryPlan != null)
             {
                 cfs.indexManager.checkQueryability(indexQueryPlan);
 
-                searcher = indexQueryPlan.searcherFor(this);
-                Tracing.trace("Executing read on {}.{} using index{} {}",
-                              cfs.metadata.keyspace,
-                              cfs.metadata.name,
-                              indexQueryPlan.getIndexes().size() == 1 ? "" : "es",
-                              indexQueryPlan.getIndexes()
-                                            .stream()
-                                            .map(i -> i.getIndexMetadata().name)
-                                            .collect(Collectors.joining(",")));
+                if (Tracing.isTracing())
+                {
+                    Tracing.trace("Executing read on {}.{} using index{} {}",
+                                  cfs.metadata.keyspace,
+                                  cfs.metadata.name,
+                                  indexQueryPlan.getIndexes().size() == 1 ? "" : "es",
+                                  indexQueryPlan.getIndexes()
+                                                .stream()
+                                                .map(i -> i.getIndexMetadata().name)
+                                                .collect(Collectors.joining(",")));
+                }
+                Index.Searcher searcher = indexQueryPlan.searcherFor(this);
+                return completer.complete(this, searcher, executionController, cfs, startTimeNanos);
             }
-
-            if (searcher != null && metadata().replicationType().isTracked())
-                throw new UnsupportedOperationException("TODO: support tracked index reads");
-
-            UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
-
-            return completer.complete(iterator, executionController, searcher, cfs, startTimeNanos);
+            UnfilteredPartitionIterator iterator = queryStorage(cfs, executionController);
+            return completer.complete(this, iterator, executionController, cfs, startTimeNanos);
         }
         finally
         {
@@ -584,13 +617,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     protected abstract PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
                                                                ReadExecutionController executionController,
-                                                               Index.Searcher searcher,
                                                                ColumnFamilyStore cfs,
                                                                long startTimeNanos);
 
     public PartialTrackedRead beginTrackedRead(ReadExecutionController executionController)
     {
-        return beginRead(executionController, null, this::createInProgressRead);
+        return beginRead(executionController, null, ReadCompleter.TRACKED);
     }
 
     public UnfilteredPartitionIterator completeTrackedRead(UnfilteredPartitionIterator iterator, PartialTrackedRead read)
@@ -608,12 +640,12 @@ public abstract class ReadCommand extends AbstractReadQuery
     // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
-        return beginRead(executionController, null, this::completeRead);
+        return beginRead(executionController, null, ReadCompleter.IMMEDIATE);
     }
 
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController, @Nullable ClusterMetadata cm)
     {
-        return beginRead(executionController, cm, this::completeRead);
+        return beginRead(executionController, cm, ReadCompleter.IMMEDIATE);
     }
 
     protected abstract void recordLatency(TableMetrics metric, long latencyNanos);
@@ -1148,7 +1180,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         return toCQLString();
     }
 
-    InputCollector<UnfilteredRowIterator> iteratorsForPartition(ColumnFamilyStore.ViewFragment view, ReadExecutionController controller)
+    InputCollector<UnfilteredRowIterator> iteratorsForPartition(ReadableView view, ReadExecutionController controller)
     {
         final BiFunction<List<UnfilteredRowIterator>, RepairedDataInfo, UnfilteredRowIterator> merge =
             (unfilteredRowIterators, repairedDataInfo) -> {
@@ -1198,7 +1230,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         List<T> repairedIters;
         List<T> unrepairedIters;
 
-        InputCollector(ColumnFamilyStore.ViewFragment view,
+        InputCollector(ReadableView view,
                        ReadExecutionController controller,
                        BiFunction<List<T>, RepairedDataInfo, T> repairedMerger,
                        Function<T, UnfilteredPartitionIterator> postLimitAdditionalPartitions)
@@ -1208,12 +1240,12 @@ public abstract class ReadCommand extends AbstractReadQuery
             
             if (isTrackingRepairedStatus)
             {
-                for (SSTableReader sstable : view.sstables)
+                for (SSTableReader sstable : view.sstables())
                 {
                     if (considerRepairedForTracking(sstable))
                     {
                         if (repairedSSTables == null)
-                            repairedSSTables = Sets.newHashSetWithExpectedSize(view.sstables.size());
+                            repairedSSTables = Sets.newHashSetWithExpectedSize(view.sstables().size());
                         repairedSSTables.add(sstable);
                     }
                 }
@@ -1221,14 +1253,14 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (repairedSSTables == null)
             {
                 repairedIters = Collections.emptyList();
-                unrepairedIters = new ArrayList<>(view.sstables.size());
+                unrepairedIters = new ArrayList<>(view.sstables().size());
             }
             else
             {
                 repairedIters = new ArrayList<>(repairedSSTables.size());
                 // when we're done collating, we'll merge the repaired iters and add the
                 // result to the unrepaired list, so size that list accordingly
-                unrepairedIters = new ArrayList<>((view.sstables.size() - repairedSSTables.size()) + Iterables.size(view.memtables) + 1);
+                unrepairedIters = new ArrayList<>((view.sstables().size() - repairedSSTables.size()) + Iterables.size(view.memtables()) + 1);
             }
             this.repairedMerger = repairedMerger;
             this.postLimitAdditionalPartitions = postLimitAdditionalPartitions;

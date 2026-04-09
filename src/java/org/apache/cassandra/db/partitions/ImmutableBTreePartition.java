@@ -32,6 +32,8 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
     protected final BTreePartitionData holder;
     protected final TableMetadata metadata;
 
+    private final boolean canHaveShadowedData;
+
     public ImmutableBTreePartition(TableMetadata metadata,
                                    DecoratedKey partitionKey,
                                    RegularAndStaticColumns columns,
@@ -43,15 +45,25 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
         super(partitionKey);
         this.metadata = metadata;
         this.holder = new BTreePartitionData(columns, tree, deletionInfo, staticRow, stats);
+        this.canHaveShadowedData = false;
     }
 
     protected ImmutableBTreePartition(TableMetadata metadata,
-                                      DecoratedKey partitionKey,
-                                      BTreePartitionData holder)
+                                   DecoratedKey partitionKey,
+                                   BTreePartitionData holder)
+    {
+        this(metadata, partitionKey, holder, false);
+    }
+
+    public ImmutableBTreePartition(TableMetadata metadata,
+                                   DecoratedKey partitionKey,
+                                   BTreePartitionData holder,
+                                   boolean canHaveShadowedData)
     {
         super(partitionKey);
         this.metadata = metadata;
         this.holder = holder;
+        this.canHaveShadowedData = canHaveShadowedData;
     }
 
     /**
@@ -128,6 +140,6 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
 
     protected boolean canHaveShadowedData()
     {
-        return false;
+        return canHaveShadowedData;
     }
 }

@@ -101,6 +101,7 @@ import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
 import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.db.streaming.CassandraStreamManager;
 import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -3098,7 +3099,7 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
         return compactionStrategyManager.getLevelFanoutSize();
     }
 
-    public static class ViewFragment
+    public static class ViewFragment implements ReadableView
     {
         public final List<SSTableReader> sstables;
         public final Iterable<Memtable> memtables;
@@ -3107,6 +3108,18 @@ public <T> T withAllSSTables(final OperationType operationType, Function<Lifecyc
         {
             this.sstables = sstables;
             this.memtables = memtables;
+        }
+
+        @Override
+        public Iterable<? extends UnfilteredSource> memtables()
+        {
+            return memtables;
+        }
+
+        @Override
+        public List<SSTableReader> sstables()
+        {
+            return sstables;
         }
     }
 

@@ -449,11 +449,10 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     @Override
     protected PartialTrackedRead createInProgressRead(UnfilteredPartitionIterator iterator,
                                                       ReadExecutionController executionController,
-                                                      Index.Searcher searcher,
                                                       ColumnFamilyStore cfs,
                                                       long startTimeNanos)
     {
-        return PartialTrackedRangeRead.create(executionController, searcher, cfs, startTimeNanos, this, iterator);
+        return PartialTrackedRangeRead.create(executionController, null, cfs, startTimeNanos, this, iterator);
     }
 
     @Override

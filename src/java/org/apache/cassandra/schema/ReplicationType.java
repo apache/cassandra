@@ -83,10 +83,4 @@ public enum ReplicationType
     {
         return this == tracked;
     }
-
-    // FIXME: used in lieu of adding support for tracked reads in parameterized tests, fix usages of this method
-    public static ReplicationType[] fixmeValues()
-    {
-        return new ReplicationType[]{ untracked };
-    }
 }

@@ -21,9 +21,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -36,8 +33,6 @@ import org.apache.cassandra.net.IVerbHandler;
 
 public class BroadcastLogOffsets
 {
-    private static final Logger logger = LoggerFactory.getLogger(BroadcastLogOffsets.class);
-
     private final String keyspace;
     private final Range<Token> range;
     private final List<Offsets.Immutable> replicatedOffsets;
@@ -59,7 +54,7 @@ public class BroadcastLogOffsets
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder('[');
+        StringBuilder sb = new StringBuilder("[");
         boolean isFirst = true;
         for (Offsets.Immutable logOffsets : replicatedOffsets)
         {
@@ -73,7 +68,6 @@ public class BroadcastLogOffsets
 
     public static final IVerbHandler<BroadcastLogOffsets> verbHandler = message -> {
         BroadcastLogOffsets replicatedOffsets = message.payload;
-        logger.trace("Received replicated offsets {} from {}", replicatedOffsets, message.from());
         MutationTrackingService.instance.updateReplicatedOffsets(replicatedOffsets.keyspace,
                                                                  replicatedOffsets.range,
                                                                  replicatedOffsets.replicatedOffsets,

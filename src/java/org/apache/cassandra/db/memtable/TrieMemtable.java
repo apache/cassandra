@@ -320,12 +320,23 @@ public class TrieMemtable extends AbstractShardedMemtable
 
     private Partition getPartition(DecoratedKey key)
     {
+        return getPartition(key, false);
+    }
+
+    private Partition getPartition(DecoratedKey key, boolean canHaveShadowedData)
+    {
         int shardIndex = boundaries.getShardForKey(key);
         BTreePartitionData data = shards[shardIndex].data.get(key);
         if (data != null)
-            return createPartition(metadata(), allocator.ensureOnHeap(), key, data);
+            return createPartition(metadata(), allocator.ensureOnHeap(), key, data, canHaveShadowedData);
         else
             return null;
+    }
+
+    @Override
+    public Partition snapshotPartition(DecoratedKey partitionKey)
+    {
+        return getPartition(partitionKey, true);
     }
 
     @Override
@@ -345,9 +356,9 @@ public class TrieMemtable extends AbstractShardedMemtable
         return p != null ? p.unfilteredIterator() : null;
     }
 
-    private static MemtablePartition createPartition(TableMetadata metadata, EnsureOnHeap ensureOnHeap, DecoratedKey key, BTreePartitionData data)
+    private static MemtablePartition createPartition(TableMetadata metadata, EnsureOnHeap ensureOnHeap, DecoratedKey key, BTreePartitionData data, boolean canHaveShadowedData)
     {
-        return new MemtablePartition(metadata, ensureOnHeap, key, data);
+        return new MemtablePartition(metadata, ensureOnHeap, key, data, canHaveShadowedData);
     }
 
     private static MemtablePartition getPartitionFromTrieEntry(TableMetadata metadata, EnsureOnHeap ensureOnHeap, Map.Entry<ByteComparable, BTreePartitionData> en)
@@ -355,7 +366,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         DecoratedKey key = BufferDecoratedKey.fromByteComparable(en.getKey(),
                                                                  BYTE_COMPARABLE_VERSION,
                                                                  metadata.partitioner);
-        return createPartition(metadata, ensureOnHeap, key, en.getValue());
+        return createPartition(metadata, ensureOnHeap, key, en.getValue(), false);
     }
 
 
@@ -696,9 +707,9 @@ public class TrieMemtable extends AbstractShardedMemtable
 
         private final EnsureOnHeap ensureOnHeap;
 
-        private MemtablePartition(TableMetadata table, EnsureOnHeap ensureOnHeap, DecoratedKey key, BTreePartitionData data)
+        private MemtablePartition(TableMetadata table, EnsureOnHeap ensureOnHeap, DecoratedKey key, BTreePartitionData data, boolean canHaveShadowedData)
         {
-            super(table, key, data);
+            super(table, key, data, canHaveShadowedData);
             this.ensureOnHeap = ensureOnHeap;
         }
 

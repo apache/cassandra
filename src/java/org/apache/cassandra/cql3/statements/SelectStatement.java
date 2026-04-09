@@ -116,6 +116,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -483,7 +484,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             return getRangeCommand(options, state, columnFilter, rowFilter, limit, nowInSec, potentialTxnConflicts);
         }
 
-        if (restrictions.usesSecondaryIndexing() && !rowFilter.isStrict())
+        if (restrictions.usesSecondaryIndexing() && !rowFilter.isStrict() && table.keyspaceReplicationType != ReplicationType.tracked)
             return getRangeCommand(options, state, columnFilter, rowFilter, limit, nowInSec, potentialTxnConflicts);
 
         return getSliceCommands(options, state, columnFilter, rowFilter, limit, nowInSec, potentialTxnConflicts);

@@ -18,12 +18,9 @@
 */
 package org.apache.cassandra.utils;
 
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import com.google.common.collect.PeekingIterator;
-
-public abstract class AbstractIterator<V> implements Iterator<V>, PeekingIterator<V>, CloseableIterator<V>
+public abstract class AbstractIterator<V> implements CloseablePeekingIterator<V>
 {
 
     private static enum State { MUST_FETCH, HAS_NEXT, DONE, FAILED }

@@ -29,6 +29,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -40,7 +41,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
  * The {@link Factory.TokenOnlyPrimaryKey} is used by the {@link org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher} to
  * position the search within the query range.
  */
-public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
+public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable, Index.IndexMatch
 {
     /**
      * See the javadoc for {@link #kind()} for how this enum is used.
@@ -473,6 +474,12 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
      * if they do not support partition keys.
      */
     DecoratedKey partitionKey();
+
+    @Override
+    default DecoratedKey key()
+    {
+        return partitionKey();
+    }
 
     /**
      * Returns the {@link Clustering} representing the clustering component of the {@link PrimaryKey}.

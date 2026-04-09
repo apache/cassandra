@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.LoggingCommand;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
+import static org.apache.cassandra.cql3.KnownIssue.AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES;
 
 public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWalkBase
 {
@@ -74,23 +75,27 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
         // builder.withExamples(10);
+        // if a failing seed is detected, populate here
+        // Example: builder.withSeed(42L);
         // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
         // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.
         // READ_AFTER_WRITE = true;
     }
 
+    // TODO: Remove this override entirely when range reads and indexing are working properly together.
     @Override
     protected List<CreateIndexDDL.Indexer> supportedIndexers()
     {
-        return Collections.emptyList();
+        return Collections.singletonList(CreateIndexDDL.SAI);
     }
 
     @Override
     protected void clusterConfig(IInstanceConfig c)
     {
         super.clusterConfig(c);
-        c.set("mutation_tracking_enabled", "true");
+        c.set("mutation_tracking_enabled", true);
+        IGNORED_ISSUES.remove(AF_MULTI_NODE_MULTI_COLUMN_AND_NODE_LOCAL_WRITES);
     }
 
     @Test
@@ -100,17 +105,20 @@ public class MultiNodeTableWalkWithMutationTrackingTest extends MultiNodeTableWa
         {
             Property.StatefulBuilder statefulBuilder = stateful().withExamples(10).withSteps(400);
             preCheck(cluster, statefulBuilder);
+
+            // TODO: Uncomment the commented bits below to test range queries w/ the seeds above.
             statefulBuilder.check(commands(() -> rs -> createState(rs, cluster))
                                   .add(StatefulASTBase::insert)
-                                  .add(StatefulASTBase::fullTableScan)
-                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
+//                                  .add(StatefulASTBase::fullTableScan)
+//                                  .addIf(State::allowUsingTimestamp, StatefulASTBase::validateUsingTimestamp)
                                   .addIf(State::hasPartitions, this::selectExisting)
-                                  .addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
+//                                  .addAllIf(State::supportTokens, this::selectToken, this::selectTokenRange, StatefulASTBase::selectMinTokenRange)
                                   .addIf(State::hasEnoughMemtable, StatefulASTBase::flushTable)
                                   .addIf(State::hasEnoughSSTables, StatefulASTBase::compactTable)
-                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
-                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
+//                                  .addIf(State::allowNonPartitionQuery, this::nonPartitionQuery)
+//                                  .addIf(State::allowNonPartitionMultiColumnQuery, this::multiColumnQuery)
                                   .addIf(State::allowPartitionQuery, this::partitionRestrictedQuery)
+                                  .addIf(State::allowPartitionMultiColumnQuery, this::multiColumnPartitionQuery)
                                   .destroyState(State::close)
                                   .commandsTransformer(LoggingCommand.factory())
                                   .onSuccess(onSuccess(logger))

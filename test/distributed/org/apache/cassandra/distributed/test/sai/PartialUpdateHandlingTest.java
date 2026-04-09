@@ -42,6 +42,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.schema.ReplicationType;
 
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -70,7 +71,7 @@ import static org.junit.Assert.assertEquals;
  *     across different partitions).
  * 5.) Whether data resides in SSTables or Memtables. The latter is implicitly unrepaired.
  * 6.) Interaction w/ existing mechanisms on the distributed read path that deal with short reads, replica filtering
- *     protection, etc.
+ *     protection, mutation tracking, etc.
  * 7.) The relationship between columns selected and columns restricted by queries. (If coordinator filtering is
  *     involved at the implementation level, retrieving enough information to do that filtering is important.)
  * 8.) The timestamps of partial updates and deletes, especially for single-column queries that might produce
@@ -88,22 +89,28 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
     @BeforeClass
     public static void setUpCluster() throws IOException
     {
-        CLUSTER = init(Cluster.build(NODES).withConfig(config -> config.set("hinted_handoff_enabled", false).with(GOSSIP).with(NETWORK)).start());
+        CLUSTER = Cluster.build(NODES).withConfig(config -> config.set("hinted_handoff_enabled", false).with(GOSSIP).with(NETWORK)).start();
 
-        // All parameterized test scenarios share the same table and attached indexes, but write to different partitions
-        // that are deleted after each scenario completes.
-        String createTableDDL = String.format("CREATE TABLE %s.%s (pk int, pk2 int, ck int, s int static, y int static, a int, b int, x int, PRIMARY KEY ((pk, pk2), ck)) WITH read_repair = 'NONE'",
-                                              KEYSPACE, TEST_TABLE_NAME);
-        CLUSTER.schemaChange(createTableDDL);
-        CLUSTER.disableAutoCompaction(KEYSPACE);
+        for (ReplicationType replicationType : ReplicationType.values())
+        {
+            String keyspace = KEYSPACE + '_' + replicationType;
+            CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + CLUSTER.size() + "} AND replication_type = '" + replicationType + '\'');
 
-        CLUSTER.schemaChange(String.format("CREATE INDEX pk2_idx ON %s.%s(pk2) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX ck_idx ON %s.%s(ck) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX s_idx ON %s.%s(s) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX a_idx ON %s.%s(a) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
-        CLUSTER.schemaChange(String.format("CREATE INDEX b_idx ON %s.%s(b) USING 'sai'", KEYSPACE, TEST_TABLE_NAME));
+            // All parameterized test scenarios share the same table and attached indexes, but write to different partitions
+            // that are deleted after each scenario completes.
+            String createTableDDL = String.format("CREATE TABLE %s.%s (pk int, pk2 int, ck int, s int static, y int static, a int, b int, x int, PRIMARY KEY ((pk, pk2), ck)) WITH read_repair = 'NONE'",
+                                                  keyspace, TEST_TABLE_NAME);
+            CLUSTER.schemaChange(createTableDDL);
+            CLUSTER.disableAutoCompaction(keyspace);
 
-        SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+            CLUSTER.schemaChange(String.format("CREATE INDEX pk2_idx ON %s.%s(pk2) USING 'sai'", keyspace, TEST_TABLE_NAME));
+            CLUSTER.schemaChange(String.format("CREATE INDEX ck_idx ON %s.%s(ck) USING 'sai'", keyspace, TEST_TABLE_NAME));
+            CLUSTER.schemaChange(String.format("CREATE INDEX s_idx ON %s.%s(s) USING 'sai'", keyspace, TEST_TABLE_NAME));
+            CLUSTER.schemaChange(String.format("CREATE INDEX a_idx ON %s.%s(a) USING 'sai'", keyspace, TEST_TABLE_NAME));
+            CLUSTER.schemaChange(String.format("CREATE INDEX b_idx ON %s.%s(b) USING 'sai'", keyspace, TEST_TABLE_NAME));
+
+            SAIUtil.waitForIndexQueryable(CLUSTER, keyspace);
+        }
     }
 
     static class Specification
@@ -115,6 +122,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
         final int partitionKey;
         final boolean flushPartials;
         final Expression.IndexOperator validationMode;
+        final ReplicationType replicationType;
 
         Specification(boolean restrictPartitionKey,
                       String[] columns,
@@ -122,7 +130,8 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
                       StatementType partialUpdateType,
                       int partitionKey,
                       boolean flushPartials,
-                      Expression.IndexOperator validationMode)
+                      Expression.IndexOperator validationMode,
+                      ReplicationType replicationType)
         {
             this.restrictPartitionKey = restrictPartitionKey;
             this.columns = columns;
@@ -131,11 +140,17 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             this.partitionKey = partitionKey;
             this.flushPartials = flushPartials;
             this.validationMode = validationMode;
+            this.replicationType = replicationType;
         }
 
         public String[] nonKeyColumns()
         {
             return Arrays.stream(columns).filter(c -> !c.equals("ck") && !c.equals("pk") && !c.equals("pk2")).toArray(String[]::new);
+        }
+        
+        public String keyspaceName()
+        {
+            return KEYSPACE + '_' + replicationType;
         }
 
         public String tableName()
@@ -152,7 +167,8 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
                    ", partialUpdateType=" + partialUpdateType +
                    ", partitionKey=" + partitionKey +
                    ", flushPartials=" + flushPartials +
-                   ", validationMode=" + validationMode;
+                   ", validationMode=" + validationMode +
+                   ", replicationType=" + replicationType;
         }
 
         @Override
@@ -163,13 +179,14 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             Specification that = (Specification) o;
             return Arrays.equals(columns, that.columns) 
                    && existing == that.existing && restrictPartitionKey == that.restrictPartitionKey 
-                   && partialUpdateType == that.partialUpdateType && partitionKey == that.partitionKey && flushPartials == that.flushPartials;
+                   && partialUpdateType == that.partialUpdateType && partitionKey == that.partitionKey 
+                   && flushPartials == that.flushPartials && replicationType == that.replicationType;
         }
 
         @Override
         public int hashCode()
         {
-            int result = Objects.hash(existing, restrictPartitionKey, partialUpdateType, partitionKey, flushPartials);
+            int result = Objects.hash(existing, restrictPartitionKey, partialUpdateType, partitionKey, flushPartials, replicationType);
             result = 31 * result + Arrays.hashCode(columns);
             return result < 0 ? -result : result;
         }
@@ -194,7 +211,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
         {
             for (int i = 0; i < PARTITIONS_PER_TEST; i++)
             {
-                StringBuilder insert = new StringBuilder("INSERT INTO ").append(KEYSPACE).append('.').append(specification.tableName());
+                StringBuilder insert = new StringBuilder("INSERT INTO ").append(specification.keyspaceName()).append('.').append(specification.tableName());
                 insert.append("(pk, pk2, ck");
 
                 for (Object column : specification.nonKeyColumns())
@@ -220,7 +237,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
                 CLUSTER.coordinator(1).execute(insert.toString(), ConsistencyLevel.ALL);
             }
 
-            CLUSTER.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
+            CLUSTER.get(1).nodetoolResult("repair", specification.keyspaceName()).asserts().success();
         }
 
         public void writeUnrepairedRows()
@@ -269,7 +286,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             }
 
             String dml = String.format("INSERT INTO %s.%s(pk, pk2, ck, %s) VALUES (?, ?, 0, ?) USING TIMESTAMP %d",
-                                       KEYSPACE, specification.tableName(), column, nextTimestamp++);
+                                       specification.keyspaceName(), specification.tableName(), column, nextTimestamp++);
             CLUSTER.get(node).executeInternal(dml, partitionKey, partitionKey, value);
             node = nextNode(node);
             return node;
@@ -283,11 +300,11 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
 
             int partitionKey = specification.partitionKey + partitionIndex;
             String dml = String.format("DELETE %s FROM %s.%s USING TIMESTAMP %d WHERE pk = %d AND pk2 = %d AND ck = 0",
-                                       column, KEYSPACE, specification.tableName(), nextTimestamp++, partitionKey, partitionKey);
+                                       column, specification.keyspaceName(), specification.tableName(), nextTimestamp++, partitionKey, partitionKey);
 
             if (isStatic((String) column))
                 dml = String.format("DELETE %s FROM %s.%s USING TIMESTAMP %d WHERE pk = %d AND pk2 = %d",
-                                    column, KEYSPACE, specification.tableName(), nextTimestamp++, partitionKey, partitionKey);
+                                    column, specification.keyspaceName(), specification.tableName(), nextTimestamp++, partitionKey, partitionKey);
 
             CLUSTER.get(node).executeInternal(dml);
             node = nextNode(node);
@@ -341,7 +358,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             for (Object column : specification.nonKeyColumns())
                 select.append(", ").append(column);
 
-            select.append(" FROM ").append(KEYSPACE).append('.').append(specification.tableName()).append(" WHERE ");
+            select.append(" FROM ").append(specification.keyspaceName()).append('.').append(specification.tableName()).append(" WHERE ");
 
             ArrayList<String> restricted = Lists.newArrayList(specification.columns);
 
@@ -400,6 +417,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
         }
     }
 
+    @SuppressWarnings("ClassEscapesDefinedScope")
     @Parameterized.Parameter
     public Specification specification;
 
@@ -417,33 +435,49 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
             for (boolean restrictPartitionKey : new boolean[] { false, true })
             {
                 for (String[] columns : new String[][] { { "ck", "a" }, { "ck", "s" }, { "s", "a" }, { "a", "b" }, { "s", "x" }, { "s", "y" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
-                    for (boolean existing : new boolean[] { false, true })
+                {
+                    for (boolean existing : new boolean[]{ false, true })
                     {
-                        parameters.add(new Object[] { new Specification(restrictPartitionKey, columns, existing, StatementType.INSERT, nextPartitionKey, flushPartials, EQ) });
+                        parameters.add(new Object[]{ new Specification(restrictPartitionKey, columns, existing, StatementType.INSERT, nextPartitionKey, flushPartials, EQ, ReplicationType.untracked) });
                         nextPartitionKey += PARTITIONS_PER_TEST;
+
+                        if (restrictPartitionKey)
+                        {
+                            parameters.add(new Object[]{ new Specification(true, columns, existing, StatementType.INSERT, nextPartitionKey, flushPartials, EQ, ReplicationType.tracked) });
+                            nextPartitionKey += PARTITIONS_PER_TEST;
+                        }
                     }
+                }
 
                 // Deletion scenarios assume existing data.
                 for (String[] columns : new String[][] { { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
                 {
-                    parameters.add(new Object[] { new Specification(restrictPartitionKey, columns, true, StatementType.DELETE, nextPartitionKey, flushPartials, EQ) });
+                    parameters.add(new Object[] { new Specification(restrictPartitionKey, columns, true, StatementType.DELETE, nextPartitionKey, flushPartials, EQ, ReplicationType.untracked) });
                     nextPartitionKey += PARTITIONS_PER_TEST;
+
+                    if (restrictPartitionKey)
+                    {
+                        parameters.add(new Object[] { new Specification(true, columns, true, StatementType.DELETE, nextPartitionKey, flushPartials, EQ, ReplicationType.tracked) });
+                        nextPartitionKey += PARTITIONS_PER_TEST;
+                    }
                 }
             }
 
             // Note that scenarios around indexes on a partition key element only appear here where we neither
             // delete nor restrict on partition, as both would be nonsensical.
             for (String[] columns : new String[][] { { "pk2", "a" }, { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
-                for (boolean existing : new boolean[] { false, true })
+            {
+                for (boolean existing : new boolean[]{ false, true })
                 {
-                    parameters.add(new Object[]{ new Specification(false, columns, existing, StatementType.INSERT, nextPartitionKey, flushPartials, RANGE) });
+                    parameters.add(new Object[]{ new Specification(false, columns, existing, StatementType.INSERT, nextPartitionKey, flushPartials, RANGE, ReplicationType.untracked) });
                     nextPartitionKey += PARTITIONS_PER_TEST;
                 }
+            }
 
             // Deletion scenarios assume existing data.
             for (String[] columns : new String[][] { { "s", "a" }, { "a", "b" }, { "s", "x" }, { "a", "x" }, { "a", "y" }, { "a" }, { "s" } })
             {
-                parameters.add(new Object[]{ new Specification(false, columns, true, StatementType.DELETE, nextPartitionKey, flushPartials, RANGE) });
+                parameters.add(new Object[]{ new Specification(false, columns, true, StatementType.DELETE, nextPartitionKey, flushPartials, RANGE, ReplicationType.untracked) });
                 nextPartitionKey += PARTITIONS_PER_TEST;
             }
         }
@@ -468,7 +502,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
 
         if (specification.flushPartials)
             // Flushg partial rows from Memtable-attached indexes to SSTable indexes:
-            CLUSTER.stream().forEach(i -> i.flush(KEYSPACE));
+            CLUSTER.stream().forEach(i -> i.flush(specification.keyspaceName()));
 
         // If we wrote an initial (repaired) version of the row, do negative validation.
         // (i.e. Ensure queries that would have initially produced matches no longer do.) 
@@ -483,7 +517,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
     @After
     public void truncateTable()
     {
-        CLUSTER.coordinator(1).execute(String.format("TRUNCATE TABLE %s.%s ", KEYSPACE, specification.tableName()), ALL);
+        CLUSTER.coordinator(1).execute(String.format("TRUNCATE TABLE %s.%s ", specification.keyspaceName(), specification.tableName()), ALL);
     }
 
     @AfterClass
