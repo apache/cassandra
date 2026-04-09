@@ -4355,7 +4355,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             try
             {
-                updateProximityInternal(null, true, dynamicUpdateInterval, null, null);
+                updateProximityInternal(null, () -> {}, true, dynamicUpdateInterval, null, null);
             }
             catch (ClassNotFoundException e)
             {
@@ -4372,16 +4372,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
         Supplier<NodeProximity> factory = () -> new SnitchAdapter(DatabaseDescriptor.createEndpointSnitch(epSnitchClassName));
-        updateProximityInternal(factory, dynamic, dynamicUpdateInterval, dynamicResetInterval, dynamicBadnessThreshold);
+        updateProximityInternal(factory, () -> DatabaseDescriptor.setEndpointSnitchClassName(epSnitchClassName), dynamic, dynamicUpdateInterval, dynamicResetInterval, dynamicBadnessThreshold);
     }
 
     public void updateNodeProximity(String npsClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
         Supplier<NodeProximity> factory = () -> DatabaseDescriptor.createProximityImpl(npsClassName);
-        updateProximityInternal(factory, dynamic, dynamicUpdateInterval, dynamicResetInterval, dynamicBadnessThreshold);
+        updateProximityInternal(factory, () -> DatabaseDescriptor.setNodeProximityClassName(npsClassName), dynamic, dynamicUpdateInterval, dynamicResetInterval, dynamicBadnessThreshold);
     }
 
-    private void updateProximityInternal(Supplier<NodeProximity> implSupplier, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
+    private void updateProximityInternal(Supplier<NodeProximity> implSupplier, Runnable configUpdater, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException
     {
         // apply dynamic snitch configuration
         if (dynamicUpdateInterval != null)
@@ -4427,6 +4427,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // point reference to the new instance
             DatabaseDescriptor.setNodeProximity(newProximity);
+
+            // update Config so the Settings Virtual Table reflects the runtime state
+            configUpdater.run();
+            if (dynamic != null)
+                DatabaseDescriptor.setDynamicSnitch(dynamic);
         }
         else
         {
