@@ -321,7 +321,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
 
-        if (!state.hasTablePermission(table, Permission.UNMASK) &&
+        if (table.hasMaskedColumns() &&
+            !state.hasTablePermission(table, Permission.UNMASK) &&
             !state.hasTablePermission(table, Permission.SELECT_MASKED))
         {
             List<ColumnMetadata> queriedMaskedColumns = table.columns()
