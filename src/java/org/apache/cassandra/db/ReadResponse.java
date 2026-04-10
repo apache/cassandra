@@ -22,8 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.datastax.shaded.netty.util.concurrent.FastThreadLocal;
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -38,6 +40,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ExpMovingAverage;
+import org.apache.cassandra.utils.MovingAverage;
 
 import static org.apache.cassandra.db.RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
 
@@ -224,6 +228,16 @@ public abstract class ReadResponse
     // built on the owning node responding to a query
     private static class LocalDataResponse extends DataResponse
     {
+        // Exponential moving average of response sizes, used to set initial size of output buffer.
+        private static final MovingAverage estimatedResponseBytes = ExpMovingAverage.decayBy1000();
+        // Thread-local ByteBuffer pool to avoid repeated buffer allocation during serialization.
+        // The pooled buffer naturally grows to the high-water mark for each thread and is reused
+        // across calls, while a right-sized copy is returned for each response.
+        private static final FastThreadLocal<ByteBuffer> reusableBuffer = new FastThreadLocal<>();
+
+        private static final int bufferInitialSizeMin = CassandraRelevantProperties.DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN.getInt();
+        private static final int bufferPooledSizeMax = CassandraRelevantProperties.DATA_RESPONSE_BUFFER_POOLED_SIZE_MAX.getInt();
+
         private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi)
         {
             super(build(iter, command.columnFilter()),
@@ -239,10 +253,48 @@ public abstract class ReadResponse
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
         {
-            try (DataOutputBuffer buffer = new DataOutputBuffer())
+            double estimatedResponseSize = estimatedResponseBytes.get();
+            double bufferSizeEstimate = Double.isNaN(estimatedResponseSize) ? bufferInitialSizeMin : estimatedResponseSize;
+            int initialBufferSize = (int) (bufferSizeEstimate * 1.1);
+
+
+            ByteBuffer pooled = reusableBuffer.get();
+            if (pooled != null && pooled.capacity() >= initialBufferSize)
+            {
+                pooled.clear();
+            }
+            else
+            {
+                pooled = ByteBuffer.allocate(initialBufferSize);
+            }
+
+            try (DataOutputBuffer buffer = new DataOutputBuffer(pooled))
             {
                 UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, selection, buffer, MessagingService.current_version);
-                return buffer.buffer();
+                estimatedResponseBytes.update(buffer.position());
+
+                // Reclaim the (possibly grown) internal buffer for thread-local reuse.
+                // buffer(false) flips and nullifies the internal reference, so close() is a no-op.
+                ByteBuffer internal = buffer.buffer(false);
+
+                // Copy serialized data to a right-sized heap buffer for the response.
+                // This creates a new copy of the data but avoids creating an oversized buffer downstream.
+                byte[] data = new byte[internal.remaining()];
+                internal.get(data);
+
+                // Return the working buffer to the pool if within size limit.
+                if (internal.capacity() <= bufferPooledSizeMax)
+                {
+                    internal.clear();
+                    reusableBuffer.set(internal);
+                }
+                else
+                {
+                    // discard the buffer when it grows beyond bufferPooledSizeMax, instead of being pooled
+                    reusableBuffer.set(null);
+                }
+
+                return ByteBuffer.wrap(data);
             }
             catch (IOException e)
             {
