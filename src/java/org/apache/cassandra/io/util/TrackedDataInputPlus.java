@@ -22,6 +22,8 @@ import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import net.nicoulaj.compilecommand.annotations.Inline;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -29,11 +31,12 @@ import org.apache.cassandra.db.TypeSizes;
 /**
  * This class is to track bytes read from given DataInput
  */
+@NotThreadSafe
 public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 {
     private long bytesRead;
-    private final long limit;
-    final DataInput source;
+    private long limit;
+    private DataInput source;
 
     /**
      * Create a TrackedDataInputPlus from given DataInput with no limit of bytes to read
@@ -64,6 +67,19 @@ public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
     public void reset(long count)
     {
         bytesRead = count;
+    }
+
+    /**
+     * Resets the tracked {@link DataInputPlus} with the given {@code source} and {@code limit}
+     *
+     * @param source the original source of {@link DataInput}
+     * @param limit  the limit number of bytes to read
+     */
+    public void reset(DataInput source, long limit)
+    {
+        this.source = source;
+        this.limit = limit;
+        this.bytesRead = 0;
     }
 
     public boolean readBoolean() throws IOException

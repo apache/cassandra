@@ -36,7 +36,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.SearchIterator;
@@ -601,7 +600,7 @@ public class UnfilteredSerializer
             {
                 long rowSize = in.readUnsignedVInt();
                 in.readUnsignedVInt(); // previous unfiltered size
-                in = new TrackedDataInputPlus(in, rowSize);
+                in = helper.trackedDataInputPlus(in, rowSize);
             }
 
             LivenessInfo rowLiveness = LivenessInfo.EMPTY;
