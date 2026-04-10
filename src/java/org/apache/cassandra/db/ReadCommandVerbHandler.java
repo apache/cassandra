@@ -19,6 +19,8 @@ package org.apache.cassandra.db;
 
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -87,17 +90,28 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         {
             response = command.createResponse(iterator, controller.getRepairedDataInfo());
         }
+        catch (AssertionError t)
+        {
+            throw new AssertionError(String.format("Caught an error while trying to process the command: %s", command.toCQLString()), t);
+        }
+        catch (QueryCancelledException e)
+        {
+            logger.debug("Query cancelled (timeout)", e);
+            response = null;
+            Preconditions.checkState(!command.isCompleted(), "Read marked as completed despite being aborted by timeout to table %s", command.metadata());
+        }
 
-        if (!command.complete())
+        if (command.complete())
+        {
+            Tracing.trace("Enqueuing response to {}", message.from());
+            Message<ReadResponse> reply = message.responseWith(response);
+            MessagingService.instance().send(reply, message.from());
+        }
+        else
         {
             Tracing.trace("Discarding partial response to {} (timed out)", message.from());
             MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
-            return;
         }
-
-        Tracing.trace("Enqueuing response to {}", message.from());
-        Message<ReadResponse> reply = message.responseWith(response);
-        MessagingService.instance().send(reply, message.from());
     }
 
     private void validateTransientStatus(Message<ReadCommand> message)

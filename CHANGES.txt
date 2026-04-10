@@ -1,4 +1,5 @@
 4.0.21
+ * Backport CASSANDRA-17810 fix and improve RTBoundValidator error messages (CASSANDRA-18282)
 
 
 4.0.20
