@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
+import java.io.DataInput;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
@@ -25,6 +26,7 @@ import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.DroppedColumn;
 import org.apache.cassandra.schema.TableMetadata;
@@ -57,6 +59,8 @@ public class DeserializationHelper
     private final Map<ByteBuffer, DroppedColumn> droppedColumns;
     private DroppedColumn currentDroppedComplex;
 
+    // Reusable per-partition tracker for row-size-bounded reads in SSTable deserialization.
+    private TrackedDataInputPlus trackedInput;
 
     public DeserializationHelper(TableMetadata metadata, int version, Flag flag, ColumnFilter columnsToFetch)
     {
@@ -147,5 +151,20 @@ public class DeserializationHelper
         return flag == Flag.FROM_REMOTE || (flag == Flag.LOCAL && CounterContext.instance().shouldClearLocal(value, accessor))
                ? CounterContext.instance().clearAllLocal(value, accessor)
                : value;
+    }
+
+    /**
+     * @param source the original source of {@link DataInput}
+     * @param limit  the limit number of bytes to read
+     * @return a reusable {@link TrackedDataInputPlus}. The instance is lazily created on
+     * first use and reused for every row in the partition.
+     */
+    public TrackedDataInputPlus trackedDataInputPlus(DataInput source, long limit)
+    {
+        if (trackedInput == null)
+            trackedInput = new TrackedDataInputPlus(source, limit);
+        else
+            trackedInput.reset(source, limit);
+        return trackedInput;
     }
 }
