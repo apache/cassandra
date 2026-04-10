@@ -5,6 +5,7 @@
 Merged from 5.0:
  * Backport Automated Repair Inside Cassandra for CEP-37 (CASSANDRA-21138)
 Merged from 4.1:
+ * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 Merged from 4.0:
  * Rate limit password changes (CASSANDRA-21202)
 
