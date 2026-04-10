@@ -46,6 +46,7 @@ import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
 import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexNotAvailableException;
@@ -391,7 +392,8 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         try
         {
-            iterator = withStateTracking(iterator);
+            iterator = maybeSlowDownForTesting(iterator);
+            iterator = withQueryCancellation(iterator);
             iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
             iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -557,9 +559,9 @@ public abstract class ReadCommand extends AbstractReadQuery
         return Transformation.apply(iter, new MetricRecording());
     }
 
-    protected class CheckForAbort extends StoppingTransformation<UnfilteredRowIterator>
+    private class QueryCancellationChecker extends StoppingTransformation<UnfilteredRowIterator>
     {
-        long lastChecked = 0;
+        long lastCheckedAt = 0;
 
         @Override
         protected void attachTo(BasePartitions partitions)
@@ -577,57 +579,70 @@ public abstract class ReadCommand extends AbstractReadQuery
             this.rows = rows;
         }
 
+        @Override
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
-            if (maybeAbort())
-            {
-                partition.close();
-                return null;
-            }
-
+            maybeCancel();
             return Transformation.apply(partition, this);
         }
 
+        @Override
         protected Row applyToRow(Row row)
         {
-            if (TEST_ITERATION_DELAY_MILLIS > 0)
-                maybeDelayForTesting();
-
-            return maybeAbort() ? null : row;
+            maybeCancel();
+            return row;
         }
 
-        private boolean maybeAbort()
+        private void maybeCancel()
         {
-            /**
-             * TODO: this is not a great way to abort early; why not expressly limit checks to 10ms intervals?
+            /*
              * The value returned by approxTime.now() is updated only every
-             * {@link org.apache.cassandra.utils.MonotonicClock.SampledClock.CHECK_INTERVAL_MS}, by default 2 millis. Since MonitorableImpl
-             * relies on approxTime, we don't need to check unless the approximate time has elapsed.
+             * {@link org.apache.cassandra.utils.MonotonicClock.SampledClock.CHECK_INTERVAL_MS}, by default 2 millis.
+             * Since MonitorableImpl relies on approxTime, we don't need to check unless the approximate time has elapsed.
              */
-            if (lastChecked == approxTime.now())
-                return false;
-
-            lastChecked = approxTime.now();
+            if (lastCheckedAt == approxTime.now())
+                return;
+            lastCheckedAt = approxTime.now();
 
             if (isAborted())
             {
                 stop();
-                return true;
+                throw new QueryCancelledException(ReadCommand.this);
             }
-
-            return false;
-        }
-
-        private void maybeDelayForTesting()
-        {
-            if (!metadata().keyspace.startsWith("system"))
-                FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
         }
     }
 
-    protected UnfilteredPartitionIterator withStateTracking(UnfilteredPartitionIterator iter)
+    private UnfilteredPartitionIterator withQueryCancellation(UnfilteredPartitionIterator iter)
     {
-        return Transformation.apply(iter, new CheckForAbort());
+        return Transformation.apply(iter, new QueryCancellationChecker());
+    }
+
+    /**
+     * A transformation used for simulating slow queries by tests.
+     */
+    private static class DelayInjector extends Transformation<UnfilteredRowIterator>
+    {
+        @Override
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+        {
+            FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
+            return Transformation.apply(partition, this);
+        }
+
+        @Override
+        protected Row applyToRow(Row row)
+        {
+            FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
+            return row;
+        }
+    }
+
+    private UnfilteredPartitionIterator maybeSlowDownForTesting(UnfilteredPartitionIterator iter)
+    {
+        if (TEST_ITERATION_DELAY_MILLIS > 0 && !SchemaConstants.isSystemKeyspace(metadata().keyspace))
+            return Transformation.apply(iter, new DelayInjector());
+        else
+            return iter;
     }
 
     /**

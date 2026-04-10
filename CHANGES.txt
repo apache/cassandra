@@ -1,4 +1,5 @@
 4.0.21
+ * Fix "illegal Range Tombstone bounds sequence" exception on timed-out reads (CASSANDRA-18282)
 
 
 4.0.20
