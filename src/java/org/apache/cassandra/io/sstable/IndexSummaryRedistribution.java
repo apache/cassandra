@@ -23,8 +23,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -153,6 +155,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         // Going from the coldest to the hottest sstables, try to give each sstable an amount of space proportional
         // to the number of total reads/sec it handles.
         remainingSpace = memoryPoolCapacity;
+        // group sstables to be cancelled by table id
+        Map<TableId, Set<SSTableReader>> sstablesToCancelByTableId = new HashMap<>();
         for (SSTableReader sstable : sstables)
         {
             if (isStopRequested())
@@ -232,7 +236,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 logger.trace("SSTable {} is within thresholds of ideal sampling", sstable);
                 remainingSpace -= sstable.getIndexSummaryOffHeapSize();
                 newSSTables.add(sstable);
-                transactions.get(sstable.metadata().id).cancel(sstable);
+                sstablesToCancelByTableId.computeIfAbsent(sstable.metadata().id, k -> new HashSet<>()).add(sstable);
             }
             totalReadsPerSec -= readsPerSec;
         }
@@ -242,8 +246,15 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             Pair<List<SSTableReader>, List<ResampleEntry>> result = distributeRemainingSpace(toDownsample, remainingSpace);
             toDownsample = result.right;
             newSSTables.addAll(result.left);
-            for (SSTableReader sstable : result.left)
-                transactions.get(sstable.metadata().id).cancel(sstable);
+            // group by tableId then do cancel in one-go
+            for (SSTableReader sstable : result.left) {
+                sstablesToCancelByTableId.computeIfAbsent(sstable.metadata().id, k -> new HashSet<>()).add(sstable);
+            }
+        }
+
+        // remove the sstables from Txn and unmark them from compacting in batch
+        for (Map.Entry<TableId, Set<SSTableReader>> entry : sstablesToCancelByTableId.entrySet()) {
+            transactions.get(entry.getKey()).cancel(entry.getValue());
         }
 
         // downsample first, then upsample
