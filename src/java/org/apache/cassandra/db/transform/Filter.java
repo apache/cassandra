@@ -21,7 +21,12 @@
 package org.apache.cassandra.db.transform;
 
 import org.apache.cassandra.db.DeletionPurger;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 public final class Filter extends Transformation
 {
@@ -35,7 +40,6 @@ public final class Filter extends Transformation
     }
 
     @Override
-    @SuppressWarnings("resource")
     protected RowIterator applyToPartition(BaseRowIterator iterator)
     {
         return iterator instanceof UnfilteredRows

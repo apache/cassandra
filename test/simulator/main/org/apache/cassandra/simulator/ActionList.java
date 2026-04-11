@@ -41,6 +41,10 @@ public class ActionList extends AbstractCollection<Action>
     public static ActionList empty() { return EMPTY; }
     public static ActionList of(Action action) { return new ActionList(new Action[] { action }); }
     public static ActionList of(Stream<Action> action) { return new ActionList(action.toArray(Action[]::new)); }
+    public static ActionList of(Stream<Action> action, Stream<Action>... actions)
+    {
+        return new ActionList(Stream.concat(action, Stream.of(actions).flatMap(a -> a)).toArray(Action[]::new));
+    }
     public static ActionList of(Collection<Action> actions) { return actions.isEmpty() ? EMPTY : new ActionList(actions.toArray(new Action[0])); }
     public static ActionList of(Action ... actions) { return new ActionList(actions); }
 
@@ -64,6 +68,11 @@ public class ActionList extends AbstractCollection<Action>
     public Action get(int i)
     {
         return actions[i];
+    }
+
+    public Action asAction(Action.Modifiers self, Action.Modifiers children, String description)
+    {
+        return Actions.of(self, children, description, () -> this);
     }
 
     public Iterator<Action> iterator()
@@ -114,6 +123,13 @@ public class ActionList extends AbstractCollection<Action>
     {
         if (isEmpty()) return this;
         StrictSequential orderOn = new StrictSequential(on);
+        forEach(a -> a.orderOn(orderOn));
+        return this;
+    }
+
+    public ActionList orderOn(OrderOn orderOn)
+    {
+        if (isEmpty()) return this;
         forEach(a -> a.orderOn(orderOn));
         return this;
     }

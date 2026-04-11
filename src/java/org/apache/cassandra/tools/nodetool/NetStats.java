@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.util.Set;
 
@@ -32,15 +29,21 @@ import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Option;
 
 @Command(name = "netstats", description = "Print network information on provided host (connecting node by default)")
-public class NetStats extends NodeToolCmd
+public class NetStats extends AbstractCommand
 {
-    @Option(title = "human_readable",
-            name = {"-H", "--human-readable"},
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
+
+    @Mixin
+    private PrintPortMixin printPortMixin = new PrintPortMixin();
 
     @Override
     public void execute(NodeProbe probe)
@@ -55,11 +58,11 @@ public class NetStats extends NodeToolCmd
             out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
             for (SessionInfo info : status.sessions)
             {
-                out.printf("    %s", InetAddressAndPort.toString(info.peer, printPort));
+                out.printf("    %s", InetAddressAndPort.toString(info.peer, printPortMixin.printPort));
                 // print private IP when it is used
                 if (!info.peer.equals(info.connecting))
                 {
-                    out.printf(" (using %s)", InetAddressAndPort.toString(info.connecting, printPort));
+                    out.printf(" (using %s)", InetAddressAndPort.toString(info.connecting, printPortMixin.printPort));
                 }
                 out.printf("%n");
                 if (!info.receivingSummaries.isEmpty())
@@ -143,7 +146,7 @@ public class NetStats extends NodeToolCmd
 
         for (ProgressInfo progress : info.getReceivingFiles())
         {
-            out.printf("            %s%n", progress.toString(printPort));
+            out.printf("            %s%n", progress.toString(printPortMixin.printPort));
         }
     }
 
@@ -167,7 +170,7 @@ public class NetStats extends NodeToolCmd
 
         for (ProgressInfo progress : info.getSendingFiles())
         {
-            out.printf("            %s%n", progress.toString(printPort));
+            out.printf("            %s%n", progress.toString(printPortMixin.printPort));
         }
     }
 }

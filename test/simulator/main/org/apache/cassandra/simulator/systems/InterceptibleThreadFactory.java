@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.systems;
 
 import java.io.Serializable;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 
@@ -28,7 +29,7 @@ public interface InterceptibleThreadFactory extends ThreadFactory
     public interface MetaFactory<F extends ThreadFactory> extends Serializable
     {
         F create(String id, int priority, ClassLoader contextClassLoader, Thread.UncaughtExceptionHandler uncaughtExceptionHandler,
-                 ThreadGroup threadGroup, Runnable onTermination, SimulatedTime.LocalTime time, InterceptingExecutorFactory parent, Object extraToStringInfo);
+                 ThreadGroup threadGroup, Runnable onTermination, SimulatedTime.LocalTime time, InterceptingExecutorFactory parent, Object extraToStringInfo, Supplier<Long> idSupplier);
     }
 
     public static class ConcreteInterceptibleThreadFactory extends NamedThreadFactory implements InterceptibleThreadFactory
@@ -37,16 +38,18 @@ public interface InterceptibleThreadFactory extends ThreadFactory
         final Runnable onTermination;
         final SimulatedTime.LocalTime time;
         final Object extraToStringInfo;
+        final Supplier<Long> idSupplier;
 
         public ConcreteInterceptibleThreadFactory(String id, int priority, ClassLoader contextClassLoader, Thread.UncaughtExceptionHandler uncaughtExceptionHandler,
                                                   ThreadGroup threadGroup, Runnable onTermination, SimulatedTime.LocalTime time,
-                                                  InterceptingExecutorFactory parent, Object extraToStringInfo)
+                                                  InterceptingExecutorFactory parent, Object extraToStringInfo, Supplier<Long> idSupplier)
         {
             super(id, priority, contextClassLoader, threadGroup, uncaughtExceptionHandler);
             this.onTermination = onTermination;
             this.time = time;
             this.parent = parent;
             this.extraToStringInfo = extraToStringInfo;
+            this.idSupplier = idSupplier;
         }
 
         @Override
@@ -58,7 +61,9 @@ public interface InterceptibleThreadFactory extends ThreadFactory
         @Override
         protected synchronized InterceptibleThread newThread(ThreadGroup threadGroup, Runnable runnable, String name)
         {
-            InterceptibleThread thread = new InterceptibleThread(threadGroup, runnable, name, extraToStringInfo, onTermination, parent.interceptorOfGlobalMethods, time);
+            // Can not use NamedThreadFactory.globalPrefix() as this method runs in the App class loader and not the Instance class loader; the ThreadGroup's name can act as a proxy for this.
+            String threadName = threadGroup.getName() + '_' + name;
+            InterceptibleThread thread = new InterceptibleThread(threadGroup, runnable, threadName, extraToStringInfo, onTermination, parent.interceptorOfGlobalMethods, time, idSupplier.get());
             if (parent.isClosed)
                 thread.trapInterrupts(false);
             return setupThread(thread);
@@ -70,7 +75,7 @@ public interface InterceptibleThreadFactory extends ThreadFactory
         final Runnable onTermination;
 
         public PlainThreadFactory(String id, int priority, ClassLoader contextClassLoader, Thread.UncaughtExceptionHandler uncaughtExceptionHandler,
-                                  ThreadGroup threadGroup, Runnable onTermination, SimulatedTime.LocalTime time, InterceptingExecutorFactory parent, Object extraToStringInfo)
+                                  ThreadGroup threadGroup, Runnable onTermination, SimulatedTime.LocalTime time, InterceptingExecutorFactory parent, Object extraToStringInfo, Supplier<Long> idSupplier)
         {
             super(id, priority, contextClassLoader, threadGroup, uncaughtExceptionHandler);
             this.onTermination = onTermination;
@@ -79,7 +84,7 @@ public interface InterceptibleThreadFactory extends ThreadFactory
         @Override
         protected Thread newThread(ThreadGroup threadGroup, Runnable runnable, String name)
         {
-            return super.newThread(threadGroup, () -> { try { runnable.run(); } finally { onTermination.run();} }, name);
+            return super.newThread(threadGroup, () -> { try { runnable.run(); } finally { onTermination.run();} }, threadGroup.getName() + '_' + name);
         }
     }
 

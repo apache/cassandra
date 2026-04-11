@@ -22,6 +22,7 @@ import java.io.IOException;
 import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 
 import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
+import static org.apache.cassandra.locator.AlibabaCloudLocationProvider.DEFAULT_METADATA_SERVICE_URL;
 
 /**
  * A snitch that assumes an ECS region is a DC and an ECS availability_zone
@@ -29,12 +30,11 @@ import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector
  * format of the zone-id is like 'cn-hangzhou-a' where cn means china, hangzhou
  * means the hangzhou region, a means the az id. We use 'cn-hangzhou' as the dc,
  * and 'a' as the zone-id.
+ * @deprecated See CASSANDRA-19488
  */
+@Deprecated(since = "CEP-21")
 public class AlibabaCloudSnitch extends AbstractCloudMetadataServiceSnitch
 {
-    static final String DEFAULT_METADATA_SERVICE_URL = "http://100.100.100.200";
-    static final String ZONE_NAME_QUERY_URL = "/latest/meta-data/zone-id";
-
     public AlibabaCloudSnitch() throws IOException
     {
         this(new SnitchProperties());
@@ -48,7 +48,6 @@ public class AlibabaCloudSnitch extends AbstractCloudMetadataServiceSnitch
 
     public AlibabaCloudSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, SnitchUtils.parseDcAndRack(connector.apiCall(ZONE_NAME_QUERY_URL),
-                                                    connector.getProperties().getDcSuffix()));
+        super(new AlibabaCloudLocationProvider(connector));
     }
 }

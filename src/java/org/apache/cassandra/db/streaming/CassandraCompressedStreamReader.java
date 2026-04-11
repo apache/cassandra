@@ -53,7 +53,6 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
      * @throws java.io.IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
     @Override
-    @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     public SSTableMultiWriter read(DataInputPlus inputPlus) throws Throwable
     {
         long totalSize = totalSize();
@@ -75,8 +74,8 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
         try (CompressedInputStream cis = new CompressedInputStream(inputPlus, compressionInfo, ChecksumType.CRC32, cfs::getCrcCheckChance))
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
-            deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
+            deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()), session, writer);
             String filename = writer.getFilename();
             String sectionName = filename + '-' + fileSeqNum;
             int sectionIdx = 0;
@@ -85,7 +84,10 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 assert cis.chunkBytesRead() <= totalSize;
                 long sectionLength = section.upperPosition - section.lowerPosition;
 
-                logger.trace("[Stream #{}] Reading section {} with length {} from stream.", session.planId(), sectionIdx++, sectionLength);
+                sectionIdx++;
+                if (logger.isTraceEnabled())
+                    logger.trace("[Stream #{}] Reading section {} with length {} from stream.", session.planId(), sectionIdx, sectionLength);
+
                 // skip to beginning of section inside chunk
                 cis.position(section.lowerPosition);
                 in.reset(0);

@@ -19,6 +19,9 @@ package org.apache.cassandra.index.sasi.analyzer.filter;
 
 import java.util.Locale;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
+
 /**
  * Basic/General Token Filters
  */
@@ -42,7 +45,7 @@ public class BasicResultFilters
 
         public String process(String input) throws Exception
         {
-            return input.toLowerCase(locale);
+            return toLowerCaseLocalized(input, locale);
         }
     }
 
@@ -62,7 +65,7 @@ public class BasicResultFilters
 
         public String process(String input) throws Exception
         {
-            return input.toUpperCase(locale);
+            return toUpperCaseLocalized(input, locale);
         }
     }
 

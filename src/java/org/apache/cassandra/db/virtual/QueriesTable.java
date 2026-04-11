@@ -17,16 +17,20 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.stream.Stream;
+
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.AccordService;
 
 import static java.lang.Long.max;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Virtual table that lists currently running queries on the NTR (coordinator) and Read/Mutation (local) stages
@@ -37,7 +41,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  *
  *  thread_id                   | queued_micros |  running_micros | task
  * ------------------------------+---------------+-----------------+--------------------------------------------------------------------------------
- *  Native-Transport-Requests-7 |         72923 |            7611 |                      QUERY select * from system_views.queries; [pageSize = 100]
+ *  Native-Transport-Requests-7 |         72923 |            7611 |                      QUERY SELECT * FROM system_views.queries; [pageSize = 100]
  *              MutationStage-2 |         18249 |            2084 | Mutation(keyspace='distributed_test_keyspace', key='000000f8', modifications...
  *                  ReadStage-2 |         72447 |           10121 |                                         SELECT * FROM keyspace.table LIMIT 5000
  * </pre>
@@ -71,24 +75,29 @@ final class QueriesTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        
-        for (DebuggableTask.RunningDebuggableTask task : SharedExecutorPool.SHARED.runningTasks())
-        {
-            if (!task.hasTask()) continue;
-            
+
+        Stream<? extends DebuggableTask.DebuggableTaskRunner> streams = Stream.concat(
+            SharedExecutorPool.SHARED.workers(),
+            AccordService.started() ? AccordService.instance().executors().stream().flatMap(AccordExecutor::active) : Stream.of()
+        );
+        streams.forEach(runner -> {
+            DebuggableTask task = runner.running();
+            if (task == null) return;
+
+            String id = runner.id();
             long creationTimeNanos = task.creationTimeNanos();
             long startTimeNanos = task.startTimeNanos();
-            long now = approxTime.now();
+            long now = nanoTime();
 
             long queuedMicros = NANOSECONDS.toMicros(max((startTimeNanos > 0 ? startTimeNanos : now) - creationTimeNanos, 0));
             long runningMicros = startTimeNanos > 0 ? NANOSECONDS.toMicros(now - startTimeNanos) : 0;
-            
-            result.row(task.threadId())
+
+            result.row(id)
                   .column(QUEUED, queuedMicros)
                   .column(RUNNING, runningMicros)
                   .column(DESC, task.description());
-        }
-        
+        });
+
         return result;
     }
 }

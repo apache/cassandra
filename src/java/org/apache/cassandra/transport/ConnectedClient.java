@@ -25,9 +25,13 @@ import java.util.Optional;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 
-import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.service.ClientState;
+
+import io.netty.handler.ssl.SslHandler;
+
+import static org.apache.cassandra.auth.IAuthenticator.AuthenticationMode.UNAUTHENTICATED;
 
 public final class ConnectedClient
 {
@@ -42,6 +46,8 @@ public final class ConnectedClient
     public static final String SSL = "ssl";
     public static final String CIPHER = "cipher";
     public static final String PROTOCOL = "protocol";
+    public static final String AUTHENTICATION_MODE = "authenticationMode";
+    public static final String AUTHENTICATION_METADATA = "authenticationMetadata";
 
     private static final String UNDEFINED = "undefined";
 
@@ -124,6 +130,24 @@ public final class ConnectedClient
              : Optional.empty();
     }
 
+    public Map<String, Object> authenticationMetadata()
+    {
+        AuthenticatedUser user = state().getUser();
+
+        return null != user
+                ? user.getMetadata()
+                : Collections.emptyMap();
+    }
+
+    public IAuthenticator.AuthenticationMode authenticationMode()
+    {
+        AuthenticatedUser user = state().getUser();
+
+        return null != user
+                ? user.getAuthenticationMode()
+                : UNAUTHENTICATED;
+    }
+
     private ClientState state()
     {
         return connection.getClientState();
@@ -150,6 +174,10 @@ public final class ConnectedClient
                            .put(SSL, Boolean.toString(sslEnabled()))
                            .put(CIPHER, sslCipherSuite().orElse(UNDEFINED))
                            .put(PROTOCOL, sslProtocol().orElse(UNDEFINED))
+                           .put(AUTHENTICATION_MODE, authenticationMode().toString())
+                           .put(AUTHENTICATION_METADATA, Joiner.on(", ")
+                                                               .withKeyValueSeparator("=")
+                                                               .join(authenticationMetadata()))
                            .build();
     }
 }

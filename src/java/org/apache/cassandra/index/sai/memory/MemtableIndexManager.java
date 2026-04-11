@@ -19,7 +19,9 @@
 package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -29,47 +31,65 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class MemtableIndexManager
 {
-    private final IndexContext indexContext;
+    private final StorageAttachedIndex index;
     private final ConcurrentMap<Memtable, MemtableIndex> liveMemtableIndexMap;
 
-    public MemtableIndexManager(IndexContext indexContext)
+    public MemtableIndexManager(StorageAttachedIndex index)
     {
-        this.indexContext = indexContext;
+        this.index = index;
         this.liveMemtableIndexMap = new ConcurrentHashMap<>();
     }
 
-    public long index(DecoratedKey key, Row row, Memtable mt)
+    public void maybeInitializeMemtableIndex(Memtable memtable)
+    {
+        if (index.termType().isVector())
+            initializeMemtableIndex(memtable);
+    }
+
+    private MemtableIndex initializeMemtableIndex(Memtable mt)
     {
         MemtableIndex current = liveMemtableIndexMap.get(mt);
 
         // We expect the relevant IndexMemtable to be present most of the time, so only make the
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
-        MemtableIndex target = (current != null)
-                               ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(indexContext));
+        return current != null ? current
+                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(index, memtable));
+    }
+
+    public long index(DecoratedKey key, Row row, Memtable mt)
+    {
+        MemtableIndex target = initializeMemtableIndex(mt);
 
         long start = Clock.Global.nanoTime();
 
         long bytes = 0;
 
-        if (indexContext.isNonFrozenCollection())
+        if (index.termType().isNonFrozenCollection())
         {
-            Iterator<ByteBuffer> bufferIterator = indexContext.getValuesOf(row, FBUtilities.nowInSeconds());
+            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOf(row, FBUtilities.nowInSeconds());
+            if (bufferIterator != null)
+            {
+                while (bufferIterator.hasNext())
+                {
+                    ByteBuffer value = bufferIterator.next();
+                    bytes += target.index(key, row.clustering(), value);
+                }
+            }
+        }
+        else if (index.termType().isFrozenCollection() && index.termType().indexTargetType() != IndexTarget.Type.FULL)
+        {
+            Iterator<ByteBuffer> bufferIterator = index.termType().valuesOfFrozenCollection(row, FBUtilities.nowInSeconds());
             if (bufferIterator != null)
             {
                 while (bufferIterator.hasNext())
@@ -81,11 +101,27 @@ public class MemtableIndexManager
         }
         else
         {
-            ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
+            ByteBuffer value = index.termType().valueOf(key, row, FBUtilities.nowInSeconds());
             bytes += target.index(key, row.clustering(), value);
         }
-        indexContext.getIndexMetrics().memtableIndexWriteLatency.update(Clock.Global.nanoTime() - start, TimeUnit.NANOSECONDS);
+        index.indexMetrics().memtableIndexWriteLatency.update(Clock.Global.nanoTime() - start, TimeUnit.NANOSECONDS);
         return bytes;
+    }
+
+    public long update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
+    {
+        if (!index.termType().isVector())
+        {
+            return index(key, newRow, memtable);
+        }
+
+        // Updates should only be able to happen on memtables that were already created and that are still live.
+        MemtableIndex target = liveMemtableIndexMap.get(memtable);
+        assert target != null : "Memtable for " + memtable.metadata().getTableName() + " not found";
+
+        ByteBuffer oldValue = index.termType().valueOf(key, oldRow, FBUtilities.nowInSeconds());
+        ByteBuffer newValue = index.termType().valueOf(key, newRow, FBUtilities.nowInSeconds());
+        return target.update(key, oldRow.clustering(), oldValue, newValue);
     }
 
     public void renewMemtable(Memtable renewed)
@@ -106,37 +142,28 @@ public class MemtableIndexManager
     }
 
     @Nullable
-    public MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker)
+    public MemtableIndex getPendingMemtableIndex(ILifecycleTransaction txn)
     {
         return liveMemtableIndexMap.keySet().stream()
-                                   .filter(m -> tracker.equals(m.getFlushTransaction()))
+                                   .filter(m -> txn.equals(m.getFlushTransaction()))
                                    .findFirst()
                                    .map(liveMemtableIndexMap::get)
                                    .orElse(null);
     }
 
-    public KeyRangeIterator searchMemtableIndexes(Expression e, AbstractBounds<PartitionPosition> keyRange)
-    {
-        Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
-
-        if (memtableIndexes.isEmpty())
-        {
-            return KeyRangeIterator.empty();
-        }
-
-        KeyRangeIterator.Builder builder = KeyRangeUnionIterator.builder(memtableIndexes.size());
-
-        for (MemtableIndex memtableIndex : memtableIndexes)
-        {
-            builder.add(memtableIndex.search(e, keyRange));
-        }
-
-        return builder.build();
-    }
-
     public long liveMemtableWriteCount()
     {
         return liveMemtableIndexMap.values().stream().mapToLong(MemtableIndex::writeCount).sum();
+    }
+
+    public Collection<MemtableIndex> getLiveMemtableIndexesSnapshot()
+    {
+        Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
+        if (memtableIndexes.isEmpty())
+            return Collections.emptyList();
+
+        // Copy the values. Otherwise, we'll only have a view of the map's values which is subject to change.
+        return new ArrayList<>(memtableIndexes);
     }
 
     public long estimatedMemIndexMemoryUsed()

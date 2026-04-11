@@ -17,13 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -37,21 +33,23 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
 public final class CreateKeyspaceStatement extends AlterSchemaStatement
 {
-    private static final Logger logger = LoggerFactory.getLogger(CreateKeyspaceStatement.class);
-
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
-    private final HashSet<String> clientWarnings = new HashSet<>();
+    private String expandedCql;
 
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
@@ -60,7 +58,22 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public String cql()
+    {
+        if (expandedCql != null)
+            return expandedCql;
+        return super.cql();
+    }
+
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+    }
+
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
@@ -70,6 +83,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
             Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         if (schema.containsKeyspace(keyspaceName))
         {
             if (ifNotExists)
@@ -78,13 +92,26 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName);
         }
 
-        KeyspaceMetadata keyspace = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
+        // we deduplicate ReplicationParams here to use the same objects in KeyspaceMetadata
+        // as we have as keys in metadata.placements to have a fast map lookup
+        // ReplicationParams are immutable, so it is a safe optimization
+        KeyspaceParams keyspaceParams = attrs.asNewKeyspaceParams();
+        ReplicationParams replicationParams = metadata.placements.deduplicateReplicationParams(keyspaceParams.replication);
+        keyspaceParams = keyspaceParams.withSwapped(replicationParams);
+        KeyspaceMetadata keyspaceMetadata = KeyspaceMetadata.create(keyspaceName, keyspaceParams);
 
-        if (keyspace.params.replication.klass.equals(LocalStrategy.class))
+        if (keyspaceMetadata.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        keyspace.params.validate(keyspaceName, state);
-        return schema.withAddedOrUpdated(keyspace);
+        if (keyspaceMetadata.params.replication.isMeta())
+            throw ire("Can not create a keyspace with MetaReplicationStrategy");
+
+        keyspaceMetadata.params.validate(keyspaceName, state, metadata);
+        keyspaceMetadata.replicationStrategy.validateExpectedOptions(metadata);
+
+        expandedCql = keyspaceMetadata.toCqlString(false, true, ifNotExists);
+        verifyExpandedCql(expandedCql);
+        return schema.withAddedOrUpdated(keyspaceMetadata);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -121,6 +148,8 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
         // Guardrail on number of keyspaces
         Guardrails.keyspaces.guard(Schema.instance.getUserKeyspaces().size() + 1, keyspaceName, false, state);
+
+        Guardrails.keyspaceProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
     }
 
     public static final class Raw extends CQLStatement.Raw

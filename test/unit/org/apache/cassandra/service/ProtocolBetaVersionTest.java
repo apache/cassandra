@@ -20,10 +20,14 @@ package org.apache.cassandra.service;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.transport.*;
-import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.SimpleClient;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -68,7 +72,7 @@ public class ProtocolBetaVersionTest extends CQLTester
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
         assertTrue(betaVersion.isBeta()); // change to another beta version or remove test if no beta version
 
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, true, new EncryptionOptions()))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, true, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
             for (int i = 0; i < 10; i++)
@@ -103,7 +107,7 @@ public class ProtocolBetaVersionTest extends CQLTester
         }
 
         assertTrue(betaVersion.isBeta()); // change to another beta version or remove test if no beta version
-        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, false, new EncryptionOptions()))
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, betaVersion, false, new EncryptionOptions.ClientEncryptionOptions()))
         {
             client.connect(false);
             fail("Exception should have been thrown");

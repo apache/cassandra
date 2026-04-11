@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.locator;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.gms.Gossiper;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 
 import static org.junit.Assert.assertEquals;
 
@@ -35,7 +35,7 @@ public class ReplicationFactorTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        Gossiper.instance.start(1);
+        ClusterMetadataTestHelper.setInstanceForTest();
     }
 
     @Test

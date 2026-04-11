@@ -20,24 +20,41 @@ package org.apache.cassandra.transport;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Envelope.Header.Flag;
+import org.apache.cassandra.transport.messages.AuthChallenge;
+import org.apache.cassandra.transport.messages.AuthResponse;
+import org.apache.cassandra.transport.messages.AuthSuccess;
+import org.apache.cassandra.transport.messages.AuthenticateMessage;
+import org.apache.cassandra.transport.messages.BatchMessage;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ReadyMessage;
+import org.apache.cassandra.transport.messages.RegisterMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.SupportedMessage;
+import org.apache.cassandra.transport.messages.UnsupportedMessageCodec;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -203,10 +220,12 @@ public abstract class Message
     public static abstract class Request extends Message
     {
         private boolean tracingRequested;
-
+        public final long createdAtNanos;
         protected Request(Type type)
         {
             super(type);
+
+            createdAtNanos = MonotonicClock.Global.preciseTime.now();
 
             if (type.direction != Direction.REQUEST)
                 throw new IllegalArgumentException();
@@ -228,9 +247,9 @@ public abstract class Message
             return false;
         }
 
-        protected abstract Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest);
+        protected abstract Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest);
 
-        public final Response execute(QueryState queryState, long queryStartNanoTime)
+        public final Response execute(QueryState queryState, Dispatcher.RequestTime requestTime)
         {
             boolean shouldTrace = false;
             TimeUUID tracingSessionId = null;
@@ -253,7 +272,7 @@ public abstract class Message
             Response response;
             try
             {
-                response = execute(queryState, queryStartNanoTime, shouldTrace);
+                response = execute(queryState, requestTime, shouldTrace);
             }
             finally
             {
@@ -275,6 +294,15 @@ public abstract class Message
         boolean isTracingRequested()
         {
             return tracingRequested;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Request{" +
+                   "tracingRequested=" + tracingRequested +
+                   ", createdAtNanos=" + createdAtNanos +
+                   '}';
         }
     }
 
@@ -316,7 +344,7 @@ public abstract class Message
 
     public Envelope encode(ProtocolVersion version)
     {
-        EnumSet<Envelope.Header.Flag> flags = EnumSet.noneOf(Envelope.Header.Flag.class);
+        int flags = Flag.none();
         @SuppressWarnings("unchecked")
         Codec<Message> codec = (Codec<Message>)this.type.codec;
         try
@@ -354,24 +382,24 @@ public abstract class Message
                 if (tracingId != null)
                 {
                     CBUtil.writeUUID(tracingId, body);
-                    flags.add(Envelope.Header.Flag.TRACING);
+                    flags = Flag.add(flags, Flag.TRACING);
                 }
                 if (warnings != null)
                 {
                     CBUtil.writeStringList(warnings, body);
-                    flags.add(Envelope.Header.Flag.WARNING);
+                    flags = Flag.add(flags, Flag.WARNING);
                 }
                 if (customPayload != null)
                 {
                     CBUtil.writeBytesMap(customPayload, body);
-                    flags.add(Envelope.Header.Flag.CUSTOM_PAYLOAD);
+                    flags = Flag.add(flags, Flag.CUSTOM_PAYLOAD);
                 }
             }
             else
             {
                 assert this instanceof Request;
                 if (((Request)this).isTracingRequested())
-                    flags.add(Envelope.Header.Flag.TRACING);
+                    flags = Flag.add(flags, Flag.TRACING);
                 Map<String, ByteBuffer> payload = getCustomPayload();
                 if (payload != null)
                     messageSize += CBUtil.sizeOfBytesMap(payload);
@@ -379,7 +407,7 @@ public abstract class Message
                 if (payload != null)
                 {
                     CBUtil.writeBytesMap(payload, body);
-                    flags.add(Envelope.Header.Flag.CUSTOM_PAYLOAD);
+                    flags = Flag.add(flags, Flag.CUSTOM_PAYLOAD);
                 }
             }
 
@@ -400,7 +428,7 @@ public abstract class Message
                                               : forcedProtocolVersion;
 
             if (responseVersion.isBeta())
-                flags.add(Envelope.Header.Flag.USE_BETA);
+                flags = Flag.add(flags, Flag.USE_BETA);
 
             return Envelope.create(type, getStreamId(), responseVersion, flags, body);
         }
@@ -415,9 +443,9 @@ public abstract class Message
         static Message decodeMessage(Channel channel, Envelope inbound)
         {
             boolean isRequest = inbound.header.type.direction == Direction.REQUEST;
-            boolean isTracing = inbound.header.flags.contains(Envelope.Header.Flag.TRACING);
-            boolean isCustomPayload = inbound.header.flags.contains(Envelope.Header.Flag.CUSTOM_PAYLOAD);
-            boolean hasWarning = inbound.header.flags.contains(Envelope.Header.Flag.WARNING);
+            boolean isTracing = inbound.header.hasFlag(Flag.TRACING);
+            boolean isCustomPayload = inbound.header.hasFlag(Flag.CUSTOM_PAYLOAD);
+            boolean hasWarning = inbound.header.hasFlag(Flag.WARNING);
 
             TimeUUID tracingId = isRequest || !isTracing ? null : CBUtil.readTimeUUID(inbound.body);
             List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(inbound.body);

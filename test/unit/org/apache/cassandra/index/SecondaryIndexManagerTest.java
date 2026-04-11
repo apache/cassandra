@@ -28,9 +28,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.collect.Sets;
+
 import org.junit.After;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -54,6 +56,18 @@ public class SecondaryIndexManagerTest extends CQLTester
     public void after()
     {
         TestingIndex.clear();
+    }
+
+    @Test
+    public void createSasiAfterSai()
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, val text)");
+        createIndex("CREATE INDEX idx0 ON %s (val) USING 'sai'");
+        execute("INSERT INTO %s (id, val) VALUES (1, 'a')");
+        execute("SELECT * FROM %s WHERE val = 'a'");
+        flush();
+        createIndex("CREATE CUSTOM INDEX idx1 ON %s (val) USING 'org.apache.cassandra.index.sasi.SASIIndex'");
+        execute("SELECT * FROM %s WHERE val = 'a'");
     }
 
     @Test
@@ -97,6 +111,7 @@ public class SecondaryIndexManagerTest extends CQLTester
     @Test
     public void addingSSTablesMarksTheIndexAsBuilt()
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         String indexName = createIndex("CREATE INDEX ON %s(c)");
 

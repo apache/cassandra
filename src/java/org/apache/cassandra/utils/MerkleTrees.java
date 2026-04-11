@@ -19,11 +19,18 @@ package org.apache.cassandra.utils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
+
 import org.slf4j.Logger;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -450,5 +457,20 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
 
             return rt1.compareTo(rt2);
         }
+    }
+
+    /**
+     * For purposes of our checking in test, either "nothing is or was ever here" or "what was here is now gone" suffice.
+     */
+    @VisibleForTesting
+    public boolean isReleased()
+    {
+        if (merkleTrees.isEmpty())
+            return true;
+
+        boolean result = true;
+        for (MerkleTree mt : merkleTrees.values())
+            result &= mt.isReleased();
+        return result;
     }
 }

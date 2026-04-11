@@ -21,25 +21,22 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.NavigableMap;
-
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Range;
 
 import org.apache.commons.lang3.tuple.Pair;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -56,7 +53,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.triggers.ITrigger;
-
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -207,10 +203,8 @@ public class VirtualTableTest extends CQLTester
     }
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpVirtualTables()
     {
-        ServerTestUtils.daemonInitialization();
-
         TableMetadata vt1Metadata = TableMetadata.builder(KS_NAME, VT1_NAME)
                 .kind(TableMetadata.Kind.VIRTUAL)
                 .addPartitionKeyColumn("pk", UTF8Type.instance)
@@ -371,8 +365,6 @@ public class VirtualTableTest extends CQLTester
         };
 
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4, vt5)));
-
-        CQLTester.setUpClass();
     }
 
     @Test
@@ -1053,7 +1045,7 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
-    public void testDisallowedFilteringOnRegularColumn() throws Throwable
+    public void testDisallowedFilteringOnRegularColumn()
     {
         try
         {
@@ -1067,7 +1059,7 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
-    public void testDisallowedFilteringOnClusteringColumn() throws Throwable
+    public void testDisallowedFilteringOnClusteringColumn()
     {
         try
         {
@@ -1076,18 +1068,18 @@ public class VirtualTableTest extends CQLTester
         }
         catch (InvalidQueryException ex)
         {
-            assertTrue(ex.getMessage().contains("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance"));
+            assertTrue(ex.getMessage(), ex.getMessage().contains("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance"));
         }
     }
 
     @Test
-    public void testAllowedFilteringOnRegularColumn() throws Throwable
+    public void testAllowedFilteringOnRegularColumn()
     {
         executeNet(format("SELECT * FROM %s.%s WHERE v2 = 5", KS_NAME, VT1_NAME));
     }
 
     @Test
-    public void testAllowedFilteringOnClusteringColumn() throws Throwable
+    public void testAllowedFilteringOnClusteringColumn()
     {
         executeNet(format("SELECT * FROM %s.%s WHERE c = 'abc'", KS_NAME, VT1_NAME));
     }

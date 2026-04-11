@@ -20,12 +20,12 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
-import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Hex;
@@ -92,6 +92,14 @@ public class BytesType extends AbstractType<ByteBuffer>
     {
         // BytesType can read anything
         return true;
+    }
+
+    @Override
+    public boolean isSerializationCompatibleWith(AbstractType<?> previous)
+    {
+        // BytesType should only be compatible with simple scalar types, not with collections or UDTs
+        // because converting a collection or UDT to raw bytes is nonsensical
+        return !previous.isCollection() && !previous.isUDT() && super.isSerializationCompatibleWith(previous);
     }
 
     public CQL3Type asCQL3Type()

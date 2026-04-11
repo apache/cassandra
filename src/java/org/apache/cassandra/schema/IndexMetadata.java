@@ -20,14 +20,20 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +50,14 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDSerializer;
+
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.schema.SchemaConstants.PATTERN_NON_WORD_CHAR;
+import static org.apache.cassandra.schema.SchemaConstants.isValidCharsName;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * An immutable representation of secondary index metadata.
@@ -54,11 +66,8 @@ public final class IndexMetadata
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexMetadata.class);
 
-    private static final Pattern PATTERN_NON_WORD_CHAR = Pattern.compile("\\W");
-    private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
-
-
     public static final Serializer serializer = new Serializer();
+    public static final MetadataSerializer metadataSerializer = new MetadataSerializer();
 
     /**
      * A mapping of user-friendly index names to their fully qualified index class names.
@@ -68,7 +77,7 @@ public final class IndexMetadata
     static
     {
         indexNameAliases.put(StorageAttachedIndex.NAME, StorageAttachedIndex.class.getCanonicalName());
-        indexNameAliases.put(StorageAttachedIndex.class.getSimpleName().toLowerCase(), StorageAttachedIndex.class.getCanonicalName());
+        indexNameAliases.put(toLowerCaseLocalized(StorageAttachedIndex.class.getSimpleName()), StorageAttachedIndex.class.getCanonicalName());
         indexNameAliases.put(SASIIndex.class.getSimpleName(), SASIIndex.class.getCanonicalName());
     }
 
@@ -106,29 +115,25 @@ public final class IndexMetadata
     {
         Map<String, String> newOptions = new HashMap<>(options);
         newOptions.put(IndexTarget.TARGET_OPTION_NAME, targets.stream()
-                                                              .map(target -> target.asCqlString())
+                                                              .map(IndexTarget::asCqlString)
                                                               .collect(Collectors.joining(", ")));
         return new IndexMetadata(name, newOptions, kind);
     }
 
-    public static boolean isNameValid(String name)
-    {
-        return name != null && !name.isEmpty() && PATTERN_WORD_CHARS.matcher(name).matches();
-    }
-
     public static String generateDefaultIndexName(String table, ColumnIdentifier column)
     {
-        return PATTERN_NON_WORD_CHAR.matcher(table + "_" + column.toString() + "_idx").replaceAll("");
+        return PATTERN_NON_WORD_CHAR.matcher(table + '_' + column.toString() + "_idx").replaceAll("");
     }
 
     public static String generateDefaultIndexName(String table)
     {
-        return PATTERN_NON_WORD_CHAR.matcher(table + "_" + "idx").replaceAll("");
+        return PATTERN_NON_WORD_CHAR.matcher(table + "_idx").replaceAll("");
     }
 
     public void validate(TableMetadata table)
     {
-        if (!isNameValid(name))
+        // TODO: address validating the length by CASSANDRA-20445
+        if (!isValidCharsName(name))
             throw new ConfigurationException("Illegal index name " + name);
 
         if (kind == null)
@@ -155,7 +160,7 @@ public final class IndexMetadata
         if (isCustom())
         {
             String className = options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return indexNameAliases.getOrDefault(className.toLowerCase(), className);
+            return indexNameAliases.getOrDefault(toLowerCaseLocalized(className), className);
         }
         return CassandraIndex.class.getName();
     }
@@ -220,6 +225,17 @@ public final class IndexMetadata
         return kind == Kind.COMPOSITES;
     }
 
+    /**
+     * Checks if the given custom index class name represents a SAI.
+     */
+    public static boolean isSAIIndex(String customClass)
+    {
+        if (customClass == null)
+            return false;
+        String resolved = indexNameAliases.getOrDefault(toLowerCaseLocalized(customClass), customClass);
+        return StorageAttachedIndex.class.getName().equals(resolved);
+    }
+
     @Override
     public int hashCode()
     {
@@ -244,6 +260,26 @@ public final class IndexMetadata
         IndexMetadata other = (IndexMetadata) obj;
 
         return Objects.equal(id, other.id) && Objects.equal(name, other.name) && equalsWithoutName(other);
+    }
+
+    /**
+     * @param metadata the index metadata to join
+     * @return a comma-separated list of alphabetically sorted unqualified index names
+     */
+    public static String joinNames(Iterable<IndexMetadata> metadata)
+    {
+        TreeSet<String> sortedNames = new TreeSet<>();
+        for (IndexMetadata indexMetadata : metadata)
+            sortedNames.add(indexMetadata.name);
+        return String.join(",", sortedNames);
+    }
+
+    public static Set<String> toNames(Set<IndexMetadata> indexes)
+    {
+        Set<String> included = new HashSet<>(indexes.size());
+        for (IndexMetadata i : indexes)
+            included.add(i.name);
+        return included;
     }
 
     @Override
@@ -310,6 +346,10 @@ public final class IndexMetadata
                    .append(" (")
                    .append(options.get(IndexTarget.TARGET_OPTION_NAME))
                    .append(')');
+
+            builder.append(" USING '")
+                   .append(CassandraIndex.NAME)
+                   .append("'");
         }
         builder.append(';');
     }
@@ -330,6 +370,43 @@ public final class IndexMetadata
         public long serializedSize(IndexMetadata metadata, int version)
         {
             return UUIDSerializer.serializer.serializedSize(metadata.id, version);
+        }
+    }
+
+    public static class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<IndexMetadata>
+    {
+        public void serialize(IndexMetadata t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.name);
+            out.writeUTF(t.kind.name());
+            out.writeInt(t.options.size());
+            for (Map.Entry<String, String> entry : t.options.entrySet())
+            {
+                out.writeUTF(entry.getKey());
+                out.writeUTF(entry.getValue());
+            }
+        }
+
+        public IndexMetadata deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            String name = in.readUTF();
+            Kind kind = Kind.valueOf(in.readUTF());
+            int size = in.readInt();
+
+            Map<String, String> options = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+                options.put(in.readUTF(), in.readUTF());
+            return new IndexMetadata(name, options, kind);
+        }
+
+        public long serializedSize(IndexMetadata t, Version version)
+        {
+            int size = sizeof(t.name) + sizeof(t.kind.name()) + sizeof(t.options.size());
+
+            for (Map.Entry<String, String> entry : t.options.entrySet())
+                size = size + sizeof(entry.getKey()) + sizeof(entry.getValue());
+
+            return size;
         }
     }
 }

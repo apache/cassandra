@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
@@ -34,13 +37,14 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-
 import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public final class CreateTypeStatement extends AlterSchemaStatement
 {
@@ -75,8 +79,15 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         }
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
     {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+    }
+
+    public Keyspaces apply(ClusterMetadata metadata)
+    {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);

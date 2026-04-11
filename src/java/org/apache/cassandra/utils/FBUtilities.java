@@ -34,8 +34,10 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -50,26 +52,31 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.vdurmont.semver4j.Semver;
+
 import org.apache.commons.lang3.StringUtils;
+import org.objectweb.asm.Opcodes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
+
 import org.apache.cassandra.audit.IAuditLogger;
-import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
-import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.auth.IAuthorizer;
-import org.apache.cassandra.auth.INetworkAuthorizer;
-import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -91,9 +98,8 @@ import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-import org.objectweb.asm.Opcodes;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BUILD_DATE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
@@ -102,6 +108,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TRIGGERS_D
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class FBUtilities
 {
@@ -111,13 +118,12 @@ public class FBUtilities
     }
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
-    public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
-    public static final String UNKNOWN_GIT_SHA = "Unknown";
+    private static final String UNKNOWN = "Unknown";
 
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
-    private static final String OPERATING_SYSTEM = OS_NAME.getString().toLowerCase();
+    private static final String OPERATING_SYSTEM = toLowerCaseLocalized(OS_NAME.getString());
     public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
@@ -129,19 +135,22 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
+    private static volatile Supplier<SystemInfo> systemInfoSupplier = Suppliers.memoize(SystemInfo::new);
 
     public static void setAvailableProcessors(int value)
     {
-        availableProcessors = value;
+        DatabaseDescriptor.setAvailableProcessors(value);
+    }
+
+    @VisibleForTesting
+    public static void setSystemInfoSupplier(Supplier<SystemInfo> supplier)
+    {
+        systemInfoSupplier = supplier;
     }
 
     public static int getAvailableProcessors()
     {
-        if (availableProcessors > 0)
-            return availableProcessors;
-        else
-            return Runtime.getRuntime().availableProcessors();
+        return DatabaseDescriptor.getAvailableProcessors();
     }
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
@@ -212,6 +221,13 @@ public class FBUtilities
             }
         }
         return localInetAddressAndPort;
+    }
+
+    public static void setLocalAddress(InetAddress localAddress)
+    {
+        localInetAddress = localAddress;
+        // null out localInetAddressAndPort, it will be re-initalized next time it's accessed
+        localInetAddressAndPort = null;
     }
 
     /**
@@ -429,14 +445,11 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    private static Properties getVersionProperties()
-    {
+    private static final Supplier<Properties> loadedProperties = Suppliers.memoize(() -> {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
-            {
                 return null;
-            }
             Properties props = new Properties();
             props.load(in);
             return props;
@@ -447,28 +460,36 @@ public class FBUtilities
             logger.warn("Unable to load version.properties", e);
             return null;
         }
-    }
+    });
 
     public static String getReleaseVersionString()
     {
-        Properties props = getVersionProperties();
+        Properties props = loadedProperties.get();
         if (props == null)
-            return RELEASE_VERSION.getString(UNKNOWN_RELEASE_VERSION);
+            return RELEASE_VERSION.getString(UNKNOWN);
         return props.getProperty("CassandraVersion");
     }
 
     public static String getGitSHA()
     {
-        Properties props = getVersionProperties();
+        Properties props = loadedProperties.get();
         if (props == null)
-            return GIT_SHA.getString(UNKNOWN_GIT_SHA);
-        return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
+            return GIT_SHA.getString(UNKNOWN);
+        return props.getProperty("GitSHA", UNKNOWN);
+    }
+
+    public static String getBuildDate()
+    {
+        Properties props = loadedProperties.get();
+        if (props == null)
+            return BUILD_DATE.getString(UNKNOWN);
+        return props.getProperty("BuildDate", UNKNOWN);
     }
 
     public static String getReleaseVersionMajor()
     {
         String releaseVersion = FBUtilities.getReleaseVersionString();
-        if (FBUtilities.UNKNOWN_RELEASE_VERSION.equals(releaseVersion))
+        if (FBUtilities.UNKNOWN.equals(releaseVersion))
         {
             throw new AssertionError("Release version is unknown");
         }
@@ -544,11 +565,34 @@ public class FBUtilities
         }
         catch (ExecutionException ee)
         {
+            logger.info("Exception occurred in async code", ee);
             throw Throwables.cleaned(ee);
         }
         catch (InterruptedException ie)
         {
             throw new UncheckedInterruptedException(ie);
+        }
+    }
+
+    public static <T> T waitOnFuture(Future<T> future, Duration timeout)
+    {
+        Preconditions.checkArgument(!timeout.isNegative(), "Timeout must not be negative, provided %s", timeout);
+        try
+        {
+            return future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+        }
+        catch (ExecutionException ee)
+        {
+            logger.info("Exception occurred in async code", ee);
+            throw Throwables.cleaned(ee);
+        }
+        catch (InterruptedException ie)
+        {
+            throw new AssertionError(ie);
+        }
+        catch (TimeoutException e)
+        {
+            throw new RuntimeException("Timeout - task did not finish in " + timeout);
         }
     }
 
@@ -635,40 +679,6 @@ public class FBUtilities
             return new LocalPartitioner(comparator.get());
         }
         return FBUtilities.instanceOrConstruct(partitionerClassName, "partitioner");
-    }
-
-    public static IAuthorizer newAuthorizer(String className) throws ConfigurationException
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "authorizer");
-    }
-
-    public static IAuthenticator newAuthenticator(String className) throws ConfigurationException
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "authenticator");
-    }
-
-    public static IRoleManager newRoleManager(String className) throws ConfigurationException
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "role manager");
-    }
-
-    public static INetworkAuthorizer newNetworkAuthorizer(String className)
-    {
-        if (className == null)
-        {
-            return new AllowAllNetworkAuthorizer();
-        }
-        if (!className.contains("."))
-        {
-            className = "org.apache.cassandra.auth." + className;
-        }
-        return FBUtilities.construct(className, "network authorizer");
     }
 
     public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
@@ -866,6 +876,37 @@ public class FBUtilities
     }
 
     /**
+     * Formats a latency value in milliseconds for display, appending an "ms" suffix.
+     * The formatted output is rounded to three decimal places.
+     * For example, "5000.000 ms", "100.000 ms", "0.050 ms", "0.000 ms", "NaN ms".
+     * @param latency   Latency in milliseconds to print.
+     */
+    public static String prettyPrintLatency(double latency)
+    {
+        return String.format("%.3f ms", latency);
+    }
+
+    /**
+     * Formats a ratio value for display, rounds it to three decimal places.
+     * For example, "10.000", "1.000", "0.050", "0.001", "0.000", "NaN".
+     * @param ratio   Ratio to print.
+     */
+    public static String prettyPrintRatio(double ratio)
+    {
+        return String.format("%.3f", ratio);
+    }
+
+    /**
+     * Formats an average value for display, rounds it to two decimal places.
+     * For example, "100500.00", "1.50", "0.05", "0.00", "NaN".
+     * @param average   Average value to print.
+     */
+    public static String prettyPrintAverage(double average)
+    {
+        return String.format("%.2f", average);
+    }
+
+    /**
      * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
      * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
      * @param size      Number to convert.
@@ -1031,6 +1072,22 @@ public class FBUtilities
     }
 
     /**
+     * Parse a double where both a direct value and a percentage are accepted.
+     * For example, for inputs "0.1" and "10%", this function will return 0.1.
+     */
+    public static double parsePercent(String value)
+    {
+        value = value.trim();
+        if (value.endsWith("%"))
+        {
+            value = value.substring(0, value.length() - 1).trim();
+            return Double.parseDouble(value) / 100.0;
+        }
+        else
+            return Double.parseDouble(value);
+    }
+
+    /**
      * Starts and waits for the given @param pb to finish.
      * @throws java.io.IOException on non-zero exit code
      */
@@ -1052,9 +1109,9 @@ public class FBUtilities
                         sb.append(str).append(lineSep);
                     while ((str = err.readLine()) != null)
                         sb.append(str).append(lineSep);
-                    throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                    throw new IOException("Exception while executing the command: " + StringUtils.join(pb.command(), " ") +
                                           ", command error Code: " + errCode +
-                                          ", command output: "+ sb.toString());
+                                          ", command output: " + sb);
                 }
             }
         }
@@ -1064,12 +1121,84 @@ public class FBUtilities
         }
     }
 
+    /**
+     * Starts and waits for the given <code>cmd</code> to finish. If the process does not finish within <code>timeout</code>,
+     * it will be destroyed.
+     *
+     * @param env        additional environment variables to set
+     * @param timeout    timeout for the process to finish, or zero/null to wait forever
+     * @param outBufSize the maximum size of the collected std output; the overflow will be discarded
+     * @param errBufSize the maximum size of the collected std error; the overflow will be discarded
+     * @param cmd        the command to execute
+     * @return the std output of the process up to the size specified by <code>outBufSize</code>
+     */
+    public static String exec(Map<String, String> env, Duration timeout, int outBufSize, int errBufSize, String... cmd) throws IOException, TimeoutException, InterruptedException
+    {
+        if (env == null)
+            env = Map.of();
+        if (timeout == null)
+            timeout = Duration.ZERO;
+
+        ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+        processBuilder.environment().putAll(env);
+        Process process = processBuilder.start();
+        try (DataOutputBuffer err = new DataOutputBuffer();
+             DataOutputBuffer out = new DataOutputBuffer();
+             OutputStream overflowSink = OutputStream.nullOutputStream())
+        {
+            boolean completed;
+            if (timeout.isZero())
+            {
+                process.waitFor();
+                completed = true;
+            }
+            else
+            {
+                completed = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            }
+
+            copy(process.getInputStream(), out, outBufSize);
+            long outOverflow = process.getInputStream().transferTo(overflowSink);
+
+            copy(process.getErrorStream(), err, errBufSize);
+            long errOverflow = process.getErrorStream().transferTo(overflowSink);
+
+            if (!completed)
+            {
+                process.destroyForcibly();
+                logger.error("Command {} did not complete in {}, killed forcibly:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
+                             Arrays.toString(cmd), timeout, out.asString(), outOverflow, err.asString(), errOverflow);
+                throw new TimeoutException("Command " + Arrays.toString(cmd) + " did not complete in " + timeout);
+            }
+            int r = process.exitValue();
+            if (r != 0)
+            {
+                logger.error("Command {} failed with exit code {}:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
+                             Arrays.toString(cmd), r, out.asString(), outOverflow, err.asString(), errOverflow);
+                throw new IOException("Command " + Arrays.toString(cmd) + " failed with exit code " + r);
+            }
+            return out.asString();
+        }
+    }
+
+    public static void updateChecksumShort(Checksum checksum, short v)
+    {
+        checksum.update((v >>> 8) & 0xFF);
+        checksum.update((v >>> 0) & 0xFF);
+    }
+
     public static void updateChecksumInt(Checksum checksum, int v)
     {
         checksum.update((v >>> 24) & 0xFF);
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
         checksum.update((v >>> 0) & 0xFF);
+    }
+
+    public static void updateChecksumLong(Checksum checksum, long v)
+    {
+        updateChecksumInt(checksum, (int) (v >>> 32));
+        updateChecksumInt(checksum, (int) (v & 0xFFFFFFFFL));
     }
 
     /**
@@ -1261,6 +1390,9 @@ public class FBUtilities
 
     public static String camelToSnake(String camel)
     {
+        if (camel.chars().allMatch(Character::isUpperCase))
+            return toLowerCaseLocalized(camel);
+
         StringBuilder sb = new StringBuilder();
         for (char c : camel.toCharArray())
         {
@@ -1269,7 +1401,7 @@ public class FBUtilities
                 // if first char is uppercase, then avoid adding the _ prefix
                 if (sb.length() > 0)
                     sb.append('_');
-                sb.append(Character.toLowerCase(c));
+                sb.append(Character.toLowerCase(c)); // checkstyle: permit this invocation
             }
             else
             {
@@ -1303,5 +1435,44 @@ public class FBUtilities
         {
             logger.warn("Closing {} had an unexpected exception", o, e);
         }
+    }
+
+    public static Semver getKernelVersion()
+    {
+        return systemInfoSupplier.get().getKernelVersion();
+    }
+
+    public static SystemInfo getSystemInfo()
+    {
+        return systemInfoSupplier.get();
+    }
+
+    public enum Order { LT, EQ, GT }
+    public static <T> Order compare(T a, T b, Comparator<T> comparator)
+    {
+        int rc = comparator.compare(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
+    }
+
+    public static <A, B> Order compare(A a, B b, AsymmetricOrdering<A, B> comparator)
+    {
+        int rc = comparator.compareAsymmetric(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
+    }
+
+    public static <T> AsyncResult<T> futureToAsyncResult(org.apache.cassandra.utils.concurrent.Future<T> future)
+    {
+        AsyncResult.Settable<T> adapter = AsyncResults.settable();
+        future.addCallback((value, failure) -> {
+           if (failure != null)
+               adapter.tryFailure(failure);
+           else
+               adapter.trySuccess(value);
+        });
+        return adapter;
     }
 }

@@ -29,6 +29,7 @@ import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Maps;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,8 +44,8 @@ import org.apache.cassandra.index.sai.disk.StorageAttachedIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.KeyIterator;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -152,7 +153,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
             boolean perIndexComponentsOnly = perSSTableFileLock == null;
             // remove existing per column index files instead of overwriting
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            indexes.forEach(index -> indexDescriptor.deleteColumnIndex(index.getIndexContext()));
+            indexes.forEach(index -> indexDescriptor.deleteColumnIndex(index.termType(), index.identifier()));
 
             indexWriter = StorageAttachedIndexWriter.createBuilderWriter(indexDescriptor, indexes, txn, perIndexComponentsOnly);
 
@@ -264,7 +265,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
         // if per-table files are incomplete, full rebuild is requested, or checksum fails
         if (!indexDescriptor.isPerSSTableIndexBuildComplete()
             || isFullRebuild
-            || !indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM))
+            || !indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM, true, false))
         {
             CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
             if (inProgress.putIfAbsent(sstable, latch) == null)
@@ -342,7 +343,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
 
         if (!dropped.isEmpty())
         {
-            String droppedIndexes = dropped.stream().map(sai -> sai.getIndexContext().getIndexName()).collect(Collectors.toList()).toString();
+            String droppedIndexes = dropped.stream().map(sai -> sai.identifier().indexName).collect(Collectors.toList()).toString();
             if (isFullRebuild)
                 throw new RuntimeException(logMessage(String.format("%s are dropped, will stop index build.", droppedIndexes)));
             else

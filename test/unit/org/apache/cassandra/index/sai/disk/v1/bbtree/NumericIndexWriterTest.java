@@ -19,31 +19,33 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.nio.ByteBuffer;
 
+import com.carrotsearch.hppc.LongArrayList;
+
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.NumericUtils;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.index.PointValues;
-import org.apache.lucene.util.Counter;
-import org.apache.lucene.util.NumericUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -52,42 +54,39 @@ import static org.mockito.Mockito.when;
 public class NumericIndexWriterTest extends SAIRandomizedTester
 {
     private IndexDescriptor indexDescriptor;
-    private IndexContext indexContext;
+    private IndexTermType indexTermType;
+    private IndexIdentifier indexIdentifier;
 
     @Before
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        indexContext = SAITester.createIndexContext(newIndex(), Int32Type.instance);
+        indexTermType = SAITester.createIndexTermType(Int32Type.instance);
+        indexIdentifier = SAITester.createIndexIdentifier("test", "test", newIndex());
     }
 
     @Test
     public void shouldFlushFromRamBuffer() throws Exception
     {
-        final BlockBalancedTreeRamBuffer ramBuffer = new BlockBalancedTreeRamBuffer(Integer.BYTES);
+        final SegmentTrieBuffer ramBuffer = new SegmentTrieBuffer();
         final int numRows = 120;
         int currentValue = numRows;
         for (int i = 0; i < numRows; ++i)
         {
-            byte[] scratch = new byte[Integer.BYTES];
-            NumericUtils.intToSortableBytes(currentValue--, scratch, 0);
-            ramBuffer.add(i, scratch);
+            ramBuffer.add(integerToByteComparable(currentValue--), Integer.BYTES, i);
         }
-
-        int rowCount = ramBuffer.numRows();
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                           indexContext,
-                                                           Integer.BYTES,
-                                                           rowCount);
+                                                           indexIdentifier,
+                                                           Integer.BYTES);
         indexMetas = writer.writeCompleteSegment(ramBuffer.iterator());
 
-        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null);
-        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
+        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexIdentifier, null);
+        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
 
-        try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
+        try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexIdentifier,
                                                                           treeHandle,
                                                                           indexMetas.get(IndexComponent.BALANCED_TREE).root,
                                                                           treePostingsHandle,
@@ -125,15 +124,14 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                           indexContext,
-                                                           TypeUtil.fixedSizeOf(Int32Type.instance),
-                                                           maxSegmentRowId);
-        indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, Int32Type.instance));
+                                                           indexIdentifier,
+                                                           indexTermType.fixedSizeOf());
+        indexMetas = writer.writeCompleteSegment(termEnum);
 
-        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null);
-        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
+        final FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexIdentifier, null);
+        final FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexIdentifier, null);
 
-        try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexContext,
+        try (BlockBalancedTreeReader reader = new BlockBalancedTreeReader(indexIdentifier,
                                                                           treeHandle,
                                                                           indexMetas.get(IndexComponent.BALANCED_TREE).root,
                                                                           treePostingsHandle,
@@ -179,7 +177,7 @@ public class NumericIndexWriterTest extends SAIRandomizedTester
         final ByteBuffer minTerm = Int32Type.instance.decompose(startTermInclusive);
         final ByteBuffer maxTerm = Int32Type.instance.decompose(endTermExclusive);
 
-        final AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> iterator = new AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>>()
+        final AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> iterator = new AbstractGuavaIterator<>()
         {
             private int currentTerm = startTermInclusive;
             private int currentRowId = 0;

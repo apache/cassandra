@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,8 +138,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
         long remainingBytes = memoryPoolBytes - nonRedistributingOffHeapSize;
 
-        logger.trace("Index summaries for compacting SSTables are using {} MiB of space",
-                     (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
+        if (logger.isTraceEnabled())
+            logger.trace("Index summaries for compacting SSTables are using {} MiB of space",
+                         (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
         List<T> newSSTables;
         try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
         {
@@ -194,8 +196,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             {
                 int effectiveSamplingLevel = (int) Math.round(currentSamplingLevel * (minIndexInterval / (double) sstable.getIndexSummary().getMinIndexInterval()));
                 maxSummarySize = (int) Math.round(maxSummarySize * (sstable.getIndexSummary().getMinIndexInterval() / (double) minIndexInterval));
-                logger.trace("min_index_interval changed from {} to {}, so the current sampling level for {} is effectively now {} (was {})",
-                             sstable.getIndexSummary().getMinIndexInterval(), minIndexInterval, sstable, effectiveSamplingLevel, currentSamplingLevel);
+                if (logger.isTraceEnabled())
+                    logger.trace("min_index_interval changed from {} to {}, so the current sampling level for {} is effectively now {} (was {})",
+                                 sstable.getIndexSummary().getMinIndexInterval(), minIndexInterval, sstable, effectiveSamplingLevel, currentSamplingLevel);
                 currentSamplingLevel = effectiveSamplingLevel;
             }
 
@@ -214,9 +217,10 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
             if (effectiveIndexInterval < minIndexInterval)
             {
-                // The min_index_interval was changed; re-sample to match it.
-                logger.trace("Forcing resample of {} because the current index interval ({}) is below min_index_interval ({})",
-                        sstable, effectiveIndexInterval, minIndexInterval);
+                // The min_index_interval was changed; re-sample to match it
+                if (logger.isTraceEnabled())
+                    logger.trace("Forcing resample of {} because the current index interval ({}) is below min_index_interval ({})",
+                                 sstable, effectiveIndexInterval, minIndexInterval);
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
                 forceResample.add(new ResampleEntry<T>(sstable, spaceUsed, newSamplingLevel));
                 remainingSpace -= spaceUsed;
@@ -224,8 +228,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             else if (effectiveIndexInterval > maxIndexInterval)
             {
                 // The max_index_interval was lowered; force an upsample to the effective minimum sampling level
-                logger.trace("Forcing upsample of {} because the current index interval ({}) is above max_index_interval ({})",
-                        sstable, effectiveIndexInterval, maxIndexInterval);
+                if (logger.isTraceEnabled())
+                    logger.trace("Forcing upsample of {} because the current index interval ({}) is above max_index_interval ({})",
+                                 sstable, effectiveIndexInterval, maxIndexInterval);
                 newSamplingLevel = Math.max(1, (BASE_SAMPLING_LEVEL * minIndexInterval) / maxIndexInterval);
                 numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, sstable.getIndexSummary().getMaxNumberOfEntries());
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
@@ -275,9 +280,10 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 throw new CompactionInterruptedException(getCompactionInfo());
 
             T sstable = entry.sstable;
-            logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
-                         sstable, sstable.getIndexSummary().getSamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
-                         entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
+            if (logger.isTraceEnabled())
+                logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
+                             sstable, sstable.getIndexSummary().getSamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
+                             entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
             long oldSize = sstable.bytesOnDisk();
             long oldSizeUncompressed = sstable.logicalBytesOnDisk();
@@ -297,7 +303,6 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     /**
      * Add hooks to correctly update the storage load metrics once the transaction is closed/aborted
      */
-    @SuppressWarnings("resource") // Transactions are closed in finally outside of this method
     private void addHooks(ColumnFamilyStore cfs, Map<TableId, LifecycleTransaction> transactions, long oldSize, long newSize, long oldSizeUncompressed, long newSizeUncompressed)
     {
         LifecycleTransaction txn = transactions.get(cfs.metadata.id);

@@ -1,0 +1,15 @@
+= Create vector table
+
+Create a new table in your keyspace, including the `comments_vector` column for vector. The code below creates a vector with five values: 
+
+[source,cql]
+----
+include::example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-table]
+----
+
+Optionally, you can alter an existing table to add a vector column:
+
+[source,cql]
+----
+include::example$CQL/vector-search/vector-search-cycling.cql[tag=alter-vs-table]
+----

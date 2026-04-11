@@ -22,10 +22,12 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher;
 import org.apache.cassandra.inject.Injections;
@@ -50,6 +52,7 @@ public class AbstractQueryTester extends SAITester
     public void setup() throws Throwable
     {
         requireNetwork();
+        CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.setInt(3);
 
         schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", BaseDataModel.KEYSPACE));
 
@@ -66,7 +69,8 @@ public class AbstractQueryTester extends SAITester
 
         scenarios.add(new Object[]{ new BaseDataModel(BaseDataModel.NORMAL_COLUMNS, BaseDataModel.NORMAL_COLUMN_DATA), IndexQuerySupport.BASE_QUERY_SETS });
 
-        scenarios.add(new Object[]{ new BaseDataModel.CompoundKeyDataModel(BaseDataModel.NORMAL_COLUMNS, BaseDataModel.NORMAL_COLUMN_DATA), IndexQuerySupport.BASE_QUERY_SETS });
+        scenarios.add(new Object[]{ new BaseDataModel.CompoundKeyDataModel(BaseDataModel.NORMAL_COLUMNS, BaseDataModel.NORMAL_COLUMN_DATA), IndexQuerySupport.COMPOUND_KEY_QUERY_SETS });
+        scenarios.add(new Object[]{ new BaseDataModel.ReversedCompoundKeyDataModel(BaseDataModel.NORMAL_COLUMNS, BaseDataModel.NORMAL_COLUMN_DATA), IndexQuerySupport.COMPOUND_KEY_QUERY_SETS });
 
         scenarios.add(new Object[]{ new BaseDataModel.CompoundKeyWithStaticsDataModel(BaseDataModel.STATIC_COLUMNS, BaseDataModel.STATIC_COLUMN_DATA), IndexQuerySupport.STATIC_QUERY_SETS });
 

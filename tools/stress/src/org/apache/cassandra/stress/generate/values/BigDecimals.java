@@ -20,9 +20,9 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
-import org.apache.cassandra.db.marshal.DecimalType;
-
 import java.math.BigDecimal;
+
+import org.apache.cassandra.db.marshal.DecimalType;
 
 public class BigDecimals extends Generator<BigDecimal>
 {

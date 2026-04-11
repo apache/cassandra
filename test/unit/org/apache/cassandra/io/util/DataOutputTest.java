@@ -362,7 +362,6 @@ public class DataOutputTest
         File file = FileUtils.createTempFile("dataoutput", "test");
         try
         {
-            @SuppressWarnings("resource")
             DataOutputStreamPlus write = new BufferedDataOutputStreamPlus(file.newReadWriteChannel());
             DataInput canon = testWrite(write);
             write.close();

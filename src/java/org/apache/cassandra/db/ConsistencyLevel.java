@@ -17,20 +17,20 @@
  */
 package org.apache.cassandra.db;
 
-
-import java.util.Locale;
-
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.InOurDc;
-import org.apache.cassandra.schema.TableMetadata;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.InOurDc;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolException;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public enum ConsistencyLevel
 {
@@ -65,12 +65,12 @@ public enum ConsistencyLevel
         }
     }
 
-    private ConsistencyLevel(int code)
+    ConsistencyLevel(int code)
     {
         this(code, false);
     }
 
-    private ConsistencyLevel(int code, boolean isDCLocal)
+    ConsistencyLevel(int code, boolean isDCLocal)
     {
         this.code = code;
         this.isDCLocal = isDCLocal;
@@ -85,7 +85,7 @@ public enum ConsistencyLevel
 
     public static ConsistencyLevel fromString(String str)
     {
-        return valueOf(str.toUpperCase(Locale.US));
+        return valueOf(toUpperCaseLocalized(str));
     }
 
     public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
@@ -123,10 +123,10 @@ public enum ConsistencyLevel
         }
     }
 
-    public static ObjectIntHashMap<String> eachQuorumForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
+    public static ObjectIntHashMap<String> eachQuorumForWrite(Locator locator, AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
     {
         ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
-        addToCountPerDc(perDc, pendingWithDown, 1);
+        addToCountPerDc(locator, perDc, pendingWithDown, 1);
         return perDc;
     }
 
@@ -256,6 +256,17 @@ public enum ConsistencyLevel
 
         if (isSerialConsistency())
             throw new InvalidRequestException("Counter operations are inherently non-serializable");
+    }
+
+    /**
+     * With a replication factor greater than one, reads that contact more than one replica will require 
+     * reconciliation of the individual replica results at the coordinator.
+     *
+     * @return true if reads at this consistency level require merging at the coordinator
+     */
+    public boolean needsReconciliation()
+    {
+        return this != ConsistencyLevel.ONE && this != ConsistencyLevel.LOCAL_ONE && this != ConsistencyLevel.NODE_LOCAL;
     }
 
     private void requireNetworkTopologyStrategy(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException

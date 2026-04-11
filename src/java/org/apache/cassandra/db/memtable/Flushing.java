@@ -22,9 +22,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +46,9 @@ import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ThreadStats;
 
 public class Flushing
 {
@@ -95,7 +99,6 @@ public class Flushing
         }
     }
 
-    @SuppressWarnings("resource")   // writer owned by runnable, to be closed or aborted by its caller
     static FlushRunnable flushRunnable(ColumnFamilyStore cfs,
                                        Memtable memtable,
                                        PartitionPosition from,
@@ -152,6 +155,9 @@ public class Flushing
         private void writeSortedContents()
         {
             logger.info("Writing {}, flushed range = [{}, {})", toFlush.memtable(), toFlush.from(), toFlush.to());
+            long startTimeNs = Clock.Global.nanoTime();
+            long startCpuTime = ThreadStats.getCurrentThreadCpuTimeNano();
+            long startAllocatedBytes = ThreadStats.getCurrentThreadAllocatedBytes();
 
             // (we can't clear out the map as-we-go to free up memory,
             //  since the memtable is being used for queries in the "pending flush" category)
@@ -176,11 +182,34 @@ public class Flushing
 
             if (logCompletion)
             {
+                long endTimeNs = Clock.Global.nanoTime();
+                long endCpuTime = ThreadStats.getCurrentThreadCpuTimeNano();
+                long endAllocatedBytes = ThreadStats.getCurrentThreadAllocatedBytes();
+
+                long durationMs = TimeUnit.NANOSECONDS.toMillis(endTimeNs - startTimeNs);
+                long durationSec = TimeUnit.MILLISECONDS.toSeconds(durationMs);
+                durationSec = durationSec == 0 ? 1 : durationSec;
                 long bytesFlushed = writer.getBytesWritten();
-                logger.info("Completed flushing {} ({}) for commitlog position {}",
+                long byteFlushedPerSec = bytesFlushed / durationSec;
+                long partitionsPerSec = toFlush.partitionCount() / durationSec;
+                long rowsPerSec = writer.getTotalRows() / durationSec;
+
+                logger.info("Completed flushing {} ({}) for commitlog position {}, " +
+                            "time spent: {} ms, " +
+                            "bytes flushed: {} / (rate: {}), " +
+                            "partitions flushed: {} / (rate: {}/s), " +
+                            "rows: {} / (rate: {}/s), " +
+                            "cpu time: {} ms, heap allocated: {}",
                             writer.getFilename(),
                             FBUtilities.prettyPrintMemory(bytesFlushed),
-                            toFlush.memtable().getFinalCommitLogUpperBound());
+                            toFlush.memtable().getFinalCommitLogUpperBound(),
+                            durationMs,
+                            bytesFlushed, FBUtilities.prettyPrintMemoryPerSecond(byteFlushedPerSec),
+                            toFlush.partitionCount(), partitionsPerSec,
+                            writer.getTotalRows(), rowsPerSec,
+                            startCpuTime < 0 ? "n/a": TimeUnit.NANOSECONDS.toMillis(endCpuTime - startCpuTime),
+                            endAllocatedBytes < 0 ? "n/a" : FBUtilities.prettyPrintMemory(endAllocatedBytes - startAllocatedBytes)
+                );
                 // Update the metrics
                 metrics.bytesFlushed.inc(bytesFlushed);
             }
@@ -207,6 +236,9 @@ public class Flushing
                                                        Descriptor descriptor,
                                                        long partitionCount)
     {
+        // column types altering is not allowed after CASSANDRA-12443
+        // removal and re-adding of a column with a different type is limited to serialization compatible types only, CASSANDRA-16905
+        boolean columnsMayChanged = false;
         return cfs.createSSTableMultiWriter(descriptor,
                                             partitionCount,
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
@@ -217,7 +249,8 @@ public class Flushing
                                             new SerializationHeader(true,
                                                                     flushSet.metadata(),
                                                                     flushSet.columns(),
-                                                                    flushSet.encodingStats()),
+                                                                    flushSet.encodingStats(),
+                                                                    columnsMayChanged),
                                             txn);
     }
 }

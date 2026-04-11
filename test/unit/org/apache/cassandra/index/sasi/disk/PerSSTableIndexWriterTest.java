@@ -31,11 +31,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.util.concurrent.Futures;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -74,7 +76,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
     public static void loadSchema() throws ConfigurationException
     {
         CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
-        SchemaLoader.loadSchema();
+        ServerTestUtils.prepareServer();
         SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
                                                                    KeyspaceParams.simpleTransient(1),
                                                                    Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME).build())));

@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.index;
 
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
 
 public class TargetParser
@@ -35,6 +36,13 @@ public class TargetParser
     private static final Pattern TARGET_REGEX = Pattern.compile("^(keys|entries|values|full)\\((.+)\\)$");
     private static final Pattern TWO_QUOTES = Pattern.compile("\"\"");
     private static final String QUOTE = "\"";
+
+    public static Optional<Pair<ColumnMetadata, IndexTarget.Type>> tryParse(TableMetadata metadata, IndexMetadata indexDef)
+    {
+        String target = indexDef.options.get("target");
+        assert target != null : String.format("No target definition found for index %s", indexDef.name);
+        return Optional.ofNullable(parse(metadata, target));
+    }
 
     public static Pair<ColumnMetadata, IndexTarget.Type> parse(TableMetadata metadata, IndexMetadata indexDef)
     {

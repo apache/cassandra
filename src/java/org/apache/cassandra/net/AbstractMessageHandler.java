@@ -26,13 +26,11 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.EventLoop;
+import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.FrameDecoder.Frame;
@@ -41,9 +39,14 @@ import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
 
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.EventLoop;
+
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static org.apache.cassandra.net.Crc.InvalidCrc;
+import static org.apache.cassandra.utils.Crc.InvalidCrc;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
@@ -562,7 +565,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             return size == received;
         }
 
-        private void onIntactFrame(IntactFrame frame)
+        protected void onIntactFrame(IntactFrame frame)
         {
             boolean expires = approxTime.isAfter(expiresAtNanos);
             if (!isExpired && !isCorrupt)
@@ -578,7 +581,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             isExpired |= expires;
         }
 
-        private void onCorruptFrame()
+        protected void onCorruptFrame()
         {
             if (!isExpired && !isCorrupt)
                 releaseBuffersAndCapacity(); // release resources once we transition from normal state to corrupt

@@ -92,6 +92,7 @@ public class TableStatsTestBase
         template.bloomFilterFalseRatio = 0D;
         template.bloomFilterSpaceUsed = "0";
         template.indexSummaryOffHeapMemoryUsed = "0";
+        template.compressionDictionariesMemoryUsed = "0";
         template.compressionMetadataOffHeapMemoryUsed = "0";
         template.compactedPartitionMinimumBytes = 0L;
         template.compactedPartitionMaximumBytes = 0L;
@@ -102,6 +103,14 @@ public class TableStatsTestBase
         template.maximumTombstonesPerSliceLastFiveMinutes = 0L;
         template.twcs = null;
         template.twcsDurationInMillis = 0L;
+        template.saiQueryLatencyMs = Double.NaN;
+        template.saiPostFilteringReadLatencyMs = Double.NaN;
+        template.saiDiskUsedBytes = "NaN";
+        template.saiSSTableIndexesHit = Double.NaN;
+        template.saiIndexSegmentsHit = Double.NaN;
+        template.saiRowsFiltered = Double.NaN;
+        template.saiTotalQueryTimeouts = 0L;
+        template.saiTotalQueryableIndexRatio = "0/0";
         return template;
     }
 
@@ -337,6 +346,18 @@ public class TableStatsTestBase
         table2.twcsDurationInMillis = 2000L;
         table4.twcsDurationInMillis = 1000L;
         table5.twcsDurationInMillis = null;
+
+        // Table5 with 5 SAI.
+        table5.saiQueryLatencyMs = 10.000D;
+        table5.saiPostFilteringReadLatencyMs = 1.000D;
+        table5.saiDiskUsedBytes = "40 bytes";
+        table5.saiSSTableIndexesHit = 3.5D;
+        table5.saiIndexSegmentsHit = 4.0D;
+        table5.saiRowsFiltered = 55.0D;
+        table5.saiTotalQueryTimeouts = 4L;
+        table5.saiTotalIndexCount = 5;
+        table5.saiTotalQueryableIndexRatio = "5/5";
+
         // create test keyspaces from templates
         testKeyspaces = new ArrayList<>();
         StatsKeyspace keyspace1 = createStatsKeyspaceTemplate("keyspace1");
@@ -395,6 +416,17 @@ public class TableStatsTestBase
         humanReadableTable4.memtableDataSize = "999 bytes";
         humanReadableTable5.memtableDataSize = "3.14 MiB";
         humanReadableTable6.memtableDataSize = "0 bytes";
+        // human readable compression dictionaries cached memory used: 1 > 3 > 5 > 2 > 4 > 6
+        humanReadableTable1.compressionDictionariesMemoryUsed = "1.21 TiB";
+        humanReadableTable2.compressionDictionariesMemoryUsed = "42 KiB";
+        humanReadableTable3.compressionDictionariesMemoryUsed = "2.71 GiB";
+        humanReadableTable4.compressionDictionariesMemoryUsed = "999 bytes";
+        humanReadableTable5.compressionDictionariesMemoryUsed = "3.14 MiB";
+        humanReadableTable6.compressionDictionariesMemoryUsed = "0 bytes";
+
+        // cretae human-readable SAI disk space used size:
+        humanReadableTable5.saiDiskUsedBytes = "40 bytes";
+
         // create human readable keyspaces from template
         humanReadableKeyspaces = new ArrayList<>();
         StatsKeyspace humanReadableKeyspace1 = createStatsKeyspaceTemplate("keyspace1");

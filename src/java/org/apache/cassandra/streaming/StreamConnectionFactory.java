@@ -20,8 +20,9 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 
-import io.netty.channel.Channel;
 import org.apache.cassandra.net.OutboundConnectionSettings;
+
+import io.netty.channel.Channel;
 
 public interface StreamConnectionFactory
 {

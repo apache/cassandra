@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.io.sstable.KeyReader;
@@ -36,24 +37,33 @@ public class BigTableKeyReader implements KeyReader
     private final RandomAccessReader indexFileReader;
     private final IndexSerializer rowIndexEntrySerializer;
     private final long initialPosition;
-
+    private final boolean detailed;
     private ByteBuffer key;
     private long dataPosition;
     private long keyPosition;
+    /** only if detailed */
+    private RowIndexEntry rowIndexEntry;
 
     private BigTableKeyReader(FileHandle indexFile,
                               RandomAccessReader indexFileReader,
-                              IndexSerializer rowIndexEntrySerializer)
+                              IndexSerializer rowIndexEntrySerializer,
+                              boolean detailed)
     {
         this.indexFile = indexFile;
         this.indexFileReader = indexFileReader;
         this.rowIndexEntrySerializer = rowIndexEntrySerializer;
         this.initialPosition = indexFileReader.getFilePointer();
+        this.detailed = detailed;
     }
 
     public static BigTableKeyReader create(RandomAccessReader indexFileReader, IndexSerializer serializer) throws IOException
     {
-        BigTableKeyReader iterator = new BigTableKeyReader(null, indexFileReader, serializer);
+        return create(null, indexFileReader, serializer);
+    }
+
+    public static BigTableKeyReader create(FileHandle indexFile, RandomAccessReader indexFileReader, IndexSerializer serializer) throws IOException
+    {
+        BigTableKeyReader iterator = new BigTableKeyReader(indexFile, indexFileReader, serializer, false);
         try
         {
             iterator.advance();
@@ -66,8 +76,8 @@ public class BigTableKeyReader implements KeyReader
         }
     }
 
-    @SuppressWarnings({ "resource" })
-    public static BigTableKeyReader create(FileHandle indexFile, IndexSerializer serializer) throws IOException
+    @SuppressWarnings({ "resource", "RedundantSuppression" }) // iFile and reader are closed in the BigTableKeyReader#close method
+    public static BigTableKeyReader create(FileHandle indexFile, IndexSerializer serializer, boolean detailed) throws IOException
     {
         FileHandle iFile = null;
         RandomAccessReader reader = null;
@@ -76,7 +86,7 @@ public class BigTableKeyReader implements KeyReader
         {
             iFile = indexFile.sharedCopy();
             reader = iFile.createReader();
-            iterator = new BigTableKeyReader(iFile, reader, serializer);
+            iterator = new BigTableKeyReader(iFile, reader, serializer, detailed);
             iterator.advance();
             return iterator;
         }
@@ -111,7 +121,14 @@ public class BigTableKeyReader implements KeyReader
         {
             keyPosition = indexFileReader.getFilePointer();
             key = ByteBufferUtil.readWithShortLength(indexFileReader);
-            dataPosition = rowIndexEntrySerializer.deserializePositionAndSkip(indexFileReader);
+            if (detailed) {
+                rowIndexEntry = rowIndexEntrySerializer.deserialize(indexFileReader);
+                dataPosition = rowIndexEntry.getPosition();
+            }
+            else
+            {
+                dataPosition = rowIndexEntrySerializer.deserializePositionAndSkip(indexFileReader);
+            }
             return true;
         }
         else
@@ -145,6 +162,15 @@ public class BigTableKeyReader implements KeyReader
     public long dataPosition()
     {
         return dataPosition;
+    }
+
+    public RowIndexEntry rowIndexEntry() {
+        assert detailed;
+        return rowIndexEntry;
+    }
+
+    public FileHandle indexFile() {
+        return indexFile;
     }
 
     public long indexPosition()

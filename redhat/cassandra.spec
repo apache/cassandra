@@ -49,7 +49,7 @@ BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
-Requires:      (java-11-headless or java-17-headless)
+Requires:      (java-11-headless or java-17-headless or java-21-headless)
 Requires:      python(abi) >= 3.6
 Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
@@ -79,16 +79,15 @@ ant jar -Dversion=%{upstream_version} -Dno-checkstyle=true -Drat.skip=true -Dant
 mkdir -p %{buildroot}/%{_sysconfdir}/%{username}
 mkdir -p %{buildroot}/usr/share/%{username}
 mkdir -p %{buildroot}/usr/share/%{username}/lib
+mkdir -p %{buildroot}/usr/share/doc/%{username}/html
+mkdir -p %{buildroot}/usr/share/man/man7
 mkdir -p %{buildroot}/%{_sysconfdir}/%{username}/default.conf
 mkdir -p %{buildroot}/%{_sysconfdir}/rc.d/init.d
 mkdir -p %{buildroot}/%{_sysconfdir}/security/limits.d
 mkdir -p %{buildroot}/%{_sysconfdir}/default
 mkdir -p %{buildroot}/usr/sbin
 mkdir -p %{buildroot}/usr/bin
-mkdir -p %{buildroot}/var/lib/%{username}/commitlog
-mkdir -p %{buildroot}/var/lib/%{username}/data
-mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
-mkdir -p %{buildroot}/var/lib/%{username}/hints
+mkdir -p %{buildroot}/var/lib/%{username}
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
@@ -100,9 +99,9 @@ patch -p1 < debian/patches/cassandra_logdir_fix.diff
 sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 
 # remove other files not being installed
+rm -f bin/stop-server
 rm -f bin/*.orig
 rm -f bin/cassandra.in.sh
-rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
 rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
@@ -123,6 +122,9 @@ cp -p %{_get_dist_dir}/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 # copy fqltool jar
 cp -p %{_get_dist_dir}/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
+# copy sstableloader jar
+cp -p %{_get_dist_dir}/tools/lib/sstableloader.jar %{buildroot}/usr/share/%{username}/
+
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/
@@ -130,6 +132,10 @@ cp -p tools/bin/* %{buildroot}/usr/bin/
 
 # copy cassandra jar
 cp %{_get_dist_dir}/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
+
+# copy HTML and manpages docs
+cp -pr %{_get_dist_dir}/html/* %{buildroot}/usr/share/doc/%{username}/html/
+cp -p %{_get_dist_dir}/man/*.7.gz %{buildroot}/usr/share/man/man7/
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -142,7 +148,9 @@ exit 0
 
 %files
 %defattr(0644,root,root,0755)
-%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
+%doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt .snyk
+/usr/share/doc/%{username}/html
+/usr/share/man/man7/*.7.gz
 %attr(755,root,root) %{_bindir}/auditlogviewer
 %attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/cassandra-stress
@@ -157,16 +165,15 @@ exit 0
 %attr(755,root,root) %{_bindir}/sstableupgrade
 %attr(755,root,root) %{_bindir}/sstableutil
 %attr(755,root,root) %{_bindir}/sstableverify
-%attr(755,root,root) %{_bindir}/stop-server
 %attr(755,root,root) %{_sbindir}/cassandra
 %attr(755,root,root) /%{_sysconfdir}/rc.d/init.d/%{username}
 %{_sysconfdir}/default/%{username}
 %{_sysconfdir}/security/limits.d/%{username}.conf
 /usr/share/%{username}*
 %config(noreplace) /%{_sysconfdir}/%{username}
-%attr(750,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
-%attr(750,%{username},%{username}) /var/log/%{username}*
-%attr(750,%{username},%{username}) /var/run/%{username}*
+%attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}
+%attr(755,%{username},%{username}) /var/log/%{username}*
+%attr(755,%{username},%{username}) /var/run/%{username}*
 %{python_sitelib}/cqlshlib/
 %{python_sitelib}/cassandra_pylib*.egg-info
 
@@ -207,6 +214,8 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/fqltool
 %attr(755,root,root) %{_bindir}/generatetokens
 %attr(755,root,root) %{_bindir}/hash_password
+%attr(755,root,root) %{_bindir}/addtocmstool
+%attr(755,root,root) %{_bindir}/offlineclustermetadatadump
 
 
 %changelog

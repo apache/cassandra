@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.MinMaxPriorityQueue;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -322,7 +323,7 @@ public class SSTableMetadataViewer
         CompactionMetadata compaction = statsComponent.compactionMetadata();
         SerializationHeader.Component header = statsComponent.serializationHeader();
         Class<? extends ICompressor> compressorClass = null;
-        try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor))
+        try (CompressionMetadata compression = CompressionInfoComponent.loadIfExists(descriptor, null))
         {
             compressorClass = compression != null ? compression.compressor().getClass() : null;
         }

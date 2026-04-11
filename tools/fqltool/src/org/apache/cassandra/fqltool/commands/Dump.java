@@ -28,24 +28,26 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.bytes.Bytes;
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.threads.Pauser;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireIn;
-import org.apache.cassandra.fql.FullQueryLogger;
+
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.binlog.BinLog;
+
+import io.netty.buffer.Unpooled;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 /**
  * Dump the contents of a list of paths containing full query logs
@@ -55,13 +57,13 @@ public class Dump implements Runnable
 {
     static final char[] HEXI_DECIMAL = "0123456789ABCDEF".toCharArray();
 
-    @Arguments(usage = "<path1> [<path2>...<pathN>]", description = "Path containing the full query logs to dump.", required = true)
+    @Parameters(paramLabel = "path", description = "Path containing the full query logs to dump.", arity = "1..*")
     private List<String> arguments = new ArrayList<>();
 
-    @Option(title = "roll_cycle", name = {"--roll-cycle"}, description = "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (MINUTELY, HOURLY, DAILY). Default HOURLY.")
-    private String rollCycle = "HOURLY";
+    @Option(paramLabel = "roll_cycle", names = { "--roll-cycle" }, description = "How often to roll the log file was rolled. May be necessary for Chronicle to correctly parse file names. (FAST_MINUTELY, FAST_HOURLY, FAST_DAILY). Default FAST_HOURLY.")
+    private String rollCycle = "FAST_HOURLY";
 
-    @Option(title = "follow", name = {"--follow"}, description = "Upon reacahing the end of the log continue indefinitely waiting for more records")
+    @Option(paramLabel = "follow", names = { "--follow" }, description = "Upon reacahing the end of the log continue indefinitely waiting for more records")
     private boolean follow = false;
 
     @Override
@@ -126,7 +128,7 @@ public class Dump implements Runnable
                     break;
 
                 case (FullQueryLogger.BATCH):
-                    dumpBatch(options, wireIn, sb);
+                    dumpBatch(wireIn, sb);
                     break;
 
                 default:
@@ -183,7 +185,7 @@ public class Dump implements Runnable
         sb.append(System.lineSeparator());
     }
 
-    private static void dumpBatch(QueryOptions options, WireIn wireIn, StringBuilder sb)
+    private static void dumpBatch(WireIn wireIn, StringBuilder sb)
     {
         sb.append("Batch type: ")
           .append(wireIn.read(FullQueryLogger.BATCH_TYPE).text())
@@ -203,7 +205,10 @@ public class Dump implements Runnable
             int numSubValues = in.int32();
             List<ByteBuffer> subValues = new ArrayList<>(numSubValues);
             for (int j = 0; j < numSubValues; j++)
-                subValues.add(ByteBuffer.wrap(in.bytes()));
+            {
+                byte[] valueBytes = in.bytes();
+                subValues.add(valueBytes == null ? null : ByteBuffer.wrap(valueBytes));
+            }
 
             sb.append("Query: ")
               .append(queries.get(i))

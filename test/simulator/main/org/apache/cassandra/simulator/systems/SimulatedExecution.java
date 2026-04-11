@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.systems;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import org.apache.cassandra.simulator.ActionList;
@@ -29,7 +30,7 @@ import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedFutureTaskExecution;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedThreadStart;
-import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptedScheduledFutureTask;
+import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptableScheduledFuture;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.NotScheduledFuture;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
@@ -41,6 +42,7 @@ import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
 
 public class SimulatedExecution implements InterceptorOfExecution
 {
+    private final AtomicLong idSupplier = new AtomicLong(0);
     static class NoExecutorMarker implements InterceptingExecutor
     {
         static final NoExecutorMarker INFINITE_LOOP = new NoExecutorMarker();
@@ -93,7 +95,7 @@ public class SimulatedExecution implements InterceptorOfExecution
             return task;
         }
 
-        public <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<T> runnable, InterceptingExecutor executor)
+        public <T> ScheduledFuture<T> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, InterceptableScheduledFuture<T> task, InterceptingExecutor executor)
         {
             return new NotScheduledFuture<>();
         }
@@ -135,10 +137,9 @@ public class SimulatedExecution implements InterceptorOfExecution
             return task;
         }
 
-        public <V> ScheduledFuture<V> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, Callable<V> call, InterceptingExecutor executor)
+        public <V> ScheduledFuture<V> schedule(SimulatedAction.Kind kind, long delayNanos, long deadlineNanos, InterceptableScheduledFuture<V> task, InterceptingExecutor executor)
         {
             assert kind == SCHEDULED_TASK || kind == SCHEDULED_TIMEOUT || kind == SCHEDULED_DAEMON;
-            InterceptedScheduledFutureTask<V> task = new InterceptedScheduledFutureTask<>(delayNanos, call);
             InterceptedFutureTaskExecution<?> intercepted = new InterceptedFutureTaskExecution<>(kind, executor, task, deadlineNanos);
             task.onCancel(intercepted::cancel);
             intercept.interceptExecution(intercepted, executor.orderAppliesAfterScheduling());
@@ -161,7 +162,7 @@ public class SimulatedExecution implements InterceptorOfExecution
 
     public InterceptingExecutorFactory factory(InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
     {
-        return new InterceptingExecutorFactory(this, interceptorOfGlobalMethods, classLoader, threadGroup);
+        return new InterceptingExecutorFactory(this, interceptorOfGlobalMethods, classLoader, threadGroup, idSupplier::incrementAndGet);
     }
 
     public InterceptExecution intercept()

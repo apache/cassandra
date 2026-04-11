@@ -4,7 +4,8 @@
 #
 cluster_name: Test Cluster
 memtable_allocation_type: heap_buffers
-commitlog_sync: batch
+commitlog_sync: periodic
+commitlog_sync_period: 10s
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
 cdc_raw_directory: build/test/cassandra/cdc_raw
@@ -19,7 +20,7 @@ column_index_size: 4KiB
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
-disk_access_mode: mmap
+disk_access_mode: mmap_index_only
 seed_provider:
     - class_name: org.apache.cassandra.locator.SimpleSeedProvider
       parameters:
@@ -41,3 +42,5 @@ user_defined_functions_enabled: true
 scripted_user_defined_functions_enabled: false
 sasi_indexes_enabled: true
 materialized_views_enabled: true
+accord:
+    journal_directory: build/test/cassandra/accord_journal

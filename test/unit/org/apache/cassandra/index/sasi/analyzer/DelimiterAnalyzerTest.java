@@ -23,17 +23,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
+import org.apache.commons.io.IOUtils;
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.io.IOUtils;
 
-import org.junit.Assert;
-import org.junit.Test;
-
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertEquals;
 
 public class DelimiterAnalyzerTest
@@ -59,7 +60,7 @@ public class DelimiterAnalyzerTest
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ' ' : ""));
 
         Assert.assertEquals(testString, output.toString());
-        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+        Assert.assertFalse(toLowerCaseLocalized(testString).equals(output.toString()));
     }
 
     @Test
@@ -82,21 +83,21 @@ public class DelimiterAnalyzerTest
             output.append(ByteBufferUtil.string(analyzer.next()) + (analyzer.hasNext() ? ',' : ""));
 
         Assert.assertEquals("Nip,it,in,the,bud", output.toString());
-        Assert.assertFalse(testString.toLowerCase().equals(output.toString()));
+        Assert.assertFalse(toLowerCaseLocalized(testString).equals(output.toString()));
     }
 
     @Test(expected = ConfigurationException.class)
     public void ensureIncompatibleInputOnCollectionTypeSkipped()
     {
         new DelimiterAnalyzer().validate(Collections.emptyMap(),
-                                         ColumnMetadata.regularColumn("a", "b", "c", SetType.getInstance(UTF8Type.instance, true)));
+                                         ColumnMetadata.regularColumn("a", "b", "c", SetType.getInstance(UTF8Type.instance, true), ColumnMetadata.NO_UNIQUE_ID));
     }
 
     @Test(expected = ConfigurationException.class)
     public void ensureIncompatibleInputSkipped()
     {
         new DelimiterAnalyzer().validate(Collections.emptyMap(),
-                                         ColumnMetadata.regularColumn("a", "b", "c", Int32Type.instance));
+                                         ColumnMetadata.regularColumn("a", "b", "c", Int32Type.instance, ColumnMetadata.NO_UNIQUE_ID));
     }
 
     @Test

@@ -17,16 +17,35 @@
  */
 package org.apache.cassandra.auth;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import com.datastax.driver.core.ResultSet;
+import com.google.common.collect.Iterables;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.transport.ProtocolVersion;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.schema.SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES;
+import static org.apache.cassandra.schema.SchemaConstants.SCHEMA_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.TRACE_KEYSPACE_NAME;
 import static org.junit.Assert.assertTrue;
 
 public class GrantAndRevokeTest extends CQLTester
@@ -35,13 +54,14 @@ public class GrantAndRevokeTest extends CQLTester
     private static final String pass = "12345";
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpAuth()
     {
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPermissionsValidity(0);
-        CQLTester.setUpClass();
+        DatabaseDescriptor.setRolesValidity(0);
         requireAuthentication();
         requireNetwork();
+        CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
     }
 
     @After
@@ -204,7 +224,6 @@ public class GrantAndRevokeTest extends CQLTester
                                 "DROP MATERIALIZED VIEW " + mv);
         assertUnauthorizedQuery("User user has no ALTER permission on <table " + table + "> or any of its parents",
                                 "DROP INDEX " + index);
-
     }
 
     @Test
@@ -386,5 +405,328 @@ public class GrantAndRevokeTest extends CQLTester
 
         res = executeNet("REVOKE SELECT, MODIFY ON KEYSPACE revoke_yeah FROM " + user);
         assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted MODIFY on <keyspace revoke_yeah>");
+    }
+
+    @Test
+    public void testCreateTableLikeAuthorize() throws Throwable
+    {
+        useSuperUser();
+
+        // two keyspaces
+        executeNet("CREATE KEYSPACE ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE KEYSPACE ks2 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE ks1.sourcetb (id int PRIMARY KEY, val text)");
+        executeNet("CREATE USER '" + user + "' WITH PASSWORD '" + pass + "'");
+
+        // same keyspace
+        // have no select permission on source table
+        ResultSet res = executeNet("REVOKE SELECT ON TABLE ks1.sourcetb FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted SELECT on <table ks1.sourcetb>");
+
+        useUser(user, pass);
+        // Spin assert for effective auth changes.
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.sourcetb> or any of its parents",
+                                        formatQuery("SELECT * FROM ks1.sourcetb LIMIT 1"));
+            }
+            catch (Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.sourcetb> or any of its parents",
+                                "CREATE TABLE ks1.targetTb LIKE ks1.sourcetb");
+
+        // have select permission on source table and do not have create permission on target keyspace
+        useSuperUser();
+        executeNet("GRANT SELECT ON TABLE ks1.sourcetb TO " + user);
+        res = executeNet("REVOKE CREATE ON KEYSPACE ks1 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace ks1>");
+
+        useUser(user, pass);
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks1> or any of its parents",
+                                        formatQuery("CREATE TABLE ks1.targetTb LIKE ks1.sourcetb"));
+            }
+            catch (Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks1> or any of its parents",
+                                "CREATE TABLE ks1.targetTb LIKE ks1.sourcetb");
+
+        // different keyspaces
+        // have select permission on source table and do not have create permission on target keyspace
+        useSuperUser();
+        executeNet("GRANT SELECT ON TABLE ks1.sourcetb TO " + user);
+        res = executeNet("REVOKE CREATE ON KEYSPACE ks2 FROM " + user);
+        assertWarningsContain(res.getExecutionInfo().getWarnings(), "Role '" + user + "' was not granted CREATE on <keyspace ks2>");
+
+        useUser(user, pass);
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks2> or any of its parents",
+                                        formatQuery("CREATE TABLE ks2.targetTb LIKE ks1.sourcetb"));
+            }
+            catch (Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ks2> or any of its parents",
+                                "CREATE TABLE ks2.targetTb LIKE ks1.sourcetb");
+
+        // source keyspace and table do not exist
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ks1.tbnotexist> or any of its parents",
+                                "CREATE TABLE ks2.targetTb LIKE ks1.tbnotexist");
+        assertUnauthorizedQuery("User user has no SELECT permission on <table ksnotexists.sourcetb> or any of its parents",
+                                "CREATE TABLE ks2.targetTb LIKE ksnotexists.sourcetb");
+        // target keyspace does not exist
+        assertUnauthorizedQuery("User user has no CREATE permission on <all tables in ksnotexists> or any of its parents",
+                                "CREATE TABLE ksnotexists.targetTb LIKE ks1.sourcetb");
+    }
+
+    @Test
+    public void testSpecificGrantsOnSystemKeyspaces() throws Throwable
+    {
+        // Granting specific permissions on system keyspaces should not be allowed if those permissions include any from
+        // the denylist Permission.INVALID_FOR_SYSTEM_KEYSPACES. By this definition, GRANT ALL on any system keyspace,
+        // or a table within one, should be rejected.
+        useSuperUser();
+        executeNet("CREATE ROLE '" + user + "'");
+        String responseMsg = "Granting permissions on system keyspaces is strictly limited, this operation is not permitted";
+        for (String keyspace : Iterables.concat(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES))
+        {
+            assertUnauthorizedQuery(responseMsg, format("GRANT ALL PERMISSIONS ON KEYSPACE %s TO %s", keyspace, user));
+            DataResource keyspaceResource = DataResource.keyspace(keyspace);
+            for (Permission p : keyspaceResource.applicablePermissions())
+                maybeRejectGrant(p, responseMsg, format("GRANT %s ON KEYSPACE %s TO %s", p.name(), keyspace, user));
+
+            assertUnauthorizedQuery(responseMsg, format("GRANT ALL PERMISSIONS ON ALL TABLES IN KEYSPACE %s TO %s", keyspace, user));
+            for (TableMetadata table : Schema.instance.getKeyspaceMetadata(keyspace).tables)
+            {
+                DataResource tableResource = DataResource.table(keyspace, table.name);
+                assertUnauthorizedQuery(responseMsg, format("GRANT ALL PERMISSIONS ON %s TO %s", table, user));
+                for (Permission p : tableResource.applicablePermissions())
+                    maybeRejectGrant(p, responseMsg, format("GRANT %s ON %s TO %s", p.name(), table, user));
+            }
+        }
+    }
+
+    @Test
+    public void testGrantOnAllKeyspaces() throws Throwable
+    {
+        // Granting either specific or ALL permissions on ALL KEYSPACES is allowed, however these permissions are
+        // effective for non-system keyspaces only. If for any reason it is necessary to modify permissions on
+        // on a system keyspace, it must be done using keyspace specific grant statements.
+        useSuperUser();
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", SchemaConstants.TRACE_KEYSPACE_NAME));
+        executeNet("CREATE KEYSPACE user_keyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE user_keyspace.t1 (k int PRIMARY KEY)");
+        useUser(user, pass);
+
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table user_keyspace.t1> or any of its parents",
+                                "INSERT INTO user_keyspace.t1 (k) VALUES (0)");
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table system.local> or any of its parents",
+                                "INSERT INTO system.local(key) VALUES ('invalid')");
+
+        useSuperUser();
+        executeNet(ProtocolVersion.CURRENT, format("GRANT MODIFY ON ALL KEYSPACES TO %s", user));
+
+        useUser(user, pass);
+        // User now has write permission on non-system keyspaces only
+        executeNet(ProtocolVersion.CURRENT, "INSERT INTO user_keyspace.t1 (k) VALUES (0)");
+        assertUnauthorizedQuery("User user has no MODIFY permission on <table system.local> or any of its parents",
+                                "INSERT INTO system.local(key) VALUES ('invalid')");
+
+        // A non-superuser only has read access to a pre-defined set of system tables and all system_schema/traces
+        // tables and granting ALL permissions on ALL keyspaces also does not affect this.
+        maybeReadSystemTables(false);
+        useSuperUser();
+        executeNet(ProtocolVersion.CURRENT, format("GRANT ALL PERMISSIONS ON ALL KEYSPACES TO %s", user));
+        maybeReadSystemTables(false);
+
+        // A superuser can still read system tables
+        useSuperUser();
+        maybeReadSystemTables(true);
+        // and also write to them, though this is still strongly discouraged
+        executeNet(ProtocolVersion.CURRENT, "INSERT INTO system.peers_v2(peer, peer_port, data_center) VALUES ('127.0.100.100', 7012, 'invalid_dc')");
+    }
+
+    @Test
+    public void testGrantOnVirtualKeyspaces() throws Throwable
+    {
+        useSuperUser();
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+
+        executeNet(ProtocolVersion.CURRENT, format("GRANT SELECT PERMISSION ON KEYSPACE system_virtual_schema TO %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("GRANT SELECT PERMISSION ON KEYSPACE system_views TO %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_virtual_schema FROM %s", user));
+        executeNet(ProtocolVersion.CURRENT, format("REVOKE SELECT PERMISSION ON KEYSPACE system_views FROM %s", user));
+    }
+
+    @Test
+    public void testCheckPermissionsAfterAuthorize() throws Throwable
+    {
+        useSuperUser();
+
+        executeNet("CREATE KEYSPACE check_permissions WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
+        executeNet("CREATE TABLE check_permissions.t1 (k int PRIMARY KEY)");
+        executeNet("INSERT INTO check_permissions.t1 (k) VALUES (1)");
+
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+
+        final String simple_user = "simple_user";
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", simple_user, simple_user));
+        executeNet("GRANT AUTHORIZE ON check_permissions.t1 TO " + simple_user);
+
+        useUser(user, pass);
+        assertUnauthorizedQuery("User user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "SELECT * FROM check_permissions.t1");
+
+        useUser(simple_user, simple_user);
+        assertUnauthorizedQuery("User simple_user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "SELECT * FROM check_permissions.t1");
+        assertUnauthorizedQuery("User simple_user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "GRANT SELECT ON check_permissions.t1 TO " + user);
+
+        useUser(user, pass);
+        assertUnauthorizedQuery("User user has no SELECT permission on <table check_permissions.t1> or any of its parents",
+                                "SELECT * FROM check_permissions.t1");
+
+        useSuperUser();
+        executeNet("GRANT SELECT ON check_permissions.t1 TO " + simple_user);
+
+        useUser(simple_user, simple_user);
+        executeNet("SELECT * FROM check_permissions.t1");
+        executeNet("GRANT SELECT ON check_permissions.t1 TO " + user);
+
+        useUser(user, pass);
+        executeNet("SELECT * FROM check_permissions.t1");
+    }
+
+    @Test
+    public void testAddIdentityPermissions() throws Throwable
+    {
+        useSuperUser();
+
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("GRANT CREATE ON ALL ROLES TO %s", user));
+
+        useUser(user, pass);
+        executeNet(String.format("ADD IDENTITY 'id1' TO ROLE '%s'", user));
+
+        // Should disallow binding an identity to a superuser role for regular users
+        assertUnauthorizedQuery("Only superusers can bind identities to a role with superuser status",
+                                "ADD IDENTITY 'adminId' TO ROLE 'cassandra'");
+    }
+
+    @Test
+    public void testRemoveIdentityPermissionsWithSpecificRolePermission() throws Throwable
+    {
+        useSuperUser();
+
+        String simpleUser = "user_1";
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", simpleUser, pass));
+        executeNet(String.format("ADD IDENTITY 'userId' TO ROLE '%s'", user));
+        executeNet(String.format("ADD IDENTITY 'simpleUserId' TO ROLE '%s'", simpleUser));
+        // allows user to drop simpleUser (including identity to role mappings)
+        executeNet(String.format("GRANT DROP ON ROLE %s TO %s", simpleUser, user));
+
+        useUser(user, pass);
+        executeNet("DROP IDENTITY 'simpleUserId'");
+        // We should not be able to drop identities mapped for role "user"
+        assertUnauthorizedQuery("User user does not have sufficient privileges to perform the requested operation",
+                                "DROP IDENTITY 'userId'");
+        // Finally drop the "simpleUser" role
+        executeNet(String.format("DROP ROLE '%s'", simpleUser));
+    }
+
+    @Test
+    public void testRemoveIdentityPermissions()
+    {
+        useSuperUser();
+
+        executeNet(String.format("CREATE ROLE %s WITH LOGIN = TRUE AND password='%s'", user, pass));
+        executeNet(String.format("GRANT DROP ON ALL ROLES TO %s", user));
+        // Bind an identity to a superuser role
+        executeNet("ADD IDENTITY 'adminId' TO ROLE 'cassandra'");
+
+        useUser(user, pass);
+
+        // Spin assert for effective auth changes.
+        Util.spinAssertEquals(false, () -> {
+            try
+            {
+                // Should disallow regular users from removing an identity binding from a superuser role
+                assertUnauthorizedQuery("Only superusers can remove identity bindings from a role with superuser status",
+                                        "DROP IDENTITY 'adminId'");
+            }
+            catch (Throwable e)
+            {
+                return true;
+            }
+            return false;
+        }, 10);
+
+        useSuperUser();
+        // superusers can drop identities bound to superusers
+        executeNet("DROP IDENTITY 'adminId'");
+
+        // Should also be able to run an IF EXISTS query with a non-existent identity
+        executeNet("DROP IDENTITY IF EXISTS 'nonExistentUserId'");
+    }
+
+    private void maybeReadSystemTables(boolean superuser) throws Throwable
+    {
+        if (superuser)
+            useSuperUser();
+        else
+            useUser(user, pass);
+
+        Set<String> readableKeyspaces = new HashSet<>(Arrays.asList(SCHEMA_KEYSPACE_NAME, TRACE_KEYSPACE_NAME));
+        Set<String> readableSystemTables = new HashSet<>(Arrays.asList(SystemKeyspace.LOCAL,
+                                                                       SystemKeyspace.PEERS_V2,
+                                                                       SystemKeyspace.LEGACY_PEERS,
+                                                                       SystemKeyspace.LEGACY_SIZE_ESTIMATES,
+                                                                       SystemKeyspace.TABLE_ESTIMATES));
+
+        for (String keyspace : Iterables.concat(LOCAL_SYSTEM_KEYSPACE_NAMES, REPLICATED_SYSTEM_KEYSPACE_NAMES))
+        {
+            for (TableMetadata table : Schema.instance.getKeyspaceMetadata(keyspace).tables)
+            {
+                if (superuser || (readableKeyspaces.contains(keyspace) || (keyspace.equals(SYSTEM_KEYSPACE_NAME) && readableSystemTables.contains(table.name))))
+                {
+                    executeNet(ProtocolVersion.CURRENT, ConsistencyLevel.ONE, format("SELECT * FROM %s LIMIT 1", table));
+                }
+                else
+                {
+                    assertUnauthorizedQuery(format("User %s has no SELECT permission on %s or any of its parents", user, table.resource),
+                                            format("SELECT * FROM %s LIMIT 1", table));
+                }
+            }
+        }
+    }
+
+    private void maybeRejectGrant(Permission p, String errorResponse, String grant) throws Throwable
+    {
+        if (Permission.INVALID_FOR_SYSTEM_KEYSPACES.contains(p))
+            assertUnauthorizedQuery(errorResponse, grant);
+        else
+            executeNet(ProtocolVersion.CURRENT, grant);
     }
 }

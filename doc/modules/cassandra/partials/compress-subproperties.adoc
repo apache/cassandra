@@ -1,0 +1,69 @@
+=== compression = { compression_map }
+:description: Sets table compression.
+
+Configure the `compression_map` by specifying the compression algorithm `class` followed by the subproperties in simple JSON format.
+
+[TIP]
+====
+Implement custom compression classes using the `org.apache.cassandra.io.compress.ICompressor` interface.
+====
+
+[source, console]
+----
+compression = {
+   ['class' : '<compression_algorithm_name>',
+     'chunk_length_in_kb' : '<value>',
+     'crc_check_chance' : '<value>',]
+   | 'sstable_compression' : '']
+}
+----
+
+*class* ::
+Sets the compressor name.
+{product} provides the following built-in classes:
++
+[width="100%",cols="40%,19%,11%,13%,6%,11%",options="header",]
+|===
+|Compression Algorithm |Cassandra Class |Compression |Decompression
+|Ratio |C* Version
+
+|https://lz4.github.io/lz4/[LZ4] |`LZ4Compressor` | A+ | A+ | C+ | `>=1.2.2`
+
+|https://lz4.github.io/lz4/[LZ4HC] |`LZ4Compressor` | C+ | A+ | B+ | `>= 3.6`
+
+|https://facebook.github.io/zstd/[Zstd] |`ZstdCompressor` | A- | A- | A+ | `>= 4.0`
+
+|http://google.github.io/snappy/[Snappy] |`SnappyCompressor` | A- | A | C | `>= 1.0`
+
+|https://zlib.net[Deflate (zlib)] |`DeflateCompressor` | C | C | A | `>= 1.0`
+|===
++
+[IMPORTANT]
+====
+Use only compression implementations bundled with {product}.
+====
++
+Choosing the right compressor depends on your requirements for space savings over read performance.
+LZ4 is fastest to decompress, followed by Snappy, then by Deflate.
+Compression effectiveness is inversely correlated with decompression speed.
+The extra compression from Deflate or Snappy is not enough to make up for the decreased performance for general-purpose workloads, but for archival data they may be worth considering.
++
+*Default*: `LZ4Compressor`.
+*chunk_length_in_kb* ::
+Size (in KB) of the block.
+On disk, SSTables are compressed by block to allow random reads.
+Values larger than the default value might improve the compression rate, but increases the minimum size of data to be read from disk when a read occurs.
+The default value is a good middle ground for compressing tables.
+Adjust compression size to account for read/write access patterns (how much data is typically requested at once) and the average size of rows in the table.
++
+*Default*: `64`.
+*crc_check_chance* ::
+When compression is enabled, each compressed block includes a checksum of that block for the purpose of detecting disk bit rot and avoiding the propagation of corruption to other replica.
+This option defines the probability with which those checksums are checked during read.
+By default they are always checked.
+Set to 0 to disable checksum checking and to 0.5, for instance, to check them on every other read.
++
+*Default*: `1.0`.
+*sstable_compression* ::
+Disables compression.
+Specify a null value.

@@ -36,9 +36,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.google.monitoring.runtime.instrumentation.AllocationRecorder;
+import com.google.monitoring.runtime.instrumentation.Sampler;
+import com.sun.management.ThreadMXBean;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.index.internal.CollatedViewIndexBuilder;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -46,10 +47,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.monitoring.runtime.instrumentation.AllocationRecorder;
-import com.google.monitoring.runtime.instrumentation.Sampler;
-import com.sun.management.ThreadMXBean;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -64,6 +63,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
+import org.apache.cassandra.index.internal.CollatedViewIndexBuilder;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -77,6 +77,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class CompactionAllocationTest
 {
@@ -494,7 +496,7 @@ public class CompactionAllocationTest
 
     private static void testTinyPartitions(String name, int numSSTable, int sstablePartitions, boolean overlap) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + toLowerCaseLocalized(name);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ksname).build());
@@ -603,7 +605,7 @@ public class CompactionAllocationTest
 
     private static void testMediumPartitions(String name, int numSSTable, int sstablePartitions, boolean overlap, boolean overlapCK) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + toLowerCaseLocalized(name);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
@@ -702,7 +704,7 @@ public class CompactionAllocationTest
 
     private static void testWidePartitions(String name, int numSSTable, int sstablePartitions, boolean overlap, boolean overlapCK) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + toLowerCaseLocalized(name);
 
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                                     CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
@@ -806,7 +808,7 @@ public class CompactionAllocationTest
                                                    int sstablePartitions,
                                                    IndexDef...indexes) throws Throwable
     {
-        String ksname = "ks_" + name.toLowerCase();
+        String ksname = "ks_" + toLowerCaseLocalized(name);
         SchemaLoader.createKeyspace(ksname, KeyspaceParams.simple(1),
                 CreateTableStatement.parse("CREATE TABLE tbl (k text, c text, v1 text, v2 text, v3 text, v4 text, PRIMARY KEY (k, c))", ksname).build());
 

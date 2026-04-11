@@ -21,8 +21,6 @@ package org.apache.cassandra.distributed.upgrade;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
@@ -33,6 +31,9 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import com.vdurmont.semver4j.Semver;
+
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -132,8 +133,7 @@ public abstract class CompactStoragePagingWithProtocolTester extends UpgradeTest
         String query = withKeyspace("SELECT * FROM %s.t");
         assertRows(query, ProtocolVersion.V3, rows);
         assertRows(query, ProtocolVersion.V4, rows);
-        if (initialVersion().isGreaterThanOrEqualTo(v3X))
-            assertRows(query, ProtocolVersion.V5, rows);
+        assertRows(query, ProtocolVersion.V5, rows);
     }
 
     private static void assertRows(String query, ProtocolVersion protocolVersion, Object[]... expectedRows)

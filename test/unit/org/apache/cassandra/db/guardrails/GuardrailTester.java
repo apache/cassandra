@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
@@ -32,9 +33,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -51,14 +55,14 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.guardrails.GuardrailEvent.GuardrailEventType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.diag.DiagnosticEventService;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.Clock;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -110,13 +114,11 @@ public abstract class GuardrailTester extends CQLTester
     }
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpState()
     {
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
-
         systemClientState = ClientState.forInternalCalls();
 
         userClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 123));
@@ -218,7 +220,7 @@ public abstract class GuardrailTester extends CQLTester
             listener.assertNotWarned();
             listener.assertNotFailed();
         }
-        catch (GuardrailViolatedException e)
+        catch (InvalidRequestException e)
         {
             fail("Expected not to fail, but failed with error message: " + e.getMessage());
         }
@@ -288,6 +290,32 @@ public abstract class GuardrailTester extends CQLTester
         }
     }
 
+    protected ResultMessage assertWarnsWithResult(CheckedSupplier supplier, String message, String redactedMessage) throws Throwable
+    {
+        return assertWarnsWithResult(supplier, Collections.singletonList(message), Collections.singletonList(redactedMessage));
+    }
+
+    protected ResultMessage assertWarnsWithResult(CheckedSupplier supplier, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        // We use client warnings to check we properly warn as this is the most convenient. Technically,
+        // this doesn't validate we also log the warning, but that's probably fine ...
+        ClientWarn.instance.captureWarnings();
+        try
+        {
+            ResultMessage message = supplier.get();
+            assertWarnings(messages);
+            listener.assertWarned(redactedMessages);
+            listener.assertNotFailed();
+
+            return message;
+        }
+        finally
+        {
+            ClientWarn.instance.resetWarnings();
+            listener.clear();
+        }
+    }
+
     protected void assertFails(String query, String message) throws Throwable
     {
         assertFails(query, message, message);
@@ -342,17 +370,37 @@ public abstract class GuardrailTester extends CQLTester
      * Unlike {@link CQLTester#assertInvalidThrowMessage}, the chain of methods ending here in {@link GuardrailTester}
      * respect the input ClientState so guardrails permissions will be correctly checked.
      */
-    protected void assertFails(CheckedFunction function, boolean thrown, List<String> messages, List<String> redactedMessages) throws Throwable
+    protected Optional<ResultMessage> assertFails(CheckedFunction function, boolean thrown, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        return assertFailsInternal(function, thrown, messages, redactedMessages);
+    }
+
+    protected Optional<ResultMessage> assertFails(CheckedSupplier supplier, boolean thrown, List<String> messages, List<String> redactedMessages) throws Throwable
+    {
+        return assertFailsInternal(supplier, thrown, messages, redactedMessages);
+    }
+
+    private Optional<ResultMessage> assertFailsInternal(Object functionOrSupplier, boolean thrown, List<String> messages, List<String> redactedMessages) throws Throwable
     {
         ClientWarn.instance.captureWarnings();
         try
         {
-            function.apply();
+            ResultMessage resultMessage = null;
+            if (functionOrSupplier instanceof CheckedFunction)
+            {
+                ((CheckedFunction) functionOrSupplier).apply();
+            }
+            else if (functionOrSupplier instanceof CheckedSupplier)
+            {
+                resultMessage = ((CheckedSupplier) functionOrSupplier).get();
+            }
 
             if (thrown)
                 fail("Expected to fail, but it did not");
+
+            return Optional.ofNullable(resultMessage);
         }
-        catch (GuardrailViolatedException e)
+        catch (InvalidRequestException e) // TODO: this used to catch GuardrailViolatedException, but now we throw InvalidRequestException for all rejections in Schema#submit
         {
             assertTrue("Expect no exception thrown", thrown);
 
@@ -377,18 +425,23 @@ public abstract class GuardrailTester extends CQLTester
             assertTrue(format("Full error message '%s' does not contain expected message '%s'", e.getMessage(), failMessage),
                        e.getMessage().contains(failMessage));
 
-            assertWarnings(messages);
-            if (messages.size() > 1)
-                listener.assertWarned(redactedMessages.subList(0, messages.size() - 1));
-            else
-                listener.assertNotWarned();
-            listener.assertFailed(redactedMessages.get(messages.size() - 1));
+            if (e instanceof GuardrailViolatedException)
+            {
+                assertWarnings(messages);
+                if (messages.size() > 1)
+                    listener.assertWarned(redactedMessages.subList(0, messages.size() - 1));
+                else
+                    listener.assertNotWarned();
+                listener.assertFailed(redactedMessages.get(messages.size() - 1));
+            }
         }
         finally
         {
             ClientWarn.instance.resetWarnings();
             listener.clear();
         }
+
+        return Optional.empty();
     }
 
     protected void assertFails(String query, String... messages) throws Throwable
@@ -529,7 +582,7 @@ public abstract class GuardrailTester extends CQLTester
         CQLStatement statement = QueryProcessor.parseStatement(formattedQuery, queryState.getClientState());
         statement.validate(state);
 
-        return statement.execute(queryState, options, Clock.Global.nanoTime());
+        return statement.execute(queryState, options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     protected static String sortCSV(String csv)

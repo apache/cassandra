@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -28,12 +29,13 @@ import javax.crypto.ShortBufferException;
 
 import com.google.common.base.Preconditions;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.commitlog.EncryptedSegment;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Encryption and decryption functions specific to the commit log.
@@ -115,7 +117,6 @@ public class EncryptionUtils
         return outputBuffer;
     }
 
-    @SuppressWarnings("resource")
     public static ByteBuffer encrypt(ByteBuffer inputBuffer, ByteBuffer outputBuffer, boolean allowBufferResize, Cipher cipher) throws IOException
     {
         Preconditions.checkNotNull(outputBuffer, "output buffer may not be null");
@@ -167,7 +168,6 @@ public class EncryptionUtils
     }
 
     // path used when decrypting commit log files
-    @SuppressWarnings("resource")
     public static ByteBuffer decrypt(FileDataInput fileDataInput, ByteBuffer outputBuffer, boolean allowBufferResize, Cipher cipher) throws IOException
     {
         return decrypt(new DataInputReadChannel(fileDataInput), outputBuffer, allowBufferResize, cipher);

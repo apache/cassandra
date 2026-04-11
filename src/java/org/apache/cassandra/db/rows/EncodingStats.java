@@ -18,11 +18,20 @@
 package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Calendar;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.TimeZone;
 import java.util.function.Function;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -109,6 +118,13 @@ public class EncodingStats implements IMeasurableMemory
                      ? that.minTTL
                      : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
 
+        // EncodingStats is immutable, so if the result feilds are the same as in the current object we can avoid new object creation
+        // usually we merge an older object with a newer one and timestamp usually grows, so chances to reuse the object are high
+        if (this.minTimestamp == minTimestamp
+            && this.minLocalDeletionTime == minDelTime
+            && this.minTTL == minTTL) {
+            return this;
+        }
         return new EncodingStats(minTimestamp, minDelTime, minTTL);
     }
 

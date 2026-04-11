@@ -32,11 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import org.junit.Assert;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Host;
@@ -44,18 +39,27 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.PreparedStatementHelper;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.DynamicType;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryHandler.Prepared;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.RowUtil;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -70,7 +74,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class MixedModeFuzzTest extends TestBaseImpl
+public class MixedModeFuzzTest extends FuzzTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(ReprepareFuzzTest.class);
 
@@ -96,6 +100,7 @@ public class MixedModeFuzzTest extends TestBaseImpl
             {
                 c.schemaChange(withKeyspace("CREATE KEYSPACE ks" + i + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};"));
                 c.schemaChange(withKeyspace("CREATE TABLE ks" + i + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck));"));
+                ClusterUtils.waitForCMSToQuiesce(c, c.get(1));
                 for (int j = 0; j < i; j++)
                     c.coordinator(1).execute("INSERT INTO ks" + i + ".tbl (pk, ck) VALUES (?, ?)", ConsistencyLevel.ALL, 1, j);
             }
@@ -268,9 +273,10 @@ public class MixedModeFuzzTest extends TestBaseImpl
 
                                     c.get(nodeWithFix.get() ? 1 : 2).runOnInstance(() -> {
                                         SystemKeyspace.loadPreparedStatements((id, query, keyspace) -> {
+                                            Prepared prepared = QueryProcessor.instance.getPrepared(id);
                                             if (rng.nextBoolean())
                                                 QueryProcessor.instance.evictPrepared(id);
-                                            return true;
+                                            return prepared;
                                         });
                                     });
                                     break;
@@ -450,7 +456,7 @@ public class MixedModeFuzzTest extends TestBaseImpl
             if (existing != null)
                 return existing;
 
-            QueryHandler.Prepared prepared = QueryProcessor.parseAndPrepare(queryString, clientState, false);
+            Prepared prepared = QueryProcessor.parseAndPrepare(queryString, clientState, false);
             CQLStatement statement = prepared.statement;
 
             int boundTerms = statement.getBindVariables().size();

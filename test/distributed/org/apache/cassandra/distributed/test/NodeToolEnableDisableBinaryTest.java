@@ -20,15 +20,16 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 
+import com.datastax.driver.core.Session;
+
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -37,6 +38,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Test for enabling and disabling binary protocol
+ *
+ * @see org.apache.cassandra.tools.nodetool.EnableBinary
+ * @see org.apache.cassandra.tools.nodetool.DisableBinary
+ */
 public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
 {
     private static ICluster cluster;
@@ -45,85 +52,18 @@ public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
     public void setupEnv() throws IOException
     {
         if (cluster == null)
+        {
             cluster = init(builder().withNodes(1)
                                     .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
                                     .start());
+            cluster.get(1).nodetool("disableautocompaction");
+        }
     }
 
     @AfterClass
     public static void teardownEnv() throws Exception
     {
         cluster.close();
-    }
-
-    @Test
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-
-        ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "help", "disablebinary");
-        String help =   "NAME\n" + 
-                        "        nodetool disablebinary - Disable native transport (binary protocol)\n" + 
-                        "\n" + 
-                        "SYNOPSIS\n" + 
-                        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" + 
-                        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" + 
-                        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" + 
-                        "                [(-u <username> | --username <username>)] disablebinary\n" + 
-                        "\n" + 
-                        "OPTIONS\n" + 
-                        "        -h <host>, --host <host>\n" + 
-                        "            Node hostname or ip address\n" + 
-                        "\n" + 
-                        "        -p <port>, --port <port>\n" + 
-                        "            Remote jmx agent port number\n" + 
-                        "\n" + 
-                        "        -pp, --print-port\n" + 
-                        "            Operate in 4.0 mode with hosts disambiguated by port number\n" + 
-                        "\n" + 
-                        "        -pw <password>, --password <password>\n" + 
-                        "            Remote jmx agent password\n" + 
-                        "\n" + 
-                        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" + 
-                        "            Path to the JMX password file\n" + 
-                        "\n" + 
-                        "        -u <username>, --username <username>\n" + 
-                        "            Remote jmx agent username\n" + 
-                        "\n" + 
-                        "\n";
-        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
-
-        tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "help", "enablebinary");
-        help =  "NAME\n" + 
-                "        nodetool enablebinary - Reenable native transport (binary protocol)\n" + 
-                "\n" + 
-                "SYNOPSIS\n" + 
-                "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" + 
-                "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" + 
-                "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" + 
-                "                [(-u <username> | --username <username>)] enablebinary\n" + 
-                "\n" + 
-                "OPTIONS\n" + 
-                "        -h <host>, --host <host>\n" + 
-                "            Node hostname or ip address\n" + 
-                "\n" + 
-                "        -p <port>, --port <port>\n" + 
-                "            Remote jmx agent port number\n" + 
-                "\n" + 
-                "        -pp, --print-port\n" + 
-                "            Operate in 4.0 mode with hosts disambiguated by port number\n" + 
-                "\n" + 
-                "        -pw <password>, --password <password>\n" + 
-                "            Remote jmx agent password\n" + 
-                "\n" + 
-                "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" + 
-                "            Path to the JMX password file\n" + 
-                "\n" + 
-                "        -u <username>, --username <username>\n" + 
-                "            Remote jmx agent username\n" + 
-                "\n" + 
-                "\n";
-        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test

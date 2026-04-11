@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -35,6 +36,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * A {@link VirtualTable} that return the Gossip information in tabular format.
@@ -101,10 +103,10 @@ final class GossipInfoTable extends AbstractVirtualTable
                                           .column(HEARTBEAT, getHeartBeat(localState));
 
             for (ApplicationState state : STATES_FOR_VALUES)
-                dataSet.column(state.name().toLowerCase(), getValue(localState, state));
+                dataSet.column(toLowerCaseLocalized(state.name()), getValue(localState, state));
 
             for (ApplicationState state : STATES_FOR_VERSIONS)
-                dataSet.column(state.name().toLowerCase() + "_version", getVersion(localState, state));
+                dataSet.column(toLowerCaseLocalized(state.name()) + "_version", getVersion(localState, state));
         }
         return result;
     }
@@ -178,10 +180,10 @@ final class GossipInfoTable extends AbstractVirtualTable
                                                      .addRegularColumn(HEARTBEAT, Int32Type.instance);
 
         for (ApplicationState state : STATES_FOR_VALUES)
-            builder.addRegularColumn(state.name().toLowerCase(), UTF8Type.instance);
+            builder.addRegularColumn(toLowerCaseLocalized(state.name()), UTF8Type.instance);
 
         for (ApplicationState state : STATES_FOR_VERSIONS)
-            builder.addRegularColumn(state.name().toLowerCase() + "_version", Int32Type.instance);
+            builder.addRegularColumn(toLowerCaseLocalized(state.name()) + "_version", Int32Type.instance);
 
         return builder.build();
     }

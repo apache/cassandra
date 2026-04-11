@@ -45,7 +45,7 @@ public class SetGetCompactionThroughputTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidThroughput(null, "Required parameters are missing: compaction_throughput");
+        assertSetInvalidThroughput(null, "Missing required parameter: 'compaction_throughput'");
     }
 
     @Test
@@ -75,10 +75,21 @@ public class SetGetCompactionThroughputTest extends CQLTester
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidThroughput("1.2", "compaction_throughput: can not convert \"1.2\" to a Integer");
-        assertSetInvalidThroughput("value", "compaction_throughput: can not convert \"value\" to a Integer");
+        assertSetInvalidThroughput("1.2", "Invalid value for positional parameter at index 0 (compaction_throughput): '1.2' is not an int");
+        assertSetInvalidThroughput("value", "Invalid value for positional parameter at index 0 (compaction_throughput): 'value' is not an int");
         assertSetInvalidThroughput();
         assertPreciseMibFlagNeeded();
+    }
+
+    @Test
+    public void testCurrentCompactionThroughput()
+    {
+        ToolResult tool = invokeNodetool("getcompactionthroughput");
+        tool.assertOnCleanExit();
+
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(1 minute\\): \\d+\\.\\d+ MiB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(5 minute\\): \\d+\\.\\d+ MiB/s");
+        assertThat(tool.getStdout()).containsPattern("Current compaction throughput \\(15 minute\\): \\d+\\.\\d+ MiB/s");
     }
 
     private static void assertSetGetValidThroughput(int throughput)
@@ -129,9 +140,9 @@ public class SetGetCompactionThroughputTest extends CQLTester
         tool.assertOnCleanExit();
 
         if (expected > 0)
-            assertThat(tool.getStdout()).contains("Current compaction throughput: " + expected + " MB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput: " + expected + " MiB/s");
         else
-            assertThat(tool.getStdout()).contains("Current compaction throughput: 0 MB/s");
+            assertThat(tool.getStdout()).contains("Current compaction throughput: 0 MiB/s");
     }
 
     private static void assertGetThroughputDouble(double expected)

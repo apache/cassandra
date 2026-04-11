@@ -27,17 +27,16 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
+
 import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +46,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
@@ -66,9 +67,11 @@ final class HintsDescriptor
 {
     private static final Logger logger = LoggerFactory.getLogger(HintsDescriptor.class);
 
+    static final int VERSION_30 = 1;
     static final int VERSION_40 = 2;
     static final int VERSION_50 = 3;
-    static final int CURRENT_VERSION = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+    static final int VERSION_60 = 4;
+    static final int CURRENT_VERSION = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_60;
 
     static final String COMPRESSION = "compression";
     static final String ENCRYPTION = "encryption";
@@ -79,6 +82,8 @@ final class HintsDescriptor
     final UUID hostId;
     final int version;
     final long timestamp;
+    final String hintsFileName;
+    final String crc32FileName;
 
     final ImmutableMap<String, Object> parameters;
     final ParameterizedClass compressionConfig;
@@ -91,6 +96,8 @@ final class HintsDescriptor
         this.hostId = hostId;
         this.version = version;
         this.timestamp = timestamp;
+        hintsFileName = hostId + "-" + timestamp + '-' + version + ".hints";
+        crc32FileName = hostId + "-" + timestamp + '-' + version + ".crc32";
         compressionConfig = createCompressionConfig(parameters);
 
         EncryptionData encryption = createEncryption(parameters);
@@ -203,12 +210,12 @@ final class HintsDescriptor
 
     String fileName()
     {
-        return String.format("%s-%s-%s.hints", hostId, timestamp, version);
+        return hintsFileName;
     }
 
     String checksumFileName()
     {
-        return String.format("%s-%s-%s.crc32", hostId, timestamp, version);
+        return crc32FileName;
     }
 
     File file(File hintsDirectory)
@@ -221,6 +228,22 @@ final class HintsDescriptor
         return new File(hintsDirectory, checksumFileName());
     }
 
+    /** cached size of the represented hints file */
+    private transient volatile long hintsFileSize = -1L;
+
+    long hintsFileSize(File hintsDirectory)
+    {
+        long size = hintsFileSize;
+        if (size == -1L) // we may race and duplicate lookup the first time the size is being queried, but that is fine
+            hintsFileSize = size = file(hintsDirectory).length();
+        return size;
+    }
+
+    void hintsFileSize(long value)
+    {
+        hintsFileSize = value;
+    }
+
     int messagingVersion()
     {
         return messagingVersion(version);
@@ -230,10 +253,14 @@ final class HintsDescriptor
     {
         switch (hintsVersion)
         {
+            case VERSION_30:
+                return MessagingService.VERSION_30;
             case VERSION_40:
                 return MessagingService.VERSION_40;
             case VERSION_50:
                 return MessagingService.VERSION_50;
+            case VERSION_60:
+                return MessagingService.VERSION_60;
             default:
                 throw new AssertionError();
         }

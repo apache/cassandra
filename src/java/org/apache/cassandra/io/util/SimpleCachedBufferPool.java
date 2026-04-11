@@ -22,8 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.io.compress.BufferType;
 import org.jctools.queues.MpmcArrayQueue;
+
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * A very simple Bytebuffer pool with a fixed allocation size and a cached max allocation count. Will allow
@@ -92,7 +94,7 @@ public class SimpleCachedBufferPool
         // We use a bounded queue. By consequence if we have reached the maximum size for the buffer pool
         // offer will return false and we know that we can simply get rid of the buffer.
         if (!bufferPool.offer(buffer))
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
     }
 
     /**
@@ -103,7 +105,7 @@ public class SimpleCachedBufferPool
         ByteBuffer buffer = bufferPool.poll();
         while(buffer != null)
         {
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
             buffer = bufferPool.poll();
         }
     }

@@ -21,7 +21,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,29 +30,36 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.*;
-import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.Resources;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.Datacenters;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
@@ -68,35 +74,46 @@ public class ClientState
 {
     private static final Logger logger = LoggerFactory.getLogger(ClientState.class);
 
-    private static final Set<IResource> READABLE_SYSTEM_RESOURCES = new HashSet<>();
-    private static final Set<IResource> PROTECTED_AUTH_RESOURCES = new HashSet<>();
+    public static final ImmutableSet<IResource> READABLE_SYSTEM_RESOURCES;
+    public static final ImmutableSet<IResource> PROTECTED_AUTH_RESOURCES;
 
     static
     {
         // We want these system cfs to be always readable to authenticated users since many tools rely on them
         // (nodetool, cqlsh, bulkloader, etc.)
-        for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.LEGACY_PEERS, SystemKeyspace.PEERS_V2))
-            READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
+        ImmutableSet.Builder<IResource> readableBuilder = ImmutableSet.builder();
+        for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.LEGACY_PEERS, SystemKeyspace.PEERS_V2,
+                                       SystemKeyspace.LEGACY_SIZE_ESTIMATES, SystemKeyspace.TABLE_ESTIMATES))
+            readableBuilder.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
 
         // make all schema tables readable by default (required by the drivers)
-        SchemaKeyspaceTables.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
+        SchemaKeyspaceTables.ALL.forEach(table -> readableBuilder.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
+
+        // make system_traces readable by all or else tracing will require explicit grants
+        readableBuilder.add(DataResource.table(SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.EVENTS));
+        readableBuilder.add(DataResource.table(SchemaConstants.TRACE_KEYSPACE_NAME, TraceKeyspace.SESSIONS));
 
         // make all virtual schema tables readable by default as well
-        VirtualSchemaKeyspace.instance.tables().forEach(t -> READABLE_SYSTEM_RESOURCES.add(t.metadata().resource));
+        VirtualSchemaKeyspace.instance.tables().forEach(t -> readableBuilder.add(t.metadata().resource));
+        READABLE_SYSTEM_RESOURCES = readableBuilder.build();
 
+        ImmutableSet.Builder<IResource> protectedBuilder = ImmutableSet.builder();
         // neither clients nor tools need authentication/authorization
         if (DatabaseDescriptor.isDaemonInitialized())
         {
-            PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
-            PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
-            PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getRoleManager().protectedResources());
+            protectedBuilder.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
+            protectedBuilder.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
+            protectedBuilder.addAll(DatabaseDescriptor.getRoleManager().protectedResources());
         }
+
+        PROTECTED_AUTH_RESOURCES = protectedBuilder.build();
     }
 
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
     private volatile boolean issuedPreparedStatementsUseWarning;
+    private volatile boolean issuedWarningForUneligiblePreparedStatements;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -139,6 +156,27 @@ public class ClientState
     // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
     // is unrealistic expectation, doing it node-wise is easy).
     private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
+
+    private boolean applyGuardrails = true;
+    /**
+     * Provides an additional control on the checking of guardrails. When executing SchemaTransformations in the
+     * metadata log follower or when committing on a CMS member, we don't want guardrails to fire warnings.
+     * @see org.apache.cassandra.schema.SchemaTransformation#enterExecution()
+     **/
+    public void pauseGuardrails()
+    {
+        applyGuardrails = false;
+    }
+
+    public void resumeGuardrails()
+    {
+        applyGuardrails = true;
+    }
+
+    public boolean applyGuardrails()
+    {
+        return applyGuardrails;
+    }
 
     @VisibleForTesting
     public static void resetLastTimestamp(long nowMillis)
@@ -448,12 +486,16 @@ public class ClientState
 
         preventSystemKSSchemaModification(keyspace, resource, perm);
 
+        // Some system data is always readable
         if ((perm == Permission.SELECT) && READABLE_SYSTEM_RESOURCES.contains(resource))
             return;
 
+        // Modifications to any resource upon which the authenticator, authorizer or role manager depend should not be
+        // be performed by users
         if (PROTECTED_AUTH_RESOURCES.contains(resource))
             if ((perm == Permission.CREATE) || (perm == Permission.ALTER) || (perm == Permission.DROP))
                 throw new UnauthorizedException(String.format("%s schema is protected", resource));
+
         ensurePermission(perm, resource);
     }
 
@@ -466,6 +508,24 @@ public class ClientState
         if(resource instanceof FunctionResource && resource.hasParent())
             if (((FunctionResource)resource).getKeyspace().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 return;
+
+        if (resource instanceof DataResource && isOrdinaryUser())
+        {
+            DataResource dataResource = (DataResource)resource;
+            if (!dataResource.isRootLevel())
+            {
+                String keyspace = dataResource.getKeyspace();
+                // A user may have permissions granted on ALL KEYSPACES, but this should exclude system keyspaces. Any
+                // permission on those keyspaces or their tables must be granted to the user either explicitly or
+                // transitively. The set of grantable permissions for non-virtual system keyspaces is further limited,
+                // see the Permission enum for details.
+                if (SchemaConstants.isSystemKeyspace(keyspace))
+                {
+                    ensurePermissionOnResourceChain(perm, Resources.chain(dataResource, IResource::hasParent));
+                    return;
+                }
+            }
+        }
 
         ensurePermissionOnResourceChain(perm, resource);
     }
@@ -489,7 +549,12 @@ public class ClientState
 
     private void ensurePermissionOnResourceChain(Permission perm, IResource resource)
     {
-        List<? extends IResource> resources = Resources.chain(resource);
+        ensurePermissionOnResourceChain(perm, Resources.chain(resource));
+    }
+
+    private void ensurePermissionOnResourceChain(Permission perm, List<? extends IResource> resources)
+    {
+        IResource resource = resources.get(0);
         if (DatabaseDescriptor.getAuthFromRoot())
             resources = Lists.reverse(resources);
 
@@ -591,6 +656,15 @@ public class ClientState
                                                    "always use fully qualified table names (e.g. <keyspace>.<table>). " +
                                                    "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
             issuedPreparedStatementsUseWarning = true;
+        }
+    }
+
+    public void warnAboutUneligiblePreparedStatement(MD5Digest statementId)
+    {
+        if (!issuedWarningForUneligiblePreparedStatements)
+        {
+            ClientWarn.instance.warn(String.format("Prepared statements for other than modification and selection statements should be avoided, statement id: %s", statementId));
+            issuedWarningForUneligiblePreparedStatements = true;
         }
     }
 

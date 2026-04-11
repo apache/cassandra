@@ -30,7 +30,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.accept_messaging;
+import static org.apache.cassandra.net.MessagingService.accept_streaming;
+import static org.apache.cassandra.net.MessagingService.instance;
 
 public class InboundConnectionSettings
 {
@@ -146,7 +148,7 @@ public class InboundConnectionSettings
         ServerEncryptionOptions encryption = this.encryption;
         if (encryption == null)
             encryption = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
-        encryption = encryption.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
+        encryption = new ServerEncryptionOptions.Builder(encryption).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all).withOptional(false).build();
 
         return this.withBindAddress(bindAddress.withPort(DatabaseDescriptor.getSSLStoragePort()))
                    .withEncryption(encryption)

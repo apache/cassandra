@@ -28,13 +28,14 @@ import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.distributed.shared.InstanceClassLoader;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggerContextListener;
 import ch.qos.logback.core.status.Status;
 import ch.qos.logback.core.status.StatusListener;
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_STDERR_ENCODING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_STDOUT_ENCODING;

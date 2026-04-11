@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -42,7 +43,8 @@ public class FailStartupDuplicateParamsTest
 {
     private static final List<String> baseConfig = ImmutableList.of(
         "cluster_name: Test Cluster",
-        "commitlog_sync: batch",
+        "commitlog_sync: periodic",
+        "commitlog_sync_period: 10s",
         "commitlog_directory: build/test/cassandra/commitlog",
         "hints_directory: build/test/cassandra/hints",
         "partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner",

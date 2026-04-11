@@ -23,13 +23,15 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.utils.concurrent.AbstractTestAsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
+
+import io.netty.channel.embedded.EmbeddedChannel;
 
 public class AsyncChannelPromiseTest extends AbstractTestAsyncPromise
 {

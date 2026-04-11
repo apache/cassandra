@@ -30,7 +30,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
@@ -116,7 +116,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     {
         List<TaskSupplier> suppliers = new ArrayList<>(managers.size());
         for (PendingRepairManager manager : managers)
-            suppliers.add(new TaskSupplier(manager.getMaxEstimatedRemainingTasks(), () -> manager.getNextBackgroundTask(gcBefore)));
+            suppliers.add(new TaskSupplier(manager.getMaxEstimatedRemainingTasks(), () -> manager.getNextBackgroundTasks(gcBefore)));
 
         return suppliers;
     }
@@ -149,7 +149,14 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         return tasks;
     }
 
-    AbstractCompactionTask getNextRepairFinishedTask()
+    @Override
+    public void addSSTable(SSTableReader sstable)
+    {
+        Preconditions.checkArgument(managesSSTable(sstable), "Attempting to add sstable from wrong holder");
+        managers.get(router.getIndexForSSTable(sstable)).addSSTable(sstable);
+    }
+
+    Collection<AbstractCompactionTask> getNextRepairFinishedTasks()
     {
         List<TaskSupplier> repairFinishedSuppliers = getRepairFinishedTaskSuppliers();
         if (!repairFinishedSuppliers.isEmpty())
@@ -157,9 +164,9 @@ public class PendingRepairHolder extends AbstractStrategyHolder
             Collections.sort(repairFinishedSuppliers);
             for (TaskSupplier supplier : repairFinishedSuppliers)
             {
-                AbstractCompactionTask task = supplier.getTask();
-                if (task != null)
-                    return task;
+                Collection<AbstractCompactionTask> tasks = supplier.getTasks();
+                if (tasks != null && !tasks.isEmpty())
+                    return tasks;
             }
         }
         return null;
@@ -173,7 +180,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
             int numPending = manager.getNumPendingRepairFinishedTasks();
             if (numPending > 0)
             {
-                suppliers.add(new TaskSupplier(numPending, manager::getNextRepairFinishedTask));
+                suppliers.add(new TaskSupplier(numPending, manager::getNextRepairFinishedTasks));
             }
         }
 
@@ -243,7 +250,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         Preconditions.checkArgument(repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE,
                                     "PendingRepairHolder can't create sstablewriter with repaired at set");
@@ -260,7 +267,7 @@ public class PendingRepairHolder extends AbstractStrategyHolder
                                                  sstableLevel,
                                                  header,
                                                  indexGroups,
-                                                 lifecycleNewTracker);
+                                                 txn);
     }
 
     @Override
@@ -292,5 +299,10 @@ public class PendingRepairHolder extends AbstractStrategyHolder
         for (PendingRepairManager manager : managers)
             tasks += manager.getEstimatedRemainingTasks();
         return tasks;
+    }
+
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        return Iterables.any(managers, prm -> prm.hasPendingRepairSSTable(sessionID, sstable));
     }
 }

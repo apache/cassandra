@@ -22,9 +22,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 /**
  * Responsible for managing roles (which also includes what
@@ -42,7 +45,7 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      */
     public enum Option
     {
-        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD
+        SUPERUSER, PASSWORD, LOGIN, OPTIONS, HASHED_PASSWORD, GENERATED_PASSWORD, GENERATED_NAME
     }
 
     /**
@@ -62,13 +65,30 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      * options are guaranteed to be a subset of supportedOptions().
      *
      * @param performer User issuing the create role statement.
-     * @param role Rolei being created
+     * @param role Role being created
      * @param options Options the role will be created with
      * @throws RequestValidationException
      * @throws RequestExecutionException
      */
     void createRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException;
+
+    /**
+     * Called during execution of a CREATE ROLE statement.
+     * options are guaranteed to be a subset of supportedOptions().
+     *
+     * @param performer User issuing the create role statement.
+     * @param role Role being created
+     * @param options Options the role will be created with
+     * @return result message to return to a caller as CQL response when a role was created. Default is {@code null}.
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
+     */
+    default ResultMessage createRoleWithResult(AuthenticatedUser performer, RoleResource role, RoleOptions options)
+    {
+        createRole(performer, role, options);
+        return null;
+    }
 
     /**
      * Called during execution of DROP ROLE statement, as well we removing any main record of the role from the system
@@ -95,6 +115,25 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      */
     void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     throws RequestValidationException, RequestExecutionException;
+
+    /**
+     * Called during execution of ALTER ROLE statement.
+     * options are always guaranteed to be a subset of supportedOptions(). Furthermore, if the actor performing the query
+     * is not a superuser and is altering themself, then options are guaranteed to be a subset of alterableOptions().
+     * Keep the body of the method blank if your implementation doesn't support modification of any options.
+     *
+     * @param performer User issuing the alter role statement.
+     * @param role Role that will be altered.
+     * @param options Options to alter.
+     * @return result message to return to a caller as CQL response when a role was altered. Default is {@code null}.
+     * @throws RequestValidationException
+     * @throws RequestExecutionException
+     */
+    default ResultMessage alterRoleWithResult(AuthenticatedUser performer, RoleResource role, RoleOptions options)
+    {
+        alterRole(performer, role, options);
+        return null;
+    }
 
     /**
      * Called during execution of GRANT ROLE query.
@@ -226,7 +265,16 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
      *
      * For example, use this method to create any required keyspaces/column families.
      */
-    void setup();
+    default void setup()
+    {
+        setup(true);
+    }
+
+    /**
+     * Like the method above, but allows to disable async role setup, making it synchronous.
+     */
+    @VisibleForTesting
+    void setup(boolean asyncRoleSetup);
 
     /**
      * Each valid identity is associated with a role in the identity_to_role table, this method returns role

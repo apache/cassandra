@@ -28,20 +28,22 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static org.apache.cassandra.db.SystemKeyspace.*;
+import static org.apache.cassandra.db.SystemKeyspace.legacyPaxosTtlSec;
 import static org.apache.cassandra.service.paxos.Commit.CompareResult.AFTER;
 import static org.apache.cassandra.service.paxos.Commit.CompareResult.BEFORE;
 import static org.apache.cassandra.service.paxos.Commit.CompareResult.IS_REPROPOSAL;
-import static org.apache.cassandra.service.paxos.Commit.CompareResult.WAS_REPROPOSED_BY;
 import static org.apache.cassandra.service.paxos.Commit.CompareResult.SAME;
+import static org.apache.cassandra.service.paxos.Commit.CompareResult.WAS_REPROPOSED_BY;
 import static org.apache.cassandra.utils.FBUtilities.nowInSeconds;
 
 public class Commit
@@ -212,6 +214,11 @@ public class Commit
                 return c > 0 ? a : b;
             return a instanceof CommittedWithTTL ? ((CommittedWithTTL)a).lastDeleted(b) : a;
         }
+
+        public boolean isNone()
+        {
+            return ballot.equals(Ballot.none()) && update.isEmpty();
+        }
     }
 
     public static class CommittedWithTTL extends Committed
@@ -269,7 +276,8 @@ public class Commit
         return new Commit(Ballot.none(), PartitionUpdate.emptyUpdate(metadata, partitionKey));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17164 */
+    @Deprecated(since = "4.1")
     public static Commit newProposal(Ballot ballot, PartitionUpdate update)
     {
         update = withTimestamp(update, ballot.unixMicros());
@@ -308,7 +316,7 @@ public class Commit
 
     public Mutation makeMutation()
     {
-        return new Mutation(update);
+        return new Mutation(update, PotentialTxnConflicts.ALLOW);
     }
 
     @Override

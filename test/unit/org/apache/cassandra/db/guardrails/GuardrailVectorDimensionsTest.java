@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 import org.junit.Test;
@@ -42,32 +43,37 @@ public class GuardrailVectorDimensionsTest extends ThresholdTester
               Guardrails::getVectorDimensionsFailThreshold);
     }
 
+    static final List<String> CREATE_TABLE_CQL = List.of(
+        // different poisitions (partition key, clustering key, static column, regular column)
+        "CREATE TABLE %s (v vector<int, %%d> PRIMARY KEY)",
+        "CREATE TABLE %s (v vector<int, %%d>, c int, PRIMARY KEY(v, c))",
+        "CREATE TABLE %s (v vector<int, %%d>, c int, PRIMARY KEY((v, c)))",
+        "CREATE TABLE %s (k int, v vector<int, %%d>, PRIMARY KEY(k, v))",
+        "CREATE TABLE %s (k int, c int, v vector<int, %%d>, PRIMARY KEY(k, c, v))",
+        "CREATE TABLE %s (k int, c int, v vector<int, %%d> static, PRIMARY KEY(k, c))",
+        "CREATE TABLE %s (k int PRIMARY KEY, v vector<int, %%d>)",
+
+        // multivalued data types
+        "CREATE TABLE %s (k int PRIMARY KEY, v list<vector<int, %%d>>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v set<vector<int, %%d>>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v map<int, vector<int, %%d>>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v map<vector<int, %%d>, int>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v tuple<vector<int, %%d>, int>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v tuple<int, vector<int, %%d>>)",
+
+        // nested multivalued data types
+        "CREATE TABLE %s (k int PRIMARY KEY, v set<frozen<list<vector<int, %%d>>>>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v list<frozen<set<vector<int, %%d>>>>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v map<int, frozen<set<vector<int, %%d>>>>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v map<frozen<set<vector<int, %%d>>>, int>)",
+        "CREATE TABLE %s (k int PRIMARY KEY, v tuple<frozen<tuple<vector<int, %%d>, int>>, int>)"
+    );
+
     @Test
     public void testCreateTable() throws Throwable
     {
-        // different poisitions (partition key, clustering key, static column, regular column)
-        testCreateTable("CREATE TABLE %s (v vector<int, %%d> PRIMARY KEY)");
-        testCreateTable("CREATE TABLE %s (v vector<int, %%d>, c int, PRIMARY KEY(v, c))");
-        testCreateTable("CREATE TABLE %s (v vector<int, %%d>, c int, PRIMARY KEY((v, c)))");
-        testCreateTable("CREATE TABLE %s (k int, v vector<int, %%d>, PRIMARY KEY(k, v))");
-        testCreateTable("CREATE TABLE %s (k int, c int, v vector<int, %%d>, PRIMARY KEY(k, c, v))");
-        testCreateTable("CREATE TABLE %s (k int, c int, v vector<int, %%d> static, PRIMARY KEY(k, c))");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<int, %%d>)");
-
-        // multivalued data types
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v list<vector<int, %%d>>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v set<vector<int, %%d>>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v map<int, vector<int, %%d>>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v map<vector<int, %%d>, int>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v tuple<vector<int, %%d>, int>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v tuple<int, vector<int, %%d>>)");
-
-        // nested multivalued data types
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v set<frozen<list<vector<int, %%d>>>>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v list<frozen<set<vector<int, %%d>>>>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v map<int, frozen<set<vector<int, %%d>>>>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v map<frozen<set<vector<int, %%d>>>, int>)");
-        testCreateTable("CREATE TABLE %s (k int PRIMARY KEY, v tuple<frozen<tuple<vector<int, %%d>, int>>, int>)");
+        for (String cql : CREATE_TABLE_CQL)
+            testCreateTable(cql);
     }
 
     private void testCreateTable(String query) throws Throwable
@@ -75,16 +81,21 @@ public class GuardrailVectorDimensionsTest extends ThresholdTester
         testColumn(() -> format(query, createTableName()));
     }
 
+    static final List<String> CREATE_TYPE_CQL = List.of(
+        "CREATE TYPE %s (c int, v vector<int, %%d>)",
+        "CREATE TYPE %s (c int, v list<vector<int, %%d>>)",
+        "CREATE TYPE %s (c int, v set<vector<int, %%d>>)",
+        "CREATE TYPE %s (c int, v map<int, vector<int, %%d>>)",
+        "CREATE TYPE %s (c int, v map<vector<int, %%d>, int>)",
+        "CREATE TYPE %s (c int, v tuple<vector<int, %%d>, int>)",
+        "CREATE TYPE %s (c int, v tuple<int, vector<int, %%d>>)"
+    );
+
     @Test
     public void testCreateType() throws Throwable
     {
-        testCreateType("CREATE TYPE %s (c int, v vector<int, %%d>)");
-        testCreateType("CREATE TYPE %s (c int, v list<vector<int, %%d>>)");
-        testCreateType("CREATE TYPE %s (c int, v set<vector<int, %%d>>)");
-        testCreateType("CREATE TYPE %s (c int, v map<int, vector<int, %%d>>)");
-        testCreateType("CREATE TYPE %s (c int, v map<vector<int, %%d>, int>)");
-        testCreateType("CREATE TYPE %s (c int, v tuple<vector<int, %%d>, int>)");
-        testCreateType("CREATE TYPE %s (c int, v tuple<int, vector<int, %%d>>)");
+        for (String cql : CREATE_TYPE_CQL)
+            testCreateType(cql);;
     }
 
     private void testCreateType(String query) throws Throwable
@@ -92,16 +103,21 @@ public class GuardrailVectorDimensionsTest extends ThresholdTester
         testField(() -> format(query, createTypeName()));
     }
 
+    static final List<String> ALTER_TABLE_CQL = List.of(
+        "ALTER TABLE %s ADD v vector<int, %%d>",
+        "ALTER TABLE %s ADD v list<vector<int, %%d>>",
+        "ALTER TABLE %s ADD v set<vector<int, %%d>>",
+        "ALTER TABLE %s ADD v map<int, vector<int, %%d>>",
+        "ALTER TABLE %s ADD v map<vector<int, %%d>, int>",
+        "ALTER TABLE %s ADD v tuple<vector<int, %%d>, int>",
+        "ALTER TABLE %s ADD v tuple<int, vector<int, %%d>>"
+    );
+
     @Test
     public void testAlterTable() throws Throwable
     {
-        testAlterTable("ALTER TABLE %s ADD v vector<int, %%d>");
-        testAlterTable("ALTER TABLE %s ADD v list<vector<int, %%d>>");
-        testAlterTable("ALTER TABLE %s ADD v set<vector<int, %%d>>");
-        testAlterTable("ALTER TABLE %s ADD v map<int, vector<int, %%d>>");
-        testAlterTable("ALTER TABLE %s ADD v map<vector<int, %%d>, int>");
-        testAlterTable("ALTER TABLE %s ADD v tuple<vector<int, %%d>, int>");
-        testAlterTable("ALTER TABLE %s ADD v tuple<int, vector<int, %%d>>");
+        for (String cql : ALTER_TABLE_CQL)
+            testAlterTable(cql);
     }
 
     private void testAlterTable(String query) throws Throwable
@@ -112,16 +128,21 @@ public class GuardrailVectorDimensionsTest extends ThresholdTester
         });
     }
 
+    static final List<String> ALTER_TYPE_CQL = List.of(
+        "ALTER TYPE %s ADD v vector<int, %%d>",
+        "ALTER TYPE %s ADD v list<vector<int, %%d>>",
+        "ALTER TYPE %s ADD v set<vector<int, %%d>>",
+        "ALTER TYPE %s ADD v map<int, vector<int, %%d>>",
+        "ALTER TYPE %s ADD v map<vector<int, %%d>, int>",
+        "ALTER TYPE %s ADD v tuple<vector<int, %%d>, int>",
+        "ALTER TYPE %s ADD v tuple<int, vector<int, %%d>>"
+    );
+
     @Test
     public void testAlterType() throws Throwable
     {
-        testAlterType("ALTER TYPE %s ADD v vector<int, %%d>");
-        testAlterType("ALTER TYPE %s ADD v list<vector<int, %%d>>");
-        testAlterType("ALTER TYPE %s ADD v set<vector<int, %%d>>");
-        testAlterType("ALTER TYPE %s ADD v map<int, vector<int, %%d>>");
-        testAlterType("ALTER TYPE %s ADD v map<vector<int, %%d>, int>");
-        testAlterType("ALTER TYPE %s ADD v tuple<vector<int, %%d>, int>");
-        testAlterType("ALTER TYPE %s ADD v tuple<int, vector<int, %%d>>");
+        for (String cql : ALTER_TYPE_CQL)
+            testAlterType(cql);
     }
 
     private void testAlterType(String query) throws Throwable

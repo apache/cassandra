@@ -20,9 +20,12 @@ package org.apache.cassandra.db.filter;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RejectException;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.*;
 
 public class TombstoneOverwhelmingException extends RejectException
 {

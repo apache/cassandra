@@ -33,15 +33,37 @@ package org.apache.cassandra.utils.concurrent;
 public interface RefCounted<T>
 {
     /**
-     * @return the a new Ref() to the managed object, incrementing its refcount, or null if it is already released
+     * Attempts to acquire a new reference to the managed object and
+     * increment the reference count.
+     *
+     * @return a new Ref to the managed object, or null if already released
      */
     public Ref<T> tryRef();
 
+    /**
+     * Acquires a new reference to the managed object and increment the
+     * reference count.
+     *
+     * @return a new Ref to the managed object
+     * @throws IllegalStateException if already released
+     */
     public Ref<T> ref();
 
     public static interface Tidy
     {
+        /**
+         * Performs cleanup of resources when the reference count reaches zero.
+         * Called exactly once when the last reference is released.
+         *
+         * @throws Exception if cleanup fails
+         */
         void tidy() throws Exception;
+
+        /**
+         * Returns a human-readable name for debugging and leak detection.
+         *
+         * @return a descriptive name, typically the class name of the tracked object
+         */
         String name();
     }
 }

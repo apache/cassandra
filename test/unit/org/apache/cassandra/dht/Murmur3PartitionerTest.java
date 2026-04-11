@@ -74,7 +74,7 @@ public class Murmur3PartitionerTest extends PartitionerTestCase
         qt().forAll(longs().between(Long.MIN_VALUE + 1, Long.MAX_VALUE))
             .check(token -> {
                 ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(new Murmur3Partitioner.LongToken(token));
-                return Murmur3Partitioner.instance.getToken(key).token == token;
+                return Murmur3Partitioner.instance.getToken(key).getLongValue() == token;
             });
     }
 }

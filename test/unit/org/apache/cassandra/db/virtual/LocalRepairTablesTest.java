@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,8 +39,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
-import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairCoordinator;
+import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.Completable;
@@ -56,6 +58,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public class LocalRepairTablesTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
@@ -68,8 +72,6 @@ public class LocalRepairTablesTest extends CQLTester
     @BeforeClass
     public static void before()
     {
-        CQLTester.setUpClass();
-
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, LocalRepairTables.getAll(KS_NAME)));
     }
 
@@ -247,7 +249,7 @@ public class LocalRepairTablesTest extends CQLTester
     private <T extends Enum<T>> void assertState(String table, State<?, ?> state, T expectedState) throws Throwable
     {
         assertRowsIgnoringOrder(execute(t("SELECT id, completed, status, failure_cause, success_message FROM %s." + table + " WHERE id = ?"), state.getId()),
-                                row(state.getId(), false, expectedState.name().toLowerCase(), null, null));
+                                row(state.getId(), false, toLowerCaseLocalized(expectedState.name()), null, null));
     }
 
     private void assertSuccess(String table, State<?, ?> state) throws Throwable
@@ -268,7 +270,7 @@ public class LocalRepairTablesTest extends CQLTester
 
     private static RepairCoordinator.NeighborsAndRanges neighbors()
     {
-        return new RepairCoordinator.NeighborsAndRanges(false, ADDRESSES, ImmutableList.of(COMMON_RANGE));
+        return new RepairCoordinator.NeighborsAndRanges(false, false, ADDRESSES, ImmutableList.of(COMMON_RANGE));
     }
 
     private static Range<Token> range(long a, long b)
@@ -291,7 +293,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static CoordinatorState coordinator()
     {
         RepairOption options = RepairOption.parse(Collections.emptyMap(), DatabaseDescriptor.getPartitioner());
-        CoordinatorState state = new CoordinatorState(Clock.Global.clock(), 0, "test", options);
+        CoordinatorState state = new CoordinatorState(SharedContext.Global.instance, 0, "test", options);
         ActiveRepairService.instance().register(state);
         return state;
     }
@@ -299,7 +301,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static SessionState session()
     {
         CoordinatorState parent = coordinator();
-        SessionState state = new SessionState(Clock.Global.clock(), parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
+        SessionState state = new SessionState(SharedContext.Global.instance, parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
         parent.register(state);
         return state;
     }
@@ -324,7 +326,7 @@ public class LocalRepairTablesTest extends CQLTester
     private ParticipateState participate()
     {
         List<Range<Token>> ranges = Arrays.asList(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(42)));
-        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
+        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), Murmur3Partitioner.instance, ranges, true, 42, true, PreviewKind.ALL));
         ActiveRepairService.instance().register(state);
         return state;
     }

@@ -42,40 +42,45 @@ import java.util.function.ToLongFunction;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelOutboundHandlerAdapter;
-import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.transport.TlsTestUtils;
 import org.apache.cassandra.utils.FBUtilities;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.net.NoPayload.noPayload;
-import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
-import static org.apache.cassandra.net.ConnectionUtils.*;
+import static org.apache.cassandra.net.ConnectionUtils.check;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.OutboundConnectionSettings.Framing.LZ4;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -118,6 +123,8 @@ public class ConnectionTest
     public static void startup()
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
         CommitLog.instance.start();
     }
 
@@ -171,17 +178,18 @@ public class ConnectionTest
         }
     }
 
-    static final EncryptionOptions.ServerEncryptionOptions encryptionOptions =
-            new EncryptionOptions.ServerEncryptionOptions()
+    static final EncryptionOptions.Builder<EncryptionOptions.ServerEncryptionOptions> encryptionOptionsBuilder =
+            new Builder()
             .withLegacySslStoragePort(true)
-            .withOptional(true)
             .withInternodeEncryption(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.all)
-            .withKeyStore("test/conf/cassandra_ssl_test.keystore")
-            .withKeyStorePassword("cassandra")
-            .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-            .withTrustStorePassword("cassandra")
-            .withRequireClientAuth(false)
+            .withOptional(true)
+            .withKeyStore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+            .withKeyStorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+            .withTrustStore(TlsTestUtils.SERVER_TRUSTSTORE_PATH)
+            .withTrustStorePassword(TlsTestUtils.SERVER_TRUSTSTORE_PASSWORD)
+            .withRequireClientAuth(NOT_REQUIRED)
             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
+    static final EncryptionOptions.ServerEncryptionOptions encryptionOptions = encryptionOptionsBuilder.build();
 
     static final List<Function<Settings, Settings>> MODIFIERS = ImmutableList.of(
         settings -> settings.outbound(outbound -> outbound.withEncryption(encryptionOptions))
@@ -359,12 +367,31 @@ public class ConnectionTest
                                          .withApplicationSendQueueCapacityInBytes(1 << 16)),
              (inbound, outbound, endpoint) -> {
 
+            unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
+            {
+                public void serialize(Object o, DataOutputPlus out, int version) throws IOException
+                {
+                    for (int i = 0; i <= 4 << 16; i += 8L)
+                        out.writeLong(1L);
+                }
+
+                public Object deserialize(DataInputPlus in, int version) throws IOException
+                {
+                    in.skipBytesFully(4 << 16);
+                    return null;
+                }
+
+                public long serializedSize(Object o, int version)
+                {
+                    return 4 << 16;
+                }
+            });
             CountDownLatch done = new CountDownLatch(1);
             Message<?> message = Message.out(Verb._TEST_1, new Object());
             MessagingService.instance().callbacks.addWithExpiration(new RequestCallback()
             {
                 @Override
-                public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                public void onFailure(InetAddressAndPort from, RequestFailure failure)
                 {
                     done.countDown();
                 }
@@ -383,25 +410,7 @@ public class ConnectionTest
 
             }, message, endpoint);
             AtomicInteger delivered = new AtomicInteger();
-            unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
-            {
-                public void serialize(Object o, DataOutputPlus out, int version) throws IOException
-                {
-                    for (int i = 0 ; i <= 4 << 16 ; i += 8L)
-                        out.writeLong(1L);
-                }
 
-                public Object deserialize(DataInputPlus in, int version) throws IOException
-                {
-                    in.skipBytesFully(4 << 16);
-                    return null;
-                }
-
-                public long serializedSize(Object o, int version)
-                {
-                    return 4 << 16;
-                }
-            });
             unsafeSetHandler(Verb._TEST_1, () -> msg -> delivered.incrementAndGet());
             outbound.enqueue(message);
             Assert.assertTrue(done.await(10, SECONDS));
@@ -433,9 +442,6 @@ public class ConnectionTest
             CountDownLatch receiveDone = new CountDownLatch(90);
 
             AtomicInteger serialized = new AtomicInteger();
-            Message<?> message = Message.builder(Verb._TEST_1, new Object())
-                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
-                                        .build();
             unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
             {
                 public void serialize(Object o, DataOutputPlus out, int version) throws IOException
@@ -463,6 +469,9 @@ public class ConnectionTest
                     return 1;
                 }
             });
+            Message<?> message = Message.builder(Verb._TEST_1, new Object())
+                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
+                                        .build();
 
             unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
             for (int i = 0 ; i < count ; ++i)
@@ -751,7 +760,7 @@ public class ConnectionTest
         // The reserved capacity (pendingBytes) at the end of the round should equal to K - N * M,
         //   which you can find in the assertion.
         test((inbound, outbound, endpoint) -> {
-            // max capacity equals to permit-free sendQueueCapcity + the minimun of endpoint and global reserve
+            // max capacity equals to permit-free sendQueueCapacity + the minimun of endpoint and global reserve
             double maxSendQueueCapacity = outbound.settings().applicationSendQueueCapacityInBytes +
                                           Double.min(outbound.settings().applicationSendQueueReserveEndpointCapacityInBytes,
                                                      outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());

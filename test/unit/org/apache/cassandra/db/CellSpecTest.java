@@ -46,8 +46,8 @@ import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(Parameterized.class)
 public class CellSpecTest
@@ -131,6 +131,7 @@ public class CellSpecTest
     public static Collection<Object[]> data() {
         TableMetadata table = TableMetadata.builder("testing", "testing")
                                            .addPartitionKeyColumn("pk", BytesType.instance)
+                                           .offline()
                                            .build();
 
         byte[] rawBytes = { 0, 1, 2, 3, 4, 5, 6 };
@@ -146,11 +147,11 @@ public class CellSpecTest
             tests.add(new NativeCell(allocator, order.getCurrent(), column, 1234, 1, 1, bbBytes, path));
         };
         // simple
-        fn.accept(ColumnMetadata.regularColumn(table, bytes("simple"), BytesType.instance), null);
+        fn.accept(ColumnMetadata.regularColumn(table, bytes("simple"), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID), null);
 
         // complex
         // seems NativeCell does not allow CellPath.TOP, or CellPath.BOTTOM
-        fn.accept(ColumnMetadata.regularColumn(table, bytes("complex"), ListType.getInstance(BytesType.instance, true)), CellPath.create(TimeUUID.Serializer.instance.serialize(nextTimeUUID())));
+        fn.accept(ColumnMetadata.regularColumn(table, bytes("complex"), ListType.getInstance(BytesType.instance, true), ColumnMetadata.NO_UNIQUE_ID), CellPath.create(TimeUUID.Serializer.instance.serialize(nextTimeUUID())));
 
         return tests.stream().map(a -> new Object[] {a.getClass().getSimpleName() + ":" + (a.path() == null ? "simple" : "complex"), a}).collect(Collectors.toList());
     }

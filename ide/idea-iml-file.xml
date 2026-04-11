@@ -30,6 +30,8 @@
             <sourceFolder url="file://$MODULE_DIR$/tools/stress/test/unit" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/tools/fqltool/src" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/tools/fqltool/test/unit" isTestSource="true" />
+            <sourceFolder url="file://$MODULE_DIR$/tools/sstableloader/src" isTestSource="false" />
+            <sourceFolder url="file://$MODULE_DIR$/tools/sstableloader/test/unit" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/unit" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/long" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/memory" isTestSource="true" />
@@ -41,6 +43,7 @@
             <sourceFolder url="file://$MODULE_DIR$/test/simulator/bootstrap" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/simulator/main" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/simulator/test" isTestSource="true" />
+            <sourceFolder url="file://$MODULE_DIR$/test/harry/main" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
             <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />
             <excludeFolder url="file://$MODULE_DIR$/.idea" />
@@ -48,6 +51,16 @@
             <excludeFolder url="file://$MODULE_DIR$/build" />
             <excludeFolder url="file://$MODULE_DIR$/data"/>
             <excludeFolder url="file://$MODULE_DIR$/logs"/>
+
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-core/src/main/java" isTestSource="false"/>
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-core/src/main/resources" ype="java-resource"/>
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-core/src/test/java" isTestSource="true"/>
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-core/src/test/resources" ype="java-test-resource"/>
+
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/src/main/java" isTestSource="false"/>
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/src/main/resources" ype="java-resource"/>
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/src/test/java" isTestSource="true"/>
+            <sourceFolder url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/src/test/resources" ype="java-test-resource"/>
         </content>
         <orderEntry type="inheritedJdk" />
         <orderEntry type="sourceFolder" forTests="false" />
@@ -55,6 +68,8 @@
             <library>
                 <CLASSES>
                     <root url="file://$MODULE_DIR$/build/lib/jars" />
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/main/libs" />
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/main/libs" />
                 </CLASSES>
                 <JAVADOC />
                 <SOURCES>
@@ -62,12 +77,17 @@
                 </SOURCES>
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/jars" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/sources" recursive="false" type="SOURCES" />
+
+                <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/main/libs" recursive="false" />
+                <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/main/libs" recursive="false" />
             </library>
         </orderEntry>
         <orderEntry type="module-library" scope="TEST">
             <library>
                 <CLASSES>
                     <root url="file://$MODULE_DIR$/build/test/lib/jars" />
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/test/libs" />
+                    <root url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/test/libs" />
                 </CLASSES>
                 <JAVADOC />
                 <SOURCES>
@@ -75,6 +95,9 @@
                 </SOURCES>
                 <jarDirectory url="file://$MODULE_DIR$/build/test/lib/jars" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/build/test/lib/sources" recursive="false" type="SOURCES" />
+
+                <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-core/build/dependencies/test/libs" recursive="false" />
+                <jarDirectory url="file://$MODULE_DIR$/modules/accord/accord-maelstrom/build/dependencies/test/libs" recursive="false" />
             </library>
         </orderEntry>
     </component>

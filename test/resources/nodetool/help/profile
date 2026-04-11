@@ -1,0 +1,99 @@
+NAME
+        nodetool profile - Manage Async-Profiler on a Cassandra process
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile <command> [<args>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile start
+                [(-d <duration> | --duration <duration>)]
+                [(-e <event> | --event <event>)...]
+                [(-f <outputFormat> | --format <outputFormat>)]
+                [(-o <filename> | --output <filename>)]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile stop
+                [(-o <filename> | --output <filename>)]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile execute [--] <command>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile purge
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile list
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile fetch [--]
+                <remoteFile> <localFile>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile status
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        start
+            Run Async-Profiler on a Cassandra process
+
+            With --event option, Event(s) to profile, one of or combination of 'cpu',
+            'alloc', 'lock', 'wall', 'nativemem', 'cache_misses', delimited by comma,
+            defaults to 'cpu'
+
+            With --output option, File name to save profiling results into, defaults to
+            a file of name 'yyyy-MM-dd-HH-mm-ss.html'
+
+            With --duration option, Duration of profiling, defaults to '60s'. Accepts
+            string values in the form of '5m', '30s' and similar.
+
+            With --format option, Output format, one of 'flat', 'traces', 'collapsed',
+            'flamegraph', 'tree', 'jfr', defaults to 'flamegraph'
+        stop
+            Stop Async-Profiler on a Cassandra process
+
+            With --output option, File name to save profiling results into, defaults to
+            a file of name 'yyyy-MM-dd-HH-mm-ss.html'
+        execute
+            Execute an arbitrary command on Async-Profiler on a Cassandra process.
+        purge
+            Remove all profiling results from node's disk
+        list
+            List profiling result files of a node
+        fetch
+            Copy profiler result file from a node to a local file
+        status
+            Get status of profiling

@@ -67,7 +67,6 @@ public class FilterFactory
         return createFilter(spec.K, numElements, spec.bucketsPerElement);
     }
 
-    @SuppressWarnings("resource")
     private static IFilter createFilter(int hash, long numElements, int bucketsPer)
     {
         long numBits = (numElements * bucketsPer) + BITSET_EXCESS;

@@ -20,10 +20,10 @@ package org.apache.cassandra.io.compress;
 
 import java.util.Collections;
 
-import com.google.common.collect.ImmutableMap;
-import org.junit.Test;
-
 import com.github.luben.zstd.Zstd;
+import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
@@ -36,7 +36,7 @@ public class ZstdCompressorTest
     public void emptyConfigurationUsesDefaultCompressionLevel()
     {
         ZstdCompressor compressor = ZstdCompressor.create(Collections.emptyMap());
-        assertEquals(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL, compressor.getCompressionLevel());
+        assertEquals(ZstdCompressor.DEFAULT_COMPRESSION_LEVEL, compressor.compressionLevel());
     }
 
     @Test(expected = IllegalArgumentException.class)

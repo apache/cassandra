@@ -19,11 +19,11 @@ package org.apache.cassandra.index.sai.metrics;
 
 import javax.management.InstanceNotFoundException;
 
+import com.datastax.driver.core.ResultSet;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
-import com.datastax.driver.core.ResultSet;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -38,7 +38,7 @@ public class QueryMetricsTest extends AbstractMetricsTest
     public ExpectedException exception = ExpectedException.none();
 
     @Test
-    public void testSameIndexNameAcrossKeyspaces() throws Throwable
+    public void testSameIndexNameAcrossKeyspaces()
     {
         String table = "test_same_index_name_across_keyspaces";
         String index = "test_same_index_name_across_keyspaces_index";
@@ -58,7 +58,9 @@ public class QueryMetricsTest extends AbstractMetricsTest
         assertEquals(1, rows.all().size());
 
         assertEquals(1L, getTableQueryMetrics(keyspace1, table, "TotalQueriesCompleted"));
+        assertEquals(1L, getTableQueryMetrics(keyspace1, table, "PostFilteringReadLatency"));
         assertEquals(0L, getTableQueryMetrics(keyspace2, table, "TotalQueriesCompleted"));
+        assertEquals(0L, getTableQueryMetrics(keyspace2, table, "PostFilteringReadLatency"));
 
         execute("INSERT INTO " + keyspace2 + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
         execute("INSERT INTO " + keyspace2 + '.' + table + " (id1, v1, v2) VALUES ('1', 1, '1')");
@@ -71,6 +73,8 @@ public class QueryMetricsTest extends AbstractMetricsTest
 
         assertEquals(2L, getTableQueryMetrics(keyspace1, table, "TotalQueriesCompleted"));
         assertEquals(1L, getTableQueryMetrics(keyspace2, table, "TotalQueriesCompleted"));
+        assertEquals(2L, getTableQueryMetrics(keyspace1, table, "PostFilteringReadLatency"));
+        assertEquals(1L, getTableQueryMetrics(keyspace2, table, "PostFilteringReadLatency"));
     }
 
     @Test
@@ -91,17 +95,8 @@ public class QueryMetricsTest extends AbstractMetricsTest
 
         assertEquals(1L, getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted"));
 
-        // Even if we drop the last index on the table, table-level metrics should still be visible:
+        // If we drop the last index on the table we should no longer see the table-level state metrics:
         dropIndex(String.format("DROP INDEX %s." + index, keyspace));
-        assertEquals(1L, getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted"));
-
-        // When the whole table is dropped, we should finally fail to find table-level metrics:
-        dropTable(String.format("DROP TABLE %s." + table, keyspace));
         assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted")).hasCauseInstanceOf(InstanceNotFoundException.class);
-    }
-
-    private long getTableQueryMetrics(String keyspace, String table, String metricsName)
-    {
-        return (long) getMetricValue(objectNameNoIndex(metricsName, keyspace, table, TableQueryMetrics.TABLE_QUERY_METRIC_TYPE));
     }
 }

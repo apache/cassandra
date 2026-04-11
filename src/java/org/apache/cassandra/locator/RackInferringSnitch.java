@@ -17,19 +17,45 @@
  */
 package org.apache.cassandra.locator;
 
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.utils.FBUtilities;
+
 /**
  * A simple endpoint snitch implementation that assumes datacenter and rack information is encoded
  * in the 2nd and 3rd octets of the ip address, respectively.
+ * As with all snitches post CEP-21, this retrieves Location for remote peers from ClusterMetadata.
+ * Local location is derived from (broadcast) ip address and added to ClusterMetadata during node
+ * registration. Every member of the cluster is required to do this, hence remote peers' Location
+ * can always be retrieved, consistently.
+ * @deprecated See CASSANDRA-19488
  */
+@Deprecated(since = "CEP-21")
 public class RackInferringSnitch extends AbstractNetworkTopologySnitch
 {
-    public String getRack(InetAddressAndPort endpoint)
+    final Location local;
+
+    public RackInferringSnitch()
     {
-        return Integer.toString(endpoint.getAddress().getAddress()[2] & 0xFF, 10);
+        InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
+        local = inferLocation(localAddress);
     }
 
+    public static Location inferLocation(InetAddressAndPort address)
+    {
+        return new Location(Integer.toString(address.getAddress().getAddress()[1] & 0xFF, 10),
+                             Integer.toString(address.getAddress().getAddress()[2] & 0xFF, 10));
+
+    }
+
+    @Override
+    public String getRack(InetAddressAndPort endpoint)
+    {
+        return inferLocation(endpoint).rack;
+    }
+
+    @Override
     public String getDatacenter(InetAddressAndPort endpoint)
     {
-        return Integer.toString(endpoint.getAddress().getAddress()[1] & 0xFF, 10);
+        return inferLocation(endpoint).datacenter;
     }
 }

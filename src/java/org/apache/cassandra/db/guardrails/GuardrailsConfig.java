@@ -127,6 +127,21 @@ public interface GuardrailsConfig
     Set<String> getTablePropertiesDisallowed();
 
     /**
+     * @return The keyspace properties that are warned about when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesWarned();
+
+    /**
+     * @return The keyspace properties that are ignored when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesIgnored();
+
+    /**
+     * @return The keyspace properties that are disallowed when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesDisallowed();
+
+    /**
      * Returns whether user-provided timestamps are allowed.
      *
      * @return {@code true} if user-provided timestamps are allowed, {@code false} otherwise.
@@ -280,6 +295,45 @@ public interface GuardrailsConfig
     DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold();
 
     /**
+     * @return The threshold to warn when writing ascii column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnAsciiValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing ascii column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnAsciiValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to whan when writing blob column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnBlobValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing column blob values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnBlobValueSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing text column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeWarnThreshold();
+
+
+    /**
+     * @return The threshold to prevent writing text column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
     @Nullable
@@ -290,6 +344,42 @@ public interface GuardrailsConfig
      */
     @Nullable
     DataStorageSpec.LongBytesBound getCollectionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a map collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionMapSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent map collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionMapSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a set collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionSetSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent set collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionSetSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when encountering a list collection with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionListSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent list collections with larger data size than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getCollectionListSizeFailThreshold();
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
@@ -310,6 +400,18 @@ public interface GuardrailsConfig
      * @return The threshold to fail when creating a UDT with more fields than threshold.
      */
     int getFieldsPerUDTFailThreshold();
+
+    /**
+     * @return Whether new columns can be created with vector type
+     */
+    boolean getVectorTypeEnabled();
+
+    /**
+     * Sets whether new columns can be created with vector type
+     *
+     * @param enabled
+     */
+    void setVectorTypeEnabled(boolean enabled);
 
     /**
      * @return The threshold to warn when creating a vector with more dimensions than threshold.
@@ -392,6 +494,22 @@ public interface GuardrailsConfig
     void setZeroTTLOnTWCSEnabled(boolean value);
 
     /**
+     * @return true if a client warning is emitted for a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryWarned();
+
+    void setIntersectFilteringQueryWarned(boolean value);
+
+    /**
+     * @return true if it is possible to execute a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryEnabled();
+
+    void setIntersectFilteringQueryEnabled(boolean value);
+
+    /**
      * @return A timestamp that if a user supplied timestamp is after will trigger a warning
      */
     @Nullable
@@ -436,4 +554,132 @@ public interface GuardrailsConfig
      */
     void setMinimumTimestampThreshold(@Nullable DurationSpec.LongMicrosecondsBound warn,
                                       @Nullable DurationSpec.LongMicrosecondsBound fail);
+
+    /**
+     * @return the warning threshold for the number of SAI SSTable indexes searched by a query
+     */
+    int getSaiSSTableIndexesPerQueryWarnThreshold();
+
+    /**
+     * @return the failure threshold for the number of SAI SSTable indexes searched by a query
+     */
+    int getSaiSSTableIndexesPerQueryFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the number of SAI SSTable indexes searched by a query
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail);
+
+    /**
+     * @return the warning threshold for the size of string terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiStringTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of string terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiStringTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of string terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
+     * @return the warning threshold for the size of frozen terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of frozen terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiFrozenTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of frozen terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiFrozenTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
+     * @return the warning threshold for the size of vector terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiVectorTermSizeWarnThreshold();
+
+    /**
+     * @return the failure threshold for the size of vector terms written to an SAI index
+     */
+    DataStorageSpec.LongBytesBound getSaiVectorTermSizeFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the size of vector terms written to an SAI index
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiVectorTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail);
+
+    /**
+     * Returns whether it is possible to execute a query against secondary indexes without specifying
+     * any partition key restrictions.
+     *
+     * @return true if it is possible to execute a query without a partition key, false otherwise
+     */
+    boolean getNonPartitionRestrictedQueryEnabled();
+
+    /**
+     * Sets whether it is possible to execute a query against indexes (secondary or SAI) without specifying
+     * any partition key restrictions.
+     *
+     * @param enabled {@code true} if a query without partition key is enabled or not
+     */
+    void setNonPartitionRestrictedQueryEnabled(boolean enabled);
+
+    /**
+     * @return configuration for password policy guardrail.
+     */
+    CustomGuardrailConfig getPasswordPolicyConfig();
+
+    /**
+     * @return configuration for role name policy guardrail.
+     */
+    CustomGuardrailConfig getRoleNamePolicyConfig();
+
+    /**
+     * Sets whether a user will be warned when creating a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyWarned(boolean value);
+
+    /**
+     *
+     * @return true if a user will be warned when training compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyWarned();
+
+    /**
+     * Sets whether it is allowed to create a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyEnabled(boolean value);
+
+    /**
+     *
+     * @return true if it is possible to train compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyEnabled();
 }

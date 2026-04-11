@@ -26,7 +26,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -34,7 +33,7 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
-
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static java.lang.Thread.sleep;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;

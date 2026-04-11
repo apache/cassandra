@@ -77,7 +77,20 @@ public class Ballot extends TimeUUID
 
     public static Ballot fromBytes(long msb, long lsb)
     {
-        return new Ballot(msbToRawTimestamp(msb), lsb);
+        msb = msbToRawTimestamp(msb);
+
+        /**
+         * CEP-14 changed the lsb of Ballot#none, which caused some paxos coordination problems
+         * in mixed mode (see CASSANDRA-20493) so here we detect the old none value and convert
+         * it to the current one.
+         *
+         * See the comment on * {@link org.apache.cassandra.distributed.upgrade.MixedModePaxosTest}
+         * for a full explanation.
+         */
+        if (lsb == TimeUUID.MIN_CLOCK_SEQ_AND_NODE && rawTimestampToUnixMicros(msb) == 0)
+            return Ballot.none();
+
+        return new Ballot(msb, lsb);
     }
 
     public static Ballot fromString(String uuidString)

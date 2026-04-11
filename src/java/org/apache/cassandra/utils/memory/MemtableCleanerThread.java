@@ -18,24 +18,24 @@
  */
 package org.apache.cassandra.utils.memory;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * A thread that reclaims memory from a MemtablePool on demand.  The actual reclaiming work is delegated to the
- * cleaner Runnable, e.g., FlushLargestColumnFamily
+ * cleaner Runnable, e.g., MemtableCleaner {@link AbstractAllocatorMemtable#flushLargestMemtable()}.
  */
 public class MemtableCleanerThread<P extends MemtablePool> implements Interruptible
 {
@@ -81,9 +81,7 @@ public class MemtableCleanerThread<P extends MemtablePool> implements Interrupti
             else
             {
                 int numPendingTasks = this.numPendingTasks.incrementAndGet();
-
-                if (logger.isTraceEnabled())
-                    logger.trace("Invoking cleaner with {} tasks pending", numPendingTasks);
+                logger.trace("Invoking cleaner with {} tasks pending", numPendingTasks);
 
                 cleaner.clean().addCallback(this::apply);
             }
@@ -94,7 +92,7 @@ public class MemtableCleanerThread<P extends MemtablePool> implements Interrupti
             final int tasks = numPendingTasks.decrementAndGet();
 
             // if the cleaning job was scheduled (res == true) or had an error, trigger again after decrementing the tasks
-            if ((res || err != null) && pool.needsCleaning())
+            if (((res != null && res) || err != null) && pool.needsCleaning())
                 wait.signal();
 
             if (err != null)

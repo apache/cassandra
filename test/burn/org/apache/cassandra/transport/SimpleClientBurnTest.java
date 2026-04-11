@@ -22,8 +22,14 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
@@ -32,7 +38,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
@@ -44,6 +49,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
@@ -103,7 +110,7 @@ public class SimpleClientBurnTest
                                             .withPort(port)
                                             .withPipelineConfigurator(configurator)
                                             .build();
-        ClientMetrics.instance.init(Collections.singleton(server));
+        ClientMetrics.instance.init(server);
         server.start();
 
         Message.Type.QUERY.unsafeSetCodec(new Message.Codec<QueryMessage>()
@@ -113,7 +120,8 @@ public class SimpleClientBurnTest
                 QueryMessage queryMessage = QueryMessage.codec.decode(body, version);
                 return new QueryMessage(queryMessage.query, queryMessage.options)
                 {
-                    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+                    @Override
+                    protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
                     {
                         int idx = Integer.parseInt(queryMessage.query);
                         SizeCaps caps = idx % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
@@ -137,11 +145,11 @@ public class SimpleClientBurnTest
         Arrays.asList(
         () -> new SimpleClient(address.getHostAddress(),
                                port, ProtocolVersion.V5, true,
-                               new EncryptionOptions())
+                               new EncryptionOptions.ClientEncryptionOptions())
               .connect(false),
         () -> new SimpleClient(address.getHostAddress(),
                                port, ProtocolVersion.V4, false,
-                               new EncryptionOptions())
+                               new EncryptionOptions.ClientEncryptionOptions())
               .connect(false)
         );
 

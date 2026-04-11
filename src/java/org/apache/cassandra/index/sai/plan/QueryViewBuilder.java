@@ -20,20 +20,19 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.NavigableSet;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * Build a query specific view of the on-disk indexes for a query. This will return a
@@ -55,133 +54,97 @@ public class QueryViewBuilder
         this.range = range;
     }
 
-    protected Collection<Pair<Expression, Collection<SSTableIndex>>> build()
+    public static class QueryExpressionView
     {
-        Set<String> indexNames = new TreeSet<>();
-        try
+        public final Expression expression;
+        public final Collection<MemtableIndex> memtableIndexes;
+        public final Collection<SSTableIndex> sstableIndexes;
+
+        public QueryExpressionView(Expression expression, Collection<MemtableIndex> memtableIndexes, Collection<SSTableIndex> sstableIndexes)
         {
-            while (true)
-            {
-                List<SSTableIndex> referencedIndexes = new ArrayList<>();
-                boolean failed = false;
-
-                Collection<Pair<Expression, Collection<SSTableIndex>>> view = getQueryView(expressions);
-
-                for (SSTableIndex index : view.stream().map(pair -> pair.right).flatMap(Collection::stream).collect(Collectors.toList()))
-                {
-                    indexNames.add(index.getIndexContext().getIndexName());
-
-                    if (index.reference())
-                        referencedIndexes.add(index);
-                    else
-                    {
-                        failed = true;
-                        break;
-                    }
-                }
-
-                if (failed)
-                    referencedIndexes.forEach(SSTableIndex::releaseQuietly);
-                else
-                    return view;
-            }
+            this.expression = expression;
+            this.memtableIndexes = memtableIndexes;
+            this.sstableIndexes = sstableIndexes;
         }
-        finally
+
+        public ColumnFamilyStore.ViewFragment computeViewFragment()
         {
-            Tracing.trace("Querying storage-attached indexes {}", indexNames);
+            // Because the SSTableIndex holds a reference to the SSTableReader, we know the sstable is still accessible
+            // so it is safe to build a view fragment.
+            List<Memtable> memtables = memtableIndexes.stream().map(MemtableIndex::getMemtable).collect(Collectors.toList());
+            List<SSTableReader> sstableReaders = sstableIndexes.stream().map(SSTableIndex::getSSTable).collect(Collectors.toList());
+            return new ColumnFamilyStore.ViewFragment(sstableReaders, memtables);
         }
     }
 
-    private Collection<Pair<Expression, Collection<SSTableIndex>>> getQueryView(Collection<Expression> expressions)
+    public static class QueryView implements AutoCloseable
     {
-        // first let's determine the most selective expression
-        Pair<Expression, Collection<SSTableIndex>> mostSelective = calculateMostSelective(expressions);
+        public final Collection<QueryExpressionView> view;
+        public final Set<SSTableIndex> referencedIndexes;
 
-        List<Pair<Expression, Collection<SSTableIndex>>> queryView = new ArrayList<>();
+        public QueryView(Collection<QueryExpressionView> view, Set<SSTableIndex> referencedIndexes)
+        {
+            this.view = view;
+            this.referencedIndexes = referencedIndexes;
+        }
+
+        @Override
+        public void close()
+        {
+            referencedIndexes.forEach(SSTableIndex::releaseQuietly);
+        }
+    }
+
+    protected QueryView build()
+    {
+        Set<SSTableIndex> referencedIndexes = new HashSet<>();
+        while (true)
+        {
+            referencedIndexes.clear();
+            boolean failed = false;
+
+            Collection<QueryExpressionView> view = getQueryView(expressions);
+            for (SSTableIndex index : view.stream().map(v -> v.sstableIndexes).flatMap(Collection::stream).collect(Collectors.toList()))
+            {
+                if (index.reference())
+                    referencedIndexes.add(index);
+                else
+                    failed = true;
+            }
+
+            if (failed)
+                referencedIndexes.forEach(SSTableIndex::release);
+            else
+                return new QueryView(view, referencedIndexes);
+        }
+    }
+
+    private Collection<QueryExpressionView> getQueryView(Collection<Expression> expressions)
+    {
+        List<QueryExpressionView> queryView = new ArrayList<>();
 
         for (Expression expression : expressions)
         {
             // Non-index column query should only act as FILTER BY for satisfiedBy(Row) method
             // because otherwise it likely to go through the whole index.
-            if (expression.context.isNotIndexed())
+            if (expression.isNotIndexed())
                 continue;
 
-            // If we didn't get a most selective expression then none of the
-            // expressions select anything so, add an empty entry for the
-            // expression. We need the empty entry because we may have in-memory
-            // data for the expression
-            if (mostSelective == null)
-            {
-                queryView.add(Pair.create(expression, Collections.emptyList()));
-                continue;
-            }
-
-            // If this expression is the most selective then just add it to the
-            // query view
-            if (expression.equals(mostSelective.left))
-            {
-                queryView.add(mostSelective);
-                continue;
-            }
-
-            // Finally, we select all the sstable indexes for this expression that
-            // have overlapping keys with the sstable indexes of the most selective
-            // and have a term range that is satisfied by the expression.
-            View view = expression.context.getView();
-            Set<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
-            indexes.addAll(view.match(expression)
-                               .stream()
-                               .filter(index -> sstableIndexOverlaps(index, mostSelective.right))
-                               .collect(Collectors.toList()));
-            queryView.add(Pair.create(expression, indexes));
+            // Fetch the memtables first to ensure we don't miss any newly flushed memtable index
+            Collection<MemtableIndex> memtableIndexes = expression.getIndex().memtableIndexManager().getLiveMemtableIndexesSnapshot();
+            // Select all the sstable indexes that have a term range that is satisfied by this expression and
+            // overlap with the key range being queried.
+            View view = expression.getIndex().view();
+            Collection<SSTableIndex> sstableIndexes = selectIndexesInRange(view.match(expression));
+            queryView.add(new QueryExpressionView(expression, memtableIndexes, sstableIndexes));
         }
 
         return queryView;
     }
 
-    private boolean sstableIndexOverlaps(SSTableIndex sstableIndex, Collection<SSTableIndex> sstableIndexes)
+    private List<SSTableIndex> selectIndexesInRange(Collection<SSTableIndex> indexes)
     {
-        return sstableIndexes.stream().anyMatch(index -> index.bounds().contains(sstableIndex.bounds().left) ||
-                                                         index.bounds().contains(sstableIndex.bounds().right));
-    }
-
-    // The purpose of this method is to calculate the most selective expression. This is the
-    // expression with the most sstable indexes that match the expression by term and lie
-    // within the key range being queried.
-    //
-    // The result can be null. This indicates that none of the expressions select any
-    // sstable indexes.
-    private Pair<Expression, Collection<SSTableIndex>> calculateMostSelective(Collection<Expression> expressions)
-    {
-        Expression mostSelectiveExpression = null;
-        NavigableSet<SSTableIndex> mostSelectiveIndexes = null;
-
-        for (Expression expression : expressions)
-        {
-            if (expression.context.isNotIndexed())
-                continue;
-
-            View view = expression.context.getView();
-
-            NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
-            indexes.addAll(selectIndexesInRange(view.match(expression)));
-
-            if (indexes.isEmpty())
-                continue;
-
-            if (mostSelectiveExpression == null || mostSelectiveIndexes.size() > indexes.size())
-            {
-                mostSelectiveIndexes = indexes;
-                mostSelectiveExpression = expression;
-            }
-        }
-
-        return mostSelectiveExpression == null ? null : Pair.create(mostSelectiveExpression, mostSelectiveIndexes);
-    }
-
-    private List<SSTableIndex> selectIndexesInRange(List<SSTableIndex> indexes)
-    {
-        return indexes.stream().filter(this::indexInRange).collect(Collectors.toList());
+        return indexes.stream().filter(this::indexInRange).sorted(SSTableIndex.COMPARATOR).collect(Collectors.toList());
     }
 
     private boolean indexInRange(SSTableIndex index)

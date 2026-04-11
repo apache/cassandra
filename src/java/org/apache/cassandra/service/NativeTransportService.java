@@ -18,27 +18,27 @@
 package org.apache.cassandra.service;
 
 import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.Version;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
+
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.Version;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_EPOLL_ENABLED;
 
@@ -50,7 +50,7 @@ public class NativeTransportService
 
     private static final Logger logger = LoggerFactory.getLogger(NativeTransportService.class);
 
-    private Collection<Server> servers = Collections.emptyList();
+    private Server server = null;
 
     private boolean initialized = false;
     private EventLoopGroup workerGroup;
@@ -76,7 +76,6 @@ public class NativeTransportService
         }
 
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
-        int nativePortSSL = DatabaseDescriptor.getNativeTransportPortSSL();
         InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
 
         org.apache.cassandra.transport.Server.Builder builder = new org.apache.cassandra.transport.Server.Builder()
@@ -84,62 +83,35 @@ public class NativeTransportService
                                                                 .withHost(nativeAddr);
 
         EncryptionOptions.TlsEncryptionPolicy encryptionPolicy = DatabaseDescriptor.getNativeProtocolEncryptionOptions().tlsEncryptionPolicy();
-        Server regularPortServer;
-        Server tlsPortServer = null;
+        server = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePort).build();
 
-        // If an SSL port is separately supplied for the native transport, listen for unencrypted connections on the
-        // regular port, and encryption / optionally encrypted connections on the ssl port.
-        if (nativePort != nativePortSSL)
-        {
-            regularPortServer = builder.withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED).withPort(nativePort).build();
-            switch(encryptionPolicy)
-            {
-                case OPTIONAL: // FALLTHRU - encryption is optional on the regular port, but encrypted on the tls port.
-                case ENCRYPTED:
-                    tlsPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePortSSL).build();
-                    break;
-                case UNENCRYPTED: // Should have been caught by DatabaseDescriptor.applySimpleConfig
-                    throw new IllegalStateException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl");
-                default:
-                    throw new IllegalStateException("Unrecognized TLS encryption policy: " + encryptionPolicy);
-            }
-        }
-        // Otherwise, if only the regular port is supplied, listen as the encryption policy specifies
-        else
-        {
-            regularPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePort).build();
-        }
-
-        if (tlsPortServer == null)
-        {
-            servers = Collections.singleton(regularPortServer);
-        }
-        else
-        {
-            servers = Collections.unmodifiableList(Arrays.asList(regularPortServer, tlsPortServer));
-        }
-
-        ClientMetrics.instance.init(servers);
+        ClientMetrics.instance.init(server);
 
         initialized = true;
     }
 
     /**
-     * Starts native transport servers.
+     * Starts native transport server.
      */
     public void start()
     {
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
         initialize();
-        servers.forEach(Server::start);
+        server.start();
     }
 
     /**
-     * Stops currently running native transport servers.
+     * Stops currently running native transport server.
      */
     public void stop()
     {
-        servers.forEach(Server::stop);
+        stop(false);
+    }
+
+    public void stop(boolean force)
+    {
+        if (server != null)
+            server.stop(force);
     }
 
     /**
@@ -148,7 +120,8 @@ public class NativeTransportService
     public void destroy()
     {
         stop();
-        servers = Collections.emptyList();
+        ClientMetrics.instance.release();
+        server = null;
 
         // shutdown executors used by netty for native transport server
         if (workerGroup != null)
@@ -175,9 +148,7 @@ public class NativeTransportService
      */
     public boolean isRunning()
     {
-        for (Server server : servers)
-            if (server.isRunning()) return true;
-        return false;
+        return server != null && server.isRunning();
     }
 
     @VisibleForTesting
@@ -187,14 +158,18 @@ public class NativeTransportService
     }
 
     @VisibleForTesting
-    Collection<Server> getServers()
+    Server getServer()
     {
-        return servers;
+        return server;
     }
 
     public void clearConnectionHistory()
     {
-        for (Server server : servers)
-            server.clearConnectionHistory();
+        server.clearConnectionHistory();
+    }
+
+    public void disconnect(Predicate<AuthenticatedUser> userPredicate)
+    {
+        server.disconnect(userPredicate);
     }
 }

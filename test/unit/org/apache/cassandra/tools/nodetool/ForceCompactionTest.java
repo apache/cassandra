@@ -24,13 +24,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.Util;
-
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -40,11 +38,23 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.tools.ToolRunner;
+
+import static org.apache.commons.lang3.ArrayUtils.addAll;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ForceCompactionTest extends CQLTester
 {
     private final static int NUM_PARTITIONS = 10;
     private final static int NUM_ROWS = 100;
+
+    @BeforeClass
+    public static void setupClass() throws Exception
+    {
+        requireNetwork();
+        startJMXServer();
+    }
 
     @Before
     public void setup() throws Throwable
@@ -241,7 +251,8 @@ public class ForceCompactionTest extends CQLTester
         if (cfs != null)
         {
             cfs.forceMajorCompaction();
-            cfs.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
+            ToolRunner.invokeNodetool(addAll(new String[]{ "forcecompact", cfs.keyspace.getName(), cfs.getTableName() },
+                                             partitionKeysIgnoreGcGrace)).assertOnCleanExit();
         }
     }
 

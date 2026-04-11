@@ -20,10 +20,13 @@ package org.apache.cassandra.cql3;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 public interface CQLStatement
@@ -31,9 +34,9 @@ public interface CQLStatement
     /**
      * Returns all bind variables for the statement
      */
-    default List<ColumnSpecification> getBindVariables()
+    default ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return Collections.emptyList();
+        return ImmutableList.of();
     }
 
     /**
@@ -47,7 +50,7 @@ public interface CQLStatement
     }
 
     /**
-     * Return an Iterable over all of the functions (both native and user-defined) used by any component of the statement
+     * Return an Iterable over all the functions (both native and user-defined) used by any component of the statement
      *
      * @return functions all functions found (may contain duplicates)
      */
@@ -61,30 +64,30 @@ public interface CQLStatement
      *
      * @param state the current client state
      */
-    public void authorize(ClientState state);
+    void authorize(ClientState state);
 
     /**
      * Perform additional validation required by the statment. To be overriden by subclasses if needed.
      *
      * @param state the current client state
      */
-    public void validate(ClientState state);
+    void validate(ClientState state);
 
     /**
      * Execute the statement and return the resulting result or null if there is no result.
      *
      * @param state the current query state
      * @param options options for this query (consistency, variables, pageSize, ...)
-     * @param queryStartNanoTime the timestamp returned by System.nanoTime() when this statement was received
+     * @param requestTime request enqueue / and start times;
      */
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime);
+    ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime);
 
     /**
      * Variant of execute used for internal query against the system tables, and thus only query the local node.
      *
      * @param state the current query state
      */
-    public ResultMessage executeLocally(QueryState state, QueryOptions options);
+    ResultMessage executeLocally(QueryState state, QueryOptions options);
 
     /**
      * Provides the context needed for audit logging statements.
@@ -92,14 +95,29 @@ public interface CQLStatement
     AuditLogContext getAuditLogContext();
 
     /**
-     * Whether or not this CQL Statement has LWT conditions
+     * Whether this CQL Statement has LWT conditions
      */
-    default public boolean hasConditions()
+    default boolean hasConditions()
     {
         return false;
     }
 
-    public static abstract class Raw
+    /**
+     * If this CQL statement is not fully qualified and this method returns true,
+     * then the warning will be emitted to the client if the statement is executed on
+     * a keyspace it was not prepared on.
+     * <p>
+     * A warning is also emitted if a prepare statement is used for other than
+     * modifications statements.
+     *
+     * @return true if this statement is eligible to be a prepared statement, false otherwise.
+     */
+    default boolean eligibleAsPreparedStatement()
+    {
+        return false;
+    }
+
+    abstract class Raw
     {
         protected VariableSpecifications bindVariables;
 
@@ -111,8 +129,18 @@ public interface CQLStatement
         public abstract CQLStatement prepare(ClientState state);
     }
 
-    public static interface SingleKeyspaceCqlStatement extends CQLStatement
+    interface SingleKeyspaceCqlStatement extends CQLStatement
     {
-        public String keyspace();
+        String keyspace();
+    }
+
+    interface CompositeCQLStatement extends CQLStatement
+    {
+        Iterable<? extends CQLStatement> getStatements();
+    }
+
+    interface ReturningCQLStatement extends CQLStatement
+    {
+        ResultSet.ResultMetadata getResultMetadata();
     }
 }

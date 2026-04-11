@@ -26,26 +26,69 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 import java.net.URI;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.datastax.driver.core.BatchStatement;
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Metadata;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.TableMetadata;
+import com.datastax.driver.core.TokenRange;
+import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import com.google.common.base.Function;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import com.datastax.driver.core.*;
-import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.antlr.runtime.RecognitionException;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.error.YAMLException;
+
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CqlParser;
+import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.stress.generate.*;
-import org.apache.cassandra.stress.generate.values.*;
+import org.apache.cassandra.stress.generate.Distribution;
+import org.apache.cassandra.stress.generate.DistributionFactory;
+import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.RatioDistributionFactory;
+import org.apache.cassandra.stress.generate.SeedManager;
+import org.apache.cassandra.stress.generate.TokenRangeIterator;
+import org.apache.cassandra.stress.generate.values.BigDecimals;
+import org.apache.cassandra.stress.generate.values.BigIntegers;
+import org.apache.cassandra.stress.generate.values.Booleans;
+import org.apache.cassandra.stress.generate.values.Bytes;
+import org.apache.cassandra.stress.generate.values.Dates;
+import org.apache.cassandra.stress.generate.values.Doubles;
+import org.apache.cassandra.stress.generate.values.Floats;
+import org.apache.cassandra.stress.generate.values.Generator;
+import org.apache.cassandra.stress.generate.values.GeneratorConfig;
+import org.apache.cassandra.stress.generate.values.Inets;
+import org.apache.cassandra.stress.generate.values.Integers;
+import org.apache.cassandra.stress.generate.values.Lists;
+import org.apache.cassandra.stress.generate.values.LocalDates;
+import org.apache.cassandra.stress.generate.values.Longs;
+import org.apache.cassandra.stress.generate.values.Sets;
+import org.apache.cassandra.stress.generate.values.SmallInts;
+import org.apache.cassandra.stress.generate.values.Strings;
+import org.apache.cassandra.stress.generate.values.TimeUUIDs;
+import org.apache.cassandra.stress.generate.values.Times;
+import org.apache.cassandra.stress.generate.values.TinyInts;
+import org.apache.cassandra.stress.generate.values.UUIDs;
 import org.apache.cassandra.stress.operations.userdefined.CASQuery;
 import org.apache.cassandra.stress.operations.userdefined.SchemaInsert;
 import org.apache.cassandra.stress.operations.userdefined.SchemaQuery;
@@ -53,12 +96,15 @@ import org.apache.cassandra.stress.operations.userdefined.SchemaStatement;
 import org.apache.cassandra.stress.operations.userdefined.TokenRangeQuery;
 import org.apache.cassandra.stress.operations.userdefined.ValidatingSchemaQuery;
 import org.apache.cassandra.stress.report.Timer;
-import org.apache.cassandra.stress.settings.*;
+import org.apache.cassandra.stress.settings.OptionDistribution;
+import org.apache.cassandra.stress.settings.OptionRatioDistribution;
+import org.apache.cassandra.stress.settings.SettingsCommand;
+import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
-import org.yaml.snakeyaml.error.YAMLException;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class StressProfile implements Serializable
 {
@@ -355,7 +401,7 @@ public class StressProfile implements Serializable
                               StressSettings settings,
                               boolean isWarmup)
     {
-        name = name.toLowerCase();
+        name = toLowerCaseLocalized(name);
         if (!queries.containsKey(name))
             throw new IllegalArgumentException("No query defined with name " + name);
 
@@ -371,10 +417,10 @@ public class StressProfile implements Serializable
                     Map<String, SchemaStatement.ArgSelect> args = new HashMap<>();
                     for (Map.Entry<String, StressYaml.QueryDef> e : queries.entrySet())
                     {
-                        stmts.put(e.getKey().toLowerCase(), jclient.prepare(e.getValue().cql));
-                        args.put(e.getKey().toLowerCase(), e.getValue().fields == null
+                        stmts.put(toLowerCaseLocalized(e.getKey()), jclient.prepare(e.getValue().cql));
+                        args.put(toLowerCaseLocalized(e.getKey()), e.getValue().fields == null
                                 ? SchemaStatement.ArgSelect.MULTIROW
-                                : SchemaStatement.ArgSelect.valueOf(e.getValue().fields.toUpperCase()));
+                                : SchemaStatement.ArgSelect.valueOf(toUpperCaseLocalized(e.getValue().fields)));
                     }
                     queryStatements = stmts;
                     argSelects = args;
@@ -393,7 +439,7 @@ public class StressProfile implements Serializable
         if (statement == null)
             return false;
 
-        if (!statement.getQueryString().toUpperCase().startsWith("UPDATE"))
+        if (!toUpperCaseLocalized(statement.getQueryString()).startsWith("UPDATE"))
             return false;
 
         ModificationStatement.Parsed modificationStatement;
@@ -415,7 +461,7 @@ public class StressProfile implements Serializable
          *  for dynamic condition we have to read existing db value and then
          *  use current db values during the update.
          */
-        return modificationStatement.getConditions().stream().anyMatch(condition -> condition.right.getValue().getText().equals("?"));
+        return modificationStatement.getConditions().stream().anyMatch(ColumnCondition.Raw::containsBindMarkers);
     }
 
     public Operation getBulkReadQueries(String name, Timer timer, StressSettings settings, TokenRangeIterator tokenRangeIterator, boolean isWarmup)
@@ -475,7 +521,7 @@ public class StressProfile implements Serializable
         List<ColumnMetadata> allColumns = com.google.common.collect.Lists.newArrayList(metadata.allColumnsInSelectOrder());
 
         StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO ").append(quoteIdentifier(keyspaceName)).append(".").append(quoteIdentifier(tableName)).append(" (");
+        sb.append("INSERT INTO ").append(keyspaceName).append('.').append(quoteIdentifier(tableName)).append(" (");
         StringBuilder value = new StringBuilder();
         for (ColumnMetadata c : allColumns)
         {
@@ -540,7 +586,7 @@ public class StressProfile implements Serializable
                     StringBuilder sb = new StringBuilder();
                     if (!isKeyOnlyTable)
                     {
-                        sb.append("UPDATE ").append(quoteIdentifier(tableName)).append(" SET ");
+                        sb.append("UPDATE ").append(keyspaceName).append('.').append(quoteIdentifier(tableName)).append(" SET ");
                         //PK Columns
                         StringBuilder pred = new StringBuilder();
                         pred.append(" WHERE ");
@@ -593,7 +639,7 @@ public class StressProfile implements Serializable
                     }
                     else
                     {
-                        sb.append("INSERT INTO ").append(quoteIdentifier(tableName)).append(" (");
+                        sb.append("INSERT INTO ").append(keyspaceName).append('.').append(quoteIdentifier(tableName)).append(" (");
                         StringBuilder value = new StringBuilder();
                         for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getPrimaryKey())
                         {
@@ -756,7 +802,7 @@ public class StressProfile implements Serializable
 
         static Generator getGenerator(final String name, final String type, final String collectionType, GeneratorConfig config)
         {
-            switch (type.toUpperCase())
+            switch (toUpperCaseLocalized(type))
             {
                 case "ASCII":
                 case "TEXT":
@@ -809,7 +855,7 @@ public class StressProfile implements Serializable
     {
         try
         {
-            Constructor constructor = new Constructor(StressYaml.class);
+            Constructor constructor = new Constructor(StressYaml.class, YamlConfigurationLoader.getDefaultLoaderOptions());
 
             Yaml yaml = new Yaml(constructor);
 
@@ -846,7 +892,7 @@ public class StressProfile implements Serializable
             }
         }
         for (Map.Entry<String, V> e : reinsert)
-            map.put(e.getKey().toLowerCase(), e.getValue());
+            map.put(toLowerCaseLocalized(e.getKey()), e.getValue());
     }
 
     /* Quote a identifier if it contains uppercase letters */

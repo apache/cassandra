@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.*;
+import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;

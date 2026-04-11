@@ -21,13 +21,14 @@
 package org.apache.cassandra.db.transform;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import org.apache.cassandra.db.rows.BaseRowIterator;
 
 // A Transformation that can stop an iterator earlier than its natural exhaustion
 public abstract class StoppingTransformation<I extends BaseRowIterator<?>> extends Transformation<I>
 {
-    private BaseIterator rows;
-    private BaseIterator partitions;
+    protected BaseIterator rows;
+    protected BaseIterator partitions;
 
     /**
      * If invoked by a subclass, any partitions iterator this transformation has been applied to will terminate

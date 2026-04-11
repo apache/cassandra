@@ -20,8 +20,11 @@ package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -30,18 +33,26 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.CloseableIterator;
 
 public class Operation
 {
     public enum BooleanOperator
     {
-        AND((a, b) -> a & b);
+        AND((a, b) -> a & b),
+        OR((a, b) -> a | b);
 
         private final BiFunction<Boolean, Boolean, Boolean> func;
 
@@ -56,12 +67,58 @@ public class Operation
         }
     }
 
+    public static class Expressions
+    {
+        final ListMultimap<ColumnMetadata, Expression> expressions;
+        final Set<ColumnMetadata> unindexedColumns;
+
+        Expressions(ListMultimap<ColumnMetadata, Expression> expressions, Set<ColumnMetadata> unindexedColumns)
+        {
+            this.expressions = expressions;
+            this.unindexedColumns = unindexedColumns;
+        }
+
+        Set<ColumnMetadata> columns()
+        {
+            return expressions.keySet();
+        }
+
+        Collection<Expression> all()
+        {
+            return expressions.values();
+        }
+
+        List<Expression> expressionsFor(ColumnMetadata column)
+        {
+            return expressions.get(column);
+        }
+
+        boolean isEmpty()
+        {
+            return expressions.isEmpty();
+        }
+
+        int size()
+        {
+            return expressions.size();
+        }
+
+        boolean isUnindexed(ColumnMetadata column)
+        {
+            return unindexedColumns.contains(column);
+        }
+
+        boolean hasMultipleUnindexedColumns()
+        {
+            return unindexedColumns.size() > 1;
+        }
+    }
+
     @VisibleForTesting
-    protected static ListMultimap<ColumnMetadata, Expression> buildIndexExpressions(QueryController controller,
-                                                                                    BooleanOperator booleanOperator,
-                                                                                    List<RowFilter.Expression> expressions)
+    protected static Expressions buildIndexExpressions(QueryController queryController, List<RowFilter.Expression> expressions)
     {
         ListMultimap<ColumnMetadata, Expression> analyzed = ArrayListMultimap.create();
+        Set<ColumnMetadata> unindexedColumns = Collections.emptySet();
 
         // sort all the expressions in the operation by name and priority of the logical operator
         // this gives us an efficient way to handle inequality and combining into ranges without extra processing
@@ -71,40 +128,77 @@ public class Operation
             return cmp == 0 ? -Integer.compare(getPriority(a.operator()), getPriority(b.operator())) : cmp;
         });
 
-        for (final RowFilter.Expression e : expressions)
+        for (final RowFilter.Expression expression : expressions)
         {
-            IndexContext indexContext = controller.getContext(e);
-            List<Expression> perColumn = analyzed.get(e.column());
+            if (Expression.supportsOperator(expression.operator()))
+            {
+                StorageAttachedIndex index = queryController.indexFor(expression);
+                List<Expression> perColumn = analyzed.get(expression.column());
 
-            AbstractAnalyzer analyzer = indexContext.getAnalyzerFactory().create();
+                if (index == null)
+                {
+                    buildUnindexedExpression(queryController, expression, perColumn);
+
+                    if (!expression.column().isPrimaryKeyColumn())
+                    {
+                        if (unindexedColumns.isEmpty())
+                            unindexedColumns = new HashSet<>(3);
+
+                        unindexedColumns.add(expression.column());
+                    }
+                }
+                else
+                {
+                    buildIndexedExpression(index, expression, perColumn);
+                }
+            }
+        }
+
+        return new Expressions(analyzed, unindexedColumns);
+    }
+
+    private static void buildUnindexedExpression(QueryController queryController,
+                                                 RowFilter.Expression expression,
+                                                 List<Expression> perColumn)
+    {
+        IndexTermType indexTermType = IndexTermType.create(expression.column(),
+                                                           queryController.metadata().partitionKeyColumns(),
+                                                           determineIndexTargetType(expression));
+        if (indexTermType.isMultiExpression(expression))
+        {
+            perColumn.add(Expression.create(indexTermType).add(expression.operator(), expression.getIndexValue().duplicate()));
+        }
+        else
+        {
+            Expression range;
+            if (perColumn.size() == 0)
+            {
+                range = Expression.create(indexTermType);
+                perColumn.add(range);
+            }
+            else
+            {
+                range = Iterables.getLast(perColumn);
+            }
+            range.add(expression.operator(), expression.getIndexValue().duplicate());
+        }
+    }
+
+    private static void buildIndexedExpression(StorageAttachedIndex index, RowFilter.Expression expression, List<Expression> perColumn)
+    {
+        if (index.hasAnalyzer())
+        {
+            AbstractAnalyzer analyzer = index.analyzer();
             try
             {
-                analyzer.reset(e.getIndexValue().duplicate());
+                analyzer.reset(expression.getIndexValue().duplicate());
 
-                // EQ can have multiple expressions e.g. text = "Hello World",
-                // becomes text = "Hello" OR text = "World" because "space" is always interpreted as a split point (by analyzer),
-                // CONTAINS/CONTAINS_KEY are always treated as multiple expressions since they currently only targetting
-                // collections.
-                boolean isMultiExpression = false;
-                switch (e.operator())
-                {
-                    case EQ:
-                        // EQ operator will always be a multiple expression because it is being used by
-                        // map entries
-                        isMultiExpression = indexContext.isNonFrozenCollection();
-                        break;
-
-                    case CONTAINS:
-                    case CONTAINS_KEY:
-                        isMultiExpression = true;
-                        break;
-                }
-                if (isMultiExpression)
+                if (index.termType().isMultiExpression(expression))
                 {
                     while (analyzer.hasNext())
                     {
                         final ByteBuffer token = analyzer.next();
-                        perColumn.add(new Expression(indexContext).add(e.operator(), token.duplicate()));
+                        perColumn.add(Expression.create(index).add(expression.operator(), token.duplicate()));
                     }
                 }
                 else
@@ -113,9 +207,9 @@ public class Operation
                 // not-equals is combined with the range iff operator is AND.
                 {
                     Expression range;
-                    if (perColumn.size() == 0 || booleanOperator != BooleanOperator.AND)
+                    if (perColumn.size() == 0)
                     {
-                        range = new Expression(indexContext);
+                        range = Expression.create(index);
                         perColumn.add(range);
                     }
                     else
@@ -123,17 +217,17 @@ public class Operation
                         range = Iterables.getLast(perColumn);
                     }
 
-                    if (!TypeUtil.isLiteral(indexContext.getValidator()))
-                    {
-                        range.add(e.operator(), e.getIndexValue().duplicate());
-                    }
-                    else
+                    if (index.termType().isLiteral())
                     {
                         while (analyzer.hasNext())
                         {
                             ByteBuffer term = analyzer.next();
-                            range.add(e.operator(), term.duplicate());
+                            range.add(expression.operator(), term.duplicate());
                         }
+                    }
+                    else
+                    {
+                        range.add(expression.operator(), expression.getIndexValue().duplicate());
                     }
                 }
             }
@@ -142,8 +236,59 @@ public class Operation
                 analyzer.end();
             }
         }
+        else
+        {
+            if (index.termType().isMultiExpression(expression))
+            {
+                perColumn.add(Expression.create(index).add(expression.operator(), expression.getIndexValue().duplicate()));
+            }
+            else
+            {
+                Expression range;
+                if (perColumn.size() == 0)
+                {
+                    range = Expression.create(index);
+                    perColumn.add(range);
+                }
+                else
+                {
+                    range = Iterables.getLast(perColumn);
+                }
+                range.add(expression.operator(), expression.getIndexValue().duplicate());
+            }
+        }
+    }
 
-        return analyzed;
+    /**
+     * Determines the {@link IndexTarget.Type} for the expression. In this case we are only interested in map types and
+     * the operator being used in the expression.
+     */
+    private static IndexTarget.Type determineIndexTargetType(RowFilter.Expression expression)
+    {
+        AbstractType<?> type  = expression.column().type;
+        IndexTarget.Type indexTargetType = IndexTarget.Type.SIMPLE;
+        if (type.isCollection() && type.isMultiCell())
+        {
+            CollectionType<?> collection = ((CollectionType<?>) type);
+            if (collection.kind == CollectionType.Kind.MAP)
+            {
+                switch (expression.operator())
+                {
+                    case EQ:
+                        indexTargetType = IndexTarget.Type.KEYS_AND_VALUES;
+                        break;
+                    case CONTAINS:
+                        indexTargetType = IndexTarget.Type.VALUES;
+                        break;
+                    case CONTAINS_KEY:
+                        indexTargetType = IndexTarget.Type.KEYS;
+                        break;
+                    default:
+                        throw new InvalidRequestException("Invalid operator");
+                }
+            }
+        }
+        return indexTargetType;
     }
 
     private static int getPriority(Operator op)
@@ -175,30 +320,46 @@ public class Operation
      */
     static KeyRangeIterator buildIterator(QueryController controller)
     {
-        return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        return Node.buildTree(controller.indexFilter()).analyzeTree(controller).rangeIterator(controller);
+    }
+
+    /**
+     * Converts expressions into filter tree for query.
+     *
+     * @return a KeyRangeIterator over the index query results
+     */
+    static CloseableIterator<PrimaryKeyWithScore> buildIteratorForOrder(QueryController controller, QueryViewBuilder.QueryExpressionView view)
+    {
+        if (controller.indexFilter().getExpressions().size() == 1)
+            // If we only have one expression, we just use the ANN index to order and limit.
+            return controller.getTopKRows(view);
+
+        // Otherwise, we need to search first, then order.
+        KeyRangeIterator iterator = buildIterator(controller);
+        return controller.getTopKRows(iterator, view);
     }
 
     /**
      * Converts expressions into filter tree (which is currently just a single AND).
-     *
+     * <p>
      * Filter tree allows us to do a couple of important optimizations
      * namely, group flattening for AND operations (query rewrite), expression bounds checks,
      * "satisfies by" checks for resulting rows with an early exit.
      *
      * @return root of the filter tree.
      */
-    static FilterTree buildFilter(QueryController controller)
+    static FilterTree buildFilter(QueryController controller, boolean strict)
     {
-        return Node.buildTree(controller.filterOperation()).buildFilter(controller);
+        return Node.buildTree(controller.indexFilter()).buildFilter(controller, strict);
     }
 
     static abstract class Node
     {
-        ListMultimap<ColumnMetadata, Expression> expressionMap;
+        Expressions expressions;
 
         boolean canFilter()
         {
-            return (expressionMap != null && !expressionMap.isEmpty()) || !children().isEmpty();
+            return (expressions != null && !expressions.isEmpty()) || !children().isEmpty();
         }
 
         List<Node> children()
@@ -218,7 +379,7 @@ public class Operation
 
         abstract void analyze(List<RowFilter.Expression> expressionList, QueryController controller);
 
-        abstract FilterTree filterTree();
+        abstract FilterTree filterTree(boolean strict, QueryContext context);
 
         abstract KeyRangeIterator rangeIterator(QueryController controller);
 
@@ -257,13 +418,13 @@ public class Operation
             }
         }
 
-        FilterTree buildFilter(QueryController controller)
+        FilterTree buildFilter(QueryController controller, boolean isStrict)
         {
             analyzeTree(controller);
-            FilterTree tree = filterTree();
+            FilterTree tree = filterTree(isStrict, controller.queryContext);
             for (Node child : children())
                 if (child.canFilter())
-                    tree.addChild(child.buildFilter(controller));
+                    tree.addChild(child.buildFilter(controller, isStrict));
             return tree;
         }
     }
@@ -290,19 +451,19 @@ public class Operation
         @Override
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
-            expressionMap = buildIndexExpressions(controller, BooleanOperator.AND, expressionList);
+            expressions = buildIndexExpressions(controller, expressionList);
         }
 
         @Override
-        FilterTree filterTree()
+        FilterTree filterTree(boolean isStrict, QueryContext context)
         {
-            return new FilterTree(BooleanOperator.AND, expressionMap);
+            return new FilterTree(BooleanOperator.AND, expressions, isStrict, context);
         }
 
         @Override
         KeyRangeIterator rangeIterator(QueryController controller)
         {
-            KeyRangeIterator.Builder builder = controller.getIndexQueryResults(expressionMap.values());
+            KeyRangeIterator.Builder builder = controller.getIndexQueryResults(expressions.all());
             for (Node child : children)
             {
                 boolean canFilter = child.canFilter();
@@ -320,13 +481,15 @@ public class Operation
         @Override
         public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
         {
-            expressionMap = buildIndexExpressions(controller, BooleanOperator.AND, expressionList);
+            expressions = buildIndexExpressions(controller, expressionList);
+            assert expressions.size() == 1 : "Expression nodes should only have a single expression!";
         }
 
         @Override
-        FilterTree filterTree()
+        FilterTree filterTree(boolean isStrict, QueryContext context)
         {
-            return new FilterTree(BooleanOperator.AND, expressionMap);
+            // There should only be one expression, so AND/OR would both work here. 
+            return new FilterTree(BooleanOperator.AND, expressions, isStrict, context);
         }
 
         public ExpressionNode(RowFilter.Expression expression)
@@ -345,7 +508,7 @@ public class Operation
         {
             assert canFilter() : "Cannot process query with no expressions";
 
-            return controller.getIndexQueryResults(expressionMap.values()).build();
+            return controller.getIndexQueryResults(expressions.all()).build();
         }
     }
 }

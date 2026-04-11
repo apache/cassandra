@@ -17,18 +17,27 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.messages.CleanupMessage;
+import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.PrepareMessage;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.StatusRequest;
+import org.apache.cassandra.repair.messages.StatusResponse;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.state.AbstractCompletable;
 import org.apache.cassandra.repair.state.AbstractState;
 import org.apache.cassandra.repair.state.Completable;
@@ -37,6 +46,7 @@ import org.apache.cassandra.repair.state.SyncState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
@@ -83,8 +93,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return prs != null ? prs.previewKind : PreviewKind.NONE;
     }
 
+    @Override
     public void doVerb(final Message<RepairMessage> message)
     {
+        if (DatabaseDescriptor.getAccordTransactionsEnabled()
+            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+            return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
         try
@@ -106,6 +120,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         // error is logged in verifyCompactionsPendingThreshold
                         state.phase.fail("Too many pending compactions");
 
+                        sendFailureResponse(message);
+                        return;
+                    }
+                    if (!ActiveRepairService.verifyDiskHeadroomThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
+                    {
+                        // error is logged in verifyDiskHeadroomThreshold
+                        state.phase.fail("Not enough disk headroom to perform incremental repair");
                         sendFailureResponse(message);
                         return;
                     }
@@ -227,11 +248,24 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             sendFailureResponse(message);
                             return;
                         }
+
+                        if (!acceptMessage(validationRequest, ctx.broadcastAddressAndPort(), message.from()))
+                        {
+                            RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(validationRequest.desc.ranges);
+
+                            logger.error("Got out-of-range repair request from " + message.from() + ": " + validationRequest.desc.ranges, e);
+                            vState.phase.fail(e);
+                            sendFailureResponse(message);
+                            return;
+                        }
+
                         vState.phase.accept();
                         sendAck(message);
 
                         Validator validator = new Validator(ctx, vState, validationRequest.nowInSec,
-                                                            isIncremental(desc.parentSessionId), previewKind);
+                                                            isIncremental(desc.parentSessionId),
+                                                            previewKind,
+                                                            validationRequest.dontPurgeTombstones);
                         ctx.validationManager().submitValidation(store, validator);
                     }
                     catch (Throwable t)
@@ -286,27 +320,31 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case PREPARE_CONSISTENT_REQ:
-                    ctx.repair().consistent.local.handlePrepareMessage(message.from(), (PrepareConsistentRequest) message.payload);
+                    ctx.repair().consistent.local.handlePrepareMessage(message);
                     break;
 
                 case PREPARE_CONSISTENT_RSP:
-                    ctx.repair().consistent.coordinated.handlePrepareResponse((PrepareConsistentResponse) message.payload);
+                    ctx.repair().consistent.coordinated.handlePrepareResponse(message);
                     break;
 
                 case FINALIZE_PROPOSE_MSG:
-                    ctx.repair().consistent.local.handleFinalizeProposeMessage(message.from(), (FinalizePropose) message.payload);
+                    ctx.repair().consistent.local.handleFinalizeProposeMessage(message);
                     break;
 
                 case FINALIZE_PROMISE_MSG:
-                    ctx.repair().consistent.coordinated.handleFinalizePromiseMessage((FinalizePromise) message.payload);
+                    ctx.repair().consistent.coordinated.handleFinalizePromiseMessage(message);
                     break;
 
                 case FINALIZE_COMMIT_MSG:
-                    ctx.repair().consistent.local.handleFinalizeCommitMessage(message.from(), (FinalizeCommit) message.payload);
+                    ctx.repair().consistent.local.handleFinalizeCommitMessage(message);
                     break;
 
                 case FAILED_SESSION_MSG:
                     FailSession failure = (FailSession) message.payload;
+                    sendAck(message);
+                    ParticipateState p = ctx.repair().participate(failure.sessionID);
+                    if (p != null)
+                        p.phase.fail("Failure message from " + message.from());
                     ctx.repair().consistent.coordinated.handleFailSessionMessage(failure);
                     ctx.repair().consistent.local.handleFailSessionMessage(message.from(), failure);
                     break;
@@ -410,12 +448,21 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
     private void sendFailureResponse(Message<?> respondTo)
     {
-        Message<?> reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
-        ctx.messaging().send(reply, respondTo.from());
+        RepairMessage.sendFailureResponse(ctx, respondTo);
     }
 
     private void sendAck(Message<RepairMessage> message)
     {
-        ctx.messaging().send(message.emptyResponse(), message.from());
+        RepairMessage.sendAck(ctx, message);
+    }
+
+    private static boolean acceptMessage(final ValidationRequest validationRequest, InetAddressAndPort broadcastAddressAndPort, final InetAddressAndPort from)
+    {
+        return StorageService.instance
+               .getNormalizedLocalRanges(validationRequest.desc.keyspace, broadcastAddressAndPort)
+               .validateRangeRequest(validationRequest.desc.ranges,
+                                     "RepairSession #" + validationRequest.desc.parentSessionId,
+                                     "validation request",
+                                     from);
     }
 }

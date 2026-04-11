@@ -1,0 +1,125 @@
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir="../../" name="apache-cassandra-sstableloader"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
+
+    <!-- pull common definitions from parent project -->
+    <import file="../../build.xml"/>
+
+    <property name="sstableloader-javadoc.dir" value="${build.dir}/sstableloader-javadoc"/>
+    <property name="sstableloader.build.src" value="${basedir}/tools/sstableloader/src" />
+    <property name="sstableloader.test.src" value="${basedir}/tools/sstableloader/test/unit" />
+    <property name="sstableloader.build.classes" value="${build.classes}/sstableloader" />
+    <property name="sstableloader.test.classes" value="${build.dir}/test/sstableloader-classes" />
+    <property name="sstableloader.manifest" value="${sstableloader.build.classes}/MANIFEST.MF" />
+
+    <target name="sstableloader-init">
+        <mkdir dir="${sstableloader.test.classes}"/>
+    </target>
+
+    <target name="sstableloader-build" depends="sstableloader-init,build" description="build sstableloader">
+        <antcall target="_sstableloader_build"/>
+    </target>
+
+    <target name="_sstableloader_build">
+        <mkdir dir="${sstableloader.build.classes}" />
+        <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
+               source="${ant.java.version}" target="${ant.java.version}"
+               encoding="utf-8" destdir="${sstableloader.build.classes}" includeantruntime="true">
+            <src path="${sstableloader.build.src}" />
+            <classpath>
+                <path refid="cassandra.classpath" />
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="sstableloader-build-test" depends="sstableloader-build" description="Compile sstableloader tests">
+        <javac debug="true" debuglevel="${debuglevel}" destdir="${sstableloader.test.classes}"
+               source="${ant.java.version}" target="${ant.java.version}"
+               includeantruntime="false" encoding="utf-8">
+            <classpath>
+                <path refid="cassandra.classpath.test"/>
+                <pathelement location="${sstableloader.build.classes}" />
+            </classpath>
+            <src path="${sstableloader.test.src}"/>
+        </javac>
+    </target>
+
+    <target name="sstableloader-test" depends="sstableloader-build-test, maybe-build-test" description="Runs sstableloader tests">
+        <testmacro inputdir="${sstableloader.test.src}"
+                       timeout="${test.timeout}">
+        </testmacro>
+    </target>
+
+    <target name="sstableloader-write-pom">
+        <copy file=".build/sstableloader-deps-maven-pom.xml" tofile="${build.dir}/${final.name}-sstableloader.pom">
+            <filterset refid="pom-template"/>
+        </copy>
+    </target>
+
+    <target name="sstableloader-jar"
+            depends="sstableloader-build,sstableloader-write-pom"
+            description="Assemble Cassandra sstableloader JAR files">
+
+        <!-- sstableloader jar -->
+        <manifest file="${sstableloader.manifest}">
+            <attribute name="Built-By" value="Apache Cassandra Project"/>
+            <attribute name="Main-Class" value="org.apache.cassandra.tools.BulkLoader"/>
+        </manifest>
+        <mkdir dir="${sstableloader.build.classes}/META-INF" />
+        <mkdir dir="${build.dir}/tools/lib/" />
+        <jar destfile="${build.dir}/tools/lib/sstableloader.jar" manifest="${sstableloader.manifest}">
+            <fileset dir="${sstableloader.build.classes}"/>
+        </jar>
+    </target>
+
+    <target name="sstableloader-javadoc" depends="build" description="Create javadoc" unless="no-javadoc">
+      <create-javadoc destdir="${sstableloader-javadoc.dir}">
+        <filesets>
+          <fileset dir="${sstableloader.build.src}" defaultexcludes="yes">
+            <include name="org/apache/**/*.java"/>
+          </fileset>
+        </filesets>
+      </create-javadoc>
+    </target>
+
+    <target name="sstableloader-javadoc-jar" depends="sstableloader-javadoc" unless="no-javadoc" description="Assemble sstableloader JavaDoc JAR file">
+      <jar jarfile="${build.dir}/${final.name}-sstableloader-javadoc.jar" basedir="${sstableloader-javadoc.dir}"/>
+      <delete quiet="true" dir="${sstableloader-javadoc.dir}"/>
+    </target>
+
+    <target name="sstableloader-sources-jar" depends="init" description="Assemble sstableloader Sources JAR file">
+      <jar jarfile="${build.dir}/${final.name}-sstableloader-sources.jar">
+        <fileset dir="${sstableloader.build.src}" defaultexcludes="yes">
+          <include name="org/apache/**/*.java"/>
+        </fileset>
+      </jar>
+    </target>
+
+    <target name="sstableloader-mvn-install" depends="sstableloader-sources-jar,sstableloader-javadoc-jar,mvn-install"
+            description="Installs the sstableloader artifacts in the Maven Local Repository">
+      <install pomFile="${build.dir}/${final.name}-sstableloader.pom"
+               file="${build.dir}/tools/lib/sstableloader.jar"/>
+      <install pomFile="${build.dir}/${final.name}-sstableloader.pom"
+               file="${build.dir}/${final.name}-sstableloader-sources.jar"
+               classifier="sources"/>
+      <install pomFile="${build.dir}/${final.name}-sstableloader.pom"
+               file="${build.dir}/${final.name}-sstableloader-javadoc.jar"
+               classifier="javadoc"/>
+    </target>
+</project>

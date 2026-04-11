@@ -20,6 +20,7 @@ package org.apache.cassandra.utils.progress.jmx;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 

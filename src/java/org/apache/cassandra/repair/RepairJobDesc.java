@@ -34,6 +34,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -74,6 +77,17 @@ public class RepairJobDesc
         bytes = ArrayUtils.addAll(bytes, columnFamily.getBytes(StandardCharsets.UTF_8));
         bytes = ArrayUtils.addAll(bytes, ranges.toString().getBytes(StandardCharsets.UTF_8));
         return UUID.nameUUIDFromBytes(bytes);
+    }
+
+    public IPartitioner partitioner()
+    {
+        return partitioner(this.keyspace, this.columnFamily);
+    }
+
+    public static IPartitioner partitioner(String keyspace, String columnFamily)
+    {
+        TableMetadata tm = Schema.instance.getTableMetadata(keyspace, columnFamily);
+        return tm != null ? tm.partitioner : IPartitioner.global();
     }
 
     @Override
@@ -121,7 +135,6 @@ public class RepairJobDesc
             desc.sessionId.serialize(out);
             out.writeUTF(desc.keyspace);
             out.writeUTF(desc.columnFamily);
-            IPartitioner.validate(desc.ranges);
             out.writeInt(desc.ranges.size());
             for (Range<Token> rt : desc.ranges)
                 AbstractBounds.tokenSerializer.serialize(rt, out, version);
@@ -136,14 +149,16 @@ public class RepairJobDesc
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
 
+            IPartitioner partitioner = version >= MessagingService.VERSION_60
+                                       ? partitioner(keyspace, columnFamily)
+                                       : IPartitioner.global();
+
             int nRanges = in.readInt();
             Collection<Range<Token>> ranges = new ArrayList<>(nRanges);
             Range<Token> range;
-
             for (int i = 0; i < nRanges; i++)
             {
-                range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in,
-                        IPartitioner.global(), version);
+                range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version);
                 ranges.add(range);
             }
 
@@ -165,5 +180,6 @@ public class RepairJobDesc
             }
             return size;
         }
+
     }
 }

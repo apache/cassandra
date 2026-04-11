@@ -20,20 +20,30 @@ package org.apache.cassandra.tools.nodetool.stats;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
-
-import com.google.common.collect.ArrayListMultimap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
 
 import javax.management.InstanceNotFoundException;
 
+import com.google.common.collect.ArrayListMultimap;
+
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategyOptions;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.metrics.*;
-import org.apache.cassandra.tools.*;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.tools.NodeProbe;
 
 public class TableStatsHolder implements StatsHolder
 {
@@ -66,7 +76,7 @@ public class TableStatsHolder implements StatsHolder
     }
 
     /**
-     * @returns Map<String, Object> a nested HashMap of keyspaces, their tables, and the tables' statistics.
+     * @return {@code Map<String, Object>} a nested HashMap of keyspaces, their tables, and the tables' statistics.
      */
     private Map<String, Object> convertAllToMap()
     {
@@ -82,6 +92,8 @@ public class TableStatsHolder implements StatsHolder
             mpKeyspace.put("write_count", keyspace.writeCount);
             mpKeyspace.put("write_latency_ms", keyspace.writeLatency());
             mpKeyspace.put("pending_flushes", keyspace.pendingFlushes);
+            mpKeyspace.put("space_used_live", FileUtils.stringifyFileSize(keyspace.spaceUsedLive, humanReadable));
+            mpKeyspace.put("space_used_total", FileUtils.stringifyFileSize(keyspace.spaceUsedTotal, humanReadable));
 
             // store each table's metrics to map
             List<StatsTable> tables = keyspace.tables;
@@ -98,7 +110,7 @@ public class TableStatsHolder implements StatsHolder
     }
 
     /**
-     * @returns Map<String, Object> a nested HashMap of the sorted and filtered table names and the HashMaps of their statistics.
+     * @return {@code Map<String, Object>} a nested HashMap of the sorted and filtered table names and the HashMaps of their statistics.
      */
     private Map<String, Object> convertSortedFilteredSubsetToMap()
     {
@@ -121,6 +133,15 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("old_sstable_count", table.oldSSTableCount);
         mpTable.put("sstables_in_each_level", table.sstablesInEachLevel);
         mpTable.put("sstable_bytes_in_each_level", table.sstableBytesInEachLevel);
+        if (table.isUCSSstable)
+        {
+            mpTable.put("sstable_avg_token_space_in_each_level", table.sstableAvgTokenSpaceInEachLevel);
+            mpTable.put("sstable_max_density_threshold_in_each_level", table.sstableMaxDensityThresholdInEachLevel);
+            mpTable.put("sstable_avg_size_in_each_level", table.sstableAvgSizeInEachLevel);
+            mpTable.put("sstable_avg_density_in_each_level", table.sstableAvgDensityInEachLevel);
+            mpTable.put("sstable_avg_density_max_density_threshold_ratio_in_each_level", table.sstableAvgDensityMaxDensityThresholdRatioInEachLevel);
+            mpTable.put("sstable_max_density_max_density_threshold_ratio_in_each_level", table.sstableMaxDensityMaxDensityThresholdRatioInEachLevel);
+        }
         mpTable.put("max_sstable_size", table.maxSSTableSize);
         mpTable.put("twcs", table.twcs);
         mpTable.put("space_used_live", table.spaceUsedLive);
@@ -153,6 +174,8 @@ public class TableStatsHolder implements StatsHolder
             mpTable.put("bloom_filter_off_heap_memory_used", table.bloomFilterOffHeapMemoryUsed);
         if (table.indexSummaryOffHeapUsed)
             mpTable.put("index_summary_off_heap_memory_used", table.indexSummaryOffHeapMemoryUsed);
+        if (table.compressionDictionariesUsed)
+            mpTable.put("compression_dictionaries_memory_used", table.compressionDictionariesMemoryUsed);
         if (table.compressionMetadataOffHeapUsed)
             mpTable.put("compression_metadata_off_heap_memory_used",
                         table.compressionMetadataOffHeapMemoryUsed);
@@ -173,6 +196,16 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("top_tombstone_partitions", table.topTombstonePartitions);
         if (locationCheck)
             mpTable.put("sstables_in_correct_location", table.isInCorrectLocation);
+
+        mpTable.put("sai_local_query_latency_ms",String.format("%01.3f", table.saiQueryLatencyMs));
+        mpTable.put("sai_post_filtering_read_latency",String.format("%01.3f", table.saiPostFilteringReadLatencyMs));
+        mpTable.put("sai_disk_used_bytes",table.saiDiskUsedBytes);
+        mpTable.put("sai_sstable_indexes_hit",table.saiSSTableIndexesHit);
+        mpTable.put("sai_index_segments_hit",table.saiIndexSegmentsHit);
+        mpTable.put("sai_rows_filtered",table.saiRowsFiltered);
+        mpTable.put("sai_total_query_timeouts",table.saiTotalQueryTimeouts);
+        mpTable.put("sai_total_queryable_index_ratio", table.saiTotalQueryableIndexRatio);
+
         return mpTable;
     }
 
@@ -197,6 +230,7 @@ public class TableStatsHolder implements StatsHolder
                 if (stats == null)
                 {
                     stats = new StatsKeyspace(probe, keyspaceName);
+                    stats.initialize();
                     keyspaceStats.put(keyspaceName, stats);
                 }
                 stats.add(tableProxy);
@@ -257,9 +291,21 @@ public class TableStatsHolder implements StatsHolder
                     for (int level = 0; level < leveledSSTablesBytes.length; level++)
                     {
                         long size = leveledSSTablesBytes[level];
-                        statsTable.sstableBytesInEachLevel.add(format(size, humanReadable));
+                        statsTable.sstableBytesInEachLevel.add(FileUtils.stringifyFileSize(size, humanReadable));
                     }
                 }
+
+                addUCSMetric(statsTable, statsTable.sstableAvgTokenSpaceInEachLevel, table.getPerLevelAvgTokenSpace());
+
+                addUCSMetric(statsTable, statsTable.sstableMaxDensityThresholdInEachLevel, table.getPerLevelMaxDensityThreshold());
+
+                addUCSMetric(statsTable, statsTable.sstableAvgSizeInEachLevel, table.getPerLevelAvgSize());
+
+                addUCSMetric(statsTable, statsTable.sstableAvgDensityInEachLevel, table.getPerLevelAvgDensity());
+
+                addUCSMetric(statsTable, statsTable.sstableAvgDensityMaxDensityThresholdRatioInEachLevel, table.getPerLevelAvgDensityMaxDensityThresholdRatio());
+
+                addUCSMetric(statsTable, statsTable.sstableMaxDensityMaxDensityThresholdRatioInEachLevel, table.getPerLevelMaxDensityMaxDensityThresholdRatio());
 
                 if (locationCheck)
                     statsTable.isInCorrectLocation = !table.hasMisplacedSSTables();
@@ -268,23 +314,29 @@ public class TableStatsHolder implements StatsHolder
                 Long bloomFilterOffHeapSize = null;
                 Long indexSummaryOffHeapSize = null;
                 Long compressionMetadataOffHeapSize = null;
+                Long compressionDictionariesMemoryUsed = null;
                 Long offHeapSize = null;
                 Double percentRepaired = null;
                 Long bytesRepaired = null;
                 Long bytesUnrepaired = null;
                 Long bytesPendingRepair = null;
+                Double sstableCompressionRatio = null;
+                Double bloomFilterFalseRatio = null;
 
                 try
                 {
                     memtableOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableOffHeapSize");
                     bloomFilterOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterOffHeapMemoryUsed");
                     indexSummaryOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "IndexSummaryOffHeapMemoryUsed");
+                    compressionDictionariesMemoryUsed = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionDictionariesMemoryUsed");
                     compressionMetadataOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionMetadataOffHeapMemoryUsed");
                     offHeapSize = memtableOffHeapSize + bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
                     percentRepaired = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "PercentRepaired");
                     bytesRepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesRepaired");
                     bytesUnrepaired = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesUnrepaired");
                     bytesPendingRepair = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BytesPendingRepair");
+                    sstableCompressionRatio = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
+                    bloomFilterFalseRatio = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio");
                 }
                 catch (RuntimeException e)
                 {
@@ -293,16 +345,16 @@ public class TableStatsHolder implements StatsHolder
                         throw e;
                 }
 
-                statsTable.spaceUsedLive = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "LiveDiskSpaceUsed"), humanReadable);
-                statsTable.spaceUsedTotal = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "TotalDiskSpaceUsed"), humanReadable);
-                statsTable.spaceUsedBySnapshotsTotal = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "SnapshotsSize"), humanReadable);
+                statsTable.spaceUsedLive = FileUtils.stringifyFileSize((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "LiveDiskSpaceUsed"), humanReadable);
+                statsTable.spaceUsedTotal = FileUtils.stringifyFileSize((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "TotalDiskSpaceUsed"), humanReadable);
+                statsTable.spaceUsedBySnapshotsTotal = FileUtils.stringifyFileSize((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "SnapshotsSize"), humanReadable);
 
                 maybeAddTWCSWindowWithMaxDuration(statsTable, probe, keyspaceName, tableName);
 
                 if (offHeapSize != null)
                 {
                     statsTable.offHeapUsed = true;
-                    statsTable.offHeapMemoryUsedTotal = format(offHeapSize, humanReadable);
+                    statsTable.offHeapMemoryUsedTotal = FileUtils.stringifyFileSize(offHeapSize, humanReadable);
 
                 }
                 if (percentRepaired != null)
@@ -314,7 +366,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.bytesUnrepaired = bytesUnrepaired != null ? bytesUnrepaired : 0;
                 statsTable.bytesPendingRepair = bytesPendingRepair != null ? bytesPendingRepair : 0;
 
-                statsTable.sstableCompressionRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
+                statsTable.sstableCompressionRatio = sstableCompressionRatio != null ? sstableCompressionRatio : Double.NaN;
                 Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
                 if (Long.valueOf(-1L).equals(estimatedPartitionCount))
                 {
@@ -323,11 +375,11 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.numberOfPartitionsEstimate = estimatedPartitionCount;
 
                 statsTable.memtableCellCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount");
-                statsTable.memtableDataSize = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable);
+                statsTable.memtableDataSize = FileUtils.stringifyFileSize((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable);
                 if (memtableOffHeapSize != null)
                 {
                     statsTable.memtableOffHeapUsed = true;
-                    statsTable.memtableOffHeapMemoryUsed = format(memtableOffHeapSize, humanReadable);
+                    statsTable.memtableOffHeapMemoryUsed = FileUtils.stringifyFileSize(memtableOffHeapSize, humanReadable);
                 }
                 statsTable.memtableSwitchCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableSwitchCount");
                 statsTable.speculativeRetries = probe.getColumnFamilyMetric(keyspaceName, tableName, "SpeculativeRetries");
@@ -347,24 +399,30 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.pendingFlushes = probe.getColumnFamilyMetric(keyspaceName, tableName, "PendingFlushes");
 
                 statsTable.bloomFilterFalsePositives = probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterFalsePositives");
-                statsTable.bloomFilterFalseRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "RecentBloomFilterFalseRatio");
-                statsTable.bloomFilterSpaceUsed = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterDiskSpaceUsed"), humanReadable);
+
+                statsTable.bloomFilterFalseRatio = bloomFilterFalseRatio != null ? bloomFilterFalseRatio : Double.NaN;
+                statsTable.bloomFilterSpaceUsed = FileUtils.stringifyFileSize((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "BloomFilterDiskSpaceUsed"), humanReadable);
 
                 if (bloomFilterOffHeapSize != null)
                 {
                     statsTable.bloomFilterOffHeapUsed = true;
-                    statsTable.bloomFilterOffHeapMemoryUsed = format(bloomFilterOffHeapSize, humanReadable);
+                    statsTable.bloomFilterOffHeapMemoryUsed = FileUtils.stringifyFileSize(bloomFilterOffHeapSize, humanReadable);
                 }
 
                 if (indexSummaryOffHeapSize != null)
                 {
                     statsTable.indexSummaryOffHeapUsed = true;
-                    statsTable.indexSummaryOffHeapMemoryUsed = format(indexSummaryOffHeapSize, humanReadable);
+                    statsTable.indexSummaryOffHeapMemoryUsed = FileUtils.stringifyFileSize(indexSummaryOffHeapSize, humanReadable);
+                }
+                if (compressionDictionariesMemoryUsed != null)
+                {
+                    statsTable.compressionDictionariesUsed = true;
+                    statsTable.compressionDictionariesMemoryUsed = FileUtils.stringifyFileSize(compressionDictionariesMemoryUsed, humanReadable);
                 }
                 if (compressionMetadataOffHeapSize != null)
                 {
                     statsTable.compressionMetadataOffHeapUsed = true;
-                    statsTable.compressionMetadataOffHeapMemoryUsed = format(compressionMetadataOffHeapSize, humanReadable);
+                    statsTable.compressionMetadataOffHeapMemoryUsed = FileUtils.stringifyFileSize(compressionMetadataOffHeapSize, humanReadable);
                 }
                 statsTable.compactedPartitionMinimumBytes = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MinPartitionSize");
                 statsTable.compactedPartitionMaximumBytes = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MaxPartitionSize");
@@ -385,10 +443,69 @@ public class TableStatsHolder implements StatsHolder
                 if (table.getTopTombstonePartitionsLastUpdate() != null)
                     statsTable.topTombstonePartitionsLastUpdate = millisToDateString(table.getTopTombstonePartitionsLastUpdate());
 
+                if (!SchemaConstants.isSystemKeyspace(keyspaceName))
+                {
+                    Object totalIndexCount = probe.getSaiMetric(keyspaceName, tableName, "TotalIndexCount");
+                    statsTable.saiTotalIndexCount = (totalIndexCount != null) ? (int) totalIndexCount : 0;
+
+                    if (statsTable.saiTotalIndexCount > 0)
+                    {
+                        Object queryLatencyMetric = probe.getSaiMetric(keyspaceName, tableName, "QueryLatency");
+                        double queryLatency = getMetricMean(queryLatencyMetric);
+                        statsTable.saiQueryLatencyMs = queryLatency > 0 ? queryLatency : Double.NaN;
+
+                        Object PostFilteringReadLatency = probe.getSaiMetric(keyspaceName, tableName, "PostFilteringReadLatency");
+                        double postfilteringreadlatency = getMetricMean(PostFilteringReadLatency);
+                        statsTable.saiPostFilteringReadLatencyMs = postfilteringreadlatency > 0 ? postfilteringreadlatency : Double.NaN;
+
+                        Object diskUsedBytes = probe.getSaiMetric(keyspaceName, tableName, "DiskUsedBytes");
+                        long saidiskusedbytes = (diskUsedBytes != null) ? (long) diskUsedBytes : 0L;
+                        statsTable.saiDiskUsedBytes = FileUtils.stringifyFileSize(saidiskusedbytes, humanReadable);
+
+                        Object SSTableIndexesHit = probe.getSaiMetric(keyspaceName, tableName, "SSTableIndexesHit");
+                        statsTable.saiSSTableIndexesHit = getMetricMean(SSTableIndexesHit);
+
+                        Object IndexSegmentsHit = probe.getSaiMetric(keyspaceName, tableName, "IndexSegmentsHit");
+                        statsTable.saiIndexSegmentsHit = getMetricMean(IndexSegmentsHit);
+
+                        Object RowsFiltered = probe.getSaiMetric(keyspaceName, tableName, "RowsFiltered");
+                        statsTable.saiRowsFiltered = getMetricMean(RowsFiltered);
+
+                        Object totalQueryTimeouts = probe.getSaiMetric(keyspaceName, tableName, "TotalQueryTimeouts");
+                        statsTable.saiTotalQueryTimeouts = (totalQueryTimeouts != null) ? (Long) totalQueryTimeouts : 0L;
+
+                        Object totalQueryableIndexCount = probe.getSaiMetric(keyspaceName, tableName, "TotalQueryableIndexCount");
+                        int saiTotalQueryableIndexCount = (totalQueryableIndexCount != null) ? (int) totalQueryableIndexCount : 0;
+
+                        statsTable.saiTotalQueryableIndexRatio = String.format("%d/%d", saiTotalQueryableIndexCount, statsTable.saiTotalIndexCount);
+                    }
+                }
                 statsKeyspace.tables.add(statsTable);
             }
             keyspaces.add(statsKeyspace);
         }
+    }
+
+    private void addUCSMetric(StatsTable statsTable, List<String> acc, double[] values)
+    {
+        if (values != null)
+        {
+            statsTable.isUCSSstable = true;
+            for (int level = 0; level < values.length; level++)
+            {
+                acc.add(String.format("%.03f", values[level]));
+            }
+        }
+    }
+
+    private double getMetricMean(Object metricObject) {
+        if (metricObject instanceof CassandraMetricsRegistry.JmxTimerMBean) {
+            return ((CassandraMetricsRegistry.JmxTimerMBean) metricObject).getMean() / 1000;
+        }
+        if (metricObject instanceof CassandraMetricsRegistry.JmxHistogramMBean) {
+            return Math.round(((CassandraMetricsRegistry.JmxHistogramMBean) metricObject).getMean() * 100.0) / 100.0;
+        }
+        throw new IllegalArgumentException("Unsupported metric object type: " + metricObject.getClass().getName());
     }
 
     private void maybeAddTWCSWindowWithMaxDuration(StatsTable statsTable, NodeProbe probe, String keyspaceName, String tableName)
@@ -412,16 +529,11 @@ public class TableStatsHolder implements StatsHolder
         statsTable.twcs = String.format("%s %s, max duration: %s", size, unit, maxDuration);
     }
 
-    private String format(long bytes, boolean humanReadable)
-    {
-        return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
-    }
-
     private Map<String, String> format(Map<String, Long> map, boolean humanReadable)
     {
         LinkedHashMap<String, String> retMap = new LinkedHashMap<>();
         for (Map.Entry<String, Long> entry : map.entrySet())
-            retMap.put(entry.getKey(), format(entry.getValue(), humanReadable));
+            retMap.put(entry.getKey(), FileUtils.stringifyFileSize(entry.getValue(), humanReadable));
         return retMap;
     }
 

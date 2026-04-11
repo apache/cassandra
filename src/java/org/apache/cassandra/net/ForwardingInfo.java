@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.net;
 
-import com.google.common.base.Preconditions;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+
+import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
@@ -40,6 +41,7 @@ import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize
  */
 public final class ForwardingInfo implements Serializable
 {
+    private static final long serialVersionUID = 0;  // for simulator support
     final List<InetAddressAndPort> targets;
     final long[] messageIds;
 

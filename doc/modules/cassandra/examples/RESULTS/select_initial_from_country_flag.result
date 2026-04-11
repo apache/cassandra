@@ -1,0 +1,8 @@
+ country | cyclist_name | flag
+---------+--------------+------
+ Belgium |        Andre |    1
+ Belgium |      Jacques |    1
+  France |        Andre |    3
+  France |       George |    3
+
+(4 rows)

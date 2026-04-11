@@ -21,6 +21,7 @@ package org.apache.cassandra.hints;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.UUID;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.diag.DiagnosticEvent;
@@ -64,10 +65,13 @@ final class HintEvent extends DiagnosticEvent
     private final Long pageHintsFailed;
     @Nullable
     private final Long pageHintsTimeout;
+    @Nullable
+    private final Long pageHintsRetryDifferentSystem;
 
     HintEvent(HintEventType type, HintsDispatcher dispatcher, UUID targetHostId, InetAddressAndPort targetAddress,
               @Nullable HintResult dispatchResult, @Nullable Long pageHintsSuccessful,
-              @Nullable Long pageHintsFailed, @Nullable Long pageHintsTimeout)
+              @Nullable Long pageHintsFailed, @Nullable Long pageHintsTimeout,
+              @Nullable Long pageHintsRetryDifferentSystem)
     {
         this.type = type;
         this.dispatcher = dispatcher;
@@ -77,6 +81,7 @@ final class HintEvent extends DiagnosticEvent
         this.pageHintsSuccessful = pageHintsSuccessful;
         this.pageHintsFailed = pageHintsFailed;
         this.pageHintsTimeout = pageHintsTimeout;
+        this.pageHintsRetryDifferentSystem = pageHintsRetryDifferentSystem;
     }
 
     public Enum<HintEventType> getType()
@@ -96,6 +101,7 @@ final class HintEvent extends DiagnosticEvent
             ret.put("hint.page.hints_succeeded", pageHintsSuccessful);
             ret.put("hint.page.hints_failed", pageHintsFailed);
             ret.put("hint.page.hints_timed_out", pageHintsTimeout);
+            ret.put("hint.page.hints_retry_different_system", pageHintsRetryDifferentSystem);
         }
         return ret;
     }

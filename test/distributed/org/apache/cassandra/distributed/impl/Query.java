@@ -27,40 +27,48 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-
-public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
+public class Query implements IIsolatedExecutor.SerializableCallable<SimpleQueryResult>
 {
     private static final long serialVersionUID = 1L;
 
-    final String query;
+    public final String query;
     final long timestamp;
+    final boolean deserializeResult;
     final org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin;
     final org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin;
-    final Object[] boundValues;
+    public final Object[] boundValues;
 
     public Query(String query, long timestamp, org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin, org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin, Object[] boundValues)
     {
+        this(query, timestamp, true, commitConsistencyOrigin, serialConsistencyOrigin, boundValues);
+    }
+
+    public Query(String query, long timestamp, boolean deserializeResult, org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin, org.apache.cassandra.distributed.api.ConsistencyLevel serialConsistencyOrigin, Object[] boundValues)
+    {
         this.query = query;
         this.timestamp = timestamp;
+        this.deserializeResult = deserializeResult;
         this.commitConsistencyOrigin = commitConsistencyOrigin;
         this.serialConsistencyOrigin = serialConsistencyOrigin;
         this.boundValues = boundValues;
     }
 
-    public Object[][] call()
+    @Override
+    public SimpleQueryResult call()
     {
         ConsistencyLevel commitConsistency = toCassandraCL(commitConsistencyOrigin);
         ConsistencyLevel serialConsistency = serialConsistencyOrigin == null ? null : toCassandraCL(serialConsistencyOrigin);
-        ClientState clientState = Coordinator.makeFakeClientState();
+        ClientState clientState = CoordinatorHelper.makeFakeClientState();
         CQLStatement prepared = QueryProcessor.getStatement(query, clientState);
         List<ByteBuffer> boundBBValues = new ArrayList<>();
         for (Object boundValue : boundValues)
@@ -83,13 +91,13 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
                                                                  null,
                                                                  timestamp,
                                                                  FBUtilities.nowInSeconds()),
-                                             nanoTime());
+                                             Dispatcher.RequestTime.forImmediateExecution());
 
         // Collect warnings reported during the query.
         if (res != null)
             res.setWarnings(ClientWarn.instance.getWarnings());
 
-        return RowUtil.toQueryResult(res).toObjectArrays();
+        return RowUtil.toQueryResult(res, deserializeResult);
     }
 
     public String toString()
@@ -101,11 +109,4 @@ public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
     {
         return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
     }
-
-    static final org.apache.cassandra.distributed.api.ConsistencyLevel[] API_CLs = org.apache.cassandra.distributed.api.ConsistencyLevel.values();
-    static org.apache.cassandra.distributed.api.ConsistencyLevel fromCassandraCL(org.apache.cassandra.db.ConsistencyLevel cl)
-    {
-        return API_CLs[cl.ordinal()];
-    }
-
 }

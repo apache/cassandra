@@ -19,10 +19,7 @@ package org.apache.cassandra.io.sstable.format.bti;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Iterator;
-
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -31,36 +28,18 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableScanner;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class BtiTableScanner extends SSTableScanner<BtiTableReader, TrieIndexEntry, BtiTableScanner.BtiScanningIterator>
 {
-    // Full scan of the sstables
-    public static BtiTableScanner getScanner(BtiTableReader sstable)
-    {
-        return getScanner(sstable, Iterators.singletonIterator(fullRange(sstable)));
-    }
-
     public static BtiTableScanner getScanner(BtiTableReader sstable,
                                              ColumnFilter columns,
                                              DataRange dataRange,
                                              SSTableReadsListener listener)
     {
         return new BtiTableScanner(sstable, columns, dataRange, makeBounds(sstable, dataRange).iterator(), listener);
-    }
-
-    public static BtiTableScanner getScanner(BtiTableReader sstable, Collection<Range<Token>> tokenRanges)
-    {
-        return getScanner(sstable, makeBounds(sstable, tokenRanges).iterator());
-    }
-
-    public static BtiTableScanner getScanner(BtiTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
-    {
-        return new BtiTableScanner(sstable, ColumnFilter.all(sstable.metadata()), null, rangeIterator, SSTableReadsListener.NOOP_LISTENER);
     }
 
     private BtiTableScanner(BtiTableReader sstable,

@@ -71,7 +71,8 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     // for testing (TODO: remove when have byteman setup)
     private boolean throwEarly, throwLate;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-11148 */
+    @Deprecated(since = "3.4")
     public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
         this(transaction, maxAge, preemptiveOpenInterval, keepOriginals, false);
@@ -98,7 +99,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals, true);
+        return construct(cfs, transaction, keepOriginals, maxAge, true);
+    }
+
+    public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean earlyOpenAllowed)
+    {
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(earlyOpenAllowed && cfs.supportsEarlyOpen()), keepOriginals, true);
     }
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
@@ -276,6 +282,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
         currentlyOpenedEarlyAt = 0;
         bytesWritten += writer.getFilePointer();
+        writer.onSSTableWriterSwitched();
         writer = newWriter;
     }
 

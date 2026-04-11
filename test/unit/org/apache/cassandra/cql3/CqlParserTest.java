@@ -17,17 +17,18 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.junit.Test;
-
 import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.BaseRecognizer;
 import org.antlr.runtime.CharStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.RecognitionException;
 import org.antlr.runtime.TokenStream;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class CqlParserTest
 {

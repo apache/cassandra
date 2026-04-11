@@ -23,8 +23,7 @@ package org.apache.cassandra.cql3.validation.operations;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.service.StorageService;
@@ -35,11 +34,8 @@ public class SelectLimitTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-
+        daemonInitialization();
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
         prepareServer();
     }
 
@@ -542,8 +538,9 @@ public class SelectLimitTest extends CQLTester
     }
 
     @Test
-    public void testIndexOnRegularColumnWithPartitionWithoutRows() throws Throwable
+    public void testIndexOnRegularColumnWithPartitionWithoutRows()
     {
+        Util.assumeLegacySecondaryIndex();
         createTable("CREATE TABLE %s (pk int, c int, s int static, v int, PRIMARY KEY(pk, c))");
         createIndex("CREATE INDEX ON %s (v)");
 

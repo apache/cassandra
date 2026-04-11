@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.utils;
 
-import org.junit.Test;
-
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 
 public class AssertionUtilsTest
 {

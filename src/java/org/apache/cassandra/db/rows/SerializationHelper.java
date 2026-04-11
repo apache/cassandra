@@ -18,16 +18,34 @@
 
 package org.apache.cassandra.db.rows;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 
+/**
+ * The class has a mutable state such as iterators and reusable fields to avoid extra allocation during cells processing,
+ * so it is not safe to share between mutiple threads.
+ */
+@NotThreadSafe
 public class SerializationHelper
 {
     public final SerializationHeader header;
     private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> statics = null;
     private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> regulars = null;
+
+    // reusable fields to avoid extra allocation during cells processing
+    // within org.apache.cassandra.db.rows.UnfilteredSerializer.serializeRowBody and serializedRowBodySize
+    int flags;
+    LivenessInfo pkLiveness;
+
+    DataOutputPlus out;
+    SearchIterator<ColumnMetadata, ColumnMetadata> si;
+    boolean hasComplexDeletion;
 
     public SerializationHelper(SerializationHeader header)
     {

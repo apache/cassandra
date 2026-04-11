@@ -27,16 +27,18 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
-import org.apache.cassandra.io.util.File;
+
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -100,6 +102,8 @@ public abstract class AlteredHints
                     hintNum++;
                 }
             }
+
+            Assert.assertThat(descriptor.hintsFileSize(dir), Matchers.greaterThan(0L));
         }
 
         try (HintsReader reader = HintsReader.open(descriptor.file(dir)))

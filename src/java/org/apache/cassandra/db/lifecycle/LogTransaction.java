@@ -32,10 +32,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.codahale.metrics.Counter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
 
-import com.codahale.metrics.Counter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,8 +134,13 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
     LogTransaction(OperationType opType, Tracker tracker)
     {
+        this(opType, tracker, nextTimeUUID());
+    }
+
+    LogTransaction(OperationType opType, Tracker tracker, TimeUUID id)
+    {
         this.tracker = tracker;
-        this.txnFile = new LogFile(opType, nextTimeUUID());
+        this.txnFile = new LogFile(opType, id);
         this.lock = new Object();
         this.selfRef = new Ref<>(this, new TransactionTidier(txnFile, lock));
 
@@ -204,6 +209,18 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
     }
 
+    void takeOwnership(LogTransaction log)
+    {
+        synchronized (lock)
+        {
+            if (state() != State.IN_PROGRESS)
+                throw new IllegalStateException("The LogTransaction getting ownership should be IN_PROGRESS, not " + state());
+            if (log.state() != State.READY_TO_COMMIT)
+                throw new IllegalStateException("The LogTransaction giving up its ownership should be READY_TO_COMMIT, not " + log.state());
+            txnFile.takeOwnership(log.txnFile);
+        }
+    }
+
     Map<SSTable, LogRecord> makeRemoveRecords(Iterable<SSTableReader> sstables)
     {
         synchronized (lock)
@@ -247,7 +264,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         {
             if (!StorageService.instance.isDaemonSetupCompleted())
                 logger.info("Unfinished transaction log, deleting {} ", file);
-            else if (logger.isTraceEnabled())
+            else
                 logger.trace("Deleting {}", file);
 
             Files.delete(file.toPath());
@@ -395,8 +412,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 {
                     // If we can't successfully delete the DATA component, set the task to be retried later: see TransactionTidier
 
-                    if (logger.isTraceEnabled())
-                        logger.trace("Tidier running for old sstable {}", desc);
+                    logger.trace("Tidier running for old sstable {}", desc);
 
                     if (!desc.fileFor(Components.DATA).exists() && !wasNew)
                         logger.error("SSTableTidier ran with no existing data file for an sstable that was not new");
@@ -545,6 +561,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             try(LogFile txn = LogFile.make(entry.getKey(), entry.getValue()))
             {
                 logger.info("Verifying logfile transaction {}", txn);
+                // We don't check / include the stats file timestamp on LogRecord creation / verification as that might
+                // be modified by a race in compaction notification and then needlessly fail subsequent node starts.
                 if (txn.verify())
                 {
                     Throwable failure = txn.removeUnfinishedLeftovers(null);

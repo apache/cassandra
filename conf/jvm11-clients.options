@@ -43,5 +43,6 @@
 --add-opens java.base/jdk.internal.module=ALL-UNNAMED
 --add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED
 --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
+--add-opens java.base/java.lang.reflect=ALL-UNNAMED
 
 # The newline in the end of file is intentional

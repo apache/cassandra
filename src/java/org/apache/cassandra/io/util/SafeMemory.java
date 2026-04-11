@@ -19,6 +19,7 @@
 package org.apache.cassandra.io.util;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseable;

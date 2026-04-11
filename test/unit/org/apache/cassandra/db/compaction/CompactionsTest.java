@@ -19,19 +19,27 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -80,6 +88,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class CompactionsTest
 {
     private static final String KEYSPACE1 = "Keyspace1";
@@ -88,6 +97,41 @@ public class CompactionsTest
     private static final String CF_STANDARD2 = "Standard2";
     private static final String CF_STANDARD3 = "Standard3";
     private static final String CF_STANDARD4 = "Standard4";
+
+    @Parameterized.Parameter(0)
+    public DiskAccessMode compactionReadDiskAccessMode;
+
+    @Parameterized.Parameter(1)
+    public boolean cursorCompactionEnabled;
+
+    @Parameterized.Parameters(name = "diskAccessMode={0},cursor={1}")
+    public static Collection<Object[]> params()
+    {
+        return Arrays.asList(new Object[]{ DiskAccessMode.standard, true },
+                             new Object[]{ DiskAccessMode.standard, false },
+                             new Object[]{ DiskAccessMode.direct, true },
+                             new Object[]{ DiskAccessMode.direct, false });
+    }
+
+    private DiskAccessMode originalDiskAccessMode;
+    private boolean originalCursorCompactionEnabled;
+
+    @Before
+    public void setCompactionParams()
+    {
+        originalDiskAccessMode = DatabaseDescriptor.getCompactionReadDiskAccessMode();
+        originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
+        DatabaseDescriptor.setCompactionReadDiskAccessMode(compactionReadDiskAccessMode);
+        DatabaseDescriptor.setCursorCompactionEnabled(cursorCompactionEnabled);
+    }
+
+    @After
+    public void restoreCompactionParams()
+    {
+        DatabaseDescriptor.setCompactionReadDiskAccessMode(originalDiskAccessMode);
+        DatabaseDescriptor.setCursorCompactionEnabled(originalCursorCompactionEnabled);
+    }
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -259,8 +303,8 @@ public class CompactionsTest
     public void testUserDefinedCompaction() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        final String cfname = "Standard3"; // use clean(no sstable) CF
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD3);
+        cfs.clearUnsafe();
         TableMetadata table = cfs.metadata();
 
         // disable compaction while flushing
@@ -331,6 +375,7 @@ public class CompactionsTest
         {
             keys.add(Util.dk(Integer.toString(i)));
         }
+        Collections.sort(keys);
 
         int[] dks = {0, 1, 3};
         writeSSTableWithRangeTombstoneMaskingOneColumn(cfs, table, dks);

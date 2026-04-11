@@ -30,24 +30,23 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.locator.EndpointsByRange;
-import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.locator.Replicas;
 import org.psjava.algo.graph.flownetwork.FordFulkersonAlgorithm;
 import org.psjava.algo.graph.flownetwork.MaximumFlowAlgorithm;
 import org.psjava.algo.graph.flownetwork.MaximumFlowAlgorithmResult;
 import org.psjava.algo.graph.pathfinder.DFSPathFinder;
 import org.psjava.ds.graph.CapacityEdge;
 import org.psjava.ds.graph.MutableCapacityGraph;
-import org.psjava.ds.numbersystrem.IntegerNumberSystem;
 import org.psjava.ds.math.Function;
+import org.psjava.ds.numbersystrem.IntegerNumberSystem;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.locator.EndpointsByRange;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.Replicas;
 
 /**
  * We model the graph like this:
@@ -82,14 +81,17 @@ public class RangeFetchMapCalculator
     private final Vertex sourceVertex = OuterVertex.getSourceVertex();
     private final Vertex destinationVertex = OuterVertex.getDestinationVertex();
     private final Set<Range<Token>> trivialRanges;
+    private final Locator locator;
 
     public RangeFetchMapCalculator(EndpointsByRange rangesWithSources,
                                    Collection<RangeStreamer.SourceFilter> sourceFilters,
-                                   String keyspace)
+                                   String keyspace,
+                                   Locator locator)
     {
         this.rangesWithSources = rangesWithSources;
         this.sourceFilters = Predicates.and(sourceFilters);
         this.keyspace = keyspace;
+        this.locator = locator;
         this.trivialRanges = rangesWithSources.keySet()
                                               .stream()
                                               .filter(RangeFetchMapCalculator::isTrivial)
@@ -98,7 +100,7 @@ public class RangeFetchMapCalculator
 
     static boolean isTrivial(Range<Token> range)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        IPartitioner partitioner = range.left.getPartitioner();
         if (partitioner.splitter().isPresent())
         {
             BigInteger l = partitioner.splitter().get().valueForToken(range.left);
@@ -204,7 +206,7 @@ public class RangeFetchMapCalculator
     }
 
     /**
-     *  Convert the max flow graph to Multimap<InetAddress, Range<Token>>
+     *  Convert the max flow graph to {@code Multimap<InetAddress, Range<Token>>}
      *      We iterate over all range vertices and find an edge with flow of more than zero connecting to endpoint vertex.
      * @param graph  The graph to convert
      * @param result Flow algorithm result
@@ -374,7 +376,7 @@ public class RangeFetchMapCalculator
 
     private boolean isInLocalDC(Replica replica)
     {
-        return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(replica));
+        return locator.local().sameDatacenter(locator.location(replica.endpoint()));
     }
 
     /**

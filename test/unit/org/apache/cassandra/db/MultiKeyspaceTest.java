@@ -20,10 +20,10 @@ package org.apache.cassandra.db;
  *
  */
 
+import org.junit.Test;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
-
-import org.junit.Test;
 
 
 public class MultiKeyspaceTest extends CQLTester

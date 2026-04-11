@@ -36,6 +36,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 
 import static org.apache.cassandra.Util.rp;
 import static org.apache.cassandra.Util.token;
@@ -44,6 +45,7 @@ import static org.junit.Assert.assertEquals;
 public class ReplicaPlanIteratorTest
 {
     private static final String KEYSPACE = "ReplicaPlanIteratorTest";
+    private static final TableId TABLE_ID = TableId.generate();
     private static Keyspace keyspace;
 
     @BeforeClass
@@ -163,7 +165,7 @@ public class ReplicaPlanIteratorTest
     @SafeVarargs
     private final void testRanges(Keyspace keyspace, AbstractBounds<PartitionPosition> queryRange, AbstractBounds<PartitionPosition>... expected)
     {
-        try (ReplicaPlanIterator iterator = new ReplicaPlanIterator(queryRange, null, keyspace, ConsistencyLevel.ANY))
+        try (ReplicaPlanIterator iterator = new ReplicaPlanIterator(queryRange, null, keyspace, TABLE_ID, ConsistencyLevel.ANY))
         {
             List<AbstractBounds<PartitionPosition>> restrictedRanges = new ArrayList<>(expected.length);
             while (iterator.hasNext())

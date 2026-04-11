@@ -19,9 +19,11 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -65,7 +67,7 @@ public abstract class Guardrail
     private volatile long lastFailInMs = 0;
 
     /** Should throw exception if null client state is provided. */
-    private volatile boolean throwOnNullClientState = false;
+    protected volatile boolean throwOnNullClientState = false;
 
     Guardrail(String name, @Nullable String reason)
     {
@@ -95,7 +97,7 @@ public abstract class Guardrail
      */
     public boolean enabled(@Nullable ClientState state)
     {
-        return DatabaseDescriptor.isDaemonInitialized() && (state == null || state.isOrdinaryUser());
+        return DatabaseDescriptor.isDaemonInitialized() && (state == null || (state.isOrdinaryUser() && state.applyGuardrails()));
     }
 
     protected void warn(String message)

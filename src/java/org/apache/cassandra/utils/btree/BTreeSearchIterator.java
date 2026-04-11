@@ -21,9 +21,10 @@ package org.apache.cassandra.utils.btree;
 import java.util.Iterator;
 
 import org.apache.cassandra.utils.IndexedSearchIterator;
+import org.apache.cassandra.utils.PeekingSearchIterator;
 
 
-public interface BTreeSearchIterator<K, V> extends IndexedSearchIterator<K, V>, Iterator<V>
+public interface BTreeSearchIterator<K, V> extends IndexedSearchIterator<K, V>, Iterator<V>, PeekingSearchIterator<K, V>
 {
     /**
      * Reset this Iterator to its starting position

@@ -19,8 +19,11 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.time.Instant;
@@ -46,6 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -54,16 +58,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-// Our version of Sfl4j seems to be missing the ListAppender class.
-// Future sfl4j versions have one. At that time the below imports can be
-// replaced with `org.slf4j.*` equivalents.
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthKeyspace;
@@ -92,10 +88,16 @@ import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
+import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.apache.cassandra.schema.MockSchema.sstableId;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -107,6 +109,10 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * Our version of slf4j seems to be missing the ListAppender class. Future slf4j versions have one.
+ * At that time the imports {@code ch.qos.logback.*} can be replaced with `org.slf4j.*` equivalents.
+ */
 @RunWith(Parameterized.class)
 public class DirectoriesTest
 {
@@ -147,7 +153,7 @@ public class DirectoriesTest
     public static void beforeClass()
     {
         DatabaseDescriptor.daemonInitialization();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
     }
 
     @Before
@@ -326,21 +332,33 @@ public class DirectoriesTest
         }
     }
 
+    private Map<String, TableSnapshot> listSnapshots(Directories directories)
+    {
+        Set<TableSnapshot> snapshots = new SnapshotLoader(directories).loadSnapshots();
+        Map<String, TableSnapshot> tagSnapshotsMap = new HashMap<>();
+
+        for (TableSnapshot snapshot : snapshots)
+            tagSnapshotsMap.put(snapshot.getTag(), snapshot);
+
+        return tagSnapshotsMap;
+    }
+
     @Test
     public void testListSnapshots() throws Exception {
+
         // Initial state
         TableMetadata fakeTable = createFakeTable(TABLE_NAME);
         Directories directories = new Directories(fakeTable, toDataDirectories(tempDataDir));
-        assertThat(directories.listSnapshots()).isEmpty();
+        assertThat(listSnapshots(directories)).isEmpty();
 
         // Create snapshot with and without manifest
         FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true, false);
-        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false, false);
-        // ephemeral without manifst
-        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, false, true);
+        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, true, false);
+        // ephemeral without manifest
+        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, true, true);
 
-        // Both snapshots should be present
-        Map<String, TableSnapshot> snapshots = directories.listSnapshots();
+        // All snapshots should be present
+        Map<String, TableSnapshot> snapshots = listSnapshots(directories);
         assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2, SNAPSHOT3));
         assertThat(snapshots.get(SNAPSHOT1)).isEqualTo(snapshot1.asTableSnapshot());
         assertThat(snapshots.get(SNAPSHOT2)).isEqualTo(snapshot2.asTableSnapshot());
@@ -350,38 +368,11 @@ public class DirectoriesTest
         snapshot1.snapshotDir.deleteRecursive();
 
         // Only snapshot 2 and 3 should be present
-        snapshots = directories.listSnapshots();
+        snapshots = listSnapshots(directories);
         assertThat(snapshots.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT2, SNAPSHOT3));
         assertThat(snapshots.get(SNAPSHOT2)).isEqualTo(snapshot2.asTableSnapshot());
         assertThat(snapshots.get(SNAPSHOT3)).isEqualTo(snapshot3.asTableSnapshot());
         assertThat(snapshots.get(SNAPSHOT3).isEphemeral()).isTrue();
-    }
-
-    @Test
-    public void testListSnapshotDirsByTag() throws Exception {
-        // Initial state
-        TableMetadata fakeTable = createFakeTable("FakeTable");
-        Directories directories = new Directories(fakeTable, toDataDirectories(tempDataDir));
-        assertThat(directories.listSnapshotDirsByTag()).isEmpty();
-
-        // Create snapshot with and without manifest
-        FakeSnapshot snapshot1 = createFakeSnapshot(fakeTable, SNAPSHOT1, true, false);
-        FakeSnapshot snapshot2 = createFakeSnapshot(fakeTable, SNAPSHOT2, false, false);
-        FakeSnapshot snapshot3 = createFakeSnapshot(fakeTable, SNAPSHOT3, false, true);
-
-        // Both snapshots should be present
-        Map<String, Set<File>> snapshotDirs = directories.listSnapshotDirsByTag();
-        assertThat(snapshotDirs.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT1, SNAPSHOT2, SNAPSHOT3));
-        assertThat(snapshotDirs.get(SNAPSHOT1)).allMatch(snapshotDir -> snapshotDir.equals(snapshot1.snapshotDir));
-        assertThat(snapshotDirs.get(SNAPSHOT2)).allMatch(snapshotDir -> snapshotDir.equals(snapshot2.snapshotDir));
-        assertThat(snapshotDirs.get(SNAPSHOT3)).allMatch(snapshotDir -> snapshotDir.equals(snapshot3.snapshotDir));
-
-        // Now remove snapshot1
-        snapshot1.snapshotDir.deleteRecursive();
-
-        // Only snapshot 2 and 3 should be present
-        snapshotDirs = directories.listSnapshotDirsByTag();
-        assertThat(snapshotDirs.keySet()).isEqualTo(Sets.newHashSet(SNAPSHOT2, SNAPSHOT3));
     }
 
     @Test
@@ -412,7 +403,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testSecondaryIndexDirectories()
+    public void testSecondaryIndexDirectories() throws IOException
     {
         TableMetadata.Builder builder =
             TableMetadata.builder(KS, "cf")
@@ -447,8 +438,8 @@ public class DirectoriesTest
 
         // check if snapshot directory exists
         parentSnapshotDirectory.tryCreateDirectories();
-        assertTrue(parentDirectories.snapshotExists("test"));
-        assertTrue(indexDirectories.snapshotExists("test"));
+        assertTrue(snapshotExists(parentDirectories, "test"));
+        assertTrue(snapshotExists(indexDirectories, "test"));
 
         // check true snapshot size
         Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, sstableId(0), DatabaseDescriptor.getSelectedSSTableFormat());
@@ -456,19 +447,50 @@ public class DirectoriesTest
         Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, sstableId(0), DatabaseDescriptor.getSelectedSSTableFormat());
         createFile(indexSnapshot.fileFor(Components.DATA), 40);
 
-        assertEquals(30, parentDirectories.trueSnapshotsSize());
-        assertEquals(40, indexDirectories.trueSnapshotsSize());
-
         // check snapshot details
-        Map<String, TableSnapshot> parentSnapshotDetail = parentDirectories.listSnapshots();
+        Map<String, TableSnapshot> parentSnapshotDetail = listSnapshots(parentDirectories);
         assertTrue(parentSnapshotDetail.containsKey("test"));
+
+        Set<String> files = new HashSet<>();
+        Files.walkFileTree(parentSnapshotDirectory.toPath(), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+            {
+                files.add(file.toAbsolutePath().toString());
+                return FileVisitResult.CONTINUE;
+            }
+        });
         // CASSANDRA-17357: include indexes when computing true size of parent table
-        assertEquals(70L, parentSnapshotDetail.get("test").computeTrueSizeBytes());
+        assertEquals(70L, parentSnapshotDetail.get("test").computeTrueSizeBytes(files) - parentSnapshotDetail.get("test").getManifestsSize());
 
         // check backup directory
         File parentBackupDirectory = Directories.getBackupsDirectory(parentDesc);
         File indexBackupDirectory = Directories.getBackupsDirectory(indexDesc);
         assertEquals(parentBackupDirectory, indexBackupDirectory.parent());
+    }
+
+    private boolean snapshotExists(Directories directories, String snapshotName)
+    {
+        for (File dir : directories.getDataPaths())
+        {
+            File snapshotDir;
+            if (Directories.isSecondaryIndexFolder(dir))
+            {
+                snapshotDir = new File(dir.parent(), join(Directories.SNAPSHOT_SUBDIR, snapshotName, dir.name()));
+            }
+            else
+            {
+                snapshotDir = new File(dir, join(Directories.SNAPSHOT_SUBDIR, snapshotName));
+            }
+            if (snapshotDir.exists())
+                return true;
+        }
+        return false;
+    }
+
+    private static String join(String... s)
+    {
+        return StringUtils.join(s, File.pathSeparator());
     }
 
     private File createFile(File file, int size)
@@ -778,8 +800,8 @@ public class DirectoriesTest
      * Makes sure we can find the data directory when it is a symlink
      *
      * creates the following data directories:
-     * <tempdir something>/datadir1
-     * <tempdir something>/datadir11 (symlink to <tempdir something>/symlinktarget)
+     * {@code <tempdir something>/datadir1}
+     * {@code <tempdir something>/datadir11 (symlink to <tempdir something>/symlinktarget)}
      *
      * and then makes sure that we get the correct directory back.
      */
@@ -821,8 +843,8 @@ public class DirectoriesTest
      * if oldStyle is false we append the table id to the table directory
      *
      * creates the following structure
-     * <tempdir>/datadir1/<ks>/<table>
-     * <tempdir>/datadir11/<ks>/<table symlink to <tempdir>/symlinktarget>
+     * {@code <tempdir>/datadir1/<ks>/<table>}
+     * {@code <tempdir>/datadir11/<ks>/<table symlink to <tempdir>/symlinktarget>}
      *
      * and then we create a fake descriptor to a file in the table directory and make sure we get the correct
      * data directory back.

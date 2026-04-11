@@ -20,7 +20,11 @@ package org.apache.cassandra.utils;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -40,14 +44,15 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.ByteBufferUtil.compare;
-import static org.apache.cassandra.utils.MerkleTree.Difference.*;
+import static org.apache.cassandra.utils.MerkleTree.Difference.CONSISTENT;
+import static org.apache.cassandra.utils.MerkleTree.Difference.FULLY_INCONSISTENT;
+import static org.apache.cassandra.utils.MerkleTree.Difference.PARTIALLY_INCONSISTENT;
 
 /**
  * A MerkleTree implemented as a binary tree.
@@ -464,31 +469,40 @@ public class MerkleTree
     EstimatedHistogram histogramOfRowSizePerLeaf()
     {
         HistogramBuilder histbuild = new HistogramBuilder();
-        for (TreeRange range : new TreeRangeIterator(this))
+        try (TreeRangeIterator trIter = new TreeRangeIterator(this))
         {
-            histbuild.add(range.node.sizeOfRange());
+            for (TreeRange range : trIter)
+            {
+                histbuild.add(range.node.sizeOfRange());
+            }
+            return histbuild.buildWithStdevRangesAroundMean();
         }
-        return histbuild.buildWithStdevRangesAroundMean();
     }
 
     EstimatedHistogram histogramOfRowCountPerLeaf()
     {
         HistogramBuilder histbuild = new HistogramBuilder();
-        for (TreeRange range : new TreeRangeIterator(this))
+        try (TreeRangeIterator trIter = new TreeRangeIterator(this))
         {
-            histbuild.add(range.node.partitionsInRange());
+            for (TreeRange range : trIter)
+            {
+                histbuild.add(range.node.partitionsInRange());
+            }
+            return histbuild.buildWithStdevRangesAroundMean();
         }
-        return histbuild.buildWithStdevRangesAroundMean();
     }
 
     public long rowCount()
     {
         long count = 0;
-        for (TreeRange range : new TreeRangeIterator(this))
+        try (TreeRangeIterator trIter = new TreeRangeIterator(this))
         {
-            count += range.node.partitionsInRange();
+            for (TreeRange range : trIter)
+            {
+                count += range.node.partitionsInRange();
+            }
+            return count;
         }
-        return count;
     }
 
     @Override
@@ -727,7 +741,7 @@ public class MerkleTree
 
         if (offHeapRequested && !offHeapSupported && !warnedOnce)
         {
-            logger.warn("Configuration requests off-heap merkle trees, but partitioner does not support it. Ignoring.");
+            logger.warn("Configuration requests off-heap merkle trees, but partitioner {} does not support it. Ignoring.", partitioner.getClass().getName());
             warnedOnce = true;
         }
 
@@ -740,7 +754,7 @@ public class MerkleTree
         int size = offHeapBufferSize(innerNodeCount, partitioner);
         logger.debug("Allocating direct buffer of size {} for an off-heap merkle tree", size);
         ByteBuffer buffer = ByteBuffer.allocateDirect(size);
-        if (Ref.DEBUG_ENABLED)
+        if (Ref.TRACE_ENABLED)
             MemoryUtil.setAttachment(buffer, new Ref.DirectBufferRef<>(null, null));
         return buffer;
     }
@@ -978,7 +992,7 @@ public class MerkleTree
             Object attachment = MemoryUtil.getAttachment(buffer);
             if (attachment instanceof Ref.DirectBufferRef)
                 ((Ref.DirectBufferRef) attachment).release();
-            FileUtils.clean(buffer);
+            MemoryUtil.clean(buffer);
         }
 
         abstract int hashBytesOffset();
@@ -1503,8 +1517,8 @@ public class MerkleTree
      *
      * n = floor(log_2((T + I) / (L + I))
      *
-     * @param numBytes: The number of bytes to fit the tree within
-     * @param bytesPerHash: The number of bytes stored in a leaf node, for example 2 * murmur128 will be 256 bits
+     * @param numBytes The number of bytes to fit the tree within
+     * @param bytesPerHash The number of bytes stored in a leaf node, for example 2 * murmur128 will be 256 bits
      *                    or 32 bytes
      * @return the estimated depth that will fit within the provided number of bytes
      */
@@ -1614,6 +1628,12 @@ public class MerkleTree
     public TreeRange get(Token t)
     {
         return getHelper(root, fullRange.left, fullRange.right, t);
+    }
+
+    @VisibleForTesting
+    public boolean isReleased()
+    {
+        return root == null;
     }
 
     private TreeRange getHelper(Node node, Token pleft, Token pright, Token t)

@@ -41,8 +41,8 @@ import org.apache.cassandra.index.sasi.Term;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.utils.MappedBuffer;
-import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.File;
@@ -125,7 +125,6 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
     protected final ByteBuffer minTerm, maxTerm, minKey, maxKey;
 
-    @SuppressWarnings("resource")
     public OnDiskIndex(File index, AbstractType<?> cmp, Function<Long, DecoratedKey> keyReader)
     {
         keyFetcher = keyReader;
@@ -277,7 +276,6 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
         for (Expression e : ranges)
         {
-            @SuppressWarnings("resource")
             RangeIterator<Long, Token> range = searchRange(e);
             if (range != null)
                 builder.add(range);

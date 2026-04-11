@@ -34,7 +34,7 @@ informative way to visualize the relationships between queries and
 tables in your designs. This figure shows the Chebotko notation for a
 logical data model.
 
-image::cassandra:developing/data-modeling/data-modeling_chebotko_logical.png[image]
+image::cassandra:developing/data-modeling/data_modeling_chebotko_logical.png[image]
 
 Each table is shown with its title and a list of columns. Primary key
 columns are identified via symbols such as *K* for partition key columns
@@ -51,7 +51,7 @@ dedicated tables for rooms or amenities, as you had in the relational
 design. This is because the workflow didn't identify any queries
 requiring this direct access.
 
-image::cassandra:developing/data-modeling/data-modeling_hotel_logical.png[image]
+image::cassandra:developing/data-modeling/data_modeling_hotel_logical.png[image]
 
 Let's explore the details of each of these tables.
 
@@ -127,7 +127,7 @@ shows a logical data model for reservations. You'll notice that these
 tables represent a denormalized design; the same data appears in
 multiple tables, with differing keys.
 
-image::cassandra:developing/data-modeling/data-modeling_reservation_logical.png[image]
+image::cassandra:developing/data-modeling/data_modeling_reservation_logical.png[image]
 
 In order to satisfy Q6, the `reservations_by_guest` table can be used to
 look up the reservation by guest name. You could envision query Q7 being

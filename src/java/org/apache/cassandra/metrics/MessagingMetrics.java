@@ -25,19 +25,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
-
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.net.InboundMessageHandlers;
 import org.apache.cassandra.net.LatencyConsumer;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.StatusLogger;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -49,7 +49,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCallbacks
 {
-    private static final MetricNameFactory factory = new DefaultNameFactory("Messaging");
+    public static final String TYPE_NAME = "Messaging";
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
     private static final Logger logger = LoggerFactory.getLogger(MessagingMetrics.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
     
@@ -113,7 +114,7 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
 
     public DCLatencyRecorder internodeLatencyRecorder(InetAddressAndPort from)
     {
-        String dcName = DatabaseDescriptor.getEndpointSnitch().getDatacenter(from);
+        String dcName = DatabaseDescriptor.getLocator().location(from).datacenter;
         DCLatencyRecorder dcUpdater = dcLatency.get(dcName);
         if (dcUpdater == null)
             dcUpdater = dcLatency.computeIfAbsent(dcName, k -> new DCLatencyRecorder(Metrics.timer(factory.createMetricName(dcName + "-Latency")), allLatency));

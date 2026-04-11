@@ -32,9 +32,9 @@ import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang3.StringUtils;
+import org.mindrot.jbcrypt.BCrypt;
 
 import org.apache.cassandra.io.util.File;
-import org.mindrot.jbcrypt.BCrypt;
 
 public class HashPassword
 {

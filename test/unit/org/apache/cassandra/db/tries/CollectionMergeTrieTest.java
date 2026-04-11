@@ -27,12 +27,17 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.*;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.FORWARD_COMPARATOR;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.addToInMemoryTrie;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 import static org.apache.cassandra.db.tries.MergeTrieTest.removeDuplicates;
 
 public class CollectionMergeTrieTest
@@ -45,8 +50,8 @@ public class CollectionMergeTrieTest
     {
         ByteComparable[] src1 = generateKeys(rand, COUNT);
         ByteComparable[] src2 = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
-        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
+        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(FORWARD_COMPARATOR);
+        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(FORWARD_COMPARATOR);
 
         InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
         InMemoryTrie<ByteBuffer> trie2 = makeInMemoryTrie(src2, content2, true);
@@ -63,8 +68,8 @@ public class CollectionMergeTrieTest
     {
         ByteComparable[] src1 = generateKeys(rand, COUNT);
         ByteComparable[] src2 = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
-        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
+        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(FORWARD_COMPARATOR);
+        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(FORWARD_COMPARATOR);
 
         InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
         InMemoryTrie<ByteBuffer> trie2 = makeInMemoryTrie(src2, content2, true);
@@ -82,12 +87,12 @@ public class CollectionMergeTrieTest
     public void testDistinct()
     {
         ByteComparable[] src1 = generateKeys(rand, COUNT);
-        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
+        SortedMap<ByteComparable, ByteBuffer> content1 = new TreeMap<>(FORWARD_COMPARATOR);
         InMemoryTrie<ByteBuffer> trie1 = makeInMemoryTrie(src1, content1, true);
 
         ByteComparable[] src2 = generateKeys(rand, COUNT);
         src2 = removeDuplicates(src2, content1);
-        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
+        SortedMap<ByteComparable, ByteBuffer> content2 = new TreeMap<>(FORWARD_COMPARATOR);
         InMemoryTrie<ByteBuffer> trie2 = makeInMemoryTrie(src2, content2, true);
 
         content1.putAll(content2);
@@ -144,7 +149,7 @@ public class CollectionMergeTrieTest
     public void testMultipleDistinct(int mergeCount, int count)
     {
         List<Trie<ByteBuffer>> tries = new ArrayList<>(mergeCount);
-        SortedMap<ByteComparable, ByteBuffer> content = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
+        SortedMap<ByteComparable, ByteBuffer> content = new TreeMap<>(FORWARD_COMPARATOR);
 
         for (int i = 0; i < mergeCount; ++i)
         {
@@ -160,7 +165,7 @@ public class CollectionMergeTrieTest
     public void testMultipleWithDuplicates(int mergeCount, int count)
     {
         List<Trie<ByteBuffer>> tries = new ArrayList<>(mergeCount);
-        SortedMap<ByteComparable, ByteBuffer> content = new TreeMap<>((bytes1, bytes2) -> ByteComparable.compare(bytes1, bytes2, VERSION));
+        SortedMap<ByteComparable, ByteBuffer> content = new TreeMap<>(FORWARD_COMPARATOR);
         ByteComparable[][] keys = new ByteComparable[count][];
         for (int i = 0; i < mergeCount; ++i)
             keys[i] = generateKeys(rand, count);

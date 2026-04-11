@@ -20,7 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -33,25 +32,30 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.utils.FBUtilities;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
@@ -69,7 +73,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         targetClass = "FailureDetector",
         targetMethod = "isAlive",
         action = "return true;")
-public class AssureSufficientLiveNodesTest
+@PrepareServerNoRegister
+@UseMurmur3Partitioner
+public class AssureSufficientLiveNodesTest extends CassandraTestBase
 {
     private static final AtomicInteger testIdGen = new AtomicInteger(0);
     private static final Supplier<String> keyspaceNameGen = () -> "race_" + testIdGen.getAndIncrement();
@@ -78,30 +84,12 @@ public class AssureSufficientLiveNodesTest
     private static final String DC3 = "datacenter3";
     private static final int RACE_TEST_LOOPS = 100;
     private static final Token tk = new Murmur3Partitioner.LongToken(0);
+    private static final TableId TABLE_ID = TableId.generate();
 
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        SchemaLoader.loadSchema();
         // Register peers with expected DC for NetworkTopologyStrategy.
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-
-        DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
-        {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.addressBytes;
-                return "rake" + address[1];
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.addressBytes;
-                return "datacenter" + address[1];
-            }
-        });
-
         List<InetAddressAndPort> instances = ImmutableList.of(
             // datacenter 1
             InetAddressAndPort.getByName("127.1.0.255"), InetAddressAndPort.getByName("127.1.0.254"), InetAddressAndPort.getByName("127.1.0.253"),
@@ -113,9 +101,14 @@ public class AssureSufficientLiveNodesTest
         for (int i = 0; i < instances.size(); i++)
         {
             InetAddressAndPort ip = instances.get(i);
-            metadata.updateHostId(UUID.randomUUID(), ip);
-            metadata.updateNormalToken(new Murmur3Partitioner.LongToken(i), ip);
+            String dc = "datacenter" + ip.addressBytes[1];
+            String rack = "rake" + ip.addressBytes[1];
+            ClusterMetadataTestHelper.addEndpoint(ip, new Murmur3Partitioner.LongToken(i), dc, rack);
         }
+        // Need to register the local endpoint as ReplicaLayout::for(Range|Token)ReadLiveSorted sorts replicas by proximity to
+        // the local node. We use constants from SimpleSnitch to preserve previous test behaviour
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        ClusterMetadataTestHelper.register(local, SimpleLocationProvider.LOCATION);
     }
 
     @Test
@@ -150,7 +143,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, TABLE_ID, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -183,7 +176,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, TABLE_ID, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
         raceOfReplicationStrategyTest(
             // init. The # of live endpoints is 3 = 2 + 1
@@ -191,7 +184,7 @@ public class AssureSufficientLiveNodesTest
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 2, DC2, 1, DC3, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, TABLE_ID, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -215,7 +208,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, TABLE_ID, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -239,7 +232,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, TABLE_ID, tk, null, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -266,13 +259,13 @@ public class AssureSufficientLiveNodesTest
             for (int i = 0; i < loopCount; i++)
             {
                 // reset the keyspace
-                racedKs.setMetadata(initKsMeta);
+                SchemaTestUtil.addOrUpdateKeyspace(initKsMeta);
                 CountDownLatch trigger = new CountDownLatch(1);
                 // starts 2 runnables that could race
                 Future<?> f1 = es.submit(() -> {
                     Uninterruptibles.awaitUninterruptibly(trigger);
                     // Update replication strategy
-                    racedKs.setMetadata(alterToKsMeta);
+                    SchemaTestUtil.addOrUpdateKeyspace(alterToKsMeta);
                 });
                 Future<?> f2 = es.submit(() -> {
                     Uninterruptibles.awaitUninterruptibly(trigger);

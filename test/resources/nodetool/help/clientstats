@@ -1,0 +1,41 @@
+NAME
+        nodetool clientstats - Print information about connected clients
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] clientstats [--all]
+                [--by-protocol] [--clear-history] [--client-options] [--verbose]
+
+OPTIONS
+        --all
+            Lists all connections
+
+        --by-protocol
+            Lists most recent client connections by protocol version
+
+        --clear-history
+            Clear the history of connected clients
+
+        --client-options
+            Lists all connections and the client options
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --verbose
+            Lists all connections with additional details (client options,
+            authenticator-specific metadata and more)

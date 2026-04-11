@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.db.marshal;
 
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
+
+import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;

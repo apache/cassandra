@@ -27,20 +27,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.CloseableIterator;
 
 /**
  * A reference-counted container of a {@link SSTableReader} for each column index that:
@@ -50,7 +56,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  *     <li>Exposes the index metadata for the column index</li>
  * </ul>
  */
-public abstract class SSTableIndex
+public abstract class SSTableIndex implements Comparable<SSTableIndex>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndex.class);
 
@@ -60,17 +66,18 @@ public abstract class SSTableIndex
                                                                         .thenComparing(s -> s.getSSTable().descriptor.id, SSTableIdFactory.COMPARATOR);
 
     protected final SSTableContext sstableContext;
-    protected final IndexContext indexContext;
+    protected final IndexTermType indexTermType;
+    protected final IndexIdentifier indexIdentifier;
 
     private final AtomicInteger references = new AtomicInteger(1);
     private final AtomicBoolean obsolete = new AtomicBoolean(false);
 
-    public SSTableIndex(SSTableContext sstableContext, IndexContext indexContext)
+    public SSTableIndex(SSTableContext sstableContext, StorageAttachedIndex index)
     {
-        assert indexContext.getValidator() != null;
-
-        this.sstableContext = sstableContext.sharedCopy(); // this line must not be before any code that may throw
-        this.indexContext = indexContext;
+        // This shared copy must be closed if a subclass constructor fails.
+        this.sstableContext = sstableContext.sharedCopy(); 
+        this.indexTermType = index.termType();
+        this.indexIdentifier = index.identifier();
     }
 
     /**
@@ -129,7 +136,7 @@ public abstract class SSTableIndex
      * will never be null but may be an empty {@link List}.
      *
      * @param expression The {@link Expression} to be searched for
-     * @param keyRange The {@link AbstractBounds<PartitionPosition>} defining the
+     * @param keyRange The {@code AbstractBounds<PartitionPosition>} defining the
      *                 token range for the search
      * @param context The {@link QueryContext} holding the per-query state
      * @return a {@link List} of {@link KeyRangeIterator}s containing the results
@@ -138,6 +145,9 @@ public abstract class SSTableIndex
     public abstract List<KeyRangeIterator> search(Expression expression,
                                                   AbstractBounds<PartitionPosition> keyRange,
                                                   QueryContext context) throws IOException;
+
+    public abstract List<CloseableIterator<PrimaryKeyWithScore>> orderBy(Expression orderer, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException;
+    public abstract List<CloseableIterator<PrimaryKeyWithScore>> orderResultsBy(QueryContext context, List<PrimaryKey> results, Expression orderer) throws IOException;
 
     /**
      * Populates a virtual table using the index metadata owned by the index
@@ -151,12 +161,17 @@ public abstract class SSTableIndex
      */
     public long sizeOfPerColumnComponents()
     {
-        return sstableContext.indexDescriptor.sizeOnDiskOfPerIndexComponents(indexContext);
+        return sstableContext.indexDescriptor.sizeOnDiskOfPerIndexComponents(indexTermType, indexIdentifier);
     }
 
-    public IndexContext getIndexContext()
+    public IndexTermType getIndexTermType()
     {
-        return indexContext;
+        return indexTermType;
+    }
+
+    public IndexIdentifier getIndexIdentifier()
+    {
+        return indexIdentifier;
     }
 
     public SSTableContext getSSTableContext()
@@ -201,7 +216,7 @@ public abstract class SSTableIndex
         }
         catch (Throwable e)
         {
-            logger.error(getIndexContext().logMessage("Failed to release index on SSTable {}"), getSSTable().descriptor, e);
+            logger.error(indexIdentifier.logMessage("Failed to release index on SSTable {}"), getSSTable().descriptor, e);
         }
     }
 
@@ -220,7 +235,7 @@ public abstract class SSTableIndex
              */
             if (obsolete.get())
             {
-                sstableContext.indexDescriptor.deleteColumnIndex(indexContext);
+                sstableContext.indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
             }
         }
     }
@@ -237,24 +252,33 @@ public abstract class SSTableIndex
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SSTableIndex other = (SSTableIndex)o;
-        return Objects.equal(sstableContext, other.sstableContext) && Objects.equal(indexContext, other.indexContext);
+        return Objects.equal(sstableContext, other.sstableContext) &&
+               Objects.equal(indexTermType, other.indexTermType) &&
+               Objects.equal(indexIdentifier, other.indexIdentifier);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(sstableContext, indexContext);
+        return Objects.hashCode(sstableContext, indexTermType, indexIdentifier);
     }
 
     @Override
     public String toString()
     {
         return MoreObjects.toStringHelper(this)
-                          .add("column", indexContext.getColumnName())
+                          .add("column", indexTermType.columnName())
                           .add("sstable", sstableContext.sstable.descriptor)
-                          .add("minTerm", indexContext.getValidator().getString(minTerm()))
-                          .add("maxTerm", indexContext.getValidator().getString(maxTerm()))
+                          .add("minTerm", indexTermType.asString(minTerm()))
+                          .add("maxTerm", indexTermType.asString(maxTerm()))
                           .add("totalRows", sstableContext.sstable.getTotalRows())
                           .toString();
+    }
+
+    @Override
+    public int compareTo(SSTableIndex index)
+    {
+        // SSTableReader is truly unique for comparison which is relied on in IntervalTree
+        return getSSTable().compareTo(index.getSSTable());
     }
 }

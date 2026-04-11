@@ -17,19 +17,33 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.Map;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CIDRPermissions;
+import org.apache.cassandra.auth.DCPermissions;
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.IRoleManager.Option;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleOptions;
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.RoleName;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
-import static org.apache.cassandra.cql3.statements.RequestValidations.*;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 public class AlterRoleStatement extends AuthenticationStatement
 {
@@ -72,7 +86,7 @@ public class AlterRoleStatement extends AuthenticationStatement
             cidrPermissions.validate();
         }
 
-        // validate login here before authorize to avoid leaking user existence to anonymous users.
+        // validate login here before authorize, to avoid leaking user existence to anonymous users.
         state.ensureNotAnonymous();
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
         {
@@ -91,6 +105,12 @@ public class AlterRoleStatement extends AuthenticationStatement
 
         if (opts.getSuperuser().isPresent() && !isSuper)
             throw new UnauthorizedException("Only superusers are allowed to alter superuser status");
+
+        if (dcPermissions != null && !isSuper)
+            throw new UnauthorizedException("Only superusers are allowed to alter access to datacenters.");
+
+        if (cidrPermissions != null && !isSuper)
+            throw new UnauthorizedException("Only superusers are allowed to alter access from CIDR groups.");
 
         // superusers can do whatever else they like
         if (isSuper)
@@ -114,8 +134,25 @@ public class AlterRoleStatement extends AuthenticationStatement
 
     public ResultMessage execute(ClientState state) throws RequestValidationException, RequestExecutionException
     {
+        if (ifExists && !DatabaseDescriptor.getRoleManager().isExistingRole(role))
+            return null;
+
+        if (opts.isGeneratedPassword())
+        {
+            String generatedPassword = Guardrails.passwordPolicy.generate(state, Map.of());
+            if (generatedPassword != null)
+                opts.setOption(IRoleManager.Option.PASSWORD, generatedPassword);
+            else
+                throw new InvalidRequestException("You have to enable password_policy and its generator_class_name property " +
+                                                  "in cassandra.yaml to be able to generate passwords.");
+        }
+
+        if (opts.getPassword().isPresent())
+            Guardrails.passwordPolicy.validate(opts.getPassword().get(), state);
+
+        ResultMessage resultMessage = null;
         if (!opts.isEmpty())
-            DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts);
+            resultMessage = DatabaseDescriptor.getRoleManager().alterRoleWithResult(state.getUser(), role, opts);
 
         if (dcPermissions != null)
             DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
@@ -123,7 +160,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         if (cidrPermissions != null)
             DatabaseDescriptor.getCIDRAuthorizer().setCidrGroupsForRole(role, cidrPermissions);
 
-        return null;
+        return resultMessage;
     }
 
     @Override

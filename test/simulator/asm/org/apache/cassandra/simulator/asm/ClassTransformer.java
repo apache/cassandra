@@ -44,8 +44,8 @@ import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
 import static org.apache.cassandra.simulator.asm.TransformationKind.HASHCODE;
 import static org.apache.cassandra.simulator.asm.TransformationKind.SYNCHRONIZED;
 import static org.apache.cassandra.simulator.asm.Utils.deterministicToString;
-import static org.apache.cassandra.simulator.asm.Utils.visitEachRefType;
 import static org.apache.cassandra.simulator.asm.Utils.generateTryFinallyProxyCall;
+import static org.apache.cassandra.simulator.asm.Utils.visitEachRefType;
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
 import static org.objectweb.asm.Opcodes.ACC_SYNTHETIC;
@@ -182,7 +182,6 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces)
     {
         super.visit(version, makePublic(access), name, signature, superName, interfaces);
-
     }
 
     @Override
@@ -190,6 +189,10 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     {
         if (dependentTypes != null)
             Utils.visitIfRefType(descriptor, dependentTypes);
+        // org.apache.cassandra.simulator.systems.SimulatedTime.InstanceTime.nanoTime does not change between invokes which causes AbstractQueuedSynchronizer to loop forever,
+        // so need to make the threshold negative to avoid the spin loop.
+        if (className.equals("java/util/concurrent/locks/AbstractQueuedSynchronizer") && name.equals("SPIN_FOR_TIMEOUT_THRESHOLD"))
+            return super.visitField(makePublic(access), name, descriptor, signature, Long.MIN_VALUE);
         return super.visitField(makePublic(access), name, descriptor, signature, value);
     }
 
@@ -301,6 +304,7 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
         {
             case FIELD_NEMESIS:
             case SIGNAL_NEMESIS:
+                // TODO: this isn't correct: we will share any class we choose not to insert nemesis points into on first transformation
                 isCacheablyTransformed = false;
         }
         methodLogger.witness(kind);

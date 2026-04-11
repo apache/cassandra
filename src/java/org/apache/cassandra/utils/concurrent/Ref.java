@@ -26,24 +26,46 @@ import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-
-import org.apache.cassandra.exceptions.UnaccessibleFieldException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import jdk.internal.ref.Cleaner;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.exceptions.UnaccessibleFieldException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
@@ -51,16 +73,16 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Shared;
+
+import jdk.internal.ref.Cleaner;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 import static java.util.Collections.emptyList;
-
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DEBUG_REF_COUNT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DEBUG_REF_EVENTS;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -99,8 +121,13 @@ import static org.apache.cassandra.utils.Throwables.merge;
 public final class Ref<T> implements RefCounted<T>
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
-    public static final boolean DEBUG_ENABLED = TEST_DEBUG_REF_COUNT.getBoolean();
+    public static final boolean TRACE_ENABLED = TEST_DEBUG_REF_COUNT.getBoolean();
+    public static final boolean DEBUG_EVENTS_ENABLED = TEST_DEBUG_REF_EVENTS.getBoolean();
     static OnLeak ON_LEAK;
+
+    /** NOT INTENDED FOR USE OUTSIDE TESTS AND DEBUGGING */
+    @VisibleForTesting
+    private static boolean TEST_TRACE_ENABLED = false;
 
     @Shared(scope = SIMULATION)
     public interface OnLeak
@@ -122,6 +149,14 @@ public final class Ref<T> implements RefCounted<T>
         this.state = new State(state, this, referenceQueue);
         this.referent = referent;
     }
+
+    /**
+     * Generally don't go around mutating this willy-nilly in non-test code please.
+     */
+    @VisibleForTesting
+    public static void enableTestTracing() { TEST_TRACE_ENABLED = true; }
+    @VisibleForTesting
+    public static void disableTestTracing() { TEST_TRACE_ENABLED = false; }
 
     /**
      * Must be called exactly once, when the logical operation for which this Ref was created has terminated.
@@ -154,6 +189,11 @@ public final class Ref<T> implements RefCounted<T>
         return referent;
     }
 
+    public Tidy tidier()
+    {
+        return state.globalState.tidy;
+    }
+
     public Ref<T> tryRef()
     {
         return state.globalState.ref() ? new Ref<>(referent, state.globalState) : null;
@@ -170,10 +210,10 @@ public final class Ref<T> implements RefCounted<T>
 
     public String printDebugInfo()
     {
-        if (DEBUG_ENABLED)
+        if (TRACE_ENABLED)
         {
-            state.debug.log(state.toString());
-            return "Memory was freed by " + state.debug.deallocateThread;
+            ((Debug)state.debug).log(state.toString());
+            return "Memory was freed by " + ((Debug)state.debug).deallocateThread;
         }
         return "Memory was freed";
     }
@@ -191,7 +231,7 @@ public final class Ref<T> implements RefCounted<T>
     // ensures it is only released once, and that it is always released
     static final class State extends PhantomReference<Ref>
     {
-        final Debug debug = DEBUG_ENABLED ? new Debug() : null;
+        final Object debug = TRACE_ENABLED ? new Debug() : DEBUG_EVENTS_ENABLED ? new ArrayList<>() : null;
         final GlobalState globalState;
         private volatile int released;
 
@@ -206,8 +246,8 @@ public final class Ref<T> implements RefCounted<T>
 
         void assertNotReleased()
         {
-            if (DEBUG_ENABLED && released == 1)
-                debug.log(toString());
+            if (TRACE_ENABLED && released == 1)
+                ((Debug)debug).log(toString());
             assert released == 0;
         }
 
@@ -216,8 +256,8 @@ public final class Ref<T> implements RefCounted<T>
             if (releasedUpdater.getAndSet(this, 1) == 0)
             {
                 accumulate = globalState.release(this, accumulate);
-                if (DEBUG_ENABLED)
-                    debug.deallocate();
+                if (TRACE_ENABLED)
+                    ((Debug)debug).deallocate();
             }
             return accumulate;
         }
@@ -230,8 +270,8 @@ public final class Ref<T> implements RefCounted<T>
                 {
                     String id = this.toString();
                     logger.error("BAD RELEASE: attempted to release a reference ({}) that has already been released", id);
-                    if (DEBUG_ENABLED)
-                        debug.log(id);
+                    if (TRACE_ENABLED)
+                        ((Debug)debug).log(id);
                     throw new IllegalStateException("Attempted to release a reference that has already been released");
                 }
                 return;
@@ -240,16 +280,16 @@ public final class Ref<T> implements RefCounted<T>
             if (leak)
             {
                 String id = this.toString();
-                logger.error("LEAK DETECTED: a reference ({}) to {} was not released before the reference was garbage collected", id, globalState);
-                if (DEBUG_ENABLED)
-                    debug.log(id);
+                logger.error("LEAK DETECTED: a reference ({}) to {} was not released before the reference was garbage collected{}", id, globalState, (DEBUG_EVENTS_ENABLED ? "(debug: " + debug + ')' : ""));
+                if (TRACE_ENABLED)
+                    ((Debug)debug).log(id);
                 OnLeak onLeak = ON_LEAK;
                 if (onLeak != null)
                     onLeak.onLeak(this);
             }
-            else if (DEBUG_ENABLED)
+            else if (TRACE_ENABLED)
             {
-                debug.deallocate();
+                ((Debug)debug).deallocate();
             }
             if (fail != null)
                 logger.error("Error when closing {}", globalState, fail);
@@ -297,6 +337,12 @@ public final class Ref<T> implements RefCounted<T>
             }
             return sb.toString();
         }
+    }
+
+    public void debug(String event)
+    {
+        if (DEBUG_EVENTS_ENABLED)
+            ((List<String>)state.debug).add(event);
     }
 
     // the object that manages the actual cleaning up; this does not reference the target object
@@ -383,10 +429,10 @@ public final class Ref<T> implements RefCounted<T>
     private static final Set<GlobalState> globallyExtant = Collections.newSetFromMap(new ConcurrentHashMap<>());
     static final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
     private static final Shutdownable EXEC = executorFactory().infiniteLoop("Reference-Reaper", Ref::reapOneReference, UNSAFE);
-    static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !DEBUG_ENABLED ? null : executorFactory().scheduled("Strong-Reference-Leak-Detector");
+    static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !TRACE_ENABLED ? null : executorFactory().scheduled("Strong-Reference-Leak-Detector");
     static
     {
-        if (DEBUG_ENABLED)
+        if (TRACE_ENABLED)
         {
             STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new Visitor(), 1, 15, TimeUnit.MINUTES);
             STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new StrongLeakDetector(), 2, 15, TimeUnit.MINUTES);
@@ -593,7 +639,9 @@ public final class Ref<T> implements RefCounted<T>
             InProgressVisit inProgress = null;
             while (inProgress != null || !path.isEmpty())
             {
-                //If necessary fetch the next object to start tracing
+                if (Thread.currentThread().isInterrupted())
+                    throw new UncheckedInterruptedException(new InterruptedException());
+                // If necessary fetch the next object to start tracing
                 if (inProgress == null)
                     inProgress = path.pollLast();
 
@@ -608,6 +656,25 @@ public final class Ref<T> implements RefCounted<T>
                         iterations++;
                         child = p.left;
                         field = p.right;
+                    }
+
+                    if (TEST_TRACE_ENABLED)
+                    {
+                        logger.debug("[Ref tracing for {}, Object: {}]", rootObject, child);
+                        if (field != null && child != null)
+                        {
+                            logger.debug(" - Visiting field '{}' of object {} -> value class {}",
+                                    field.getName(),
+                                    inProgress.o.getClass().getName(),
+                                    child.getClass().getName());
+                        }
+                        else if (field != null)
+                        {
+                            // Field exists but the next child is null – still useful to know the path.
+                            logger.debug(" - Visiting field '{}' of object {} -> value is null",
+                                    field.getName(),
+                                    inProgress.o.getClass().getName());
+                        }
                     }
 
                     if (child != null && visited.add(child))

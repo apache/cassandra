@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.locator;
 
-import com.google.common.base.Preconditions;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-
 import java.util.Arrays;
 import java.util.Collection;
+
+import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 
 import static com.google.common.collect.Iterables.all;
 
@@ -71,8 +72,11 @@ public class EndpointsForRange extends Endpoints<EndpointsForRange>
     {
         if (newList.isEmpty()) return empty(range);
         ReplicaMap<InetAddressAndPort> byEndpoint = null;
-        if (this.byEndpoint != null && list.isSubList(newList))
-            byEndpoint = this.byEndpoint.forSubList(newList);
+        if (this.byEndpoint != null)
+            if (list.isSubList(newList))
+                byEndpoint = this.byEndpoint.forSubList(newList);
+            else
+                byEndpoint = endpointMap(newList);
         return new EndpointsForRange(range, newList, byEndpoint);
     }
 

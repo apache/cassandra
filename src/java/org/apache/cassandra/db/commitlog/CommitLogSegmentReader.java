@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.zip.CRC32;
+
 import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -29,16 +30,17 @@ import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadErrorReason;
+import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadException;
 import org.apache.cassandra.db.commitlog.EncryptedFileSegmentInputStream.ChunkProvider;
-import org.apache.cassandra.db.commitlog.CommitLogReadHandler.*;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_ALLOW_IGNORE_SYNC_CRC;
@@ -100,53 +102,66 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
         {
             while (true)
             {
+                final int currentStart = end;
                 try
                 {
-                    final int currentStart = end;
                     end = readSyncMarker(descriptor, currentStart, reader);
-                    if (end == -1)
-                    {
-                        return endOfData();
-                    }
-                    if (end > reader.length())
-                    {
-                        // the CRC was good (meaning it was good when it was written and still looks legit), but the file is truncated now.
-                        // try to grab and use as much of the file as possible, which might be nothing if the end of the file truly is corrupt
-                        end = (int) reader.length();
-                    }
-                    return segmenter.nextSegment(currentStart + SYNC_MARKER_SIZE, end);
                 }
-                catch(CommitLogSegmentReader.SegmentReadException e)
+                catch (CommitLogSegmentReader.SegmentReadException e)
                 {
-                    try
-                    {
-                        handler.handleUnrecoverableError(new CommitLogReadException(
-                                                    e.getMessage(),
-                                                    CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
-                                                    !e.invalidCrc && tolerateTruncation));
-                    }
-                    catch (IOException ioe)
-                    {
-                        throw new RuntimeException(ioe);
-                    }
+                    handleUnrecoverableError(e, !e.invalidCrc && tolerateTruncation);
+                    end = -1; // skip the remaining part of the corrupted log segment
                 }
                 catch (IOException e)
                 {
-                    try
-                    {
-                        boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
-                        // if no exception is thrown, the while loop will continue
-                        handler.handleUnrecoverableError(new CommitLogReadException(
-                                                    e.getMessage(),
-                                                    CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
-                                                    tolerateErrorsInSection));
-                    }
-                    catch (IOException ioe)
-                    {
-                        throw new RuntimeException(ioe);
-                    }
+                    boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
+                    handleUnrecoverableError(e, tolerateErrorsInSection);
+                    end = -1; // skip the remaining part of the corrupted log segment
+                }
+
+                if (end == -1)
+                {
+                    return endOfData();
+                }
+                if (end > reader.length())
+                {
+                    // the CRC was good (meaning it was good when it was written and still looks legit), but the file is truncated now.
+                    // try to grab and use as much of the file as possible, which might be nothing if the end of the file truly is corrupt
+                    end = (int) reader.length();
+                }
+
+                try
+                {
+                    return segmenter.nextSegment(currentStart + SYNC_MARKER_SIZE, end);
+                }
+                catch (CommitLogSegmentReader.SegmentReadException e)
+                {
+                    handleUnrecoverableError(e, !e.invalidCrc && tolerateTruncation);
+                    // if no exception is thrown, the while loop will continue
+                }
+                catch (IOException e)
+                {
+                    boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
+                    handleUnrecoverableError(e, tolerateErrorsInSection);
+                    // if no exception is thrown, the while loop will continue
                 }
             }
+        }
+    }
+
+    private void handleUnrecoverableError(Exception e, boolean permissible)
+    {
+        try
+        {
+            handler.handleUnrecoverableError(new CommitLogReadException(
+                e.getMessage(),
+                CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
+                permissible)
+            );
+        }
+        catch (IOException ioe)
+        {
+            throw new RuntimeException(ioe);
         }
     }
 
@@ -301,7 +316,6 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             nextLogicalStart = reader.getFilePointer();
         }
 
-        @SuppressWarnings("resource")
         public SyncSegment nextSegment(final int startPosition, final int nextSectionStartPosition) throws IOException
         {
             reader.seek(startPosition);
@@ -381,7 +395,6 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             };
         }
 
-        @SuppressWarnings("resource")
         public SyncSegment nextSegment(int startPosition, int nextSectionStartPosition) throws IOException
         {
             int totalPlainTextLength = reader.readInt();

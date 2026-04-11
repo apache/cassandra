@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Strings;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -33,6 +34,8 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
+
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class AuditLogOptions extends BinLogOptions
 {
@@ -143,13 +146,13 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withIncludedCategories(final String includedCategories)
         {
-            sanitise(includedCategories).map(v -> this.includedCategories = v.toUpperCase());
+            sanitise(includedCategories).map(v -> this.includedCategories = toUpperCaseLocalized(v));
             return this;
         }
 
         public Builder withExcludedCategories(final String excludedCategories)
         {
-            sanitise(excludedCategories).map(v -> this.excludedCategories = v.toUpperCase());
+            sanitise(excludedCategories).map(v -> this.excludedCategories = toUpperCaseLocalized(v));
             return this;
         }
 
@@ -173,7 +176,7 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withRollCycle(final String rollCycle)
         {
-            sanitise(rollCycle).map(v -> this.rollCycle = v.toUpperCase());
+            sanitise(rollCycle).map(v -> this.rollCycle = toUpperCaseLocalized(v));
             return this;
         }
 
@@ -230,8 +233,8 @@ public class AuditLogOptions extends BinLogOptions
             opts.logger = this.logger;
             sanitise(this.includedKeyspaces).map(v -> opts.included_keyspaces = v);
             sanitise(this.excludedKeyspaces).map(v -> opts.excluded_keyspaces = v);
-            sanitise(this.includedCategories).map(v -> opts.included_categories = v.toUpperCase());
-            sanitise(this.excludedCategories).map(v -> opts.excluded_categories = v.toUpperCase());
+            sanitise(this.includedCategories).map(v -> opts.included_categories = toUpperCaseLocalized(v));
+            sanitise(this.excludedCategories).map(v -> opts.excluded_categories = toUpperCaseLocalized(v));
             sanitise(this.includedUsers).map(v -> opts.included_users = v);
             sanitise(this.excludedUsers).map(v -> opts.excluded_users = v);
             opts.roll_cycle = this.rollCycle;

@@ -29,6 +29,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
+
+import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,12 +61,13 @@ import org.apache.cassandra.db.tries.InMemoryTrie;
 import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
-import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.TrieMemtableMetricsView;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -74,7 +77,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.EnsureOnHeap;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
-import org.github.jamm.Unmetered;
 
 /**
  * Trie memtable implementation. Improves memory usage, garbage collection efficiency and lookup performance.
@@ -91,24 +93,7 @@ public class TrieMemtable extends AbstractShardedMemtable
     private static final Logger logger = LoggerFactory.getLogger(TrieMemtable.class);
 
     /** Buffer type to use for memtable tries (on- vs off-heap) */
-    public static final BufferType BUFFER_TYPE;
-
-    static
-    {
-        switch (DatabaseDescriptor.getMemtableAllocationType())
-        {
-        case unslabbed_heap_buffers:
-        case heap_buffers:
-            BUFFER_TYPE = BufferType.ON_HEAP;
-            break;
-        case offheap_buffers:
-        case offheap_objects:
-            BUFFER_TYPE = BufferType.OFF_HEAP;
-            break;
-        default:
-            throw new AssertionError();
-        }
-    }
+    public static final BufferType BUFFER_TYPE = DatabaseDescriptor.getMemtableAllocationType().toBufferType();
 
     /** If keys is below this length, we will use a recursive procedure for inserting data in the memtable trie. */
     @VisibleForTesting
@@ -198,7 +183,7 @@ public class TrieMemtable extends AbstractShardedMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
         try
         {
@@ -250,6 +235,14 @@ public class TrieMemtable extends AbstractShardedMemtable
         int total = 0;
         for (MemtableShard shard : shards)
             total += shard.size();
+        return total;
+    }
+
+    public long partitionKeysTotalSize()
+    {
+        long total = 0;
+        for (MemtableShard shard : shards)
+            total += shard.partitionKeysSize();
         return total;
     }
 
@@ -366,24 +359,98 @@ public class TrieMemtable extends AbstractShardedMemtable
     @Override
     public FlushablePartitionSet<MemtablePartition> getFlushSet(PartitionPosition from, PartitionPosition to)
     {
-        Trie<BTreePartitionData> toFlush = mergedTrie.subtrie(from, true, to, false);
+        boolean allPositionsToFlush = from == null && to == null
+                                      || from != null && to != null
+                                         && from.isMinimum()
+                                         && to.isMaximum();
+
+        // to avoid an unnessesary wrapping of mergedTrie into SlicedTrie
+        Trie<BTreePartitionData> toFlush = allPositionsToFlush ? mergedTrie.subtrie(null, true, null, false) :
+                                           mergedTrie.subtrie(from, true, to, false);
+
+        long partitionKeySize;
+        long partitionCount;
+
+        /*
+         In total, we have boundaries.shardCount() shards, with indexes from 0 to boundaries.shardCount() - 1
+         We start with 0 or 1 partial shards, then we may have several full shards, and we finish with 0 or 1 partial shards
+         (token_m .......... token_m+1](token_m+1 ...  ... ...  ... token_n-1](token_n ........... token_n+1]
+                   ↑                  ↑                                      ↑                   ↑
+                   [---partial shard--|---full shard---  ... ---full shard---|---partial shard---)
+
+         */
+        int fromShardFull;
+        int fromShardPartial;
+        int toShardFull;
+        int toShardPartial;
+
+        if (from == null || from.isMinimum())
+            fromShardFull = fromShardPartial = 0;
+        else
+        {
+            fromShardPartial = boundaries.getShardForToken(from.getToken());
+            // not symmetric to "to" logic because the start part of shard ranges is exclusive
+            Token fromEndBoundaryToken = boundaries.getShardEndBoundary(fromShardPartial);
+            if (fromEndBoundaryToken != null && from.equals(fromEndBoundaryToken.maxKeyBound()))
+            {
+                fromShardPartial++;
+                fromShardFull = fromShardPartial;
+            }
+            else
+                fromShardFull = fromShardPartial + 1;
+        }
+
+        if  (to == null || to.isMaximum())
+            toShardFull = toShardPartial = boundaries.shardCount() - 1;
+        else
+        {
+            toShardPartial = boundaries.getShardForToken(to.getToken());
+            Token toEndBoundaryToken = boundaries.getShardEndBoundary(toShardPartial);
+            if (toEndBoundaryToken != null && to.equals(toEndBoundaryToken.maxKeyBound()))
+                toShardFull = toShardPartial;
+            else
+                toShardFull = toShardPartial - 1;
+        }
+
+        List<Trie<BTreePartitionData>> partialShardTries = new ArrayList<>(2);
+        boolean fromShardAdded = false;
+        if (fromShardPartial != fromShardFull)
+        {
+            partialShardTries.add(shards[fromShardPartial].data);
+            fromShardAdded = true;
+        }
+        if (toShardPartial != toShardFull && (toShardPartial != fromShardPartial || !fromShardAdded) )
+        {
+            partialShardTries.add(shards[toShardPartial].data);
+        }
+
         long keySize = 0;
         int keyCount = 0;
-
-        for (Iterator<Map.Entry<ByteComparable, BTreePartitionData>> it = toFlush.entryIterator(); it.hasNext(); )
+        Trie<BTreePartitionData> partialShardsTrie = Trie.mergeDistinct(partialShardTries).subtrie(from, true, to, false);
+        IPartitioner partitioner = metadata().partitioner;
+        for (Iterator<Map.Entry<ByteComparable, BTreePartitionData>> it = partialShardsTrie.entryIterator(); it.hasNext(); )
         {
             Map.Entry<ByteComparable, BTreePartitionData> en = it.next();
-            byte[] keyBytes = DecoratedKey.keyFromByteSource(ByteSource.peekable(en.getKey().asComparableBytes(BYTE_COMPARABLE_VERSION)),
-                                                             BYTE_COMPARABLE_VERSION,
-                                                             metadata().partitioner);
-            keySize += keyBytes.length;
+            int keyByteSize = DecoratedKey.keySizeFromByteSource(ByteSource.peekable(en.getKey().asComparableBytes(BYTE_COMPARABLE_VERSION)),
+                                                                 BYTE_COMPARABLE_VERSION,
+                                                                 partitioner);
+            keySize += keyByteSize;
             keyCount++;
         }
-        long partitionKeySize = keySize;
-        int partitionCount = keyCount;
+
+        for (int i = fromShardFull; i <= toShardFull; i++)
+        {
+            keySize += shards[i].partitionKeysSize();
+            keyCount += shards[i].size();
+        }
+
+        partitionKeySize = keySize;
+        partitionCount = keyCount;
 
         return new AbstractFlushablePartitionSet<MemtablePartition>()
         {
+            private final TableMetadata tableMetadata = TrieMemtable.this.metadata();
+
             public Memtable memtable()
             {
                 return TrieMemtable.this;
@@ -416,6 +483,12 @@ public class TrieMemtable extends AbstractShardedMemtable
             {
                 return partitionKeySize;
             }
+
+            @Override
+            public TableMetadata metadata()
+            {
+                return tableMetadata;
+            }
         };
     }
 
@@ -433,6 +506,8 @@ public class TrieMemtable extends AbstractShardedMemtable
         private volatile long liveDataSize = 0;
 
         private volatile long currentOperations = 0;
+
+        private volatile long partitionKeysSize = 0;
 
         @Unmetered
         private final ReentrantLock writeLock = new ReentrantLock();
@@ -507,6 +582,7 @@ public class TrieMemtable extends AbstractShardedMemtable
                     minLocalDeletionTime = Math.min(minLocalDeletionTime, update.stats().minLocalDeletionTime);
                     liveDataSize += updater.dataSize;
                     currentOperations += update.operationCount();
+                    partitionKeysSize += updater.keySize;
 
                     columnsCollector.update(update.columns());
                     statsCollector.update(update.stats());
@@ -542,6 +618,11 @@ public class TrieMemtable extends AbstractShardedMemtable
         long currentOperations()
         {
             return currentOperations;
+        }
+
+        long partitionKeysSize()
+        {
+            return partitionKeysSize;
         }
 
         long minLocalDeletionTime()
@@ -656,7 +737,7 @@ public class TrieMemtable extends AbstractShardedMemtable
         @Override
         public UnfilteredRowIterator unfilteredIterator()
         {
-            return unfilteredIterator(ColumnFilter.selection(super.columns()), Slices.ALL, false);
+            return unfilteredIterator(ColumnFilter.all(super.columns()), Slices.ALL, false);
         }
 
         @Override
@@ -696,10 +777,10 @@ public class TrieMemtable extends AbstractShardedMemtable
         }
 
         @Override
-        public TableMetrics.ReleasableMetric createMemtableMetrics(TableMetadataRef metadataRef)
+        public Runnable createMemtableMetricsReleaser(TableMetadataRef metadataRef)
         {
-            TrieMemtableMetricsView metrics = new TrieMemtableMetricsView(metadataRef.keyspace, metadataRef.name);
-            return metrics::release;
+            // Metrics are the same for all shards, so we can release them all at once.
+            return () -> TrieMemtableMetricsView.release(metadataRef.keyspace, metadataRef.name);
         }
 
         public boolean equals(Object o)

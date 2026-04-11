@@ -41,9 +41,7 @@ build: build-stamp
 build-stamp: $(QUILT_STAMPFN)
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
-
-	$(ANT) generate-cql-html
-	$(ANT) jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true
+	$(ANT) jar -Djavadoc.skip=true -Dcheck.skip=true -Dant.gen-doc.skip=true
 	cd pylib && python3 setup.py install --no-compile --install-layout deb \
 		--root $(CURDIR)/debian/cassandra
 
@@ -67,6 +65,10 @@ install: build
 	dh_install $(BUILD_DIR)/tools/lib/fqltool.jar \
 		usr/share/cassandra
 
+	# Copy sstableloader jars
+	dh_install $(BUILD_DIR)/tools/lib/sstableloader.jar \
+		usr/share/cassandra
+
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra/apache-cassandra.jar
 
@@ -78,7 +80,7 @@ binary-indep: build install
 	dh_testroot
 	dh_installchangelogs
 	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
-	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html CASSANDRA-14092.txt
+	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html CASSANDRA-14092.txt .snyk
 	dh_installexamples tools/*.yaml
 	dh_bash-completion
 	dh_compress

@@ -1,0 +1,371 @@
+= Onboarding to Accord
+
+== Intro
+
+Accord supports all existing CQL and can be enabled on a per table and
+per token range within that table basis. Enabling Accord on existing tables requires a
+migration process that can be done on this same per table and per range
+basis that safely transitions data from being managed by Cassandra
+{plus} Paxos to Cassandra {plus} Accord without downtime.
+
+A migration is required because Accord can't safely read data written by
+non-SERIAL writes. Accord requires deterministic reads in order to have
+deterministic transaction recovery and non-SERIAL writes can't be read
+deterministically while still being highly available.
+
+This guide describes how to enable Accord and what differences to expect
+when migrating your existing CQL workload to Accord.
+
+This guide does not cover the new transaction syntax.
+
+== Configuration
+
+=== YAML
+
+You need to set `accord.enabled` to true for Accord to be initialized at
+startup.
+
+`accord.default++_++transactional++_++mode` allows you to set a default
+transactional mode for newly created tables which will be used in create
+table statements when no `transactional++_++mode` is specified. This
+prevents accidentally creating non-Accord tables that will need
+migration to Accord.
+
+`accord.range++_++migration` configures the behavior of altering the
+`transactional++_++mode` of a table. When set to `auto` the entire ring
+will be marked as migrating when the `transactional++_++mode` of a table
+is altered. When set to `explicit` no ranges will be marked as migrating
+when the `transactional++_++mode` of a table is altered.
+
+=== Table parameters
+
+`transactional++_++mode` can be set when a table is created
+`CREATE TABLE foo WITH transactional++_++mode = ‘full'` or it can be set
+by altering an existing table
+`ALTER TABLE foo WITH transactional++_++mode = ‘full'`.
+`transactional++_++mode` designates the target or intended transaction
+system for the table and for a newly created table this will be the
+transaction system that is used, but for existing tables that are being
+altered the table will still need to be migrated to the target system.
+
+`transactional++_++mode` can be set to `full`, `mixed++_++reads`, and
+`off`. `off` means that Paxos will be used and transaction statements
+will be rejected. `full` means that all reads and writes will execute on
+Accord. `mixed++_++reads` means that all writes will execute on Accord
+along with `SERIAL` reads/writes, but non-SERIAL reads/writes will
+execute on the existing eventually consistent path. Applying the
+mutations for blocking read repair will always be done through Accord in
+`full` in and `mixed++_++reads`.
+
+`transactional++_++migration++_++from` indicates whether a migration is
+currently in progress although it does not indicate which ranges are
+actively being migrated. This is set automatically when you create a
+table or alter `transactional++_++mode` and should not be set manually.
+It's possible to manually set `transactional++_++migration++_++from` to
+force the completion of migration without actually running the necessary
+migration steps.
+
+`transactional++_++migration++_++from` can be set to `none`, `off`,
+`full`, and `mixed++_++reads`. `off`, `full`, and `mixed++_++reads`
+correspond to the `transactional++_++mode` being migrated away from and
+`none` indicates that no migration is in progress either because the
+migration has completed or because the table was created with its
+current `transactional++_++mode`.
+
+=== mixed++_++reads vs full
+
+When Accord is running with `transactional++_++mode` `full` it will be
+able to perform asynchronous commit saving a WAN roundtrip.
+`mixed++_++reads` allows non-SERIAL reads to continue to execute using
+the original eventually consistent read path. `mixed++_++reads`, unlikes
+`full`, always requires Accord to always synchronously commit at the
+requested consistency level in order to make acknowledged Accord writes
+visible to non-SERIAL reads.
+
+There is no `transactional++_++mode` that allows non-SERIAL writes
+because they break Accord's transaction recovery resulting in
+transactions appearing to have different outcomes at different nodes.
+
+== Accord repair
+
+Repair can now include an optional Accord repair that `nodetool repair`
+will enable by default like Paxos repair. This repair doesn't actually
+synchronize any data it just runs a transaction that checks that Accord
+has resolved the state of all transactions in the repaired range up to
+the point the transaction was created and that the transactions are
+applied at `ALL`.
+
+Accord is normally doing this in the background anyways this just
+ensures that it has occurred at `ALL` and hasn't experienced any delays.
+
+== Migration to Accord
+
+Migrating an existing table to run on Accord starts by altering the
+table:
+
+....
+ALTER TABLE foo WITH transactional_mode = 'full'
+....
+
+After the table is altered it is required to run
+`nodetool consensus++_++admin begin-migration` on ranges in the table
+unless `accord.range++_++migration=auto`.
+
+When a range is initially marked migrating to Accord all non-SERIAL
+writes will execute on Accord while `SERIAL` writes will continue to
+execute on Paxos. non-SERIAL writes include regular writes, logged and
+unlogged batches, hints, and read repair. Accord will perform
+synchronous commit the specified consistency level requiring 2x WAN RTT.
+
+Tables that are migrating or are partially migrated to Accord (or back to Paxos) can be listed using
+`nodetool consensus_admin list` or the sytem table `system_accord_debug.migration_state`.
+
+Migration to Accord consists of two phases with the first phase starting
+when a range is marked migrating, and the second phase starting after a
+full or incremental data repair, and then the migration completing after
+a second repair which must be a full data repair {plus} Paxos repair.
+While marking the range as migrating can be done automatically with
+`accord.range++_++migration=auto`, there is not automation for
+triggering the repairs. If you regularly run compatible repairs then the
+migration will eventually complete, but if you don't run them or want
+the migration to complete sooner then you will need to either trigger
+them manually or invoke `nodetool consensus++_++admin finish-migration`
+to trigger them.
+
+Any repair that is compatible will drive migration forward whether it
+only covers part of the migrating range or whether is started via
+`nodetool consensus++_++admin finish-migration` or some other external
+process that initiates repair. Force repair with down nodes will not be
+eligible to drive any type or phase of migration forward. Force repair
+with all nodes up will still work.
+
+=== First phase
+
+In the first phase of migration Accord is unable to safely read
+non-SERIAL writes so Paxos continues to be used for `SERIAL` operations
+and Accord executes all writes and synchronously commits at the
+requested consistency level in order to allow Paxos to safely read
+Accord writes. Accord's read and write metrics are all counted towards the existing `Read` and `Write` scope
+along with the eventually consistent operations, but you should also start to see writes also being counted in the `AccordWrite` scope.
+
+A data repair either incremental or full replicates all non-SERIAL
+writes at `ALL` making it safe for Accord to read non-SERIAL writes that
+occurred before the migration started. non-SERIAL writes that occurred
+after the migration started were executed through Accord so Accord can
+safely read them.
+
+=== Second phase
+
+In the second phase all reads and writes execute through Accord
+(assuming `transactional++_++mode="full"`). Before an operation can execute on
+Accord it is necessary to run a Paxos key repair in order to ensure that
+any uncommitted Paxos transactions are committed and this check will
+take at least one extra WAN RTT. Additionally Accord has to read at `QUORUM`
+(where it would normally only read from a single replica in `transactional++_++mode="full"` and migration completed) because
+Paxos writes are only visible at `QUORUM`.
+
+All reads and CAS operations in the range should start showing up in the
+Accord metrics and not the existing metrics.
+
+Once a key has been repaired, the repaired state of the key is stored in
+a small in-memory cache and system table so that it doesn't need to be
+repaired again. This information is only stored at replicas of the key
+so if the coordinator is not a replica it will not know that it can skip
+repairing the key. Use token aware routing to avoid redundant key
+repairs.
+
+A full repair {plus} Paxos repair is necessary to complete the second
+phase of migration to Accord. An incremental repair can't currently be
+used because incremental repair doesn't include the transactions that
+are repaired by Paxos repair because it selects the data to include in
+the repair before running the Paxos repair.
+
+== Migration from Accord
+
+Migration from Accord to Paxos occurs in a single phase and begins by
+altering the table's `transactional++_++mode` to `off` and then
+optionally marking ranges as migrating as discussed above.
+
+Once a range is marked migrating all operations in the migrating range
+will stop executing on Accord. Before each operation occurs they will
+have to run an Accord key repair similar to the Paxos key repair to
+ensure Accord transactions for that key have committed at `QUORUM`.
+
+An Accord repair needs to be run on the migrating range, triggered
+manually or via `nodetool finish-migration`, and once that completes
+non-SERIAL operations will run using the usual eventually consistent
+path and `SERIAL` operations will execute on Paxos.
+
+== Migration commands
+
+All the `nodetool` migration commands are based on new
+`StorageServiceMBean` JMX methods. These methods are
+`migrateConsensusProtocol`, `finishConsensusMigration`,
+`listConsensusMigrations`, `getAccordManagedKeyspaces`, and
+`getAccordManagedTables` and can be used by external management tools to
+manage consensus migration. The existing methods for starting repairs
+can also be used to start the repairs that are needed to complete
+migration.
+
+=== nodetool consensus++_++admin list
+
+Invoking `nodetool` with
+`consensus++_++admin list ++[<++keyspace++>++ ++<++tables++>++...++]++`
+will connect to the specified node and retrieve that nodes view of what
+tables are currently being migrated from transactional cluster metadata.
+Tables that are not being migrated are not listed.
+
+The results can be printed out in several different formats using the
+`format` parameter which supports `json`, `minified-json`, `yaml`, and
+`minified-yaml`.
+
+=== nodetool consensus++_++admin begin-migration
+
+Invoking `nodetool` with
+`consensus++_++admin begin-migration ++[<++keyspace++>++ ++<++tables++>++...++]++`
+can be used to mark ranges on a table as migrating. This can only be
+done after the migration has been started by altering the tables.
+Marking ranges as migrating is a lightweight operation and does not
+trigger the repairs that will finish the migration.
+
+The range to mark migrating needs to be explicitly
+provided otherwise the entire ring will be marked migrating for the
+specified keyspace and tables. If the entire range is marked migrating it is
+only necessary to invoke `begin-migration` on one node.
+
+This is only needed if
+`accord.default++_++transactional++_++mode=explicit` is set in
+`cassandra.yaml` otherwise all the ranges will already have been marked
+migrating when the alter occurred.
+
+Ranges that are migrating will require at least an extra WAN roundtrip
+for each request that touches a migrating range because both transaction
+systems may need to be used to execute the request.
+
+=== nodetool consensus++_++admin finish-migration
+
+Invoking `nodetool` with
+`consensus++_++admin finish-migration ++[<++keyspace++>++ ++<++tables++>++...`
+will run the repairs needed to complete the migration for the specified
+ranges. If no range is specified it will default to the primary range of
+the node that `nodetool` is connecting to so you can call it once on
+every node to complete migration.
+
+When migrating from Paxos to Accord it will run an incremental data
+repair and then a full data repair {plus} Paxos repair. When migrating
+from Accord to Paxos it will run an Accord repair.
+
+== Supported consistency levels
+
+Migration requires support for read and write consistency levels because
+Accord ends up being required to read Paxos writes at `QUORUM` and
+Accord needs to execute non-SERIAL writes while Paxos is still being
+used for `SERIAL` writes and thus needs to perform synchronous commit at
+the requested consistency level.
+
+Once migration is complete the read and write consistency levels will be
+ignored with transactional mode `full` . With transactional mode
+`mixed++_++reads` Accord will continue to do synchronous commit and
+honor the requested commit/write consistency level.
+
+Accord will always reject any requests to execute at unsupported
+consistency levels to ensure that migration to/from Accord is always
+possible.
+
+Supported read consistency levels are `ONE`, `QUORUM`, `SERIAL`, and
+`ALL`. Supported write consistency levels are `ANY`, `ONE`, `QUORUM`,
+`SERIAL`, and `ALL`. `LOCAL`, `TWO`, and `THREE` are not supported.
+`ANY` is executed as an asynchronous commit similar to Paxos.
+
+== non-SERIAL consistency
+
+non-SERIAL operations are linearizable by default when migrated to Accord,
+but during migration they might not be linearizable due to timestamp handling
+changes. During migration, normal CQL operations will use the Accord 
+timestamp once a range starts migration, but will fall back to server 
+timestamp when migrating away from Accord.
+
+Hints and batch log replay will use server timestamp and they only come into play during
+migration as hints and batch log replay won't be generated when a range is on Accord.
+
+`USING TIMESTAMP` is allowed and the application of the operations will
+occur in a linearizable order, but from the perspective of a reader the
+merged result may not appear linearizable.
+
+For BATCH operations, timestamp handling is more complex:
+- If the batch uses `USING TIMESTAMP`, the user timestamp will be used
+- If all mutations in a BATCH use `USING TIMESTAMP`, the user timestamp will be used
+- If not using `USING TIMESTAMP` and all partition keys are on Accord, the Accord timestamp is used
+- If the BATCH has some partitions on Accord and others not on Accord, the server timestamp will be used (writes to the Accord table will not be linearizable for multi-table batches where one table is not migrating to Accord)
+- If the batch mixes server timestamp and `USING TIMESTAMP` mutations, the default behavior is to reject the batch, configurable via `accord.mixed_time_source_handling` with values:
+  * `reject` (default) - reject the CQL operation
+  * `log` - accept the operation using server timestamp but log operations where writes to the Accord table will not be linearizable
+  * `ignore` - accept the operation silently
+
+Logged batches that only touch Accord tables will not be written to the batch log because that functionality is redundant with Accord. Batches that touch both Accord and non-Accord tables will be written to the batch log.
+
+Paging runs a separate transaction per page and does not produce a
+linearizable result.
+
+Partition range reads are split into multiple transactions during
+execution and will not produce a strict serializable result.
+Additionally during migration there are no barriers/repairs executed
+before partition range reads. When migrating from Accord to Paxos the
+effective commit CL for Accord writes as viewed from partition range
+reads will be `ANY`. Adding barriers/repairs before partition range
+reads would cause them to time out so they are not done.
+
+== Batchlog and hints
+
+Pre-existing batchlog entries and hints will be processed during and
+after migration until they are completed. If they need to be executed
+through Accord they will be routed through Accord automatically.
+
+Logged batches that only touch Accord data will not be written to the
+batch log because that functionality is redundant with Accord. Batches
+that touch Accord and non-Accord data continue to use the batch log.
+Before release this is likely to change so that a batch that touches
+Accord data will be written entirely via Accord including both the
+Accord and non-Accord data.
+
+Hints are not written for Accord writes although the batch log may
+result in new hints because batch log entries are converted to hints
+after the first retry.
+
+== Operations spanning Accord/non-Accord data
+
+Various operations can access both Accord and non-Accord managed data.
+These are transparently split into parts that execute on Accord and
+parts that execute outside of Accord and the results are merged. If the
+splitting process races with migration then the operations is re-split
+and retried without surfacing an error to the client.
+
+== Partition range read with LIMIT performance
+
+Partition range reads with a limit use more memory and CPU at the nodes
+being read from and at the coordinator. Accord splits the ranges owned
+by each node into smaller subranges and each subrange is owned by a
+command store. The partition range read will execute at every
+intersecting command store on a node and each will return `LIMIT N`
+results which are sent back to the coordinator. The coordinator then
+merges them and re-applies the limit.
+
+The additional memory and CPU will be amplified proportional to the
+number of command stores which defaults to
+`DatabaseDescriptor.getAvailableProcessors()`.
+
+== Metrics
+
+Accord's read and write metrics are counted under the existing `Read` and `Write` scope along with eventually consistent
+operations. To see Accord specific metrics you can look at the `AccordRead` and `AccordWrite` scope. `CASRead` and `CASWrite` will not track
+CAS or `SERIAL` read operations that end up running on Accord and they will instead show up in `AccordRead`/`AccordWrite` and `Read`/`Write`.
+
+If a single request ends up running on both systems due to misrouting it
+will show up as multiple requests. Misrouted requests are counted under the `RetryDifferentSystem` meter and will show
+up in `AccordRead` and `AccordWrite` if Accord was the system the request was misrouted to as well as `Read` and `Write`.
+If the request was misrouted to non-Accord code then it will show up under `Read` and `Write` metrics or `CASRead` and `CASWrite` metrics.
+
+Hints can be misrouted and this is tracked in `HintsServiceMetrics` under the `HintsRetryDifferentSystem` meter.
+
+Partition range reads can also potentially generate additional Accord
+transactions depending on how the reads end up having to be split due to intersection with migrating ranges.

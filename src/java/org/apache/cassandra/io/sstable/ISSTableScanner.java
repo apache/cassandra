@@ -39,6 +39,7 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
     public long getCurrentPosition();
     public long getBytesScanned();
     public Set<SSTableReader> getBackingSSTables();
+    public boolean isFullRange();
 
     public static void closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
     {

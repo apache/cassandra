@@ -21,6 +21,7 @@ package org.apache.cassandra.security;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -28,6 +29,8 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
 import com.google.common.collect.ImmutableList;
+
+import org.apache.cassandra.config.EncryptionOptions;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.ClientAuth;
@@ -37,6 +40,8 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 /**
  * Abstract class implementing {@code ISslContextFacotry} to provide most of the functionality that any
@@ -64,7 +69,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     protected final List<String> accepted_protocols;
     protected final String algorithm;
     protected final String store_type;
-    protected final boolean require_client_auth;
+    protected final EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth;
     protected final boolean require_endpoint_verification;
     /*
     ServerEncryptionOptions does not use the enabled flag at all instead using the existing
@@ -86,7 +91,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         accepted_protocols = null;
         algorithm = null;
         store_type = "JKS";
-        require_client_auth = false;
+        clientAuth = NOT_REQUIRED;
         require_endpoint_verification = false;
         enabled = null;
         optional = null;
@@ -101,7 +106,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         accepted_protocols = getStringList("accepted_protocols");
         algorithm = getString("algorithm");
         store_type = getString("store_type", "JKS");
-        require_client_auth = getBoolean("require_client_auth", false);
+        clientAuth = parameters.get("require_client_auth") == null ? NOT_REQUIRED : EncryptionOptions.ClientEncryptionOptions.ClientAuth.from(getString("require_client_auth"));
         require_endpoint_verification = getBoolean("require_endpoint_verification", false);
         enabled = getBoolean("enabled");
         optional = getBoolean("optional");
@@ -150,8 +155,14 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     @Override
     public SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException
     {
+        return createJSSESslContext(verifyPeerCertificate ? REQUIRED : NOT_REQUIRED);
+    }
+
+    @Override
+    public SSLContext createJSSESslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth) throws SSLException
+    {
         TrustManager[] trustManagers = null;
-        if (verifyPeerCertificate)
+        if (clientAuth != NOT_REQUIRED)
             trustManagers = buildTrustManagerFactory().getTrustManagers();
 
         KeyManagerFactory kmf = buildKeyManagerFactory();
@@ -172,6 +183,13 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
+        return createNettySslContext(verifyPeerCertificate ? REQUIRED : NOT_REQUIRED, socketType, cipherFilter);
+    }
+
+    @Override
+    public SslContext createNettySslContext(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth, SocketType socketType,
+                                            CipherSuiteFilter cipherFilter) throws SSLException
+    {
         /*
             There is a case where the netty/openssl combo might not support using KeyManagerFactory. Specifically,
             I've seen this with the netty-tcnative dynamic openssl implementation. Using the netty-tcnative
@@ -184,8 +202,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         if (socketType == SocketType.SERVER)
         {
             KeyManagerFactory kmf = buildKeyManagerFactory();
-            builder = SslContextBuilder.forServer(kmf).clientAuth(this.require_client_auth ? ClientAuth.REQUIRE :
-                                                                  ClientAuth.NONE);
+            builder = SslContextBuilder.forServer(kmf).clientAuth(toNettyClientAuth(this.clientAuth));
         }
         else
         {
@@ -200,7 +217,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         if (cipher_suites != null && !cipher_suites.isEmpty())
             builder.ciphers(cipher_suites, cipherFilter);
 
-        if (verifyPeerCertificate)
+        if (clientAuth != NOT_REQUIRED)
             builder.trustManager(buildTrustManagerFactory());
 
         return builder.build();
@@ -274,4 +291,19 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
      * @throws SSLException
      */
     abstract protected KeyManagerFactory buildOutboundKeyManagerFactory() throws SSLException;
+
+    private ClientAuth toNettyClientAuth(EncryptionOptions.ClientEncryptionOptions.ClientAuth clientAuth)
+    {
+        switch (clientAuth)
+        {
+            case REQUIRED:
+                return ClientAuth.REQUIRE;
+            case NOT_REQUIRED:
+                return ClientAuth.NONE;
+            case OPTIONAL:
+                return ClientAuth.OPTIONAL;
+            default:
+                throw new RuntimeException("Unsupported client auth " + clientAuth);
+        }
+    }
 }

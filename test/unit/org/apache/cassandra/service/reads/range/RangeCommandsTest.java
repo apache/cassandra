@@ -38,10 +38,11 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_CONCURRENT_RANGE_REQUESTS;
 import static org.apache.cassandra.db.ConsistencyLevel.ONE;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -78,8 +79,8 @@ public class RangeCommandsTest extends CQLTester
 
         // verify that a low concurrency factor is not capped by the max concurrency factor
         PartitionRangeReadCommand command = command(cfs, 50, 50);
-        try (RangeCommandIterator partitions = RangeCommands.rangeCommandIterator(command, ONE, nanoTime());
-             ReplicaPlanIterator ranges = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, ONE))
+        try (RangeCommandIterator partitions = RangeCommands.rangeCommandIterator(command, ONE, ReadCoordinator.DEFAULT, Dispatcher.RequestTime.forImmediateExecution());
+             ReplicaPlanIterator ranges = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, command.metadata().id, ONE))
         {
             assertEquals(2, partitions.concurrencyFactor());
             assertEquals(MAX_CONCURRENCY_FACTOR, partitions.maxConcurrencyFactor());
@@ -88,8 +89,8 @@ public class RangeCommandsTest extends CQLTester
 
         // verify that a high concurrency factor is capped by the max concurrency factor
         command = command(cfs, 1000, 50);
-        try (RangeCommandIterator partitions = RangeCommands.rangeCommandIterator(command, ONE, nanoTime());
-             ReplicaPlanIterator ranges = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, ONE))
+        try (RangeCommandIterator partitions = RangeCommands.rangeCommandIterator(command, ONE, ReadCoordinator.DEFAULT, Dispatcher.RequestTime.forImmediateExecution());
+             ReplicaPlanIterator ranges = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, command.metadata().id, ONE))
         {
             assertEquals(MAX_CONCURRENCY_FACTOR, partitions.concurrencyFactor());
             assertEquals(MAX_CONCURRENCY_FACTOR, partitions.maxConcurrencyFactor());
@@ -98,8 +99,8 @@ public class RangeCommandsTest extends CQLTester
 
         // with 0 estimated results per range the concurrency factor should be 1
         command = command(cfs, 1000, 0);
-        try (RangeCommandIterator partitions = RangeCommands.rangeCommandIterator(command, ONE, nanoTime());
-             ReplicaPlanIterator ranges = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, ONE))
+        try (RangeCommandIterator partitions = RangeCommands.rangeCommandIterator(command, ONE, ReadCoordinator.DEFAULT, Dispatcher.RequestTime.forImmediateExecution());
+             ReplicaPlanIterator ranges = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, command.metadata().id, ONE))
         {
             assertEquals(1, partitions.concurrencyFactor());
             assertEquals(MAX_CONCURRENCY_FACTOR, partitions.maxConcurrencyFactor());

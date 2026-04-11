@@ -22,6 +22,7 @@ import java.nio.ByteOrder;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.BufferType;
@@ -37,14 +38,14 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     private long markedPointer;
 
     final Rebufferer rebufferer;
-    private BufferHolder bufferHolder = Rebufferer.EMPTY;
+    protected BufferHolder bufferHolder = Rebufferer.EMPTY;
 
     /**
      * Only created through Builder
      *
      * @param rebufferer Rebufferer to use
      */
-    RandomAccessReader(Rebufferer rebufferer)
+    protected RandomAccessReader(Rebufferer rebufferer)
     {
         super(Rebufferer.EMPTY.buffer());
         this.rebufferer = rebufferer;
@@ -319,20 +320,45 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         }
     }
 
+    static class RandomAccessReaderWithOwnFile extends RandomAccessReader
+    {
+
+        private final FileHandle fileHandle;
+
+        RandomAccessReaderWithOwnFile(Rebufferer rebufferer, FileHandle fileHandle)
+        {
+            super(rebufferer);
+            this.fileHandle = Preconditions.checkNotNull(fileHandle, "fileHandle cannot be null");
+        }
+
+        @Override
+        public void close()
+        {
+            try
+            {
+                super.close();
+            }
+            finally
+            {
+                fileHandle.close();
+            }
+        }
+    }
+
     /**
      * Open a RandomAccessReader (not compressed, not mmapped, no read throttling) that will own its channel.
      *
      * @param file File to open for reading
      * @return new RandomAccessReader that owns the channel opened in this method.
      */
-    @SuppressWarnings("resource")
+    @SuppressWarnings({ "resource", "RedundantSuppression" }) // reader is closed along with the returned RandomAccessReader instance
     public static RandomAccessReader open(File file)
     {
         ChannelProxy channel = new ChannelProxy(file);
         try
         {
             ChunkReader reader = new SimpleChunkReader(channel, -1, BufferType.OFF_HEAP, DEFAULT_BUFFER_SIZE);
-            Rebufferer rebufferer = reader.instantiateRebufferer();
+            Rebufferer rebufferer = reader.instantiateRebufferer(false);
             return new RandomAccessReaderWithOwnChannel(rebufferer);
         }
         catch (Throwable t)

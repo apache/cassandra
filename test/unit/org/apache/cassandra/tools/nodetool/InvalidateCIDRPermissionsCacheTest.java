@@ -23,11 +23,9 @@ import java.net.InetSocketAddress;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IRoleManager;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
@@ -45,67 +43,15 @@ public class InvalidateCIDRPermissionsCacheTest extends CQLTester
     public static void setup() throws Exception
     {
         DatabaseDescriptor.setRolesValidity(Integer.MAX_VALUE-1);
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
-        AuthCacheService.initializeAndRegisterCaches();
 
         startJMXServer();
 
         ipAddr = new InetSocketAddress("127.0.0.0", 0);
-    }
-
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "invalidatecidrpermissionscache");
-        tool.assertOnCleanExit();
-
-        String help = "NAME\n" +
-                      "        nodetool invalidatecidrpermissionscache - Invalidate the cidr\n" +
-                      "        permissions cache\n" +
-                      "\n" +
-                      "SYNOPSIS\n" +
-                      "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                      "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                      "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                      "                [(-u <username> | --username <username>)] invalidatecidrpermissionscache\n" +
-                      "                [--] [<role>...]\n" +
-                      "\n" +
-                      "OPTIONS\n" +
-                      "        -h <host>, --host <host>\n" +
-                      "            Node hostname or ip address\n" +
-                      "\n" +
-                      "        -p <port>, --port <port>\n" +
-                      "            Remote jmx agent port number\n" +
-                      "\n" +
-                      "        -pp, --print-port\n" +
-                      "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                      "\n" +
-                      "        -pw <password>, --password <password>\n" +
-                      "            Remote jmx agent password\n" +
-                      "\n" +
-                      "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                      "            Path to the JMX password file\n" +
-                      "\n" +
-                      "        -u <username>, --username <username>\n" +
-                      "            Remote jmx agent username\n" +
-                      "\n" +
-                      "        --\n" +
-                      "            This option can be used to separate command-line options from the\n" +
-                      "            list of argument, (useful when arguments might be mistaken for\n" +
-                      "            command-line options\n" +
-                      "\n" +
-                      "        [<role>...]\n" +
-                      "            List of roles to invalidate. By default, all roles\n" +
-                      "\n" +
-                      "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test

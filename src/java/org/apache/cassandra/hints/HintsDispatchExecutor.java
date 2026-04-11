@@ -27,6 +27,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.slf4j.Logger;
@@ -38,10 +40,12 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.hints.HintsService.RETRY_ON_DIFFERENT_SYSTEM_UUID;
 
 /**
  * A multi-threaded (by default) executor for dispatching hints.
@@ -113,7 +117,7 @@ final class HintsDispatchExecutor
         return scheduledDispatches.computeIfAbsent(hostId, uuid -> executor.submit(new DispatchHintsTask(store, hostId)));
     }
 
-    Future transfer(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
+    Future<?> transfer(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
     {
         return executor.submit(new TransferHintsTask(catalog, hostIdSupplier));
     }
@@ -212,11 +216,11 @@ final class HintsDispatchExecutor
 
             // Rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
             // Max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272), unless we are transferring
-            // hints during decomission rather than dispatching them to their final destination.
+            // hints during decommission rather than dispatching them to their final destination.
             // The goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
             // not total outgoing hints traffic from this node. This is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = isTransfer ? 1 : Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            int nodesCount = isTransfer ? 1 : Math.max(1, ClusterMetadata.current().directory.allAddresses().size() - 1);
             double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKiB() * 1024.0 / nodesCount;
             this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
         }
@@ -269,10 +273,10 @@ final class HintsDispatchExecutor
          */
         private boolean dispatch(HintsDescriptor descriptor)
         {
-            logger.trace("Dispatching hints file {}", descriptor.fileName());
+            logger.trace("Dispatching hints file {}", descriptor.hintsFileName);
 
             InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
-            if (address != null)
+            if (address != null || hostId == RETRY_ON_DIFFERENT_SYSTEM_UUID)
                 return deliver(descriptor, address);
 
             // address == null means the target no longer exist; find new home for each hint entry.
@@ -280,12 +284,12 @@ final class HintsDispatchExecutor
             return true;
         }
 
-        private boolean deliver(HintsDescriptor descriptor, InetAddressAndPort address)
+        private boolean deliver(HintsDescriptor descriptor, @Nullable InetAddressAndPort address)
         {
             File file = descriptor.file(hintsDirectory);
             InputPosition offset = store.getDispatchOffset(descriptor);
 
-            BooleanSupplier shouldAbort = () -> !isAlive.test(address) || isPaused.get();
+            BooleanSupplier shouldAbort = () -> (!hostId.equals(RETRY_ON_DIFFERENT_SYSTEM_UUID) && (address == null || !isAlive.test(address)) || isPaused.get());
             try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
             {
                 if (offset != null)
@@ -297,7 +301,7 @@ final class HintsDispatchExecutor
                     {
                         store.delete(descriptor);
                         store.cleanUp(descriptor);
-                        logger.info("Finished hinted handoff of file {} to endpoint {}: {}", descriptor.fileName(), address, hostId);
+                        logger.info("Finished hinted handoff of file {} to destination {}: {}", descriptor.fileName(), dispatcher.destination(), hostId);
                         return true;
                     }
                     else
@@ -321,7 +325,7 @@ final class HintsDispatchExecutor
         {
             store.markDispatchOffset(descriptor, dispatcher.dispatchPosition());
             store.offerFirst(descriptor);
-            logger.info("Finished hinted handoff of file {} to endpoint {}: {}, partially", descriptor.fileName(), address, hostId);
+            logger.info("Finished hinted handoff of file {} to destination {}: {}, partially", descriptor.fileName(), dispatcher.destination(), hostId);
         }
 
         // for each hint in the hints file for a node that isn't part of the ring anymore, write RF hints for each replica

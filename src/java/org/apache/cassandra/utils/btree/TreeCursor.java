@@ -21,7 +21,9 @@ package org.apache.cassandra.utils.btree;
 import java.util.Arrays;
 import java.util.Comparator;
 
-import static org.apache.cassandra.utils.btree.BTree.*;
+import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
+import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
+import static org.apache.cassandra.utils.btree.BTree.sizeMap;
 
 /**
  * Supports two basic operations for moving around a BTree, either forwards or backwards:
@@ -234,7 +236,7 @@ class TreeCursor<K> extends NodeCursor<K>
                 return;
             }
 
-            int[] sizeMap = getSizeMap(node);
+            int[] sizeMap = sizeMap(node);
             int boundary = Arrays.binarySearch(sizeMap, relativeIndex);
             if (boundary >= 0)
             {

@@ -20,7 +20,7 @@ package org.apache.cassandra.net;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,17 +29,43 @@ import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
- * Allows inspecting the behavior of mocked messaging by observing {@link MatcherResponse}.
+ * Test utility that spies on mocked messaging interactions.
+ *
+ * <p>This class records inbound mocked messages and outbound messages that would have been
+ * sent, allowing tests to capture, assert or wait for specific communication patterns.</p>
+ *
+ * <h2>Debug logging</h2>
+ * <p>The internal {@code debugLog} method writes detailed information about the spy’s
+ * activity. By default, the logger uses TRACE level; to make the output visible at INFO
+ * level, set the environment variable {@code MOCK_MESSAGING_SPY_DEBUG=true} before starting
+ * the JVM.
+ *
+ * @see MatcherResponse
+ * @see MockMessagingService
  */
-public class MockMessagingSpy
+public class MockMessagingSpy implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(MockMessagingSpy.class);
+
+    // checkstyle: suppress below 'blockSystemPropertyUsage'
+    private static boolean DEBUG_ENABLED = Boolean.parseBoolean(System.getenv("MOCK_MESSAGING_SPY_DEBUG"));
+    private void debugLog(String format, Object... args)
+    {
+        if (DEBUG_ENABLED)
+            logger.info(format, args);
+        else
+            logger.trace(format, args);
+    }
+
+    public static void enableDebug() {DEBUG_ENABLED = true; }
+    public static void disableDebug() {DEBUG_ENABLED = false; }
 
     private final AtomicInteger messagesIntercepted = new AtomicInteger();
     private final AtomicInteger mockedMessageResponses = new AtomicInteger();
@@ -47,7 +73,9 @@ public class MockMessagingSpy
     private final BlockingQueue<Message<?>> interceptedMessages = newBlockingQueue();
     private final BlockingQueue<Message<?>> deliveredResponses = newBlockingQueue();
 
-    private static final Executor executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    final ExecutorService responseExecutor = Executors.newFixedThreadPool(5);
+
 
     /**
      * Returns a future with the first mocked incoming message that has been created and delivered.
@@ -141,18 +169,30 @@ public class MockMessagingSpy
         return mockedMessageResponses.get();
     }
 
+    public void printMessageCounts()
+    {
+        logger.info("Messages intercepted: {}. Mocked Message responses: {}", messagesIntercepted(), mockedMessageResponses());
+    }
+
     void matchingMessage(Message<?> message)
     {
-        messagesIntercepted.incrementAndGet();
-        logger.trace("Received matching message: {}", message);
+        int count = messagesIntercepted.incrementAndGet();
+        debugLog("messagesInterceptedCount: {}. Received matching message: {}", count, message);
         interceptedMessages.add(message);
     }
 
     void matchingResponse(Message<?> response)
     {
-        mockedMessageResponses.incrementAndGet();
-        logger.trace("Responding to intercepted message: {}", response);
+        int count = mockedMessageResponses.incrementAndGet();
+        debugLog("mockedMessageResponseCount: {}. Responding to intercepted message: {}", count, response);
         deliveredResponses.add(response);
+    }
+
+    @Override
+    public void close()
+    {
+        executor.shutdown();
+        responseExecutor.shutdown();
     }
 
     private static class CapturedResultsFuture<T> extends AbstractFuture<List<T>> implements Runnable

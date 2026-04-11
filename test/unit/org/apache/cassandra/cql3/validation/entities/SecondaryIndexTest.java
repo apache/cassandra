@@ -18,7 +18,9 @@
 package org.apache.cassandra.cql3.validation.entities;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
@@ -28,11 +30,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.index.internal.CassandraIndex;
-import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -44,13 +41,18 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.index.IndexNotAvailableException;
+import org.apache.cassandra.index.IndexBuildInProgressException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.internal.CustomCassandraIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -58,11 +60,11 @@ import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
-
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -112,7 +114,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         assertInvalidMessage(format("Index '%s.%s' doesn't exist",
                                     KEYSPACE,
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(toLowerCaseLocalized(indexName))),
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
 
         createTable("CREATE TABLE %s (a int primary key, b int);");
@@ -120,7 +122,7 @@ public class SecondaryIndexTest extends CQLTester
         createIndexAsync("CREATE INDEX IF NOT EXISTS " + indexName + " ON %s(b);");
 
         assertInvalidMessage(format("Index '%s' already exists",
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(toLowerCaseLocalized(indexName))),
                              "CREATE INDEX " + indexName + " ON %s(b)");
 
         // IF NOT EXISTS should apply in cases where the new index differs from an existing one in name only
@@ -129,8 +131,8 @@ public class SecondaryIndexTest extends CQLTester
         createIndexAsync("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
         assertInvalidMessage(format("Index %s is a duplicate of existing index %s",
-                                    removeQuotes(otherIndexName.toLowerCase(Locale.US)),
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(toLowerCaseLocalized(otherIndexName)),
+                                    removeQuotes(toLowerCaseLocalized(indexName))),
                              "CREATE INDEX " + otherIndexName + " ON %s(b)");
 
         execute("INSERT INTO %s (a, b) values (?, ?);", 0, 0);
@@ -155,7 +157,7 @@ public class SecondaryIndexTest extends CQLTester
         dropIndex(format("DROP INDEX IF EXISTS %s.%s", KEYSPACE, indexName));
         assertInvalidMessage(format("Index '%s.%s' doesn't exist",
                                     KEYSPACE,
-                                    removeQuotes(indexName.toLowerCase(Locale.US))),
+                                    removeQuotes(toLowerCaseLocalized(indexName))),
                              format("DROP INDEX %s.%s", KEYSPACE, indexName));
     }
 
@@ -841,16 +843,16 @@ public class SecondaryIndexTest extends CQLTester
 
         // LIKE is not supported on indexes of non-literal values
         // this is rejected before binding, so the value isn't available in the error message
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc%");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc%");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "abc");
     }
@@ -1089,7 +1091,7 @@ public class SecondaryIndexTest extends CQLTester
             execute("SELECT value FROM %s WHERE value = 2");
             fail();
         }
-        catch (IndexNotAvailableException e)
+        catch (IndexBuildInProgressException e)
         {
             assertTrue(true);
         }
@@ -1123,7 +1125,7 @@ public class SecondaryIndexTest extends CQLTester
         indexName = createIndexAsync("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
         index = (ReadOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
         waitForIndexBuilds(indexName);
-        assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
+        assertInvalidThrow(IndexBuildInProgressException.class, "SELECT value FROM %s WHERE value = 1");
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         assertEquals(0, index.rowsInserted.size());
 
@@ -1163,7 +1165,7 @@ public class SecondaryIndexTest extends CQLTester
         waitForIndexBuilds(indexName);
         execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
         assertEquals(1, index.rowsInserted.size());
-        assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
+        assertInvalidThrow(IndexBuildInProgressException.class, "SELECT value FROM %s WHERE value = 1");
 
         // Upon recovery, we can query data again
         index.reset();
@@ -1558,7 +1560,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1));
         assertInvalidMessage("Cannot create index on keys of column v with non-map type",
                              "CREATE INDEX ON %s (keys(v))");
-        assertInvalidMessage("full() indexes can only be created on frozen collections",
+        assertInvalidMessage("full() non-SAI indexes can only be created on frozen collections",
                              "CREATE INDEX ON %s (full(v))");
         String indexName = createIndex("CREATE INDEX ON %s (values(v))");
 
@@ -1587,7 +1589,7 @@ public class SecondaryIndexTest extends CQLTester
         assertInvalidMessage("Cannot create index on non-frozen UDT column v", "CREATE INDEX ON %s (v)");
         assertInvalidMessage("Cannot create keys() index on v. Non-collection columns only support simple indexes", "CREATE INDEX ON %s (keys(v))");
         assertInvalidMessage("Cannot create values() index on v. Non-collection columns only support simple indexes", "CREATE INDEX ON %s (values(v))");
-        assertInvalidMessage("full() indexes can only be created on frozen collections", "CREATE INDEX ON %s (full(v))");
+        assertInvalidMessage("full() non-SAI indexes can only be created on frozen collections", "CREATE INDEX ON %s (full(v))");
     }
 
     @Test
@@ -1712,6 +1714,15 @@ public class SecondaryIndexTest extends CQLTester
     public void testIndexOnRegularColumnInsertExpiringColumnWithFlush() throws Throwable
     {
         testIndexOnRegularColumnInsertExpiringColumn(true);
+    }
+
+    @Test
+    public void testFullIndexOnClusteringColumn()
+    {
+        createTable("CREATE TABLE %s (pk int,ck frozen<list<int>>,value int,PRIMARY KEY(pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
+        createIndex("CREATE INDEX ON %s(FULL(ck));");
+        execute("INSERT INTO %s (pk,ck,value) VALUES (1,[1,2,3],4)");
+        assertRows(execute("SELECT pk FROM %S WHERE CK=[1,2,3]"), row(1));
     }
 
     private void testIndexOnRegularColumnInsertExpiringColumn(boolean flushBeforeUpdate) throws Throwable

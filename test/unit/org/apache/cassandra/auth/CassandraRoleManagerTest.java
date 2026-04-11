@@ -18,41 +18,55 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.Iterables;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 
-import static org.apache.cassandra.auth.AuthTestUtils.*;
+import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_1;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_2;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B_3;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C_1;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C_2;
+import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C_3;
+import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
+import static org.apache.cassandra.auth.AuthTestUtils.grantRolesTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CassandraRoleManagerTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManagerTest.class);
+
     @BeforeClass
     public static void setupClass()
     {
         SchemaLoader.prepareServer();
-        // create the system_auth keyspace so the IRoleManager can function as normal
-        SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
-                                    KeyspaceParams.simple(1),
-                                    Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
         // We start StorageService because confirmFastRoleSetup confirms that CassandraRoleManager will
         // take a faster path once the cluster is already setup, which includes checking MessagingService
         // and issuing queries with QueryProcessor.process, which uses TokenMetadata
         DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
         AuthCacheService.initializeAndRegisterCaches();
     }
 
@@ -151,6 +165,53 @@ public class CassandraRoleManagerTest
         }
     }
 
+    public void testPasswordUpdateRateLimiting() throws Exception
+    {
+        try
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(100);
+
+            IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+            roleManager.setup();
+
+            RoleResource testRole = RoleResource.role("test_password_role");
+            RoleOptions options = getLoginRoleOptions("initial_password");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, testRole, options);
+
+            // Wait for the rate limit interval to pass
+            Thread.sleep(150);
+
+            // First password change should succeed
+            RoleOptions newOptions1 = getLoginRoleOptions("new_password_1");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, newOptions1);
+
+            // Immediate second password change should fail with OverloadedException
+            try
+            {
+                RoleOptions newOptions2 = getLoginRoleOptions("new_password_2");
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, newOptions2);
+                fail("Expected OverloadedException due to password update rate limiting");
+            }
+            catch (OverloadedException e)
+            {
+                assertEquals("Password for role test_password_role can only be changed every 100ms. ", e.getMessage());
+            }
+
+            // Wait for the rate limit interval to pass
+            Thread.sleep(150);
+
+            // After waiting, password change should succeed again
+            RoleOptions newOptions3 = getLoginRoleOptions("new_password_3");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, newOptions3);
+
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, testRole);
+        }
+        finally
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt());
+        }
+    }
+
     @Test
     public void warmCacheWithEmptyTable()
     {
@@ -166,5 +227,159 @@ public class CassandraRoleManagerTest
 
         for (RoleResource expectedRole : expected)
             assertTrue(actual.stream().anyMatch(role -> role.resource.equals(expectedRole)));
+    }
+
+    @Test
+    public void disconnectsAttemptedOnPeriodWithJitter() throws InterruptedException
+    {
+        AtomicInteger numDisconnectAttempts = new AtomicInteger();
+
+        // min: 800ms, max: 900ms
+        Map<String, String> params = Map.of(
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "800ms",
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "100ms"
+        );
+
+        CassandraRoleManager crm = new CassandraRoleManager(params) {
+            @Override
+            protected void disconnectInvalidRoles()
+            {
+                logger.info("Disconnecting invalid roles...");
+                numDisconnectAttempts.incrementAndGet();
+            }
+        };
+
+        crm.scheduleDisconnectInvalidRoleTask();
+        Thread.sleep(3_000);
+        Assertions.assertThat(numDisconnectAttempts.get()).isGreaterThanOrEqualTo(3);
+        Assertions.assertThat(numDisconnectAttempts.get()).isLessThan(4);
+        numDisconnectAttempts.set(0);
+
+        crm.setInvalidClientDisconnectPeriodMillis(100); // min: 100ms, max: 200ms
+        Thread.sleep(3_000);
+        Assertions.assertThat(numDisconnectAttempts.get()).isGreaterThanOrEqualTo(10); // 15 - padding
+        Assertions.assertThat(numDisconnectAttempts.get()).isLessThan(30);
+
+        crm.setInvalidClientDisconnectPeriodMillis(0);
+        int totalDisconnectAttempts = numDisconnectAttempts.get();
+        Thread.sleep(3_000);
+        Assertions.assertThat(numDisconnectAttempts.get()).isEqualTo(totalDisconnectAttempts);
+    }
+
+    @Test
+    public void ctorInvalidRoleDisconnectOptions()
+    {
+        CassandraRoleManager crm = new CassandraRoleManager(Map.of());
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(0);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(0);
+
+        crm = new CassandraRoleManager(Map.of(
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "1s",
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "2s"
+        ));
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(1000);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(2000);
+
+        // Non-duration input
+        Map<String, String> params = new HashMap<>();
+        params.put(CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "notduration");
+        Assertions.assertThatThrownBy(() -> new CassandraRoleManager(params)).isOfAnyClassIn(IllegalArgumentException.class).hasMessageContaining("Invalid duration: ");
+
+        // Both fields optional
+        crm = new CassandraRoleManager(Map.of(
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "1s"
+            // No jitter
+        ));
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(1000);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(0);
+
+        crm = new CassandraRoleManager(Map.of(
+            // No period
+            CassandraRoleManager.PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "1s"
+        ));
+        Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(0);
+        Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(1000);
+    }
+
+    public void testPasswordUpdateRateLimitingDisabled() throws Exception
+    {
+        try
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(0);
+
+            IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+            roleManager.setup();
+
+            RoleResource testRole = RoleResource.role("test_no_limit_role");
+            RoleOptions options = getLoginRoleOptions("initial_password");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, testRole, options);
+
+            // Multiple rapid password changes should all succeed when rate limiting is disabled
+            for (int i = 0; i < 5; i++)
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, getLoginRoleOptions("password_" + i));
+
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, testRole);
+        }
+        finally
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt());
+        }
+    }
+
+    @Test
+    public void testPasswordUpdateRateLimitingPerRole() throws Exception
+    {
+        try
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(100);
+
+            IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+            roleManager.setup();
+
+            RoleResource role1 = RoleResource.role("test_role_1");
+            RoleResource role2 = RoleResource.role("test_role_2");
+
+            RoleOptions options1 = getLoginRoleOptions("password1");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role1, options1);
+
+            RoleOptions options2 = getLoginRoleOptions("password2");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role2, options2);
+
+            // Wait for the rate limit interval to pass
+            Thread.sleep(150);
+
+            RoleOptions newOptions1 = getLoginRoleOptions("new_password1");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role1, newOptions1);
+
+            RoleOptions newOptions2 = getLoginRoleOptions("new_password2");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role2, newOptions2);
+
+            try
+            {
+                RoleOptions newOptions1Again = getLoginRoleOptions("another_password1");
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role1, newOptions1Again);
+                fail("Expected OverloadedException for test_role_1");
+            }
+            catch (OverloadedException e)
+            {
+                assertEquals("Password for role test_role_1 can only be changed every 100ms.", e.getMessage());
+            }
+
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, role1);
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, role2);
+        }
+        finally
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt());
+        }
+    }
+
+    public static RoleOptions getLoginRoleOptions(String password)
+    {
+        RoleOptions roleOptions = new RoleOptions();
+        roleOptions.setOption(IRoleManager.Option.SUPERUSER, false);
+        roleOptions.setOption(IRoleManager.Option.LOGIN, true);
+        roleOptions.setOption(IRoleManager.Option.PASSWORD, password);
+        return roleOptions;
     }
 }

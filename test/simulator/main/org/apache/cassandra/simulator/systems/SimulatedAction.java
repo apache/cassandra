@@ -27,12 +27,13 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 import javax.annotation.Nullable;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
+
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.RequestCallbacks;
@@ -40,7 +41,9 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.simulator.FutureActionScheduler;
 import org.apache.cassandra.simulator.FutureActionScheduler.Deliver;
+import org.apache.cassandra.simulator.FutureActionScheduler.DeliverResult;
 import org.apache.cassandra.simulator.OrderOn;
 import org.apache.cassandra.simulator.systems.InterceptedExecution.InterceptedRunnableExecution;
 import org.apache.cassandra.simulator.systems.InterceptedWait.Trigger;
@@ -53,23 +56,24 @@ import static org.apache.cassandra.simulator.Action.Modifiers.DROP;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.PSEUDO_ORPHAN;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_DAEMON_TASK;
-import static org.apache.cassandra.simulator.Action.Modifiers.START_SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_INFINITE_LOOP;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_THREAD;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_TIMEOUT_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.WAKE_UP_THREAD;
+import static org.apache.cassandra.simulator.Debug.Info.LOG;
+import static org.apache.cassandra.simulator.FutureActionScheduler.DELIVER_UNPROTECTED_RESULT;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER_AND_TIMEOUT;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.FAILURE;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.SIGNAL;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.MESSAGE;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.REDUNDANT_MESSAGE_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
-import static org.apache.cassandra.simulator.Debug.Info.LOG;
-import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -241,7 +245,8 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
             }
             catch (Throwable t)
             {
-                consequences.forEach(Action::invalidate);
+                if (consequences != null)
+                    consequences.forEach(Action::invalidate);
                 throw t;
             }
 
@@ -339,7 +344,13 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
 
         long expiresAtNanos = simulated.time.get(fromNum).localToGlobalNanos(message.expiresAtNanos());
         boolean isReliable = is(Modifier.RELIABLE) || self.is(Modifier.RELIABLE);
-        Deliver deliver = isReliable ? DELIVER : simulated.futureScheduler.shouldDeliver(fromNum, toNum);
+
+        FutureActionScheduler childScheduler = simulated.perVerbFutureSchedulers.getOrDefault(Verb.fromId(message.verb()), simulated.futureScheduler);
+
+        DeliverResult deliverResult = isReliable ? DELIVER_UNPROTECTED_RESULT : childScheduler.shouldDeliver(fromNum, toNum, from, message);
+        Deliver deliver = deliverResult.deliver;
+        // A message that should get a better than normal treatment in terms of unreliability
+        boolean protectedMessage = deliverResult.protectedMessage;
 
         List<Action> actions = new ArrayList<>(deliver == DELIVER_AND_TIMEOUT ? 2 : 1);
         switch (deliver)
@@ -354,7 +365,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                 Object description = lazy(() -> String.format("%s(%d) from %s to %s", verb, message.id(), message.from(), to.broadcastAddress()));
                 OrderOn orderOn = task.executor.orderAppliesAfterScheduling();
                 Action action = applyTo(description, MESSAGE, orderOn, self, verb, task);
-                long deadlineNanos = simulated.futureScheduler.messageDeadlineNanos(fromNum, toNum);
+                long deadlineNanos = childScheduler.messageDeadlineNanos(fromNum, toNum, protectedMessage);
                 if (deliver == DELIVER && deadlineNanos >= expiresAtNanos)
                 {
                     if (isReliable) deadlineNanos = verb.isResponse() ? expiresAtNanos : expiresAtNanos / 2;
@@ -381,15 +392,18 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                     notify = from;
                 }
                 boolean isTimeout = deliver != FAILURE;
+                Executor notifierExecutor = notify.executorFor(verb.id);
+                if (notifierExecutor instanceof ImmediateExecutor)
+                    notifierExecutor = notify.executor();
                 InterceptedExecution.InterceptedTaskExecution failTask = new InterceptedRunnableExecution(
-                    (InterceptingExecutor) notify.executorFor(verb.id),
+                    (InterceptingExecutor) notifierExecutor,
                     () -> notify.unsafeApplyOnThisThread((socketAddress, id, innerIsTimeout) -> {
                         InetAddressAndPort address = InetAddressAndPort.getByAddress(socketAddress);
                         RequestCallbacks.CallbackInfo callback = instance().callbacks.remove(id, address);
                         if (callback != null)
                         {
                             RequestCallback<?> invokeOn = (RequestCallback<?>) callback.callback;
-                            RequestFailureReason reason = innerIsTimeout ? RequestFailureReason.TIMEOUT : RequestFailureReason.UNKNOWN;
+                            RequestFailure reason = innerIsTimeout ? RequestFailure.TIMEOUT : RequestFailure.UNKNOWN;
                             invokeOn.onFailure(address, reason);
                         }
                         return null;
@@ -405,7 +419,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                 {
                     default: throw new AssertionError();
                     case FAILURE:
-                        long deadlineNanos = simulated.futureScheduler.messageFailureNanos(toNum, fromNum);
+                        long deadlineNanos = childScheduler.messageFailureNanos(toNum, fromNum, protectedMessage);
                         if (deadlineNanos < expiresAtNanos)
                         {
                             action.setDeadline(simulated.time, deadlineNanos);
@@ -414,7 +428,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                     case DELIVER_AND_TIMEOUT:
                     case TIMEOUT:
                         long expirationIntervalNanos = from.unsafeCallOnThisThread(RequestCallbacks::defaultExpirationInterval);
-                        action.setDeadline(simulated.time, simulated.futureScheduler.messageTimeoutNanos(expiresAtNanos, expirationIntervalNanos));
+                        action.setDeadline(simulated.time, childScheduler.messageTimeoutNanos(expiresAtNanos, expirationIntervalNanos, protectedMessage));
                         break;
                 }
                 actions.add(action);

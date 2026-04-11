@@ -19,10 +19,11 @@ package org.apache.cassandra.dht;
 
 import java.io.IOException;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 
 public class OrderPreservingPartitionerTest extends PartitionerTestCase
 {
@@ -44,15 +45,12 @@ public class OrderPreservingPartitionerTest extends PartitionerTestCase
         return false;
     }
 
-    @Test
-    public void testCompare()
+    @Override
+    protected void checkRoundTrip(Token original, Token roundTrip)
     {
-        assert tok("").compareTo(tok("asdf")) < 0;
-        assert tok("asdf").compareTo(tok("")) > 0;
-        assert tok("").compareTo(tok("")) == 0;
-        assert tok("z").compareTo(tok("a")) > 0;
-        assert tok("a").compareTo(tok("z")) < 0;
-        assert tok("asdf").compareTo(tok("asdf")) == 0;
-        assert tok("asdz").compareTo(tok("asdf")) > 0;
+        StringToken orig = (StringToken) original;
+        StringToken rt = (StringToken) roundTrip;
+        Assert.assertEquals(orig.token, rt.token.substring(0, orig.token.length()));
+        Assert.assertTrue(rt.token.substring(orig.token.length()).matches("\0*"));
     }
 }

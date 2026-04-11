@@ -20,14 +20,14 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableList;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
 import com.datastax.driver.core.ResultSet;
+import com.google.common.collect.ImmutableList;
+
+import org.junit.Before;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.metrics.BatchMetrics;
@@ -38,12 +38,6 @@ import static org.junit.Assert.assertEquals;
 public class BatchMetricsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Before
     public void config()

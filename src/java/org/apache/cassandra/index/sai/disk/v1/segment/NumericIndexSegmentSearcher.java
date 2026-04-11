@@ -21,11 +21,15 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 
 import com.google.common.base.MoreObjects;
+
+import org.apache.lucene.index.CorruptIndexException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
@@ -34,8 +38,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.lucene.index.CorruptIndexException;
 
 import static org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeQueries.balancedTreeQueryFrom;
 
@@ -52,23 +54,23 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     NumericIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                 PerColumnIndexFiles perIndexFiles,
                                 SegmentMetadata segmentMetadata,
-                                IndexContext indexContext) throws IOException
+                                StorageAttachedIndex index) throws IOException
     {
-        super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
+        super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, index);
 
         final long treePosition = metadata.getIndexRoot(IndexComponent.BALANCED_TREE);
         if (treePosition < 0)
-            throw new CorruptIndexException(indexContext.logMessage("The tree position is less than zero."), IndexComponent.BALANCED_TREE.name);
+            throw new CorruptIndexException(index.identifier().logMessage("The tree position is less than zero."), IndexComponent.BALANCED_TREE.name);
         final long postingsPosition = metadata.getIndexRoot(IndexComponent.POSTING_LISTS);
         if (postingsPosition < 0)
-            throw new CorruptIndexException(indexContext.logMessage("The postings position is less than zero."), IndexComponent.BALANCED_TREE.name);
+            throw new CorruptIndexException(index.identifier().logMessage("The postings position is less than zero."), IndexComponent.BALANCED_TREE.name);
 
-        treeReader = new BlockBalancedTreeReader(indexContext,
+        treeReader = new BlockBalancedTreeReader(index.identifier(),
                                                  indexFiles.balancedTree(),
                                                  treePosition,
                                                  indexFiles.postingLists(),
                                                  postingsPosition);
-        perColumnEventListener = (QueryEventListener.BalancedTreeEventListener)indexContext.getColumnQueryMetrics();
+        perColumnEventListener = (QueryEventListener.BalancedTreeEventListener)index.columnQueryMetrics();
     }
 
     @Override
@@ -78,22 +80,20 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator search(Expression exp, QueryContext context) throws IOException
+    public KeyRangeIterator search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
         if (logger.isTraceEnabled())
-            logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
+            logger.trace(index.identifier().logMessage("Searching on expression '{}'..."), exp);
 
-        if (exp.getOp().isEqualityOrRange())
+        if (exp.getIndexOperator().isEqualityOrRange())
         {
             final BlockBalancedTreeReader.IntersectVisitor query = balancedTreeQueryFrom(exp, treeReader.getBytesPerValue());
             QueryEventListener.BalancedTreeEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
-            PostingList postingList = treeReader.intersect(query, listener, context);
-            return toIterator(postingList, context);
+            return toPrimaryKeyIterator(treeReader.intersect(query, listener, context), context);
         }
         else
         {
-            throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during index query: " + exp));
+            throw new IllegalArgumentException(index.identifier().logMessage("Unsupported expression during index query: " + exp));
         }
     }
 
@@ -101,7 +101,7 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     public String toString()
     {
         return MoreObjects.toStringHelper(this)
-                          .add("indexContext", indexContext)
+                          .add("index", index)
                           .add("count", treeReader.getPointCount())
                           .add("bytesPerValue", treeReader.getBytesPerValue())
                           .toString();

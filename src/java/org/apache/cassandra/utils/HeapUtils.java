@@ -26,14 +26,16 @@ import java.nio.file.FileStore;
 import java.nio.file.Path;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
 import javax.management.MBeanServer;
+
+import com.sun.management.HotSpotDiagnosticMXBean;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.text.StrBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.management.HotSpotDiagnosticMXBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
@@ -127,10 +129,6 @@ public final class HeapUtils
                     DatabaseDescriptor.setDumpHeapOnUncaughtException(false);
 
                     return fullPath;
-                }
-                else
-                {
-                    logger.debug("Heap dump creation on uncaught exceptions is disabled.");
                 }
             }
             catch (Throwable e)

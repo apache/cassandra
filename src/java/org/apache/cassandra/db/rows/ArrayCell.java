@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
@@ -32,7 +33,7 @@ import static org.apache.cassandra.utils.ByteArrayUtil.EMPTY_BYTE_ARRAY;
 
 public class ArrayCell extends AbstractCell<byte[]>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, EMPTY_BYTE_ARRAY, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance, ColumnMetadata.NO_UNIQUE_ID), 0L, 0, 0, EMPTY_BYTE_ARRAY, null));
 
     // Careful: Adding vars here has an impact on memtable size
     private final long timestamp;
@@ -57,6 +58,17 @@ public class ArrayCell extends AbstractCell<byte[]>
         this.localDeletionTimeUnsignedInteger = localDeletionTimeUnsignedInteger;
         this.value = value;
         this.path = path;
+    }
+
+    public static ArrayCell live(ColumnMetadata column, long timestamp, byte[] value, CellPath path)
+    {
+        return new ArrayCell(column, timestamp, NO_TTL, NO_DELETION_TIME, value, path);
+    }
+
+    public static ArrayCell expiring(ColumnMetadata column, long timestamp, int ttl, long nowInSec, byte[] value, CellPath path)
+    {
+        assert ttl != NO_TTL;
+        return new ArrayCell(column, timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl), value, path);
     }
 
     public long timestamp()
@@ -94,6 +106,12 @@ public class ArrayCell extends AbstractCell<byte[]>
         return new ArrayCell(column, timestamp, ttl, localDeletionTimeUnsignedInteger, ByteBufferUtil.getArray(newValue), path);
     }
 
+    @Override
+    public Cell<?> withUpdatedTimestamp(long newTimestamp)
+    {
+        return new ArrayCell(column, newTimestamp, ttl, localDeletionTimeUnsignedInteger, value, path);
+    }
+    
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime)
     {
         return new ArrayCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);

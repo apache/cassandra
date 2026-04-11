@@ -17,21 +17,25 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.io.IOException;
 import java.io.PrintStream;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Parameters;
+
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "describering", description = "Shows the token ranges info of a given keyspace")
-public class DescribeRing extends NodeToolCmd
+public class DescribeRing extends AbstractCommand
 {
-    @Arguments(description = "The keyspace name", required = true)
-    String keyspace = EMPTY;
+    @Parameters(description = "The keyspace name", arity = "1")
+    private String keyspace = EMPTY;
+
+    @Mixin
+    private PrintPortMixin printPortMixin = new PrintPortMixin();
 
     @Override
     public void execute(NodeProbe probe)
@@ -41,7 +45,7 @@ public class DescribeRing extends NodeToolCmd
         out.println("TokenRange: ");
         try
         {
-            for (String tokenRangeString : probe.describeRing(keyspace, printPort))
+            for (String tokenRangeString : probe.describeRing(keyspace, printPortMixin.printPort))
             {
                 out.println("\t" + tokenRangeString);
             }

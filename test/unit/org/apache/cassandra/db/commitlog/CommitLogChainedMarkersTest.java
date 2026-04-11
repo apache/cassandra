@@ -23,8 +23,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 
-import org.apache.cassandra.io.util.File;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -38,9 +40,8 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 /**
  * Tests the commitlog to make sure we can replay it - explicitly for the case where we update the chained markers
@@ -61,6 +62,10 @@ public class CommitLogChainedMarkersTest
     {
         // this method is blend of CommitLogSegmentBackpressureTest & CommitLogReaderTest methods
         DatabaseDescriptor.daemonInitialization();
+
+        Assume.assumeTrue("With direct IO used for the commitlog we cannot expect the data are on disk without flushing it",
+                          DatabaseDescriptor.getCommitLogWriteDiskAccessMode() != Config.DiskAccessMode.direct);
+
         DatabaseDescriptor.setCommitLogSegmentSize(5);
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(10000 * 1000);

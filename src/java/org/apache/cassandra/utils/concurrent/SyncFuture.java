@@ -26,6 +26,8 @@ import javax.annotation.Nullable;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
+import accord.utils.async.AsyncResult;
+
 import io.netty.util.concurrent.GenericFutureListener;
 
 import static org.apache.cassandra.utils.concurrent.Awaitable.SyncAwaitable.waitUntil;
@@ -106,9 +108,20 @@ public class SyncFuture<V> extends AbstractFuture<V>
      * See {@link #addListener(GenericFutureListener)} for ordering semantics.
      */
     @Override
-    public <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, @Nullable Executor executor)
+    public <T> Future<T> flatMap(Function<? super V, ? extends AsyncResult<T>> flatMapper, @Nullable Executor executor)
     {
         return flatMap(new SyncFuture<>(), flatMapper, executor);
+    }
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
+    @Override
+    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
+    {
+        return andThenAsync(new SyncFuture<>(), andThen, executor);
     }
 
     /**

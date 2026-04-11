@@ -76,6 +76,7 @@ public class MetadataSerializerTest
         Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(false);
 
         MetadataSerializer serializer = new MetadataSerializer();
+        Version latestVersion = DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion();
         File statsFile = serialize(originalMetadata, serializer, DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion());
 
         Descriptor desc = new Descriptor(statsFile.parent(), "", "", new SequenceBasedSSTableId(0), DatabaseDescriptor.getSelectedSSTableFormat());
@@ -85,7 +86,9 @@ public class MetadataSerializerTest
 
             for (MetadataType type : MetadataType.values())
             {
-                assertEquals(originalMetadata.get(type), deserialized.get(type));
+                if ((type != MetadataType.STATS) || latestVersion.hasImprovedMinMax())
+                    assertEquals(originalMetadata.get(type), deserialized.get(type));
+
             }
         }
     }

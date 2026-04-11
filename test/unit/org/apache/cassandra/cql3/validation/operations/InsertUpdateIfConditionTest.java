@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.util.Arrays;
 import java.util.Collection;
 
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,19 +28,23 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.utils.CassandraVersion;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /* InsertUpdateIfConditionCollectionsTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes
@@ -52,56 +55,56 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class InsertUpdateIfConditionTest extends CQLTester
 {
-    @Parameterized.Parameter(0)
-    public String clusterMinVersion;
-
-    @Parameterized.Parameter(1)
-    public Runnable assertion;
-
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
         ServerTestUtils.daemonInitialization();
-        return Arrays.asList(new Object[]{ "3.0", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
-                             } },
-                             new Object[]{ "3.11", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
-                             } },
-                             new Object[]{ SystemKeyspace.CURRENT_VERSION.toString(), (Runnable) () -> {
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
-                             } });
+        // TODO [tcm] we will require upgrading from 4.1
+        return Arrays.asList(new Object[]{ NodeVersion.CURRENT },
+                             new Object[]{ new NodeVersion( new CassandraVersion("4.1"), Version.OLD) },
+                             new Object[]{ new NodeVersion( new CassandraVersion("4.0"), Version.OLD) });
     }
 
+    @Parameterized.Parameter(0)
+    public NodeVersion clusterMinVersion;
+
     @BeforeClass
-    public static void beforeClass()
+    public static void setUpClass()
     {
-        Gossiper.instance.start(0);
+        // This intentionally shadows CQLTester::setUpClass, in order to initialize the ClusterMetadataService
+        // without automatically registering the first node. This is so the directory can be setup to mimic a
+        // mid-upgrade cluster with nodes on both old and new versions.
+        prePrepareServer();
+        ServerTestUtils.prepareServerNoRegister();
+        ServerTestUtils.markCMS();  // CQLTester::afterTest will reset the CMS & ClusterMetadata to this state
     }
 
     @Before
     public void before()
     {
-        beforeSetup(clusterMinVersion, assertion);
-    }
-    
-    public static void beforeSetup(String clusterMinVersion, Runnable assertion)
-    {
-        // setUpgradeFromVersion adds node2 to the Gossiper. On slow CI envs the Gossiper might auto-remove it after some
-        // timeout if it thinks it's a fat client making the test fail. Just retry C18393.
-        Util.spinAssertEquals(Boolean.TRUE, () -> {
-            Util.setUpgradeFromVersion(clusterMinVersion);
-            assertion.run();
-            return true;
-        },
-                              5);
+        beforeSetup(clusterMinVersion);
     }
 
-    @AfterClass
-    public static void afterClass()
+    public static void beforeSetup(NodeVersion clusterMinVersion)
     {
-        Gossiper.instance.stop();
+        // Add two entries to ClusterMetadata, to make it potentially appear as a mixed-version cluster (if the
+        // supplied version is lower than current).
+        ClusterMetadataService.instance()
+                              .commit(new Register(new NodeAddresses(InetAddressAndPort.getByNameUnchecked("127.0.0.10")),
+                                                   new Location("dc1", "rack1"),
+                                                   clusterMinVersion));
+        ClusterMetadataService.instance()
+                              .commit(new Register(new NodeAddresses(InetAddressAndPort.getByNameUnchecked("127.0.0.20")),
+                                                   new Location("dc1", "rack1"),
+                                                   NodeVersion.CURRENT));
+
+        Directory directory = ClusterMetadata.current().directory;
+        assertEquals(directory.clusterMinVersion, clusterMinVersion);
+        assertEquals(NodeVersion.CURRENT, directory.clusterMaxVersion);
+        // Version.OLD does not influence commonSerializationVersion as un-upgraded nodes are completely outside
+        // the scope of maintaining backward compatible metadata serializations (i.e. they predate them entirely). So
+        // in this test, the common serialization version will always be the current one.
+        assertEquals(NodeVersion.CURRENT_METADATA_VERSION, ClusterMetadata.current().directory.commonSerializationVersion);
     }
 
     /**
@@ -459,7 +462,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Test
     public void testDropCreateIndexIfNotExists()
     {
-        String tableName = createTable("CREATE TABLE %s (id text PRIMARY KEY, value1 blob, value2 blob)with comment = 'foo'");
+        String tableName = createTable("CREATE TABLE %s (id text PRIMARY KEY, value1 text, value2 blob)with comment = 'foo'");
 
         // try dropping when doesn't exist
         schemaChange(format("DROP INDEX IF EXISTS %s.myindex", KEYSPACE));

@@ -21,19 +21,25 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.io.FileUtils;
+import org.assertj.core.api.Assertions;
+import org.assertj.core.data.Offset;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
@@ -50,22 +56,23 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.TimeUUID;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.data.Offset;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.Util.bulkLoadSSTables;
 import static org.apache.cassandra.Util.getBackups;
 import static org.apache.cassandra.Util.getSSTables;
-import static org.apache.cassandra.Util.getSnapshots;
 import static org.apache.cassandra.Util.relativizePath;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.LEGACY_SSTABLE_ACTIVITY;
 import static org.apache.cassandra.db.SystemKeyspace.SSTABLE_ACTIVITY_V2;
 import static org.apache.cassandra.distributed.shared.FutureUtils.waitOn;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SSTableIdGenerationTest extends TestBaseImpl
@@ -83,6 +90,11 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         TestBaseImpl.beforeClass();
 
         originalSecurityManager = System.getSecurityManager();
+    }
+
+    @Before
+    public void beforeEach()
+    {
         // we prevent system exit and convert it to exception becuase this is one of the expected test outcomes,
         // and we want to make an assertion on that
         ClusterUtils.preventSystemExit();
@@ -134,8 +146,14 @@ public class SSTableIdGenerationTest extends TestBaseImpl
                                            .withConfig(config -> config.set(ENABLE_UUID_FIELD_NAME, true))
                                            .start()))
         {
-            cluster.disableAutoCompaction(KEYSPACE);
             cluster.schemaChange(createTableStmt(KEYSPACE, "tbl", null));
+            for (IInvokableInstance instance : cluster)
+            {
+                instance.runOnInstance(() -> {
+                    for (ColumnFamilyStore cs : Keyspace.open(KEYSPACE).getColumnFamilyStores())
+                        cs.disableAutoCompaction();
+                });
+            }
             createSSTables(cluster.get(1), KEYSPACE, "tbl", 1, 2);
             assertSSTablesCount(cluster.get(1), 0, 2, KEYSPACE, "tbl");
             verfiySSTableActivity(cluster, false);
@@ -170,7 +188,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create a table and two sstables with sequential id for each strategy, the sstables will contain overlapping partitions
             for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
-                String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
+                String tableName = "tbl_" + toLowerCaseLocalized(compactionStrategyClass.getSimpleName());
                 cluster.schemaChange(createTableStmt(KEYSPACE, tableName, compactionStrategyClass));
 
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 1, 2);
@@ -183,7 +201,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             // create another two sstables with uuid for each previously created table
             for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
-                String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
+                String tableName = "tbl_" + toLowerCaseLocalized(compactionStrategyClass.getSimpleName());
 
                 createSSTables(cluster.get(1), KEYSPACE, tableName, 3, 4);
 
@@ -397,12 +415,20 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static Set<String> snapshot(IInvokableInstance instance, String ks, String tableName)
     {
-        Set<String> snapshotDirs = instance.callOnInstance(() -> ColumnFamilyStore.getIfExists(ks, tableName)
-                                                                                  .snapshot(SNAPSHOT_TAG)
-                                                                                  .getDirectories()
-                                                                                  .stream()
-                                                                                  .map(File::toString)
-                                                                                  .collect(Collectors.toSet()));
+        Set<String> snapshotDirs = instance.callOnInstance(() -> {
+
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ks, tableName);
+
+            if (cfs == null)
+                return Set.of();
+
+            TableSnapshot tableSnapshot = SnapshotManager.instance.takeSnapshot(SnapshotOptions.userSnapshot(SNAPSHOT_TAG, cfs.getKeyspaceTableName())).iterator().next();
+            Set<String> dirs = new HashSet<>();
+            for (File dir : tableSnapshot.getDirectories())
+                dirs.add(dir.toString());
+
+            return dirs;
+        });
         assertThat(snapshotDirs).isNotEmpty();
         return snapshotDirs;
     }
@@ -451,7 +477,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static void assertSnapshotSSTablesCount(IInvokableInstance instance, int expectedSeqGenIds, int expectedUUIDGenIds, String ks, String... tableNames)
     {
-        instance.runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName -> assertSSTablesCount(getSnapshots(ks, tableName, SNAPSHOT_TAG), tableName, expectedSeqGenIds, expectedUUIDGenIds))));
+        instance.runOnInstance(rethrow(() -> Arrays.stream(tableNames).forEach(tableName -> assertSSTablesCount(TableSnapshot.getSnapshotDescriptors(ks, tableName, SNAPSHOT_TAG), tableName, expectedSeqGenIds, expectedUUIDGenIds))));
     }
 
     private static void assertBackupSSTablesCount(IInvokableInstance instance, int expectedSeqGenIds, int expectedUUIDGenIds, String ks, String... tableNames)

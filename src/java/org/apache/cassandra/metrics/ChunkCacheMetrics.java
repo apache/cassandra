@@ -18,12 +18,14 @@
 package org.apache.cassandra.metrics;
 
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.Nonnull;
 
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.github.benmanes.caffeine.cache.stats.StatsCounter;
+
 import org.apache.cassandra.cache.ChunkCache;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -33,6 +35,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class ChunkCacheMetrics extends CacheMetrics implements StatsCounter
 {
+    public static final String TYPE_NAME = "ChunkCache";
     /** Latency of misses */
     public final Timer missLatency;
 
@@ -43,7 +46,7 @@ public class ChunkCacheMetrics extends CacheMetrics implements StatsCounter
      */
     public ChunkCacheMetrics(ChunkCache cache)
     {
-        super("ChunkCache", cache);
+        super(TYPE_NAME, cache);
         missLatency = Metrics.timer(factory.createMetricName("MissLatency"));
     }
 

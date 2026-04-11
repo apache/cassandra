@@ -31,39 +31,38 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.io.util.File;
+import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+import net.openhft.chronicle.queue.rollcycles.TestRollCycles;
+import net.openhft.chronicle.wire.ValueIn;
+import net.openhft.chronicle.wire.WireOut;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.buffer.Unpooled;
-import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
-import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.RollCycles;
-import net.openhft.chronicle.wire.ValueIn;
-import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.fql.FullQueryLogger.Query;
-import org.apache.cassandra.fql.FullQueryLogger.Batch;
 import org.apache.cassandra.cql3.statements.BatchStatement.Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.fql.FullQueryLogger.Batch;
+import org.apache.cassandra.fql.FullQueryLogger.Query;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import io.netty.buffer.Unpooled;
 
 import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
 import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
@@ -78,6 +77,9 @@ import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
 import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
 import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class FullQueryLoggerTest extends CQLTester
@@ -321,7 +323,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private boolean checkForQueries(List<String> queries)
     {
-        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(TestRollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             List<String> expectedQueries = new LinkedList<>(queries);
@@ -432,7 +434,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void assertRoundTripQuery(@Nullable String keyspace)
     {
-        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(TestRollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire ->
@@ -462,16 +464,16 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         logBatch(Type.UNLOGGED,
                  Arrays.asList("foo1", "foo2"),
-                 Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
-                                             ByteBuffer.allocateDirect(2)),
-                               Collections.emptyList()),
+                 Arrays.asList(new byte[][] {new byte[1],
+                                             new byte[2]},
+                               ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                  QueryOptions.DEFAULT,
                  queryState("abcdefgh"),
                  1);
 
         Util.spinAssertEquals(true, () ->
         {
-            try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+            try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(TestRollCycles.TEST_SECONDLY).build())
             {
                 return queue.createTailer().readingDocument().isPresent();
             }
@@ -486,16 +488,16 @@ public class FullQueryLoggerTest extends CQLTester
         configureFQL();
         logBatch(Type.UNLOGGED,
                  Arrays.asList("foo1", "foo2"),
-                 Arrays.asList(Arrays.asList(ByteBuffer.allocate(1),
-                                             ByteBuffer.allocateDirect(2)),
-                               Collections.emptyList()),
+                 Arrays.asList(new byte[][] {new byte[1],
+                                             new byte[2]},
+                               ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS),
                  QueryOptions.DEFAULT,
                  queryState(),
                  1);
 
         Util.spinAssertEquals(true, () ->
         {
-            try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+            try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(TestRollCycles.TEST_SECONDLY).build())
             {
                 return queue.createTailer().readingDocument().isPresent();
             }
@@ -507,7 +509,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void assertRoundTripBatch(@Nullable String keyspace)
     {
-        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(TestRollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire -> {
@@ -599,12 +601,10 @@ public class FullQueryLoggerTest extends CQLTester
 
         bigList = null;
         //The size of the list of values should be reflected
-        List<List<ByteBuffer>> bigValues = new ArrayList<>(100000);
+        List<byte[][]> bigValues = new ArrayList<>(100000);
         for (int ii = 0; ii < 100000; ii++)
-        {
-            bigValues.add(new ArrayList<>(0));
-        }
-        bigValues.get(0).add(ByteBuffer.allocate(1024 * 1024 * 5));
+            bigValues.add(ii == 0 ? new byte[][] {new byte[1024 * 1024 * 5]} : new byte[][]{});
+
         batch = new Batch(Type.UNLOGGED, new ArrayList<>(), bigValues, QueryOptions.DEFAULT, queryState(), 1);
         assertTrue(batch.weight() > ObjectSizes.measureDeep(bigValues));
 
@@ -642,7 +642,7 @@ public class FullQueryLoggerTest extends CQLTester
     @Test(expected = NullPointerException.class)
     public void testLogBatchNullValuesValue() throws Exception
     {
-        logBatch(Type.UNLOGGED, new ArrayList<>(), Arrays.asList((List<ByteBuffer>)null), null, queryState(), 1);
+        logBatch(Type.UNLOGGED, new ArrayList<>(), Collections.singletonList(null), null, queryState(), 1);
     }
 
     @Test(expected = NullPointerException.class)
@@ -737,7 +737,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void logBatch(BatchStatement.Type type,
                           List<String> queries,
-                          List<List<ByteBuffer>> values,
+                          List<byte[][]> values,
                           QueryOptions options,
                           QueryState queryState,
                           long time)

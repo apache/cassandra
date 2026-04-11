@@ -34,7 +34,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class ClientRequestSizeMetrics
 {
-    private static final String TYPE = "ClientRequestSize";
+    public static final String TYPE = "ClientRequestSize";
 
     public static final Counter totalColumnsRead = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "ColumnsRead", null));
     public static final Counter totalRowsRead = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "RowsRead", null));

@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
@@ -36,25 +37,30 @@ import com.vdurmont.semver4j.Semver.SemverType;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.BeforeClass;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SimpleGraph;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
 import static org.apache.cassandra.utils.SimpleGraph.sortedVertices;
 
+// checkstyle: suppress below 'blockSystemPropertyUsage'
 public class UpgradeTestBase extends DistributedTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(UpgradeTestBase.class);
@@ -69,6 +75,8 @@ public class UpgradeTestBase extends DistributedTestBase
     public static void beforeClass() throws Throwable
     {
         ICluster.setup();
+        SKIP_GC_INSPECTOR.setBoolean(true);
+        DTEST_ACCORD_ENABLED.setBoolean(false);
     }
 
 
@@ -87,25 +95,19 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
-    public static final Semver v30 = new Semver("3.0.0-alpha1", SemverType.LOOSE);
-    public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
+    public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
     public static final Semver v50 = new Semver("5.0-alpha1", SemverType.LOOSE);
-    public static final Semver v51 = new Semver("5.1-alpha1", SemverType.LOOSE);
+    public static final Semver v60 = new Semver("6.0-alpha1", SemverType.LOOSE);
 
     protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
-                                                                         .addEdge(v30, v3X)
-                                                                         .addEdge(v30, v40)
-                                                                         .addEdge(v30, v41)
-                                                                         .addEdge(v3X, v40)
-                                                                         .addEdge(v3X, v41)
                                                                          .addEdge(v40, v41)
                                                                          .addEdge(v40, v50)
-                                                                         .addEdge(v40, v51)
+                                                                         .addEdge(v40, v60)
                                                                          .addEdge(v41, v50)
-                                                                         .addEdge(v41, v51)
-                                                                         .addEdge(v50, v51)
+                                                                         .addEdge(v41, v60)
+                                                                         .addEdge(v50, v60)
                                                                          .build();
 
     // the last is always the current
@@ -163,6 +165,20 @@ public class UpgradeTestBase extends DistributedTestBase
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
         private Consumer<UpgradeableCluster.Builder> builderConsumer;
+        private TokenSupplier tokenSupplier;
+        private Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
+        private UpgradeListener upgradeListener = new UpgradeListener()
+        {
+            @Override
+            public void shutdown(int i)
+            {
+            }
+
+            @Override
+            public void startup(int i)
+            {
+            }
+        };
 
         public TestCase()
         {
@@ -320,6 +336,24 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase withUpgradeListener(UpgradeListener listener)
+        {
+            this.upgradeListener = listener;
+            return this;
+        }
+
+        public TestCase withTokenSupplier(TokenSupplier tokenSupplier)
+        {
+            this.tokenSupplier = tokenSupplier;
+            return this;
+        }
+
+        public TestCase withNodeIdTopology(Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology)
+        {
+            this.nodeIdTopology = nodeIdTopology;
+            return this;
+        }
+
         public void run() throws Throwable
         {
             if (setup == null)
@@ -344,7 +378,7 @@ public class UpgradeTestBase extends DistributedTestBase
             for (TestVersions upgrade : this.upgrade)
             {
                 logger.info("testing upgrade from {} to {}", upgrade.initial.version, upgrade.upgradeVersions);
-                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
+                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer, tokenSupplier, nodeIdTopology)))
                 {
                     setup.run(cluster);
 
@@ -356,11 +390,13 @@ public class UpgradeTestBase extends DistributedTestBase
 
                             for (int n : nodesToUpgrade)
                             {
+                                upgradeListener.shutdown(n);
                                 cluster.get(n).shutdown().get();
                                 triggerGC();
                                 cluster.get(n).setVersion(nextVersion);
                                 runBeforeNodeRestart.run(cluster, n);
                                 cluster.get(n).startup();
+                                upgradeListener.startup(n);
                                 runAfterNodeUpgrade.run(cluster, n);
                             }
 
@@ -408,7 +444,8 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgradesToCurrentFrom(v30)
+                             .upgradesToCurrentFrom(OLDEST)
+                             .withConfig(c -> c.with(Feature.GOSSIP))
                              .nodesToUpgrade(toUpgrade);
     }
 
@@ -438,5 +475,11 @@ public class UpgradeTestBase extends DistributedTestBase
     protected static int nextNode(int current, int numNodes)
     {
         return current == numNodes ? 1 : current + 1;
+    }
+
+    public interface UpgradeListener
+    {
+        void shutdown(int i);
+        void startup(int i);
     }
 }

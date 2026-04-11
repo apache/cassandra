@@ -121,7 +121,7 @@ The `nodetool disableauditlog` command disables AuditLog.
 
 [source,none]
 ----
-nodetool disableuditlog
+nodetool disableauditlog
 ----
 
 === NodeTool command to reload AuditLog filters
@@ -190,9 +190,11 @@ To use `BinAuditLogger` as a logger in AuditLogging, set the logger to `BinAudit
   oldest file. Default is set to `16L * 1024L * 1024L * 1024L`
 `roll_cycle`::
   How often to roll Audit log segments so they can potentially be
-  reclaimed. Available options are: MINUTELY, HOURLY, DAILY,
-  LARGE_DAILY, XLARGE_DAILY, HUGE_DAILY.For more options, refer:
-  net.openhft.chronicle.queue.RollCycles. Default is set to `"HOURLY"`
+  reclaimed. Some available options are:
+  `FIVE_MINUTELY, FAST_HOURLY, FAST_DAILY,
+  LargeRollCycles.LARGE_DAILY, LargeRollCycles.XLARGE_DAILY, LargeRollCycles.HUGE_DAILY.`
+  For more options, refer: net.openhft.chronicle.queue.RollCycles.
+  Default is set to `"FAST_HOURLY"`
 
 == Configuring FileAuditLogger
 
@@ -213,7 +215,7 @@ the audit log events to flow through separate log file instead of system.log.
     <totalSizeCap>5GB</totalSizeCap>
   </rollingPolicy>
   <encoder>
-    <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+    <pattern>%-5level [%thread] %date{"yyyy-MM-dd'T'HH:mm:ss,SSS", UTC} %F:%L - %msg%n</pattern>
   </encoder>
 </appender>
 

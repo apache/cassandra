@@ -39,9 +39,10 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.TlsTestUtils;
 
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
@@ -74,17 +75,17 @@ public class MutualTlsInternodeAuthenticatorTest
     public static void initialize()
     {
         CASSANDRA_CONFIG.setString("cassandra-mtls.yaml");
-        SchemaLoader.loadSchema();
-        DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        SchemaLoader.prepareServer();
     }
 
     @Before
     public void before()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.server_encryption_options = config.server_encryption_options.withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
-                                                                           .withOutboundKeystorePassword("cassandra");
+        config.server_encryption_options = new Builder(config.server_encryption_options)
+                                           .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
+                                           .withOutboundKeystorePassword("cassandra")
+                                           .build();
     }
 
     String getValidatorClass()
@@ -166,10 +167,12 @@ public class MutualTlsInternodeAuthenticatorTest
     public void testNoIdentitiesInKeystore()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.server_encryption_options = config.server_encryption_options.withOutboundKeystore("test/conf/cassandra_ssl_test.keystore")
-                                                                           .withOutboundKeystorePassword("cassandra");
+        config.server_encryption_options = new Builder(config.server_encryption_options)
+                                           .withOutboundKeystore(TlsTestUtils.SERVER_KEYSTORE_PATH)
+                                           .withOutboundKeystorePassword(TlsTestUtils.SERVER_KEYSTORE_PASSWORD)
+                                           .build();
         expectedException.expect(ConfigurationException.class);
-        expectedException.expectMessage("No identity was extracted from the outbound keystore 'test/conf/cassandra_ssl_test.keystore'");
+        expectedException.expectMessage(String.format("No identity was extracted from the outbound keystore '%s'", TlsTestUtils.SERVER_KEYSTORE_PATH));
         new MutualTlsInternodeAuthenticator(getParams());
     }
 

@@ -23,22 +23,24 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.Random;
 
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4SafeDecompressor;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4SafeDecompressor;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.net.MessagingService;
 
 public class StreamCompressionSerializerTest
 {
@@ -64,9 +66,9 @@ public class StreamCompressionSerializerTest
     public void tearDown()
     {
         if (input != null)
-            FileUtils.clean(input);
+            MemoryUtil.clean(input);
         if (compressed != null)
-            FileUtils.clean(compressed);
+            MemoryUtil.clean(compressed);
         if (output != null && output.refCnt() > 0)
             output.release(output.refCnt());
     }
@@ -104,7 +106,7 @@ public class StreamCompressionSerializerTest
         StreamCompressionSerializer.serialize(compressor, input, VERSION)
                                    .write(size -> {
                                        if (compressed != null)
-                                           FileUtils.clean(compressed);
+                                           MemoryUtil.clean(compressed);
                                        return compressed = ByteBuffer.allocateDirect(size);
                                    });
         input.flip();

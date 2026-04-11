@@ -17,27 +17,46 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
-
-import static java.util.stream.Collectors.toList;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.UDTAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 import static com.google.common.collect.Iterables.any;
+import static java.util.stream.Collectors.toList;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 /**
  * An immutable container for a keyspace's UDAs and UDFs.
  */
 public final class UserFunctions implements Iterable<UserFunction>
 {
+    public static final Serializer serializer = new Serializer();
     public enum Filter implements Predicate<UserFunction>
     {
         ALL, UDF, UDA;
@@ -245,6 +264,22 @@ public final class UserFunctions implements Iterable<UserFunction>
                         .build();
     }
 
+    public static UserFunctions getCurrentUserFunctions(FunctionName name, String keyspace)
+    {
+        KeyspaceMetadata ksm = ClusterMetadata.current().schema.getKeyspaces().getNullable(name.hasKeyspace() ? name.keyspace : keyspace);
+        UserFunctions userFunctions = UserFunctions.none();
+        if (ksm != null)
+            userFunctions = ksm.userFunctions;
+        return userFunctions;
+    }
+
+    public static UserFunctions getCurrentUserFunctions(FunctionName name)
+    {
+        if (!name.hasKeyspace())
+            return UserFunctions.none();
+        return getCurrentUserFunctions(name, null);
+    }
+
     @Override
     public boolean equals(Object o)
     {
@@ -337,6 +372,63 @@ public final class UserFunctions implements Iterable<UserFunction>
             });
 
             return new FunctionsDiff<>(created, dropped, altered.build());
+        }
+    }
+
+    public static class Serializer implements UDTAwareMetadataSerializer<UserFunctions>
+    {
+        public void serialize(UserFunctions t, DataOutputPlus out, Version version) throws IOException
+        {
+            List<Function> udfs = t.functions.values().stream().filter(Filter.UDF).collect(Collectors.toList());
+            out.writeInt(udfs.size());
+            for (Function f : udfs)
+            {
+                assert f instanceof UDFunction;
+                UDFunction.serializer.serialize(((UDFunction) f), out, version);
+            }
+            List<Function> udas = t.functions.values().stream().filter(Filter.UDA).collect(Collectors.toList());
+            out.writeInt(udas.size());
+            for (Function f : udas)
+            {
+                assert f instanceof UDAggregate;
+                UDAggregate.serializer.serialize(((UDAggregate)f), out, version);
+            }
+        }
+
+        public UserFunctions deserialize(DataInputPlus in, Types types, Version version) throws IOException
+        {
+            int count = in.readInt();
+            List<UDFunction> udFunctions = new ArrayList<>(count);
+            for (int i = 0; i < count; i++)
+                udFunctions.add(UDFunction.serializer.deserialize(in, types, version));
+            count = in.readInt();
+            List<UDAggregate> udAggregates = new ArrayList<>(count);
+            for (int i = 0; i < count; i++)
+                udAggregates.add(UDAggregate.serializer.deserialize(in, types, udFunctions, version));
+            UserFunctions.Builder builder = UserFunctions.builder();
+            builder.add(udFunctions);
+            builder.add(udAggregates);
+            return builder.build();
+        }
+
+        public long serializedSize(UserFunctions t, Version version)
+        {
+            List<UserFunction> udfs = t.functions.values().stream().filter(Filter.UDF).collect(Collectors.toList());
+            int size = sizeof(udfs.size());
+            for (Function f : udfs)
+            {
+                assert f instanceof UDFunction;
+                size += UDFunction.serializer.serializedSize(((UDFunction) f), version);
+            }
+            List<Function> udas = t.functions.values().stream().filter(Filter.UDA).collect(Collectors.toList());
+            size += sizeof(udas.size());
+            for (Function f : udas)
+            {
+                assert f instanceof UDAggregate;
+                size += UDAggregate.serializer.serializedSize(((UDAggregate)f), version);
+            }
+
+            return size;
         }
     }
 }

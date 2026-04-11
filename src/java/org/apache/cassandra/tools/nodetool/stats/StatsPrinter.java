@@ -21,9 +21,10 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.Map;
 
-import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
+
+import org.apache.cassandra.utils.JsonUtils;
 
 /**
  * Interface for the Stats printer, that'd output statistics
@@ -33,6 +34,11 @@ import org.yaml.snakeyaml.Yaml;
  */
 public interface StatsPrinter<T extends StatsHolder>
 {
+    default void print(T data, PrintStream out, boolean verbose)
+    {
+        print(data, out);
+    }
+
     void print(T data, PrintStream out);
 
     static class JsonPrinter<T extends StatsHolder> implements StatsPrinter<T>

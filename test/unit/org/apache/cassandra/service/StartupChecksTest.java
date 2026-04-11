@@ -18,45 +18,92 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
-import org.apache.cassandra.config.StartupChecksOptions;
-import org.apache.cassandra.io.util.File;
-import org.junit.*;
+import com.vdurmont.semver4j.Semver;
+
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.StartupChecksConfiguration;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
+import org.apache.cassandra.io.filesystem.ForwardingFileSystemProvider;
+import org.apache.cassandra.io.filesystem.ForwardingPath;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.SystemInfo;
 
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class StartupChecksTest
 {
+    static
+    {
+        // This test was failing because in the middle of file deletions in @Before hook, it happened that some
+        // thread modified system.local table. Each change to system.local is immediately flushed to disk. Creation
+        // of those new files when the directory was being deleted caused the test to fail occasionally.
+        // The property below disables flushing system.local after each change.
+        CassandraRelevantProperties.UNSAFE_SYSTEM.setBoolean(true);
+    }
+
     StartupChecks startupChecks;
     Path sstableDir;
-    static File heartbeatFile;
+    File heartbeatFile;
 
-    StartupChecksOptions options = new StartupChecksOptions();
+    StartupChecksConfiguration options = new StartupChecksConfiguration(new StartupChecks().withDefaultTests(), new HashMap<>());
 
     @BeforeClass
     public static void setupServer()
     {
-        heartbeatFile = createTempFile("cassandra-heartbeat-", "");
         SchemaLoader.prepareServer();
     }
 
@@ -72,8 +119,10 @@ public class StartupChecksTest
         sstableDir = Paths.get(dataDir.absolutePath(), "Keyspace1", "Standard1");
         Files.createDirectories(sstableDir);
 
-        options.enable(check_data_resurrection);
-        options.getConfig(check_data_resurrection)
+        heartbeatFile = createTempFile("cassandra-heartbeat-" + UUID.randomUUID(), "");
+
+        options.enable("check_data_resurrection");
+        options.getConfig("check_data_resurrection")
                .put(HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
 
         startupChecks = new StartupChecks();
@@ -83,11 +132,6 @@ public class StartupChecksTest
     public void tearDown() throws IOException
     {
         new File(sstableDir).deleteRecursive();
-    }
-
-    @AfterClass
-    public static void tearDownClass()
-    {
         heartbeatFile.delete();
     }
 
@@ -146,13 +190,13 @@ public class StartupChecksTest
     public void testGetReadAheadKBPath()
     {
         Path sdaDirectory = StartupChecks.getReadAheadKBPath("/dev/sda12");
-        Assert.assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
+        assertEquals(Paths.get("/sys/block/sda/queue/read_ahead_kb"), sdaDirectory);
 
         Path scsiDirectory = StartupChecks.getReadAheadKBPath("/dev/scsi1");
-        Assert.assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
+        assertEquals(Paths.get("/sys/block/scsi/queue/read_ahead_kb"), scsiDirectory);
 
         Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
-        Assert.assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
+        assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
 
         Path invalidDir = StartupChecks.getReadAheadKBPath("/invaliddir/xpto");
         Assert.assertNull(invalidDir);
@@ -204,6 +248,310 @@ public class StartupChecksTest
         verifyFailure(startupChecks, "Invalid tables: abc.def");
     }
 
+    @Test
+    public void testDataResurrectionCheckLastModifiedFallback() throws Exception
+    {
+        DataResurrectionCheck check = new DataResurrectionCheck() {
+            @Override
+            List<String> getKeyspaces()
+            {
+                return singletonList("test_ks");
+            }
+
+            @Override
+            List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
+            {
+                return singletonList(new TableGCPeriod("test_table", 10));
+            }
+        };
+
+        int originalHintWindow = DatabaseDescriptor.getMaxHintWindow();
+        try
+        {
+            DatabaseDescriptor.setMaxHintWindow(5 * 1000);
+
+            // Empty file
+            Files.write(heartbeatFile.toPath(), "".getBytes(StandardCharsets.UTF_8));
+            Instant recentTimestamp = Instant.ofEpochMilli(Clock.Global.currentTimeMillis());
+            Files.setLastModifiedTime(heartbeatFile.toPath(), FileTime.from(recentTimestamp));
+
+            startupChecks.withTest(check);
+            verifySuccess(startupChecks);
+        }
+        finally
+        {
+            DatabaseDescriptor.setMaxHintWindow(originalHintWindow);
+        }
+    }
+
+    private void verifySuccess(StartupChecks tests) {
+        try
+        {
+            tests.verify(options);
+        }
+        catch (StartupException e)
+        {
+            fail("Failed startup check with error: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void testKernelBug1057843Check() throws Exception
+    {
+        Assume.assumeTrue(DatabaseDescriptor.getCommitLogCompression() == null); // we would not be able to enable direct io otherwise
+        Assume.assumeTrue("Skipping this test on non-Linux OS", FBUtilities.isLinux);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.63.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.65.1-generic"), true);
+        testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
+        testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
+        testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testExternalCheckIsLoaded() throws StartupException
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public String name()
+            {
+                return "my_custom_check";
+            }
+
+            @Override
+            public void execute(StartupChecksConfiguration configuration)
+            {
+
+            }
+
+            @Override
+            public boolean isConfigurable()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean isDisabledByDefault()
+            {
+                return false;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+        doReturn(List.of(externalCheck).iterator()).when(loader).iterator();
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            StartupChecks checks = new StartupChecks().withDefaultTests().withServiceLoaderTests();
+
+            StartupCheck myCustomCheck = checks.getCheck("my_custom_check");
+            assertNotNull(myCustomCheck);
+
+            StartupChecksConfiguration configuration = new StartupChecksConfiguration(checks, new HashMap<>());
+
+            checks.verify(configuration);
+            verify(externalCheck, times(1)).execute(configuration);
+        }
+    }
+
+    @Test
+    public void testLoadingCustomChecksWithNotUniqueNameIsForbidden()
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public String name()
+            {
+                return "my_custom_check";
+            }
+
+            @Override
+            public void execute(StartupChecksConfiguration configuration)
+            {
+
+            }
+
+            @Override
+            public boolean isConfigurable()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean isDisabledByDefault()
+            {
+                return false;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+
+        // two times! We model loading of two checks with same name
+        doReturn(List.of(externalCheck, externalCheck).iterator()).when(loader).iterator();
+
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            try
+            {
+                new StartupChecks().withDefaultTests().withServiceLoaderTests();
+                fail("it should not be possible to specify two custom checks with same name");
+            }
+            catch (Throwable t)
+            {
+                assertEquals("There was an attempt to load custom startup checks with same name which is ambiguous: [my_custom_check]",
+                             t.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void testCustomCheckHasSameNameAsInBuiltCheck()
+    {
+        StartupCheck externalCheck = spy(new StartupCheck()
+        {
+            @Override
+            public String name()
+            {
+                // for the sake of it being same as one of in-builts
+                return StartupChecks.checkLz4Native.name();
+            }
+
+            @Override
+            public void execute(StartupChecksConfiguration configuration)
+            {
+
+            }
+
+            @Override
+            public boolean isConfigurable()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean isDisabledByDefault()
+            {
+                return false;
+            }
+        });
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+
+        // two times! We model loading of two checks with same name
+        doReturn(List.of(externalCheck, externalCheck).iterator()).when(loader).iterator();
+
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            try
+            {
+                new StartupChecks().withDefaultTests().withServiceLoaderTests();
+                fail("it should not be possible to specify a check with same name as in-built check");
+            }
+            catch (Throwable t)
+            {
+                assertEquals("There was an attempt to load custom startup checks with same name which is ambiguous: [" + StartupChecks.checkLz4Native.name() + ']',
+                             t.getMessage());
+            }
+        }
+    }
+
+    private <R> void withPathOverriddingFileSystem(Map<String, String> pathOverrides, Callable<? extends R> callable) throws Exception
+    {
+        Map<String, FileStore> fileStores = Set.copyOf(pathOverrides.values()).stream().collect(Collectors.toMap(s -> s, s -> {
+            FileStore fs = mock(FileStore.class);
+            when(fs.type()).thenReturn(s);
+            return fs;
+        }));
+        FileSystem savedFileSystem = File.unsafeGetFilesystem();
+        try
+        {
+            ForwardingFileSystemProvider fsp = new ForwardingFileSystemProvider(savedFileSystem.provider())
+            {
+                @Override
+                public FileStore getFileStore(Path path) throws IOException
+                {
+                    String override = pathOverrides.get(path.toString());
+                    if (override != null)
+                        return fileStores.get(override);
+
+                    return super.getFileStore(path);
+                }
+            };
+
+            ForwardingFileSystem fs = new ForwardingFileSystem(File.unsafeGetFilesystem())
+            {
+                private final FileSystem thisFileSystem = this;
+
+                @Override
+                public FileSystemProvider provider()
+                {
+                    return fsp;
+                }
+
+                @Override
+                protected Path wrap(Path p)
+                {
+                    return new ForwardingPath(p)
+                    {
+                        @Override
+                        public FileSystem getFileSystem()
+                        {
+                            return thisFileSystem;
+                        }
+                    };
+                }
+            };
+            File.unsafeSetFilesystem(fs);
+            callable.call();
+        }
+        finally
+        {
+            File.unsafeSetFilesystem(savedFileSystem);
+        }
+    }
+
+    private void testKernelBug1057843Check(String fsType, DiskAccessMode diskAccessMode, Semver kernelVersion, boolean expectToFail) throws Exception
+    {
+        String commitLogLocation = Files.createTempDirectory("testKernelBugCheck").toString();
+
+        String savedCommitLogLocation = DatabaseDescriptor.getCommitLogLocation();
+        DiskAccessMode savedCommitLogWriteDiskAccessMode = DatabaseDescriptor.getCommitLogWriteDiskAccessMode();
+        SystemInfo savedSystemInfo = FBUtilities.getSystemInfo();
+        try
+        {
+            DatabaseDescriptor.setCommitLogLocation(commitLogLocation);
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(diskAccessMode);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+            assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(diskAccessMode);
+            FBUtilities.setSystemInfoSupplier(() -> new SystemInfo()
+            {
+                @Override
+                public Semver getKernelVersion()
+                {
+                    return kernelVersion;
+                }
+            });
+            withPathOverriddingFileSystem(Map.of(commitLogLocation, fsType), () -> {
+                if (expectToFail)
+                    assertThatExceptionOfType(StartupException.class).isThrownBy(() -> StartupChecks.checkKernelBug1057843.execute(options));
+                else
+                    StartupChecks.checkKernelBug1057843.execute(options);
+                return null;
+            });
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogLocation(savedCommitLogLocation);
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(savedCommitLogWriteDiskAccessMode);
+            DatabaseDescriptor.initializeCommitLogDiskAccessMode();
+            FBUtilities.setSystemInfoSupplier(() -> savedSystemInfo);
+        }
+    }
+
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
     {
         File legacySSTableRoot = new File(Paths.get(TEST_INVALID_LEGACY_SSTABLE_ROOT.getString(),
@@ -225,5 +573,14 @@ public class StartupChecksTest
         {
             assertTrue(e.getMessage().contains(message));
         }
+    }
+
+    @Test
+    public void testFindDirectIOUnsupportedLocationsSkipsNonExistentDirs()
+    {
+        // Non-existent directories should be skipped, not added to unsupported list
+        List<String> unsupported = StartupChecks.findDirectIOUnsupportedLocations(
+            new String[] { "/this/path/does/not/exist/for/testing" });
+        assertThat(unsupported).isEmpty();
     }
 }

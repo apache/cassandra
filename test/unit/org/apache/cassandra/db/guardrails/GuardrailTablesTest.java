@@ -61,8 +61,7 @@ public class GuardrailTablesTest extends ThresholdTester
     {
         // Convert and set a deprecated threshold value based on the total number of tables, not just user tables
         int convertedValue = (int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(Schema.instance.getNumberOfTables());
-        Guardrails.instance.setTablesThreshold(convertedValue + 1, TABLES_LIMIT_FAIL_THRESHOLD);
-
+        Guardrails.instance.setTablesThreshold(convertedValue, TABLES_LIMIT_FAIL_THRESHOLD);
         assertCreateTable();
     }
 

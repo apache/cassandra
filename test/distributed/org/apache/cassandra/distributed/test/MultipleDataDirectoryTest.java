@@ -40,6 +40,9 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.util.File;
 
+/**
+ * @see org.apache.cassandra.tools.nodetool.RelocateSSTables
+ */
 public class MultipleDataDirectoryTest extends TestBaseImpl
 {
     private static Cluster CLUSTER;

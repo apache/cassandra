@@ -1,0 +1,44 @@
+NAME
+        nodetool compressiondictionary export - Export dictionary from
+        Cassandra to local file.
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary export
+                [(-i <dictId> | --id <dictId>)] [--] <keyspace> <table> <dictionaryPath>
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -i <dictId>, --id <dictId>
+            The dictionary id. When not specified, the current dictionary is
+            returned.
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <keyspace>
+            The keyspace name
+
+        <table>
+            The table name
+
+        <dictionaryPath>
+            File name to save dictionary to

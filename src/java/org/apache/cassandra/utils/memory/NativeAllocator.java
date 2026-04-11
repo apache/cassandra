@@ -23,11 +23,17 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.NativeClustering;
+import org.apache.cassandra.db.NativeDecoratedKey;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.NativeCell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.OpOrder.Group;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 
@@ -41,7 +47,7 @@ import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
  * long-lived objects.
  *
  */
-public class NativeAllocator extends MemtableAllocator
+public class NativeAllocator extends MemtableAllocator implements AddressBasedAllocator
 {
     private final static int MAX_REGION_SIZE = 1 * 1024 * 1024;
     private final static int MAX_CLONED_SIZE = 128 * 1024; // bigger than this don't go in the region
@@ -87,7 +93,7 @@ public class NativeAllocator extends MemtableAllocator
         @Override
         public void addCell(Cell<?> cell)
         {
-            super.addCell(new NativeCell(allocator, writeOp, cell));
+            super.addCell(NativeCell.build(allocator, writeOp, cell));
         }
     }
 
@@ -104,30 +110,98 @@ public class NativeAllocator extends MemtableAllocator
     @Override
     public Cloner cloner(Group opGroup)
     {
-        return new Cloner()
-                {
+        return new NativeCloner(this, opGroup);
+    }
 
-                    @Override
-                    public DecoratedKey clone(DecoratedKey key)
-                    {
-                        return NativeAllocator.this.clone(key, opGroup);
-                    }
+    private static class NativeCloner implements Cloner, AddressBasedAllocator
+    {
+        private final NativeAllocator allocator;
+        private final Group opGroup;
 
-                    @Override
-                    public Clustering<?> clone(Clustering<?> clustering)
-                    {
-                        if (clustering != Clustering.STATIC_CLUSTERING)
-                            return new NativeClustering(NativeAllocator.this, opGroup, clustering);
+        private final long address;
+        private final int limit;
+        private int offset = 0;
 
-                        return Clustering.STATIC_CLUSTERING;
-                    }
+        private NativeCloner(NativeAllocator allocator, Group opGroup)
+        {
+            this(allocator, opGroup, 0);
+        }
 
-                    @Override
-                    public Cell<?> clone(Cell<?> cell)
-                    {
-                        return new NativeCell(NativeAllocator.this, opGroup, cell);
-                    }
-                };
+        private NativeCloner(NativeAllocator allocator, Group opGroup, int size)
+        {
+            this.allocator = allocator;
+            this.opGroup = opGroup;
+            this.limit = size;
+            this.address = size > 0 ? allocator.allocate(size, opGroup) : -1;
+        }
+
+        @Override
+        public DecoratedKey clone(DecoratedKey key)
+        {
+            return allocator.clone(key, opGroup);
+        }
+
+        @Override
+        public Clustering<?> clone(Clustering<?> clustering)
+        {
+            if (clustering != Clustering.STATIC_CLUSTERING)
+                return new NativeClustering(this, opGroup, clustering);
+
+            return Clustering.STATIC_CLUSTERING;
+        }
+
+        @Override
+        public int estimateCloneSize(Clustering<?> clustering)
+        {
+            return NativeClustering.estimateAllocationSize(clustering);
+        }
+
+        @Override
+        public Cell<?> clone(Cell<?> cell)
+        {
+            return NativeCell.build(this, opGroup, cell);
+        }
+
+        @Override
+        public int estimateCloneSize(Cell<?> cell)
+        {
+            return NativeCell.estimateAllocationSize(cell);
+        }
+
+        @Override
+        public boolean isContextAwareCloningSupported()
+        {
+            return true;
+        }
+
+        @Override
+        public Cloner createContextAwareCloner(int estimatedCloneSize)
+        {
+            return new NativeCloner(this.allocator, this.opGroup, estimatedCloneSize);
+        }
+
+        public long allocate(int sizeToAllocate, Group opGroup)
+        {
+            // we use this method in a single thread, no sync required
+            if (offset + sizeToAllocate <= limit)
+            {
+                long result = address + offset;
+                offset += sizeToAllocate;
+                return result;
+            }
+            return allocator.allocate(sizeToAllocate, opGroup);
+        }
+
+        @Override
+        public void adjustUnused()
+        {
+            int remaining = limit - offset;
+            if (remaining > 0)
+            {
+                allocator.offHeap().adjust(-remaining, opGroup);
+                offset += remaining;
+            }
+        }
     }
 
     public EnsureOnHeap ensureOnHeap()

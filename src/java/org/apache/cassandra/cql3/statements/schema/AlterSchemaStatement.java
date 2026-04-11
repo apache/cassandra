@@ -17,36 +17,97 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTransformation;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.accord.AccordTopology;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MIN_FREQUENCY;
+import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME;
+import static org.apache.cassandra.schema.KeyspaceMetadata.validateKeyspaceName;
+
 abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
+    private static final Logger logger = LoggerFactory.getLogger(AlterSchemaStatement.class);
+
     protected final String keyspaceName; // name of the keyspace affected by the statement
     protected ClientState state;
+    // TODO: not sure if this is going to stay the same, or will be replaced by more efficient serialization/sanitation means
+    // or just `toString` for every statement
+    private String cql;
+    public static final long NO_EXECUTION_TIMESTAMP = -1;
+    private long executionTimestamp = NO_EXECUTION_TIMESTAMP;
 
     protected AlterSchemaStatement(String keyspaceName)
     {
         this.keyspaceName = keyspaceName;
     }
 
+    public void setCql(String cql)
+    {
+        this.cql = cql;
+    }
+
+    public void setExecutionTimestamp(long executionTimestamp)
+    {
+        this.executionTimestamp = executionTimestamp;
+    }
+
+    @Override
+    public String cql()
+    {
+        assert cql != null;
+        return cql;
+    }
+
+    @Override
+    public void enterExecution()
+    {
+        ClientWarn.instance.pauseCapture();
+        ClientState localState = state;
+        if (localState != null)
+            localState.pauseGuardrails();
+    }
+
+    @Override
+    public void exitExecution()
+    {
+        ClientWarn.instance.resumeCapture();
+        ClientState localState = state;
+        if (localState != null)
+            localState.resumeGuardrails();
+    }
+
+    // TODO: validation should be performed during application
     public void validate(ClientState state)
     {
         // validation is performed while executing the statement, in apply()
@@ -55,9 +116,10 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         this.state = state;
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
+    @Override
+    public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
-        return execute(state, false);
+        return execute(state);
     }
 
     @Override
@@ -66,9 +128,15 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         return keyspaceName;
     }
 
+    @Override
+    public Optional<Long> fixedTimestampMicros()
+    {
+        return executionTimestamp == NO_EXECUTION_TIMESTAMP ? Optional.empty() : Optional.of(executionTimestamp);
+    }
+
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
-        return execute(state, true);
+        return execute(state);
     }
 
     /**
@@ -100,7 +168,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         return ImmutableSet.of();
     }
 
-    public ResultMessage execute(QueryState state, boolean locally)
+    public ResultMessage execute(QueryState state)
     {
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw ire("System keyspace '%s' is not user-modifiable", keyspaceName);
@@ -109,13 +177,34 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         if (null != keyspace && keyspace.isVirtual())
             throw ire("Virtual keyspace '%s' is not user-modifiable", keyspaceName);
 
-        validateKeyspaceName();
+        validateKeyspaceName(keyspaceName, AlterSchemaStatement::ire);
 
-        SchemaTransformationResult result = Schema.instance.transform(this, locally);
+        setExecutionTimestamp(state.getTimestamp());
+        // Perform a 'dry-run' attempt to apply the transformation locally before submitting to the CMS. This can save a
+        // round trip to the CMS for things syntax errors, but also fail fast for things like configuration errors.
+        // Such failures may be dependent on the specific node's config (for things like guardrails/memtable
+        // config/etc), but executing a schema change which has already been committed by the CMS should always succeed
+        // or else the node cannot make progress on any subsequent metadata changes. For this reason, validation errors
+        // during execution are trapped and the node will fall back to safe default config wherever possible. Attempting
+        // to apply the SchemaTransformation at this point will catch any such error which occurs locally before
+        // submission to the CMS, but it can't guarantee that the statement can be applied as-is on every node in the
+        // cluster, as config can be heterogenous falling back to safe defaults may occur on some nodes.
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Keyspaces proposed = apply(metadata);
+        KeyspacesDiff localDiff =  Keyspaces.diff(metadata.schema.getKeyspaces(), proposed);
+        if (localDiff.isEmpty())
+            return new ResultMessage.Void();
 
-        clientWarnings(result.diff).forEach(ClientWarn.instance::warn);
+        ClusterMetadata result = commit(metadata);
 
-        if (result.diff.isEmpty())
+        KeyspacesDiff diff = Keyspaces.diff(metadata.schema.getKeyspaces(), result.schema.getKeyspaces());
+        clientWarnings(diff).forEach(ClientWarn.instance::warn);
+
+        // Even though the preliminary local application produced a non-empty diff, there may have been concurrent
+        // schema transformations that had been committed to the log but not yet enacted locally. So there remains a
+        // possibility that the ultimate result is a no-op. i.e. two identical "CREATE IF NOT EXISTS..." racing from
+        // different coordinators.
+        if (diff.isEmpty())
             return new ResultMessage.Void();
 
         /*
@@ -127,19 +216,17 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
          */
         AuthenticatedUser user = state.getClientState().getUser();
         if (null != user && !user.isAnonymous())
-            createdResources(result.diff).forEach(r -> grantPermissionsOnResource(r, user));
+            createdResources(diff).forEach(r -> grantPermissionsOnResource(r, user));
 
-        return new ResultMessage.SchemaChange(schemaChangeEvent(result.diff));
+        // if the changes affected accord, wait for accord to apply them
+        AccordTopology.awaitTopologyReadiness(diff, result.epoch);
+
+        return new ResultMessage.SchemaChange(schemaChangeEvent(diff));
     }
 
-    private void validateKeyspaceName()
+    protected ClusterMetadata commit(ClusterMetadata metadata)
     {
-        if (!SchemaConstants.isValidName(keyspaceName))
-        {
-            throw ire("Keyspace name must not be empty, more than %d characters long, " +
-                      "or contain non-alphanumeric-underscore characters (got '%s')",
-                      SchemaConstants.NAME_LENGTH, keyspaceName);
-        }
+        return Schema.instance.submit(this);
     }
 
     protected void validateDefaultTimeToLive(TableParams params)
@@ -148,6 +235,18 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
             && !SchemaConstants.isSystemKeyspace(keyspaceName)
             && TimeWindowCompactionStrategy.class.isAssignableFrom(params.compaction.klass()))
             Guardrails.zeroTTLOnTWCSEnabled.ensureEnabled(state);
+    }
+
+    protected void validateMinimumTrainingFrequencyForDictionaryCompressor(TableParams params)
+    {
+        if (!SchemaConstants.isSystemKeyspace(keyspaceName) &&
+            params.compression.isDictionaryCompressionEnabled() &&
+            DEFAULT_TRAINING_MIN_FREQUENCY.equals(params.compression.getOtherOptions()
+                                                                    .getOrDefault(TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                                                                                  DEFAULT_TRAINING_MIN_FREQUENCY)))
+        {
+            Guardrails.unsetTrainingMinFrequency.ensureEnabled(state);
+        }
     }
 
     private void grantPermissionsOnResource(IResource resource, AuthenticatedUser user)
@@ -166,8 +265,30 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         }
     }
 
+    protected void verifyExpandedCql(String expandedCql)
+    {
+        try
+        {
+            QueryProcessor.parseStatement(expandedCql);
+        }
+        catch (SyntaxException e)
+        {
+            logger.error("Expanded CQL [{}] is not parseable (original CQL: [{}]) - this is most likely due to a bug in the toCqlString method", expandedCql, cql());
+            throw e;
+        }
+    }
+
     static InvalidRequestException ire(String format, Object... args)
     {
         return new InvalidRequestException(String.format(format, args));
+    }
+
+    public String toString()
+    {
+        return "AlterSchemaStatement{" +
+               "keyspaceName='" + keyspaceName + '\'' +
+               ", cql='" + cql() + '\'' +
+               ", executionTimestamp="+executionTimestamp +
+               '}';
     }
 }

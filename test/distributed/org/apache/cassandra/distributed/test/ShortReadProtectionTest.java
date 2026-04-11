@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -41,12 +43,14 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterators.toArray;
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
@@ -81,23 +85,32 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Parameterized.Parameter(2)
     public boolean paging;
 
-    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}")
+    @Parameterized.Parameter(3)
+    public TransactionalMode transactionalMode;
+
+    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}, transactionalMode={3}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
-            for (boolean flush : BOOLEANS)
-                for (boolean paging : BOOLEANS)
-                    result.add(new Object[]{ readConsistencyLevel, flush, paging });
+        for (TransactionalMode mode : ImmutableList.of(TransactionalMode.test_interop_read, TransactionalMode.off))
+            for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM, SERIAL))
+                for (boolean flush : BOOLEANS)
+                        for (boolean paging : BOOLEANS)
+                            result.add(new Object[]{ readConsistencyLevel, flush, paging, mode});
         return result;
     }
 
     @BeforeClass
     public static void setupCluster() throws IOException
     {
+        // TODO this blocks some of the original testing of SRP invoking BRR since it is BRRing through Accord
+        // but maybe that is out of scope and is covered by the dedicated BRR tests?
         cluster = init(Cluster.build()
                               .withNodes(NUM_NODES)
-                              .withConfig(config -> config.set("hinted_handoff_enabled", false))
+                              .withConfig(config ->
+                                          config.set("hinted_handoff_enabled", false)
+                                                .set("accord.shard_durability_target_splits", 4)
+                              )
                               .start());
     }
 
@@ -111,7 +124,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Before
     public void setupTester()
     {
-        tester = new Tester(readConsistencyLevel, flush, paging);
+        tester = new Tester(readConsistencyLevel, flush, paging, transactionalMode);
     }
 
     @After
@@ -416,24 +429,35 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         private final ConsistencyLevel readConsistencyLevel;
         private final boolean flush, paging;
+        private final String table;
         private final String qualifiedTableName;
+        private final TransactionalMode transactionalMode;
 
         private boolean flushed = false;
 
-        private Tester(ConsistencyLevel readConsistencyLevel, boolean flush, boolean paging)
+        private Tester(ConsistencyLevel readConsistencyLevel, boolean flush, boolean paging, TransactionalMode transactionalMode)
         {
             this.readConsistencyLevel = readConsistencyLevel;
             this.flush = flush;
             this.paging = paging;
-            qualifiedTableName = KEYSPACE + ".t_" + seqNumber.getAndIncrement();
+            this.table = "t_" + seqNumber.getAndIncrement();
+            qualifiedTableName = KEYSPACE + '.' + table;
+            this.transactionalMode = transactionalMode;
 
-            assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM
+            assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL
             : "Only ALL and QUORUM consistency levels are supported";
         }
 
         private Tester createTable(String query)
         {
-            cluster.schemaChange(format(query) + " WITH read_repair='NONE'");
+            String formattedQuery = format(query) + " WITH read_repair='NONE'";
+            if (transactionalMode != TransactionalMode.off)
+            {
+                // For test purposes we create the table and in an interop mode that forces interop reads so
+                // testing short reads is trivial
+                formattedQuery = formattedQuery + " AND " + transactionalMode.asCqlParam();
+            }
+            cluster.schemaChange(formattedQuery);
             return this;
         }
 
@@ -485,12 +509,12 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         /**
          * Internally runs the specified write queries in the specified node. If the {@link #readConsistencyLevel} is
-         * QUORUM the write will also be internally done in the next replica in the ring, to simulate a QUORUM write.
+         * QUORUM/SERIAL the write will also be internally done in the next replica in the ring, to simulate a QUORUM/SERIAL write.
          */
         private Tester toNode(int node, String... queries)
         {
             IInvokableInstance replica = cluster.get(node);
-            IInvokableInstance nextReplica = readConsistencyLevel == QUORUM
+            IInvokableInstance nextReplica = (readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL)
                                              ? cluster.get(node == NUM_NODES ? 1 : node + 1)
                                              : null;
 

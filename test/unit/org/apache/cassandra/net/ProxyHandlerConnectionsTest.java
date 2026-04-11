@@ -31,15 +31,17 @@ import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -48,6 +50,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.proxy.InboundProxyHandler;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+
+import io.netty.buffer.ByteBuf;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -85,6 +89,9 @@ public class ProxyHandlerConnectionsTest
         DatabaseDescriptor.daemonInitialization();
         // call these to initialize everything in case a message is dropped, otherwise we will NPE in the commitlog
         CommitLog.instance.start();
+        ServerTestUtils.initCMS();
+        // register the local broadcast address so the snitch can retrieve it when setting up connection defaults
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort());
         CompactionManager.instance.getPendingTasks();
     }
 

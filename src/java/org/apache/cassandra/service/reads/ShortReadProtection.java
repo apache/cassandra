@@ -25,6 +25,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * We have a potential short read if the result from a given node contains the requested number of rows
@@ -38,13 +39,13 @@ import org.apache.cassandra.locator.Replica;
  */
 public class ShortReadProtection
 {
-    @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator extend(Replica source,
                                                      Runnable preFetchCallback,
                                                      UnfilteredPartitionIterator partitions,
                                                      ReadCommand command,
                                                      DataLimits.Counter mergedResultCounter,
-                                                     long queryStartNanoTime,
+                                                     ReadCoordinator coordinator,
+                                                     Dispatcher.RequestTime requestTime,
                                                      boolean enforceStrictLiveness)
     {
         DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
@@ -52,12 +53,12 @@ public class ShortReadProtection
                                                                              command.selectsFullPartition(),
                                                                              enforceStrictLiveness).onlyCount();
 
-        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command,
+        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(coordinator, command,
                                                                                      source,
                                                                                      preFetchCallback,
                                                                                      singleResultCounter,
                                                                                      mergedResultCounter,
-                                                                                     queryStartNanoTime);
+                                                                                     requestTime);
 
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen

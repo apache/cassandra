@@ -32,6 +32,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,6 +44,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +57,8 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TaskSupplier;
 import org.apache.cassandra.db.compaction.PendingRepairManager.CleanupTask;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy.Level;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
@@ -70,6 +74,7 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
+import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
@@ -176,7 +181,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         holders = ImmutableList.of(transientRepairs, pendingRepairs, repaired, unrepaired);
 
         cfs.getTracker().subscribe(this);
-        logger.trace("{} subscribed to the data tracker.", this);
+        logger.trace("Compaction manager for {}.{} subscribed to the data tracker.", cfs.keyspace.getName(), cfs.name);
         this.cfs = cfs;
         this.compactionLogger = new CompactionLogger(cfs, this);
         this.boundariesSupplier = boundariesSupplier;
@@ -194,26 +199,26 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * Returns a task for the compaction strategy that needs it the most (most estimated remaining tasks)
      */
-    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
+    public Collection<AbstractCompactionTask> getNextBackgroundTasks(long gcBefore)
     {
         maybeReloadDiskBoundaries();
         readLock.lock();
         try
         {
             if (!isEnabled())
-                return null;
+                return Collections.emptyList();
 
             int numPartitions = getNumTokenPartitions();
 
             // first try to promote/demote sstables from completed repairs
-            AbstractCompactionTask repairFinishedTask;
-            repairFinishedTask = pendingRepairs.getNextRepairFinishedTask();
-            if (repairFinishedTask != null)
-                return repairFinishedTask;
+            Collection<AbstractCompactionTask> repairFinishedTasks;
+            repairFinishedTasks = pendingRepairs.getNextRepairFinishedTasks();
+            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
+                return repairFinishedTasks;
 
-            repairFinishedTask = transientRepairs.getNextRepairFinishedTask();
-            if (repairFinishedTask != null)
-                return repairFinishedTask;
+            repairFinishedTasks = transientRepairs.getNextRepairFinishedTasks();
+            if (repairFinishedTasks != null && !repairFinishedTasks.isEmpty())
+                return repairFinishedTasks;
 
             // sort compaction task suppliers by remaining tasks descending
             List<TaskSupplier> suppliers = new ArrayList<>(numPartitions * holders.size());
@@ -225,12 +230,12 @@ public class CompactionStrategyManager implements INotificationConsumer
             // return the first non-null task
             for (TaskSupplier supplier : suppliers)
             {
-                AbstractCompactionTask task = supplier.getTask();
-                if (task != null)
-                    return task;
+                Collection<AbstractCompactionTask> tasks = supplier.getTasks();
+                if (tasks != null && !tasks.isEmpty())
+                    return tasks;
             }
 
-            return null;
+            return Collections.emptyList();
         }
         finally
         {
@@ -243,7 +248,6 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @return
      */
     @VisibleForTesting
-    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     AbstractCompactionTask findUpgradeSSTableTask()
     {
         if (!isEnabled() || !DatabaseDescriptor.automaticSSTableUpgrade())
@@ -437,6 +441,20 @@ public class CompactionStrategyManager implements INotificationConsumer
         try
         {
             return pendingRepairs.hasDataForSession(sessionID) || transientRepairs.hasDataForSession(sessionID);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+    }
+
+    @VisibleForTesting
+    public boolean hasPendingRepairSSTable(TimeUUID sessionID, SSTableReader sstable)
+    {
+        readLock.lock();
+        try
+        {
+            return pendingRepairs.hasPendingRepairSSTable(sessionID, sstable) || transientRepairs.hasPendingRepairSSTable(sessionID, sstable);
         }
         finally
         {
@@ -676,6 +694,73 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    public double[] getPerLevelAvgTokenSpace()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] += data.sstable.tokenSpaceCoverage();
+                    data.count[data.levelIndex]++;
+                },
+                CompactionStrategyManager::averageArrayFinalizer
+        );
+    }
+
+    public double[] getPerLevelMaxDensityThreshold()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.max[data.levelIndex] = Math.max(data.max[data.levelIndex], data.level.max);
+                },
+                CompactionStrategyManager::maxArrayFinalizer
+        );
+    }
+
+    public double[] getPerLevelAvgSize()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] += data.sstable.onDiskLength();
+                    data.count[data.levelIndex]++;
+                },
+                CompactionStrategyManager::averageArrayFinalizer
+        );
+    }
+
+    public double[] getPerLevelAvgDensity()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] += data.strategy.getDensity(data.sstable);
+                    data.count[data.levelIndex]++;
+                },
+                CompactionStrategyManager::averageArrayFinalizer
+        );
+    }
+
+    public double[] getPerLevelAvgDensityMaxDensityThresholdRatio()
+    {
+        double[] avgDensity = getPerLevelAvgDensity();
+        if (avgDensity == null)
+            return null;
+
+        double[] maxThreshold = getPerLevelMaxDensityThreshold();
+        double[] res = new double[avgDensity.length];
+        for (int i = 0; i < avgDensity.length; i++)
+            res[i] = avgDensity[i] / maxThreshold[i];
+        return res;
+    }
+
+    public double[] getPerLevelMaxDensityMaxDensityThresholdRatio()
+    {
+        return computeUCSMetric(
+                data -> {
+                    data.sum[data.levelIndex] = Math.max(data.sum[data.levelIndex], data.strategy.getDensity(data.sstable));
+                    data.max[data.levelIndex] = Math.max(data.max[data.levelIndex], data.level.max);
+                },
+                CompactionStrategyManager::ratioArrayFinalizer
+        );
+    }
+
     public boolean isLeveledCompaction()
     {
         readLock.lock();
@@ -686,6 +771,93 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
+    }
+
+    /**
+     * Data class for accumulating UCS metrics computation state.
+     * Holds intermediate values during metric calculation across all strategies and levels.
+     */
+    @VisibleForTesting
+    static class CompactionStatsMetricsData
+    {
+        final double[] sum = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        final int[] count = new int[UnifiedCompactionStrategy.MAX_LEVELS];
+        final double[] max = new double[UnifiedCompactionStrategy.MAX_LEVELS];
+        int numberOfLevels = 0;
+
+        int levelIndex;
+        Level level;
+        SSTableReader sstable;
+        UnifiedCompactionStrategy strategy;
+    }
+
+    /**
+     * Generic helper to compute UCS metrics across all strategies and levels.
+     * Reduces code duplication for per-level metric calculations.
+     *
+     * @param accumulator processes each sstable and updates the metrics data state
+     * @param finalizer computes the final result array from the accumulated metrics data
+     * @return computed metric array, one value per level, or null if not using UCS
+     */
+    private double[] computeUCSMetric(Consumer<CompactionStatsMetricsData> accumulator, Function<CompactionStatsMetricsData, double[]> finalizer)
+    {
+        readLock.lock();
+        try
+        {
+            if (repaired.first() instanceof UnifiedCompactionStrategy)
+            {
+                CompactionStatsMetricsData data = new CompactionStatsMetricsData();
+
+                for (AbstractCompactionStrategy strategy : getAllStrategies())
+                {
+                    UnifiedCompactionStrategy ucsStrategy = (UnifiedCompactionStrategy) strategy;
+                    List<Level> levels = ucsStrategy.getLevelsSnapshot();
+
+                    data.numberOfLevels = Math.max(data.numberOfLevels, levels.size());
+                    data.strategy = ucsStrategy;
+
+                    for (int i = 0; i < levels.size(); i++)
+                    {
+                        data.levelIndex = i;
+                        data.level = levels.get(i);
+                        for (SSTableReader sstable : levels.get(i).getSSTables())
+                        {
+                            data.sstable = sstable;
+                            accumulator.accept(data);
+                        }
+                    }
+                }
+
+                return finalizer.apply(data);
+            }
+            return null;
+        }
+        finally {
+            readLock.unlock();
+        }
+    }
+
+    @VisibleForTesting
+    static double[] averageArrayFinalizer(CompactionStatsMetricsData data)
+    {
+        double[] res = new double[data.numberOfLevels];
+        for (int i = 0; i < data.numberOfLevels; i++)
+            res[i] = data.count[i] == 0 ? 0 : data.sum[i] / data.count[i];
+        return res;
+    }
+
+    @VisibleForTesting
+    static double[] maxArrayFinalizer(CompactionStatsMetricsData data)
+    {
+        return Arrays.copyOf(data.max, data.numberOfLevels);
+    }
+
+    @VisibleForTesting
+    static double[] ratioArrayFinalizer(CompactionStatsMetricsData data) {
+        double[] res = new double[data.numberOfLevels];
+        for (int i = 0; i < data.numberOfLevels; i++)
+            res[i] = data.sum[i] / data.max[i];
+        return res;
     }
 
     public int[] getSSTableCountPerTWCSBucket()
@@ -750,7 +922,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
         for (SSTableReader sstable : added)
-            compactionStrategyFor(sstable).addSSTable(sstable);
+            getHolder(sstable).addSSTable(sstable);
     }
 
     private int getHolderIndex(SSTableReader sstable)
@@ -806,7 +978,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * lives in matches the list index of the holder that's responsible for it
      */
-    public List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
+    public final List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
     {
         List<GroupedSSTableContainer> classified = new ArrayList<>(holders.size());
         for (AbstractStrategyHolder holder : holders)
@@ -891,6 +1063,11 @@ public class CompactionStrategyManager implements INotificationConsumer
                 SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
                 handleFlushNotification(flushedNotification.added);
             }
+            else if (notification instanceof InitialSSTableAddedNotification)
+            {
+                InitialSSTableAddedNotification flushedNotification = (InitialSSTableAddedNotification) notification;
+                handleFlushNotification(flushedNotification.added);
+            }
             else if (notification instanceof SSTableListChangedNotification)
             {
                 SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
@@ -951,8 +1128,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param ranges
      * @return
      */
-    @SuppressWarnings("resource")
-    public AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
+    public final AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
     {
         maybeReloadDiskBoundaries();
         List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());
@@ -1061,7 +1237,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, OperationType operationType)
+    public CompactionTasks getMaximalTasks(final long gcBefore, final boolean splitOutput, int permittedParallelism, OperationType operationType)
     {
         maybeReloadDiskBoundaries();
         // runWithCompactionsDisabled cancels active compactions and disables them, then we are able
@@ -1079,6 +1255,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                         tasks.add(task.setCompactionType(operationType));
                     }
                 }
+                tasks = CompositeCompactionTask.applyParallelismLimit(tasks, permittedParallelism);
             }
             finally
             {
@@ -1238,7 +1415,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
-                                                       LifecycleNewTracker lifecycleNewTracker)
+                                                       ILifecycleTransaction txn)
     {
         SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
         maybeReloadDiskBoundaries();
@@ -1254,7 +1431,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               sstableLevel,
                                                                                               header,
                                                                                               indexGroups,
-                                                                                              lifecycleNewTracker);
+                                                                                              txn);
         }
         finally
         {
@@ -1321,6 +1498,8 @@ public class CompactionStrategyManager implements INotificationConsumer
       */
     public void mutateRepaired(Collection<SSTableReader> sstables, long repairedAt, TimeUUID pendingRepair, boolean isTransient) throws IOException
     {
+        if (sstables.isEmpty())
+            return;
         Set<SSTableReader> changed = new HashSet<>();
 
         writeLock.lock();

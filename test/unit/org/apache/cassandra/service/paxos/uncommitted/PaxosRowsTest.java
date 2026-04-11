@@ -24,12 +24,23 @@ import java.util.UUID;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import org.junit.*;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.BufferClustering;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -43,6 +54,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
@@ -96,7 +108,7 @@ public class PaxosRowsTest
         SchemaLoader.prepareServer();
 
         ks = "coordinatorsessiontest";
-        metadata = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ks).build();
+        metadata = CreateTableStatement.parse("CREATE TABLE tbl (k INT PRIMARY KEY, v INT)", ks).epoch(Epoch.create(100)).build();
         tableId = metadata.id;
     }
 
@@ -109,7 +121,7 @@ public class PaxosRowsTest
     @Test
     public void testRowInterpretation()
     {
-        DecoratedKey key = dk(5);
+        DecoratedKey key = dk(Integer.MAX_VALUE);
         Ballot[] ballots = createBallots(3);
 
         SystemKeyspace.savePaxosWritePromise(key, metadata, ballots[0]);

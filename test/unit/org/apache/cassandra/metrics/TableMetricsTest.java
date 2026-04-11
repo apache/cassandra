@@ -24,15 +24,16 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,6 +41,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.cql3.CQLTester.assertRowsContains;
+import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -140,6 +143,12 @@ public class TableMetricsTest
 
         assertEquals(10, cfs.metric.coordinatorWriteLatency.getCount());
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
+                row("org.apache.cassandra.metrics.Table.CoordinatorWriteLatency.junit.tablemetricstest", "junit.tablemetricstest", "timer",
+                        String.valueOf(cfs.metric.coordinatorWriteLatency.getCount())));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
+                row("org.apache.cassandra.metrics.ColumnFamily.CoordinatorWriteLatency.junit.tablemetricstest", "junit.tablemetricstest", "timer",
+                        String.valueOf(cfs.metric.coordinatorWriteLatency.getCount())));
     }
 
     @Test
@@ -156,6 +165,13 @@ public class TableMetricsTest
         StorageService.instance.forceKeyspaceFlush(KEYSPACE);
 
         assertGreaterThan(cfs.metric.maxSSTableSize.getValue().doubleValue(), 0);
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
+                row("org.apache.cassandra.metrics.Table.MaxSSTableSize.junit.tablemetricstest", "junit.tablemetricstest", "gauge",
+                        String.valueOf(cfs.metric.maxSSTableSize.getValue())));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
+                row("org.apache.cassandra.metrics.ColumnFamily.MaxSSTableSize.junit.tablemetricstest", "junit.tablemetricstest", "gauge",
+                        String.valueOf(cfs.metric.maxSSTableSize.getValue())));
     }
 
     @Test
@@ -171,6 +187,12 @@ public class TableMetricsTest
         StorageService.instance.forceKeyspaceFlush(KEYSPACE);
 
         assertGreaterThan(cfs.metric.maxSSTableDuration.getValue().doubleValue(), 0);
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
+                row("org.apache.cassandra.metrics.Table.MaxSSTableDuration.junit.tablemetricstesttwcs", "junit.tablemetricstesttwcs", "gauge",
+                        String.valueOf(cfs.metric.maxSSTableDuration.getValue())));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
+                row("org.apache.cassandra.metrics.ColumnFamily.MaxSSTableDuration.junit.tablemetricstesttwcs", "junit.tablemetricstesttwcs", "gauge",
+                        String.valueOf(cfs.metric.maxSSTableDuration.getValue())));
     }
 
     @Test

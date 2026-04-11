@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.CompositeType;
@@ -43,6 +44,8 @@ import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 import javax.management.openmbean.TabularType;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +53,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -147,7 +154,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : Gossiper.instance.endpointStateMap.entrySet())
         {
             sb.append(resolveIp ? entry.getKey().getHostName(withPort) : entry.getKey().toString(withPort)).append("\n");
-            appendEndpointState(sb, entry.getValue());
+            appendEndpointState(sb, entry.getKey(), entry.getValue());
         }
         return sb.toString();
     }
@@ -239,12 +246,13 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     public String getEndpointState(String address) throws UnknownHostException
     {
         StringBuilder sb = new StringBuilder();
-        EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByName(address));
-        appendEndpointState(sb, endpointState);
+        InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
+        EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
+        appendEndpointState(sb, endpoint, endpointState);
         return sb.toString();
     }
 
-    private void appendEndpointState(StringBuilder sb, EndpointState endpointState)
+    private void appendEndpointState(StringBuilder sb, InetAddressAndPort endpoint, EndpointState endpointState)
     {
         sb.append("  generation:").append(endpointState.getHeartBeatState().getGeneration()).append("\n");
         sb.append("  heartbeat:").append(endpointState.getHeartBeatState().getHeartBeatVersion()).append("\n");
@@ -254,15 +262,24 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
                 continue;
             sb.append("  ").append(state.getKey()).append(":").append(state.getValue().version).append(":").append(state.getValue().value).append("\n");
         }
-        VersionedValue tokens = endpointState.getApplicationState(ApplicationState.TOKENS);
-        if (tokens != null)
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(endpoint);
+        boolean foundTokens = false;
+        if (nodeId != null)
         {
-            sb.append("  TOKENS:").append(tokens.version).append(":<hidden>\n");
+            foundTokens = !metadata.tokenMap.tokens(nodeId).isEmpty();
+            if (!foundTokens)
+            {
+                MultiStepOperation<?> mso = metadata.inProgressSequences.get(nodeId);
+                if (mso instanceof BootstrapAndReplace)
+                    foundTokens = true;
+            }
         }
+
+        if (foundTokens)
+            sb.append("  TOKENS:").append(metadata.epoch.getEpoch()).append(":<hidden>\n");
         else
-        {
             sb.append("  TOKENS: not present\n");
-        }
     }
 
     /**
@@ -305,7 +322,15 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         // it's worth being defensive here so minor bugs don't cause disproportionate
         // badness.  (See CASSANDRA-1463 for an example).
         if (epState == null)
-            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException(""));
+        {
+            // An endpoint may be known by other means, for example it may be present in cluster metadata as a CMS
+            // member but we have not yet seen anything which causes it to be added to the endpoint state map (i.e. its
+            // registration via the metadata log, or a full gossip round). This is perfectly harmless, so no need to log
+            // an error in that case.
+            ClusterMetadata metadata = ClusterMetadata.current();
+            if (!metadata.directory.allJoinedEndpoints().contains(ep) && !metadata.fullCMSMembers().contains(ep))
+                logger.error("Unknown endpoint: " + ep, new UnknownEndpointException(ep));
+        }
         return epState != null && epState.isAlive();
     }
 
@@ -353,13 +378,12 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             return;
         }
         double phi = hbWnd.phi(now);
-        if (logger.isTraceEnabled())
-            logger.trace("PHI for {} : {}", ep, phi);
+        logger.trace("PHI for {} : {}", ep, phi);
 
         if (PHI_FACTOR * phi > getPhiConvictThreshold())
         {
             if (logger.isTraceEnabled())
-                logger.trace("Node {} phi {} > {}; intervals: {} mean: {}ns", new Object[]{ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean()});
+                logger.trace("Node {} phi {} > {}; intervals: {} mean: {}ns", ep, PHI_FACTOR * phi, getPhiConvictThreshold(), hbWnd, hbWnd.mean());
             for (IFailureDetectionEventListener listener : fdEvntListeners)
             {
                 listener.convict(ep, phi);
@@ -415,6 +439,25 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
         sb.append("-----------------------------------------------------------------------");
         return sb.toString();
+    }
+
+    public static class UnknownEndpointException extends IllegalArgumentException
+    {
+        public UnknownEndpointException(InetAddressAndPort ep)
+        {
+            super("Unknown endpoint: " + ep);
+        }
+    }
+
+    /**
+     * Only for testing. In production code, ArrivalWindow instances call getMaxInterval() during
+     * intitialization and use the value to set the private final field MAX_INTERVAL_IN_NANO
+     * @return the value that would be used for to populate any new ArrivalWindow instance
+     */
+    @VisibleForTesting
+    static long calculateMaxInterval()
+    {
+        return ArrivalWindow.getMaxInterval();
     }
 }
 
@@ -485,9 +528,10 @@ class ArrivalWindow
         arrivalIntervals = new ArrayBackedBoundedStats(size);
     }
 
-    private static long getMaxInterval()
+    @VisibleForTesting
+    static long getMaxInterval()
     {
-        long newValue = FD_MAX_INTERVAL_MS.getLong(FailureDetector.INITIAL_VALUE_NANOS);
+        long newValue = FD_MAX_INTERVAL_MS.getLong(TimeUnit.NANOSECONDS.toMillis(FailureDetector.INITIAL_VALUE_NANOS));
         if (newValue != FailureDetector.INITIAL_VALUE_NANOS)
             logger.info("Overriding {} from {}ms to {}ms", FD_MAX_INTERVAL_MS.getKey(), FailureDetector.INITIAL_VALUE_NANOS, newValue);
         return TimeUnit.NANOSECONDS.convert(newValue, TimeUnit.MILLISECONDS);

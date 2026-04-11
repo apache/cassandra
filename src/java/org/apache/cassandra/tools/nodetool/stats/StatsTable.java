@@ -29,6 +29,7 @@ public class StatsTable
     public String tableName;
     public boolean isIndex;
     public boolean isLeveledSstable = false;
+    public boolean isUCSSstable = false;
     public Object sstableCount;
     public Object oldSSTableCount;
     public Long maxSSTableSize;
@@ -37,7 +38,7 @@ public class StatsTable
     public String spaceUsedBySnapshotsTotal;
     public boolean offHeapUsed = false;
     public String offHeapMemoryUsedTotal;
-    public Object sstableCompressionRatio;
+    public double sstableCompressionRatio;
     public Object numberOfPartitionsEstimate;
     public Object memtableCellCount;
     public String memtableDataSize;
@@ -51,12 +52,14 @@ public class StatsTable
     public double localWriteLatencyMs;
     public Object pendingFlushes;
     public Object bloomFilterFalsePositives;
-    public Object bloomFilterFalseRatio;
+    public double bloomFilterFalseRatio;
     public String bloomFilterSpaceUsed;
     public boolean bloomFilterOffHeapUsed = false;
     public String bloomFilterOffHeapMemoryUsed;
     public boolean indexSummaryOffHeapUsed = false;
     public String indexSummaryOffHeapMemoryUsed;
+    public boolean compressionDictionariesUsed = false;
+    public String compressionDictionariesMemoryUsed;
     public boolean compressionMetadataOffHeapUsed = false;
     public String compressionMetadataOffHeapMemoryUsed;
     public long compactedPartitionMinimumBytes;
@@ -72,6 +75,12 @@ public class StatsTable
     public long maximumTombstonesPerSliceLastFiveMinutes;
     public List<String> sstablesInEachLevel = new ArrayList<>();
     public List<String> sstableBytesInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgTokenSpaceInEachLevel = new ArrayList<>();
+    public List<String> sstableMaxDensityThresholdInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgSizeInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgDensityInEachLevel = new ArrayList<>();
+    public List<String> sstableAvgDensityMaxDensityThresholdRatioInEachLevel = new ArrayList<>();
+    public List<String> sstableMaxDensityMaxDensityThresholdRatioInEachLevel = new ArrayList<>();
     public int[] sstableCountPerTWCSBucket = null;
     public Boolean isInCorrectLocation = null; // null: option not active
     public double droppableTombstoneRatio;
@@ -82,4 +91,14 @@ public class StatsTable
     public double localReadWriteRatio;
     public Long twcsDurationInMillis;
     public String twcs;
+
+    public double saiQueryLatencyMs;
+    public double saiPostFilteringReadLatencyMs;
+    public String saiDiskUsedBytes;
+    public double saiSSTableIndexesHit;
+    public double saiIndexSegmentsHit;
+    public double saiRowsFiltered;
+    public long saiTotalQueryTimeouts;
+    public int saiTotalIndexCount;
+    public String saiTotalQueryableIndexRatio;
 }

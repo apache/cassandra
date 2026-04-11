@@ -25,16 +25,18 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.UUID;
 
+import accord.utils.Invariants;
+
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.Hex;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 public class ByteArrayAccessor implements ValueAccessor<byte[]>
@@ -107,6 +109,7 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     @Override
     public byte[] slice(byte[] input, int offset, int length)
     {
+        Invariants.requireArgument(offset + length <= input.length);
         return Arrays.copyOfRange(input, offset, offset + length);
     }
 
@@ -234,6 +237,19 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     public float toFloat(byte[] value)
     {
         return ByteArrayUtil.getFloat(value, 0);
+    }
+
+    @Override
+    public float[] toFloatArray(byte[] value, int dimension)
+    {
+        float[] array = new float[dimension];
+        int offset = 0;
+        for (int i = 0; i < dimension; i++)
+        {
+            array[i] = getFloat(value, offset);
+            offset += Float.BYTES;
+        }
+        return array;
     }
 
     @Override

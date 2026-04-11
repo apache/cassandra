@@ -25,8 +25,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.BeforeClass;
+import org.assertj.core.description.Description;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -46,15 +47,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class CQLSSTableWriterConcurrencyTest extends CQLTester
 {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CQLSSTableWriterTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CQLSSTableWriterConcurrencyTest.class);
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Test
     public void testConcurrentSchemaModification() throws InterruptedException, IOException
@@ -77,6 +72,7 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
         File[] dataDirs = new File[nThreads];
         String baseDataDir = tempFolder.newFolder().getAbsolutePath();
 
+        AtomicReference<String> errors = new AtomicReference<>("");
         for (int i = 0; i < nThreads; i++)
         {
             tableNames[i] = String.format("table_%02d", i);
@@ -120,6 +116,7 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
                 catch (Throwable throwable)
                 {
                     LOGGER.error("Error while processing element number {}", finalI, throwable);
+                    errors.updateAndGet(s -> s + "\n" + throwable.getMessage());
                     errorCount.incrementAndGet();
                 }
             });
@@ -130,6 +127,13 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
         {
             LOGGER.warn("Unable to close executor pool after 1 minute");
         }
-        assertThat(errorCount.get()).isEqualTo(0);
+        int count = errorCount.get();
+        assertThat(count).isEqualTo(0).describedAs(new Description()
+        {
+            public String value()
+            {
+                return String.format("Caught %d errors: %s", count, errors.get());
+            }
+        });
     }
 }

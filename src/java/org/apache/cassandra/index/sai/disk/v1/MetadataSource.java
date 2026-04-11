@@ -20,16 +20,19 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 
 @NotThreadSafe
 public class MetadataSource
@@ -46,16 +49,16 @@ public class MetadataSource
         return MetadataSource.load(indexDescriptor.openPerSSTableInput(IndexComponent.GROUP_META));
     }
 
-    public static MetadataSource loadColumnMetadata(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+    public static MetadataSource loadColumnMetadata(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
     {
-        return MetadataSource.load(indexDescriptor.openPerIndexInput(IndexComponent.META, indexContext));
+        return MetadataSource.load(indexDescriptor.openPerIndexInput(IndexComponent.META, indexIdentifier));
     }
 
     private static MetadataSource load(IndexInput indexInput) throws IOException
     {
         Map<String, BytesRef> components = new HashMap<>();
 
-        try (BufferedChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput))
+        try (ChecksumIndexInput input = IndexFileUtils.getBufferedChecksumIndexInput(indexInput))
         {
             SAICodecUtils.checkHeader(input);
             final int num = input.readInt();

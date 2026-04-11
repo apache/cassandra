@@ -46,7 +46,10 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("UPDATE counter1 SET ");
+        StringBuilder query = new StringBuilder("UPDATE ")
+        .append(settings.schema.keyspace)
+        .append('.')
+        .append("counter1 SET ");
 
         // TODO : increment distribution subset of columns
         for (int i = 0; i < settings.columns.maxColumnsPerKey; i++)
@@ -72,9 +75,9 @@ public class CqlCounterAdder extends CqlOperation<Integer>
     }
 
     @Override
-    protected CqlRunOp<Integer> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key)
+    protected CqlRunOp<Integer> buildRunOp(QueryExecutor<?> queryExecutor, List<Object> params, ByteBuffer key)
     {
-        return new CqlRunOpAlwaysSucceed(client, query, queryId, params, key, 1);
+        return new CqlRunOpAlwaysSucceed(queryExecutor, params, key, 1);
     }
 
     public boolean isWrite()

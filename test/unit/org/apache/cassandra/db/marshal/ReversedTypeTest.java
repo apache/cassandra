@@ -20,8 +20,8 @@ package org.apache.cassandra.db.marshal;
 
 import org.junit.Test;
 
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class ReversedTypeTest
 {

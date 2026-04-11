@@ -21,8 +21,8 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.LongSummaryStatistics;
 
+import org.hamcrest.Matchers;
 import org.junit.Test;
-
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -31,7 +31,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
-import org.hamcrest.Matchers;
 
 import static org.apache.cassandra.cql3.TombstonesWithIndexedSSTableTest.makeRandomString;
 import static org.junit.Assert.assertThat;
@@ -70,7 +69,10 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("alter keyspace %s with replication = {'class': 'SimpleStrategy', 'replication_factor':1}"));
-            cluster.schemaChange(withKeyspace("create table %s.tbl (id bigint primary key, value text) with compaction = {'class':'UnifiedCompactionStrategy', 'target_sstable_size' : '1MiB'}"));
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id bigint primary key, value text) with compaction = {'class':'UnifiedCompactionStrategy', " +
+                                                                                                                                    "'target_sstable_size' : '1MiB', " +
+                                                                                                                                    "'min_sstable_size' : '0B', " +
+                                                                                                                                    "'sstable_growth': '0'}"));
             long targetSize = 1L<<20;
             long targetMin = targetSize * 10 / 16;  // Size must be within sqrt(0.5), sqrt(2) of target, use 1.6 to account for estimations
             long targetMax = targetSize * 16 / 10;

@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.jmx;
 
 import java.util.HashSet;
 import java.util.Set;
+
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
 
@@ -36,7 +37,7 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
-import static org.apache.cassandra.distributed.test.jmx.JMXGetterCheckTest.testAllValidGetters;
+import static org.apache.cassandra.distributed.test.jmx.JMXTestsUtil.testAllValidGetters;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -85,7 +86,7 @@ public class JMXFeatureTest extends TestBaseImpl
                 allInstances.addAll(instancesContacted);
                 // Make sure we actually exercise the mbeans by testing a bunch of getters.
                 // Without this it's possible for the test to pass as we don't touch any mBeans that we register.
-                testAllValidGetters(cluster);
+                testAllValidGetters(cluster, null);
             }
         }
         Assert.assertEquals("Each instance from each cluster should have been unique", iterations * 2, allInstances.size());
@@ -110,8 +111,7 @@ public class JMXFeatureTest extends TestBaseImpl
             Assert.assertThat(statusResult.getStderr(), is(blankOrNullString()));
             Assert.assertThat(statusResult.getStdout(), containsString("DN  127.0.0.1"));
             testInstance(instances, cluster.get(2));
-            ClusterUtils.start(instanceToStop, props -> {
-            });
+            ClusterUtils.start(instanceToStop, props -> {});
             ClusterUtils.awaitRingState(otherInstance, instanceToStop, "Normal");
             ClusterUtils.awaitRingStatus(otherInstance, instanceToStop, "Up");
             statusResult = cluster.get(1).nodetoolResult("status");
@@ -123,7 +123,7 @@ public class JMXFeatureTest extends TestBaseImpl
             Assert.assertThat(statusResult.getStderr(), is(blankOrNullString()));
             Assert.assertThat(statusResult.getStdout(), containsString("UN  127.0.0.1"));
             testInstance(instances, cluster.get(1));
-            testAllValidGetters(cluster);
+            testAllValidGetters(cluster, null);
         }
     }
 

@@ -1,0 +1,7 @@
+#Hints, version 3.0.28-SNAPSHOT
+#Fri Nov 17 15:56:12 CET 2023
+descriptorTimestamp=1700232964563
+cells=2996
+hash=1893573886
+cfid=6f55edb0-8559-11ee-a403-a931264ebdbf
+hostId=23b9a46b-e21a-4a8d-b171-3f1886fa537d

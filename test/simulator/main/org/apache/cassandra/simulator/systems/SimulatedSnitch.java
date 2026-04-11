@@ -19,18 +19,22 @@
 package org.apache.cassandra.simulator.systems;
 
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.simulator.cluster.NodeLookup;
+import org.apache.cassandra.utils.Sortable;
 
 public class SimulatedSnitch extends NodeLookup
 {
@@ -71,6 +75,18 @@ public class SimulatedSnitch extends NodeLookup
         {
             LOOKUP_DC = lookupDc;
         }
+
+        @Override
+        public boolean supportCompareByEndpoint()
+        {
+            return true;
+        }
+
+        @Override
+        public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+        {
+            return Comparator.comparingInt(SimulatedSnitch::asInt);
+        }
     }
 
     final int[] numInDcs;
@@ -102,6 +118,8 @@ public class SimulatedSnitch extends NodeLookup
             if (prev != null)
                 prev.accept(config);
             config.set("endpoint_snitch", SimulatedSnitch.Instance.class.getName())
+                  .set("initial_location_provider", null)
+                  .set("node_proximity", null)
                   .set("dynamic_snitch", false);
         });
     }
@@ -118,7 +136,12 @@ public class SimulatedSnitch extends NodeLookup
         Instance.setup(lookup);
     }
 
-    private static int asInt(Replica address)
+    public List<String> dcs()
+    {
+        return Arrays.asList(nameOfDcs);
+    }
+
+    private static int asInt(Endpoint address)
     {
         byte[] bytes = address.endpoint().addressBytes;
         return bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);

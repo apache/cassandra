@@ -34,13 +34,6 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.stopAll;
  */
 public class AssassinatedEmptyNodeTest extends BaseAssassinatedCase
 {
-    // empty state does not include the token metadata, so when assassinate happens it will fail to find the token
-    @Override
-    protected String expectedMessage(IInvokableInstance nodeToRemove)
-    {
-        return "Could not find tokens for " + nodeToRemove.config().broadcastAddress() + " to replace";
-    }
-
     @Override
     void consume(Cluster cluster, IInvokableInstance nodeToRemove)
     {
@@ -56,7 +49,7 @@ public class AssassinatedEmptyNodeTest extends BaseAssassinatedCase
         peer.startup();
 
         // at this point node2 should be known in gossip, but with generation/version of 0
-        assertGossipInfo(seed, addressToReplace, 0, -1);
-        assertGossipInfo(peer, addressToReplace, 0, -1);
+        assertGossipInfo(seed, addressToReplace, 0, 0);
+        assertGossipInfo(peer, addressToReplace, 0, 0);
     }
 }

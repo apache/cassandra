@@ -18,36 +18,34 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.service.DataResurrectionCheck;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
-import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.service.StartupCheck;
 import org.apache.cassandra.utils.Clock.Global;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD;
-import static org.apache.cassandra.config.StartupChecksOptions.ENABLED_PROPERTY;
+import static org.apache.cassandra.config.StartupChecksConfiguration.ENABLED_PROPERTY;
 import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.service.DataResurrectionCheck.DEFAULT_HEARTBEAT_FILE;
 import static org.apache.cassandra.service.DataResurrectionCheck.EXCLUDED_KEYSPACES_CONFIG_PROPERTY;
 import static org.apache.cassandra.service.DataResurrectionCheck.EXCLUDED_TABLES_CONFIG_PROPERTY;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertNotNull;
@@ -137,14 +135,21 @@ public class DataResurrectionCheckTest extends TestBaseImpl
         {
             try
             {
-                DataResurrectionCheck check = new DataResurrectionCheck();
-                StartupChecksOptions startupChecksOptions = new StartupChecksOptions();
-                startupChecksOptions.enable(check_data_resurrection);
+                StartupChecksConfiguration checksConfiguration = DatabaseDescriptor.getStartupChecksConfiguration();
+                checksConfiguration.enable("check_data_resurrection");
+                Map<String, Object> currentConfig = checksConfiguration.getConfig("check_data_resurrection");
+                if (currentConfig != null)
+                {
+                    boolean wasEnabled = checksConfiguration.isEnabled("check_data_resurrection");
+                    currentConfig.clear();
+                    currentConfig.put(ENABLED_PROPERTY, wasEnabled);
+                }
 
                 for (int i = 0; i < config.length - 1; i = i + 2)
-                    startupChecksOptions.set(check_data_resurrection, config[i], config[i + 1]);
+                    checksConfiguration.set("check_data_resurrection", config[i], config[i + 1]);
 
-                check.execute(startupChecksOptions);
+                StartupCheck check = checksConfiguration.getCheck("check_data_resurrection");
+                check.execute(checksConfiguration);
                 return null;
             }
             catch (StartupException e)
@@ -154,12 +159,12 @@ public class DataResurrectionCheckTest extends TestBaseImpl
         }).call();
     }
 
-    private Map<StartupCheckType, Map<String, Object>> getStartupChecksConfig(String... configs)
+    private Map<String, Map<String, Object>> getStartupChecksConfig(String... configs)
     {
-        return new EnumMap<StartupCheckType, Map<String, Object>>(StartupCheckType.class)
+        return new HashMap<>()
         {{
-            put(check_data_resurrection,
-                new HashMap<String, Object>()
+            put("check_data_resurrection",
+                new HashMap<>()
                 {{
                     for (int i = 0; i < configs.length - 1; i = i + 2)
                         put(configs[i], configs[i + 1]);

@@ -25,6 +25,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.jctools.queues.SpscArrayQueue;
+import org.jctools.queues.SpscUnboundedArrayQueue;
+
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.report.StressMetrics;
@@ -34,12 +39,9 @@ import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.transport.SimpleClient;
-import org.jctools.queues.SpscArrayQueue;
-import org.jctools.queues.SpscUnboundedArrayQueue;
-
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class StressAction implements Runnable
 {
@@ -102,7 +104,6 @@ public class StressAction implements Runnable
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
-    @SuppressWarnings("resource") // warmupOutput doesn't need closing
     private void warmup(OpDistributionFactory operations)
     {
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
@@ -218,7 +219,7 @@ public class StressAction implements Runnable
         output.println(String.format("Running %s with %d threads %s",
                                      operations.desc(),
                                      threadCount,
-                                     durationUnits != null ? duration + " " + durationUnits.toString().toLowerCase()
+                                     durationUnits != null ? duration + " " + toLowerCaseLocalized(durationUnits.toString())
                                         : opCount > 0      ? "for " + opCount + " iteration"
                                                            : "until stderr of mean < " + settings.command.targetUncertainty));
         final WorkManager workManager;

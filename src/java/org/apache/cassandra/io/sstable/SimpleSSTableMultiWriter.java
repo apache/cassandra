@@ -23,7 +23,8 @@ import java.util.Collections;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -36,11 +37,11 @@ import org.apache.cassandra.utils.TimeUUID;
 public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 {
     private final SSTableWriter writer;
-    private final LifecycleNewTracker lifecycleNewTracker;
+    private final ILifecycleTransaction txn;
 
-    protected SimpleSSTableMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
+    protected SimpleSSTableMultiWriter(SSTableWriter writer, ILifecycleTransaction txn)
     {
-        this.lifecycleNewTracker = lifecycleNewTracker;
+        this.txn = txn;
         this.writer = writer;
     }
 
@@ -80,6 +81,11 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         return writer.getEstimatedOnDiskBytesWritten();
     }
 
+    public long getTotalRows()
+    {
+        return writer.getTotalRows();
+    }
+
     public TableId getTableId()
     {
         return writer.metadata().id;
@@ -92,7 +98,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public Throwable abort(Throwable accumulate)
     {
-        lifecycleNewTracker.untrackNew(writer);
+        txn.untrackNew(writer);
         return writer.abort(accumulate);
     }
 
@@ -106,7 +112,6 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         writer.close();
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"}) // SimpleSSTableMultiWriter closes writer
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,
@@ -117,23 +122,27 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             int sstableLevel,
                                             SerializationHeader header,
                                             Collection<Index.Group> indexGroups,
-                                            LifecycleNewTracker lifecycleNewTracker,
+                                            ILifecycleTransaction txn,
                                             SSTable.Owner owner)
     {
         MetadataCollector metadataCollector = new MetadataCollector(metadata.get().comparator)
                                               .commitLogIntervals(commitLogPositions != null ? commitLogPositions : IntervalSet.empty())
                                               .sstableLevel(sstableLevel);
-        SSTableWriter writer = descriptor.getFormat().getWriterFactory().builder(descriptor)
-                                            .setKeyCount(keyCount)
-                                            .setRepairedAt(repairedAt)
-                                            .setPendingRepair(pendingRepair)
-                                            .setTransientSSTable(isTransient)
-                                            .setTableMetadataRef(metadata)
-                                            .setMetadataCollector(metadataCollector)
-                                            .setSerializationHeader(header)
-                                            .addDefaultComponents(indexGroups)
-                                            .setSecondaryIndexGroups(indexGroups)
-                                            .build(lifecycleNewTracker, owner);
-        return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
+        CompressionDictionaryManager compressionDictionaryManager = owner == null ? null : owner.compressionDictionaryManager();
+        SSTableWriter writer = descriptor.getFormat()
+                                         .getWriterFactory()
+                                         .builder(descriptor)
+                                         .setKeyCount(keyCount)
+                                         .setRepairedAt(repairedAt)
+                                         .setPendingRepair(pendingRepair)
+                                         .setTransientSSTable(isTransient)
+                                         .setTableMetadataRef(metadata)
+                                         .setMetadataCollector(metadataCollector)
+                                         .setSerializationHeader(header)
+                                         .addDefaultComponents(indexGroups)
+                                         .setSecondaryIndexGroups(indexGroups)
+                                         .setCompressionDictionaryManager(compressionDictionaryManager)
+                                         .build(txn, owner);
+        return new SimpleSSTableMultiWriter(writer, txn);
     }
 }

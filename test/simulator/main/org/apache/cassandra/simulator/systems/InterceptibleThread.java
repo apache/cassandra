@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.LockSupport;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.OrderOn;
@@ -30,6 +29,8 @@ import org.apache.cassandra.simulator.systems.InterceptedWait.Trigger;
 import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;
@@ -159,8 +160,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
             }
             catch (InterruptedException e)
             {
-                if (!isTriggered()) throw new UncheckedInterruptedException(e);
-                else doInterrupt();
+                doInterrupt();
             }
         }
 
@@ -190,6 +190,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     final Runnable onTermination;
     private final InterceptorOfGlobalMethods interceptorOfGlobalMethods;
     private final LocalTime time;
+    private final long id;
 
     // this is set before the thread's execution begins/continues; events and cessation are reported back to this
     private InterceptorOfConsequences interceptor;
@@ -206,7 +207,7 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
     // perform any non-deterministic actions
     private int determinismDepth;
 
-    public InterceptibleThread(ThreadGroup group, Runnable target, String name, Object extraToStringInfo, Runnable onTermination, InterceptorOfGlobalMethods interceptorOfGlobalMethods, LocalTime time)
+    public InterceptibleThread(ThreadGroup group, Runnable target, String name, Object extraToStringInfo, Runnable onTermination, InterceptorOfGlobalMethods interceptorOfGlobalMethods, LocalTime time, long id)
     {
         super(group, target, name);
         this.onTermination = onTermination;
@@ -215,6 +216,13 @@ public class InterceptibleThread extends FastThreadLocalThread implements Interc
         // group is nulled on termination, and we need it for reporting purposes, so save the toString
         this.toString = "Thread[" + name + ',' + getPriority() + ',' + group.getName() + ']';
         this.extraToStringInfo = extraToStringInfo;
+        this.id = id;
+    }
+
+    @Override
+    public long getId()
+    {
+        return id;
     }
 
     public boolean park(long waitTime, WaitTimeKind waitTimeKind)

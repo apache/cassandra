@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+[ $DEBUG ] && set -x
 
 if [ "$1" == "-h" ]; then
    echo "$0 [-h] [<java_version>]"
@@ -31,5 +32,5 @@ echo
 #
 # Creates the debian package
 
-$(dirname "$0")/_docker_run.sh bullseye-build.docker docker/_build-debian.sh $1
+$(dirname -- "$0")/_docker_run.sh debian-build.docker docker/_build-debian.sh $1
 exit $?

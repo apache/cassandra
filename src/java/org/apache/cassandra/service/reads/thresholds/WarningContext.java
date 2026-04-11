@@ -22,47 +22,54 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ParamType;
 
 public class WarningContext
 {
-    private static EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_FAIL,
+    private static final EnumSet<ParamType> SUPPORTED = EnumSet.of(ParamType.TOMBSTONE_WARNING, ParamType.TOMBSTONE_FAIL,
                                                              ParamType.LOCAL_READ_SIZE_WARN, ParamType.LOCAL_READ_SIZE_FAIL,
-                                                             ParamType.ROW_INDEX_READ_SIZE_WARN, ParamType.ROW_INDEX_READ_SIZE_FAIL);
+                                                             ParamType.ROW_INDEX_READ_SIZE_WARN, ParamType.ROW_INDEX_READ_SIZE_FAIL,
+                                                             ParamType.TOO_MANY_REFERENCED_INDEXES_WARN, ParamType.TOO_MANY_REFERENCED_INDEXES_FAIL);
 
     final WarnAbortCounter tombstones = new WarnAbortCounter();
     final WarnAbortCounter localReadSize = new WarnAbortCounter();
     final WarnAbortCounter rowIndexReadSize = new WarnAbortCounter();
+    final WarnAbortCounter indexReadSSTablesCount = new WarnAbortCounter();
 
     public static boolean isSupported(Set<ParamType> keys)
     {
         return !Collections.disjoint(keys, SUPPORTED);
     }
 
-    public RequestFailureReason updateCounters(Map<ParamType, Object> params, InetAddressAndPort from)
+    public RequestFailure updateCounters(Map<ParamType, Object> params, InetAddressAndPort from)
     {
         for (Map.Entry<ParamType, Object> entry : params.entrySet())
         {
             WarnAbortCounter counter = null;
-            RequestFailureReason reason = null;
+            RequestFailure reason = null;
             switch (entry.getKey())
             {
                 case ROW_INDEX_READ_SIZE_FAIL:
-                    reason = RequestFailureReason.READ_SIZE;
+                    reason = RequestFailure.READ_SIZE;
                 case ROW_INDEX_READ_SIZE_WARN:
                     counter = rowIndexReadSize;
                     break;
                 case LOCAL_READ_SIZE_FAIL:
-                    reason = RequestFailureReason.READ_SIZE;
+                    reason = RequestFailure.READ_SIZE;
                 case LOCAL_READ_SIZE_WARN:
                     counter = localReadSize;
                     break;
                 case TOMBSTONE_FAIL:
-                    reason = RequestFailureReason.READ_TOO_MANY_TOMBSTONES;
+                    reason = RequestFailure.READ_TOO_MANY_TOMBSTONES;
                 case TOMBSTONE_WARNING:
                     counter = tombstones;
+                    break;
+                case TOO_MANY_REFERENCED_INDEXES_FAIL:
+                    reason = RequestFailure.READ_TOO_MANY_INDEXES;
+                case TOO_MANY_REFERENCED_INDEXES_WARN:
+                    counter = indexReadSSTablesCount;
                     break;
             }
             if (reason != null)
@@ -78,6 +85,6 @@ public class WarningContext
 
     public WarningsSnapshot snapshot()
     {
-        return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexReadSize.snapshot());
+        return WarningsSnapshot.create(tombstones.snapshot(), localReadSize.snapshot(), rowIndexReadSize.snapshot(), indexReadSSTablesCount.snapshot());
     }
 }

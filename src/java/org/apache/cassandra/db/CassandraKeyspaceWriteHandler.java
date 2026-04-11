@@ -39,7 +39,6 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
     }
 
     @Override
-    @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed
     public WriteContext beginWrite(Mutation mutation, boolean makeDurable) throws RequestExecutionException
     {
         OpOrder.Group group = null;
@@ -87,10 +86,10 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
                 Set<TableId> ids = new HashSet<>();
                 for (PartitionUpdate update : mutation.getPartitionUpdates())
                 {
-                    if (update.metadata().params.memtable.factory().writesShouldSkipCommitLog())
+                    if (!update.metadata().params.memtable.factory().writesShouldSkipCommitLog())
                         ids.add(update.metadata().id);
                 }
-                mutation = mutation.without(ids);
+                mutation = mutation.filter(ids::contains);
             }
         }
         // Note: It may be a good idea to precalculate none/all for the set of all tables in the keyspace,
@@ -100,7 +99,6 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
         return CommitLog.instance.add(mutation);
     }
 
-    @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed
     private WriteContext createEmptyContext()
     {
         OpOrder.Group group = null;

@@ -17,30 +17,33 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -125,7 +128,7 @@ public class ExecuteMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
         QueryHandler.Prepared prepared = null;
         try
@@ -135,19 +138,15 @@ public class ExecuteMessage extends Message.Request
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            if (!prepared.fullyQualified
-                && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
-                // We can not reliably detect inconsistencies for batches yet
-                && !(prepared.statement instanceof BatchStatement)
-            )
+            if (!prepared.fullyQualified && prepared.statement.eligibleAsPreparedStatement() && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace))
             {
                 state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);
-                String msg = String.format("Tried to execute a prepared unqalified statement on a keyspace it was not prepared on. " +
+
+                String msg = String.format("Tried to execute a prepared unqualified statement on a keyspace it was not prepared on. " +
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
                 nospam.error(msg);
             }
-
 
             CQLStatement statement = prepared.statement;
             options.prepare(statement.getBindVariables());
@@ -164,7 +163,7 @@ public class ExecuteMessage extends Message.Request
 
             long requestStartTime = currentTimeMillis();
 
-            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), requestTime);
 
             QueryEvents.instance.notifyExecuteSuccess(prepared.statement, prepared.rawCQLStatement, options, state, requestStartTime, response);
 
@@ -224,7 +223,8 @@ public class ExecuteMessage extends Message.Request
         {
             ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
             String boundName = cs.name.toString();
-            String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i));
+            ByteBuffer bytes = options.getValues().get(i);
+            String boundValue = (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER) ? "<unset>" : cs.type.asCQL3Type().toCQLLiteral(bytes);
             if (boundValue.length() > 1000)
                 boundValue = boundValue.substring(0, 1000) + "...'";
 

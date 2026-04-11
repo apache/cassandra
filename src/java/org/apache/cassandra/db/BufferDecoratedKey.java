@@ -25,7 +25,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class BufferDecoratedKey extends DecoratedKey
 {
-    private final ByteBuffer key;
+    protected ByteBuffer key;
 
     public BufferDecoratedKey(Token token, ByteBuffer key)
     {

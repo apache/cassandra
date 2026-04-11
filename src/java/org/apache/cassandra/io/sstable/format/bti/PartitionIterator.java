@@ -58,7 +58,6 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
     private DecoratedKey nextKey;
     private TrieIndexEntry nextEntry;
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
     static PartitionIterator create(PartitionIndex partitionIndex, IPartitioner partitioner, FileHandle rowIndexFile, FileHandle dataFile,
                                     PartitionPosition left, int inclusiveLeft, PartitionPosition right, int exclusiveRight, Version version) throws IOException
     {
@@ -84,7 +83,7 @@ class PartitionIterator extends PartitionIndex.IndexPosIterator implements KeyRe
             partitionIterator.advance();
             return partitionIterator;
         }
-        catch (IOException | RuntimeException ex)
+        catch (Throwable ex)
         {
             if (partitionIterator != null)
             {

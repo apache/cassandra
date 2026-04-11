@@ -18,56 +18,238 @@
 
 package org.apache.cassandra.service.snapshot;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.service.snapshot.TableSnapshotTest.createFolders;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.FBUtilities.now;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
+import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SnapshotManagerTest
 {
-    static long ONE_DAY_SECS = 86400;
-
-    @BeforeClass
-    public static void beforeClass()
-    {
-        DatabaseDescriptor.daemonInitialization();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-    }
-
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    private TableSnapshot generateSnapshotDetails(String tag, Instant expiration, boolean ephemeral)
+    @ClassRule
+    public static TemporaryFolder temporaryFolder2 = new TemporaryFolder();
+
+    private static File rootDir1;
+    private static File rootDir2;
+
+    private static String[] dataDirs;
+
+    @BeforeClass
+    public static void beforeClass() throws Exception
+    {
+        CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS.setInt(10);
+        SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS.setInt(5);
+
+        rootDir1 = new File(temporaryFolder.getRoot());
+        rootDir2 = new File(temporaryFolder2.getRoot());
+
+        dataDirs = new String[]{
+        rootDir1.toPath().toAbsolutePath().toString(),
+        rootDir2.toPath().toAbsolutePath().toString()
+        };
+    }
+
+    private static class ThrowingTask extends AbstractSnapshotTask<Void>
+    {
+        public ThrowingTask()
+        {
+            super(null);
+        }
+
+        @Override
+        public Void call()
+        {
+            throw new RuntimeException("an exception");
+        }
+
+        @Override
+        public SnapshotTaskType getTaskType()
+        {
+            return SnapshotTaskType.SNAPSHOT;
+        }
+    }
+
+    @Test
+    public void testTaskThrowingException()
+    {
+        doWithManager(manager -> assertThatThrownBy(() -> manager.executeTask(new ThrowingTask())).isInstanceOf(RuntimeException.class)
+           .hasRootCauseMessage("an exception")
+           .hasMessageContaining("Exception occured while executing"));
+
+        doWithManager(manager -> {
+
+            manager.close();
+
+            assertThatThrownBy(() -> manager.executeTask(new ThrowingTask())).isInstanceOf(RuntimeException.class)
+               .hasRootCauseMessage("an exception")
+               .hasMessageContaining("Exception occured while executing");
+
+            manager.start(false);
+
+            assertThatThrownBy(() -> manager.executeTask(new ThrowingTask())).isInstanceOf(RuntimeException.class)
+               .hasRootCauseMessage("an exception")
+               .hasMessageContaining("Exception occured while executing");
+        });
+    }
+
+    /**
+     * Tests that if we remove all manifests files, that equals to stopping manager to track
+     * such snapshot, however no data will be removed.
+     */
+    @Test
+    public void testRemovingManifestsLogicallyRemovesSnapshot()
+    {
+        doWithManager(manager -> {
+            List<TableSnapshot> tableSnapshots = generateTableSnapshots(10, 100);
+
+            for (TableSnapshot snapshot : tableSnapshots)
+                manager.addSnapshot(snapshot);
+
+            // we still have 1000 snapshots because we removed just one manifest
+            removeManifestOfSnapshot(tableSnapshots.get(0));
+            assertEquals(1000, manager.getSnapshots((t) -> true).size());
+
+            // remove the second manifest, that will render snapshot to be logically removed
+            removeManifestOfSnapshot(tableSnapshots.get(0));
+            assertEquals(999, manager.getSnapshots((t) -> true).size());
+
+            // check that data are still there
+            assertFalse(tableSnapshots.get(0).hasManifest());
+            assertTrue(tableSnapshots.get(0).exists());
+            for (File snapshotDir : tableSnapshots.get(0).getDirectories())
+                assertTrue(snapshotDir.exists());
+        });
+    }
+
+    private void doWithManager(Consumer<SnapshotManager> action)
+    {
+        try (MockedStatic<DatabaseDescriptor> mockedDD = Mockito.mockStatic(DatabaseDescriptor.class))
+        {
+            mockedDD.when(() -> DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations()).thenReturn(dataDirs);
+            mockedDD.when(() -> DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()).thenReturn(new String[]{});
+            mockedDD.when(() -> DatabaseDescriptor.getAllDataFileLocations()).thenReturn(dataDirs);
+            mockedDD.when(() -> DatabaseDescriptor.getDumpHeapOnUncaughtException()).thenReturn(false);
+
+            try (SnapshotManager snapshotManager = new SnapshotManager(SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS.getInt(10),
+                                                                       SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS.getInt(5),
+                                                                       dataDirs).start(true))
+            {
+                action.accept(snapshotManager);
+            }
+            finally
+            {
+                clearDirectory(rootDir1.toPath());
+                clearDirectory(rootDir2.toPath());
+            }
+        }
+    }
+
+    private List<TableSnapshot> generateTableSnapshots(int keyspaces, int tables) throws RuntimeException
+    {
+        List<TableSnapshot> tableSnapshots = new ArrayList<>();
+        for (int i = 0; i < keyspaces; i++)
+        {
+            for (int j = 0; j < tables; j++)
+            {
+                String snapshotName = format("mysnapshot_%s_%s", i, j);
+                File dir1 = new File(Paths.get(rootDir1.absolutePath(), "ks", "tb-1b255f4def2540a60000000000000005", "snapshots", snapshotName));
+                File dir2 = new File(Paths.get(rootDir2.absolutePath(), "ks", "tb-1b255f4def2540a60000000000000005", "snapshots", snapshotName));
+                dir1.tryCreateDirectories();
+                dir2.tryCreateDirectories();
+                TableSnapshot snapshot = generateSnapshotDetails(Set.of(dir1, dir2), snapshotName, "ks", "tb-1b255f4def2540a60000000000000005", null, false);
+                SnapshotManifest manifest = new SnapshotManifest(List.of(), null, snapshot.getCreatedAt(), snapshot.isEphemeral());
+                try
+                {
+                    manifest.serializeToJsonFile(new File(dir1.toPath().resolve("manifest.json")));
+                    manifest.serializeToJsonFile(new File(dir2.toPath().resolve("manifest.json")));
+                    generateFileInSnapshot(snapshot);
+                }
+                catch (Exception ex)
+                {
+                    throw new RuntimeException(ex);
+                }
+
+                tableSnapshots.add(snapshot);
+            }
+        }
+
+        return tableSnapshots;
+    }
+
+    private void generateFileInSnapshot(TableSnapshot tableSnapshot) throws IOException
+    {
+        for (File snapshotDir : tableSnapshot.getDirectories())
+            Files.createFile(snapshotDir.toPath().resolve("schema.cql"));
+    }
+
+    private void removeManifestOfSnapshot(TableSnapshot tableSnapshot)
+    {
+        for (File snapshotDir : tableSnapshot.getDirectories())
+        {
+            if (snapshotDir.exists())
+            {
+                File manifest = new File(snapshotDir, "manifest.json");
+                if (!manifest.exists())
+                    continue;
+
+                manifest.delete();
+                return;
+            }
+        }
+    }
+
+    private TableSnapshot generateSnapshotDetails(Set<File> roots,
+                                                  String tag,
+                                                  String keyspace,
+                                                  String table,
+                                                  Instant expiration,
+                                                  boolean ephemeral)
     {
         try
         {
-            return new TableSnapshot("ks",
-                                     "tbl",
+            Set<File> snapshotDirs = new HashSet<>();
+            for (File root : roots)
+            {
+                root.tryCreateDirectories();
+                snapshotDirs.add(root);
+            }
+
+            return new TableSnapshot(keyspace,
+                                     table,
                                      UUID.randomUUID(),
                                      tag,
                                      Instant.EPOCH,
                                      expiration,
-                                     createFolders(temporaryFolder),
+                                     snapshotDirs,
                                      ephemeral);
         }
         catch (Exception ex)
@@ -76,149 +258,17 @@ public class SnapshotManagerTest
         }
     }
 
-    @Test
-    public void testLoadSnapshots() throws Exception {
-        TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH, false);
-        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusSeconds(ONE_DAY_SECS), false);
-        TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null, false);
-        List<TableSnapshot> snapshots = Arrays.asList(expired, nonExpired, nonExpiring);
 
-        // Create SnapshotManager with 3 snapshots: expired, non-expired and non-expiring
-        SnapshotManager manager = new SnapshotManager(3, 3);
-        manager.addSnapshots(snapshots);
-
-        // Only expiring snapshots should be loaded
-        assertThat(manager.getExpiringSnapshots()).hasSize(2);
-        assertThat(manager.getExpiringSnapshots()).contains(expired);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
-    }
-
-    @Test
-    public void testClearExpiredSnapshots() throws Exception {
-        SnapshotManager manager = new SnapshotManager(3, 3);
-
-        // Add 3 snapshots: expired, non-expired and non-expiring
-        TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH, false);
-        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS), false);
-        TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null, false);
-        manager.addSnapshot(expired);
-        manager.addSnapshot(nonExpired);
-        manager.addSnapshot(nonExpiring);
-
-        // Only expiring snapshot should be indexed and all should exist
-        assertThat(manager.getExpiringSnapshots()).hasSize(2);
-        assertThat(manager.getExpiringSnapshots()).contains(expired);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
-        assertThat(expired.exists()).isTrue();
-        assertThat(nonExpired.exists()).isTrue();
-        assertThat(nonExpiring.exists()).isTrue();
-
-        // After clearing expired snapshots, expired snapshot should be removed while the others should remain
-        manager.clearExpiredSnapshots();
-        assertThat(manager.getExpiringSnapshots()).hasSize(1);
-        assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
-        assertThat(expired.exists()).isFalse();
-        assertThat(nonExpired.exists()).isTrue();
-        assertThat(nonExpiring.exists()).isTrue();
-    }
-
-    @Test
-    public void testScheduledCleanup() throws Exception {
-        SnapshotManager manager = new SnapshotManager(0, 1);
-        try
-        {
-            // Start snapshot manager which should start expired snapshot cleanup thread
-            manager.start();
-
-            // Add 2 expiring snapshots: one to expire in 2 seconds, another in 1 day
-            int TTL_SECS = 2;
-            TableSnapshot toExpire = generateSnapshotDetails("to-expire", now().plusSeconds(TTL_SECS), false);
-            TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS), false);
-            manager.addSnapshot(toExpire);
-            manager.addSnapshot(nonExpired);
-
-            // Check both snapshots still exist
-            assertThat(toExpire.exists()).isTrue();
-            assertThat(nonExpired.exists()).isTrue();
-            assertThat(manager.getExpiringSnapshots()).hasSize(2);
-            assertThat(manager.getExpiringSnapshots()).contains(toExpire);
-            assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
-
-            // Sleep 4 seconds
-            Thread.sleep((TTL_SECS + 2) * 1000L);
-
-            // Snapshot with ttl=2s should be gone, while other should remain
-            assertThat(manager.getExpiringSnapshots()).hasSize(1);
-            assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
-            assertThat(toExpire.exists()).isFalse();
-            assertThat(nonExpired.exists()).isTrue();
-        }
-        finally
-        {
-            manager.stop();
-        }
-    }
-
-    @Test
-    public void testClearSnapshot() throws Exception
+    /**
+     * Empties everything in directory of "path" but keeps the directory itself.
+     *
+     * @param path directory to be emptied
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
+    public static void clearDirectory(Path path)
     {
-        // Given
-        SnapshotManager manager = new SnapshotManager(1, 3);
-        TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", now().plusMillis(50000), false);
-        manager.addSnapshot(expiringSnapshot);
-        assertThat(manager.getExpiringSnapshots()).contains(expiringSnapshot);
-        assertThat(expiringSnapshot.exists()).isTrue();
-
-        // When
-        manager.clearSnapshot(expiringSnapshot);
-
-        // Then
-        assertThat(manager.getExpiringSnapshots()).doesNotContain(expiringSnapshot);
-        assertThat(expiringSnapshot.exists()).isFalse();
+        if (PathUtils.isDirectory(path))
+            PathUtils.forEach(path, PathUtils::deleteRecursive);
     }
 
-    @Test // see CASSANDRA-18211
-    public void testConcurrentClearingOfSnapshots() throws Exception
-    {
-
-        AtomicReference<Long> firstInvocationTime = new AtomicReference<>(0L);
-        AtomicReference<Long> secondInvocationTime = new AtomicReference<>(0L);
-
-        SnapshotManager manager = new SnapshotManager(0, 5)
-        {
-            @Override
-            public synchronized void clearSnapshot(TableSnapshot snapshot)
-            {
-                if (snapshot.getTag().equals("mysnapshot"))
-                {
-                    firstInvocationTime.set(currentTimeMillis());
-                    Uninterruptibles.sleepUninterruptibly(10, SECONDS);
-                }
-                else if (snapshot.getTag().equals("mysnapshot2"))
-                {
-                    secondInvocationTime.set(currentTimeMillis());
-                }
-                super.clearSnapshot(snapshot);
-            }
-        };
-
-        TableSnapshot expiringSnapshot = generateSnapshotDetails("mysnapshot", Instant.now().plusSeconds(15), false);
-        manager.addSnapshot(expiringSnapshot);
-
-        manager.resumeSnapshotCleanup();
-
-        Thread nonExpiringSnapshotCleanupThred = new Thread(() -> manager.clearSnapshot(generateSnapshotDetails("mysnapshot2", null, false)));
-
-        // wait until the first snapshot expires
-        await().pollInterval(1, SECONDS)
-               .pollDelay(0, SECONDS)
-               .timeout(1, MINUTES)
-               .until(() -> firstInvocationTime.get() > 0);
-
-        // this will block until the first snapshot is cleaned up
-        nonExpiringSnapshotCleanupThred.start();
-        nonExpiringSnapshotCleanupThred.join();
-
-        assertTrue(secondInvocationTime.get() - firstInvocationTime.get() > 10_000);
-    }
 }

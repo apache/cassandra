@@ -30,6 +30,7 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -369,13 +370,15 @@ public class SSTablePartitions
         {
             while (scanner.hasNext())
             {
+                // hasNext() positions us on the next partition, next() has to advance to read its header.
+                long startOfPartition = scanner.getCurrentPosition();
                 try (UnfilteredRowIterator partition = scanner.next())
                 {
                     ByteBuffer key = partition.partitionKey().getKey();
                     boolean isExcluded = excludedKeys.contains(metadata.partitionKeyType.getString(key));
 
                     PartitionStats partitionStats = new PartitionStats(key,
-                                                                       scanner.getCurrentPosition(),
+                                                                       startOfPartition,
                                                                        partition.partitionLevelDeletion().isLive());
 
                     // Consume the partition to populate the stats.

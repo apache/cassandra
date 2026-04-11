@@ -31,14 +31,17 @@ import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.io.ByteStreams;
-import org.apache.commons.lang3.StringUtils;
-
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.io.ByteStreams;
+
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.stress.report.StressMetrics;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.utils.JsonUtils;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class StressGraph
 {
@@ -200,7 +203,7 @@ public class StressGraph
                         continue;
                     }
                     // the graphing js expects lower case names
-                    json.put(parts[0].trim().toLowerCase(), parts[1].trim());
+                    json.put(toLowerCaseLocalized(parts[0].trim()), parts[1].trim());
                 }
                 else if (mode == ReadingMode.NEXTITERATION)
                 {

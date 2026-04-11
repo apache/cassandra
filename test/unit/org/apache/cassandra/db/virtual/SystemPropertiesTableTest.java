@@ -25,17 +25,16 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
-import org.apache.cassandra.cql3.CQLTester;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import org.apache.cassandra.cql3.CQLTester;
 
 // checkstyle: suppress below 'blockSystemPropertyUsage'
 
@@ -46,12 +45,6 @@ public class SystemPropertiesTableTest extends CQLTester
     private static final String TEST_PROP = "cassandra.SystemPropertiesTableTest";
 
     private SystemPropertiesTable table;
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Before
     public void config()

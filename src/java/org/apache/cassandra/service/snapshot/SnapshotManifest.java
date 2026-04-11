@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.*;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +26,7 @@ import java.util.Objects;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.JsonUtils;
@@ -63,7 +64,7 @@ public class SnapshotManifest
     {
         this.files = files;
         this.createdAt = creationTime;
-        this.expiresAt = ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
+        this.expiresAt = computeExpiration(ttl, creationTime);
         this.ephemeral = ephemeral;
     }
 
@@ -95,6 +96,11 @@ public class SnapshotManifest
     public static SnapshotManifest deserializeFromJsonFile(File file) throws IOException
     {
         return JsonUtils.deserializeFromJsonFile(SnapshotManifest.class, file);
+    }
+
+    public static Instant computeExpiration(DurationSpec.IntSecondsBound ttl, Instant createdAt)
+    {
+        return ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
     }
 
     @Override

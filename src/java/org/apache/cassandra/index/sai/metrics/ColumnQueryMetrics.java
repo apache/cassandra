@@ -21,15 +21,19 @@ import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.index.sai.IndexContext;
+
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public abstract class ColumnQueryMetrics extends AbstractMetrics
 {
-    protected ColumnQueryMetrics(IndexContext indexContext)
+    private static final String POSTING_DECODES = "PostingDecodes";
+    private static final String NUM_POSTINGS = "NumPostings";
+
+    protected ColumnQueryMetrics(IndexIdentifier indexIdentifier)
     {
-        super(indexContext.getKeyspace(), indexContext.getTable(), indexContext.getIndexName(), "ColumnQueryMetrics");
+        super(indexIdentifier, "ColumnQueryMetrics");
     }
 
     public static class TrieIndexMetrics extends ColumnQueryMetrics implements QueryEventListener.TrieIndexEventListener
@@ -43,15 +47,22 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 
         private final QueryEventListener.PostingListEventListener postingsListener;
 
-        public TrieIndexMetrics(IndexContext indexContext)
+        public TrieIndexMetrics(IndexIdentifier indexIdentifier)
         {
-            super(indexContext);
+            super(indexIdentifier);
 
             termsTraversalTotalTime = Metrics.timer(createMetricName("TermsLookupLatency"));
 
-            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", TRIE_POSTINGS_TYPE));
+            Meter postingDecodes = Metrics.meter(createMetricName(POSTING_DECODES, TRIE_POSTINGS_TYPE));
 
             postingsListener = new PostingListEventsMetrics(postingDecodes);
+        }
+
+        @Override
+        public void release()
+        {
+            super.release();
+            Metrics.remove(createMetricName(POSTING_DECODES, TRIE_POSTINGS_TYPE));
         }
 
         @Override
@@ -83,18 +94,26 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
 
         private final QueryEventListener.PostingListEventListener postingsListener;
 
-        public BalancedTreeIndexMetrics(IndexContext indexContext)
+        public BalancedTreeIndexMetrics(IndexIdentifier indexIdentifier)
         {
-            super(indexContext);
+            super(indexIdentifier);
 
             intersectionLatency = Metrics.timer(createMetricName("BalancedTreeIntersectionLatency"));
             intersectionEarlyExits = Metrics.meter(createMetricName("BalancedTreeIntersectionEarlyExits"));
 
-            postingsNumPostings = Metrics.meter(createMetricName("NumPostings", BALANCED_TREE_POSTINGS_TYPE));
+            postingsNumPostings = Metrics.meter(createMetricName(NUM_POSTINGS, BALANCED_TREE_POSTINGS_TYPE));
 
-            Meter postingDecodes = Metrics.meter(createMetricName("PostingDecodes", BALANCED_TREE_POSTINGS_TYPE));
+            Meter postingDecodes = Metrics.meter(createMetricName(POSTING_DECODES, BALANCED_TREE_POSTINGS_TYPE));
 
             postingsListener = new PostingListEventsMetrics(postingDecodes);
+        }
+
+        @Override
+        public void release()
+        {
+            super.release();
+            Metrics.remove(createMetricName(NUM_POSTINGS, BALANCED_TREE_POSTINGS_TYPE));
+            Metrics.remove(createMetricName(POSTING_DECODES, BALANCED_TREE_POSTINGS_TYPE));
         }
 
         @Override

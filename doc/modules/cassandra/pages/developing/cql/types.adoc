@@ -10,6 +10,7 @@ types]:
 include::cassandra:example$BNF/cql_type.bnf[]
 ----
 
+[[native-types]]
 == Native types
 
 The native types supported by CQL are:
@@ -51,6 +52,7 @@ generally used as a “conflict-free” timestamp. Also see `timeuuid-functions`
 | `uuid` | `uuid` | A https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID] (of any version)
 | `varchar` | `string` | UTF8 encoded string
 | `varint` | `integer` | Arbitrary-precision integer
+| `vector` | `float` | A fixed length non-null, flattened array of float values https://issues.apache.org/jira/browse/CASSANDRA-18504[CASSANDRA-18504] added this data type to {cass-50}.
 |===
 
 === Counters
@@ -190,6 +192,7 @@ a date context.
 A `1d` duration is not equal to a `24h` one as the duration type has
 been created to be able to support daylight saving.
 
+[[collections]]
 == Collections
 
 CQL supports three kinds of collections: `maps`, `sets` and `lists`. The

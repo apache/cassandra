@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommandIterator;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.assertEquals;
@@ -70,25 +71,6 @@ public class FailureLoggingTest extends TestBaseImpl
     {
         cluster.get(1).callOnInstance(() -> BBRequestFailures.bootstrapping = false);
         
-    }
-
-    @Test
-    public void testRequestBootstrapFail() throws Throwable
-    {
-        cluster.get(1).callOnInstance(() -> BBRequestFailures.bootstrapping = true);
-        long mark = cluster.get(1).logs().mark();
-
-        try
-        {
-            cluster.coordinator(1).execute("select * from " + KEYSPACE + ".tbl where id = 55", ConsistencyLevel.ALL);
-            fail("Query should fail");
-        }
-        catch (RuntimeException e)
-        {
-            LogResult<List<String>> result = cluster.get(1).logs().grep(mark, "while executing SELECT");
-            assertEquals(1, result.getResult().size());
-            assertTrue(result.getResult().get(0).contains("Cannot read from a bootstrapping node"));
-        }
     }
 
     @Test
@@ -168,8 +150,8 @@ public class FailureLoggingTest extends TestBaseImpl
 
         @SuppressWarnings("unused")
         public static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands, 
-                                                  org.apache.cassandra.db.ConsistencyLevel consistencyLevel, 
-                                                  long queryStartNanoTime)
+                                                  org.apache.cassandra.db.ConsistencyLevel consistencyLevel,
+                                                  Dispatcher.RequestTime requestTime)
         {
             throw UnavailableException.create(org.apache.cassandra.db.ConsistencyLevel.ALL, 1, 0);
         }

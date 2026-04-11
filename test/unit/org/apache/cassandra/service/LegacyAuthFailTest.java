@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.google.common.base.Joiner;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -37,8 +38,6 @@ public class LegacyAuthFailTest extends CQLTester
     @Test
     public void testStartupChecks() throws Throwable
     {
-        createKeyspace();
-
         List<String> legacyTables = new ArrayList<>(SchemaConstants.LEGACY_AUTH_TABLES);
 
         // test reporting for individual tables
@@ -80,10 +79,5 @@ public class LegacyAuthFailTest extends CQLTester
     private void createLegacyTable(String legacyTable) throws Throwable
     {
         execute(format("CREATE TABLE %s.%s (id int PRIMARY KEY, val text)", SchemaConstants.AUTH_KEYSPACE_NAME, legacyTable));
-    }
-
-    private void createKeyspace() throws Throwable
-    {
-        execute(format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}", SchemaConstants.AUTH_KEYSPACE_NAME));
     }
 }

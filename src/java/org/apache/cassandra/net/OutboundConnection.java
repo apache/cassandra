@@ -34,10 +34,20 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -45,29 +55,29 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
 import io.netty.channel.unix.Errors;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
-import io.netty.util.concurrent.Promise; //checkstyle: permit this import
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.PromiseNotifier;
 import io.netty.util.concurrent.SucceededFuture;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.DataOutputBufferFixed;
-import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
-import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.NoSpamLogger;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.InternodeConnectionUtils.isSSLError;
 import static org.apache.cassandra.net.MessagingService.current_version;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.Result;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType;
+import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateMessaging;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
-import static org.apache.cassandra.net.ResourceLimits.*;
-import static org.apache.cassandra.net.ResourceLimits.Outcome.*;
-import static org.apache.cassandra.net.SocketFactory.*;
+import static org.apache.cassandra.net.ResourceLimits.EndpointAndGlobal;
+import static org.apache.cassandra.net.ResourceLimits.Limit;
+import static org.apache.cassandra.net.ResourceLimits.Outcome;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.INSUFFICIENT_ENDPOINT;
+import static org.apache.cassandra.net.ResourceLimits.Outcome.SUCCESS;
+import static org.apache.cassandra.net.SocketFactory.encryptionConnectionSummary;
+import static org.apache.cassandra.net.SocketFactory.isCausedByConnectionReset;
+import static org.apache.cassandra.net.SocketFactory.isConnectionReset;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
@@ -474,7 +484,13 @@ public class OutboundConnection
      */
     private boolean onExpired(Message<?> message)
     {
-        noSpamLogger.warn("{} dropping message of type {} whose timeout expired before reaching the network", id(), message.verb());
+        if (logger.isTraceEnabled())
+            logger.trace("{} dropping message of type {} with payload {} whose timeout ({}ms) expired before reaching the network. {}ms elapsed after expiration. {}ms since creation.",
+                         id(), message.verb(), message.payload, DatabaseDescriptor.getRpcTimeout(MILLISECONDS),
+                         NANOSECONDS.toMillis(Clock.Global.nanoTime() - message.expiresAtNanos()),
+                         message.elapsedSinceCreated(MILLISECONDS));
+        else
+            noSpamLogger.warn("{} dropping message of type {} whose timeout expired before reaching the network", id(), message.verb());
         releaseCapacity(1, canonicalSize(message));
         expiredCount += 1;
         expiredBytes += canonicalSize(message);
@@ -754,7 +770,6 @@ public class OutboundConnection
          *
          * If there is more work to be done, we submit ourselves for execution once the eventLoop has time.
          */
-        @SuppressWarnings("resource")
         boolean doRun(Established established)
         {
             if (!isWritable)
@@ -965,7 +980,6 @@ public class OutboundConnection
             }
         }
 
-        @SuppressWarnings({ "resource", "RedundantSuppression" }) // make eclipse warnings go away
         boolean doRun(Established established)
         {
             Message<?> send = queue.tryPoll(approxTime.now(), this::execute);

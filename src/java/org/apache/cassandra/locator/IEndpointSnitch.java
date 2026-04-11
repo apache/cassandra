@@ -18,16 +18,19 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetSocketAddress;
+import java.util.Comparator;
 import java.util.Set;
 
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Sortable;
 
 /**
  * This interface helps determine location of node in the datacenter relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
  * datacenter.
+ * @deprecated Replaced by Locator and NodeProximity; see CASSANDRA-19488
  */
-
+@Deprecated(since="CEP-21")
 public interface IEndpointSnitch
 {
     /**
@@ -93,5 +96,21 @@ public interface IEndpointSnitch
     default boolean validate(Set<String> datacenters, Set<String> racks)
     {
         return true;
+    }
+
+    default void configureAddresses() {}
+    default boolean preferLocalConnections()
+    {
+        return false;
+    }
+
+    default boolean supportCompareByEndpoint()
+    {
+        return false;
+    }
+
+    default <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        throw new UnsupportedOperationException();
     }
 }

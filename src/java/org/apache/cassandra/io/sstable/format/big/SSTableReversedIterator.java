@@ -68,7 +68,6 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    @SuppressWarnings("resource") // caller to close
     protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
     {
         return indexEntry.isIndexed()
@@ -463,5 +462,11 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
             Unfiltered next = iterator.next();
             return iterator.hasNext() ? next : endOfData();
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return sstable.toString();
     }
 }

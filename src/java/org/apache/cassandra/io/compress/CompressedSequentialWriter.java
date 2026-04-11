@@ -25,6 +25,10 @@ import java.nio.channels.Channels;
 import java.util.Optional;
 import java.util.zip.CRC32;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.db.compression.CompressionDictionary;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -32,11 +36,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.ChecksumWriter;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -61,11 +65,24 @@ public class CompressedSequentialWriter extends SequentialWriter
     private long uncompressedSize = 0, compressedSize = 0;
 
     private final MetadataCollector sstableMetadataCollector;
+    private final CompressionDictionaryManager compressionDictionaryManager;
 
     private final ByteBuffer crcCheckBuffer = ByteBuffer.allocate(4);
     private final Optional<File> digestFile;
 
     private final int maxCompressedLength;
+    private final boolean isDictionaryEnabled;
+
+    public CompressedSequentialWriter(File file,
+                                      File offsetsFile,
+                                      File digestFile,
+                                      SequentialWriterOption option,
+                                      CompressionParams parameters,
+                                      MetadataCollector sstableMetadataCollector)
+    {
+        this(file, offsetsFile, digestFile, option, parameters, sstableMetadataCollector, null);
+    }
+
 
     /**
      * Create CompressedSequentialWriter without digest file.
@@ -74,15 +91,17 @@ public class CompressedSequentialWriter extends SequentialWriter
      * @param offsetsFile File to write compression metadata
      * @param digestFile File to write digest
      * @param option Write option (buffer size and type will be set the same as compression params)
-     * @param parameters Compression mparameters
+     * @param parameters Compression parameters
      * @param sstableMetadataCollector Metadata collector
+     * @param compressionDictionaryManager manages compression dictionary; null if absent
      */
     public CompressedSequentialWriter(File file,
                                       File offsetsFile,
                                       File digestFile,
                                       SequentialWriterOption option,
                                       CompressionParams parameters,
-                                      MetadataCollector sstableMetadataCollector)
+                                      MetadataCollector sstableMetadataCollector,
+                                      @Nullable CompressionDictionaryManager compressionDictionaryManager)
     {
         super(file, SequentialWriterOption.newBuilder()
                             .bufferSize(option.bufferSize())
@@ -91,7 +110,7 @@ public class CompressedSequentialWriter extends SequentialWriter
                             .bufferType(parameters.getSstableCompressor().preferredBufferType())
                             .finishOnClose(option.finishOnClose())
                             .build());
-        this.compressor = parameters.getSstableCompressor();
+        ICompressor compressor = parameters.getSstableCompressor();
         this.digestFile = Optional.ofNullable(digestFile);
 
         // buffer for compression should be the same size as buffer itself
@@ -99,8 +118,28 @@ public class CompressedSequentialWriter extends SequentialWriter
 
         maxCompressedLength = parameters.maxCompressedLength();
 
+        // Note that we cannot rely on the compressor type to tell whether dictionary compression is enabled.
+        // Because the `CompressionParams` for this method is updated at the callsite, `DataComponent.buildWriter`.
+        // See CASSANDRA-15379 for details regarding the optimization.
+        // Meanwhile, as long as dictionary-based compression is enabled, we want to collect samples.
+        this.isDictionaryEnabled = compressionDictionaryManager != null && compressionDictionaryManager.isEnabled();
+
+        CompressionDictionary compressionDictionary = compressionDictionaryManager == null ? null : compressionDictionaryManager.getCurrent();
+        if (compressionDictionary != null && compressor instanceof IDictionaryCompressor)
+        {
+            compressor = ((IDictionaryCompressor) compressor).getOrCopyWithDictionary(compressionDictionary);
+        }
+        else
+        {
+            // It is likely on the sstable flushing path and LZ4 compressor or something else is picked.
+            // In this case, we disable the compression dictionary, i.e. do not attach the dictionary
+            // bytes to the CompressionInfo component.
+            compressionDictionary = null;
+        }
+        this.compressor = compressor;
+        this.compressionDictionaryManager = compressionDictionaryManager;
         /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsFile);
+        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsFile, compressionDictionary);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
         crcMetadata = new ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));
@@ -246,7 +285,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         int chunkSize = (int) (metadataWriter.chunkOffsetBy(realMark.nextChunkIndex) - chunkOffset - 4);
         if (compressed.capacity() < chunkSize)
         {
-            FileUtils.clean(compressed);
+            MemoryUtil.clean(compressed);
             compressed = compressor.preferredBufferType().allocate(chunkSize);
         }
 
@@ -401,7 +440,10 @@ public class CompressedSequentialWriter extends SequentialWriter
             accumulate = super.doPreCleanup(accumulate);
             if (compressed != null)
             {
-                try { FileUtils.clean(compressed); }
+                try
+                {
+                    MemoryUtil.clean(compressed);
+                }
                 catch (Throwable t) { accumulate = merge(accumulate, t); }
                 compressed = null;
             }

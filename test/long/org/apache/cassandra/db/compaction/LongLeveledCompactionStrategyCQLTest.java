@@ -27,12 +27,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Hex;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_LCS_CHECKS;
@@ -80,7 +80,7 @@ public class LongLeveledCompactionStrategyCQLTest extends CQLTester
 
             while(currentTimeMillis() - start < TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES))
             {
-                StorageService.instance.getTokenMetadata().invalidateCachedRings();
+//                StorageService.instance.getTokenMetadata().invalidateCachedRings();
                 Uninterruptibles.sleepUninterruptibly(r.nextInt(1000), TimeUnit.MILLISECONDS);
             }
 

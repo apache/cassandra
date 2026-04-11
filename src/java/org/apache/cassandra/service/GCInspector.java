@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.management.MBeanServer;
@@ -42,7 +43,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.StatusLogger;
@@ -59,24 +59,37 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
      * bytes of direct memory requires via ByteBuffer.allocateDirect that have not been GCed.
      */
     final static Field BITS_TOTAL_CAPACITY;
+    // The hard limit for direct memory allocation, typically controlled by the -XX:MaxDirectMemorySize JVM option.
+    final static Field BITS_MAX;
+    // This represents the amount of direct memory that has been reserved for future use but not necessarily allocated yet.
+    final static Field BITS_RESERVED;
 
-    
     static
     {
-        Field temp = null;
+        Class<?> bitsClass = null;
+
         try
         {
-            Class<?> bitsClass = Class.forName("java.nio.Bits");
-            Field f = bitsClass.getDeclaredField("TOTAL_CAPACITY");
-            f.setAccessible(true);
-            temp = f;
+            bitsClass = Class.forName("java.nio.Bits");
         }
         catch (Throwable t)
         {
             logger.debug("Error accessing field of java.nio.Bits", t);
-            //Don't care, will just return the dummy value -1 if we can't get at the field in this JVM
         }
-        BITS_TOTAL_CAPACITY = temp;
+
+        if (bitsClass != null)
+        {
+            BITS_TOTAL_CAPACITY = getField(bitsClass, "TOTAL_CAPACITY");
+            // Returns the maximum amount of allocatable direct buffer memory.
+            BITS_MAX = getField(bitsClass, "MAX_MEMORY");
+            BITS_RESERVED = getField(bitsClass, "RESERVED_MEMORY");
+        }
+        else
+        {
+            BITS_TOTAL_CAPACITY = null;
+            BITS_MAX = null;
+            BITS_RESERVED = null;
+        }
     }
 
     static final class State
@@ -110,15 +123,17 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         final GarbageCollectorMXBean gcBean;
         final boolean assumeGCIsPartiallyConcurrent;
         final boolean assumeGCIsOldGen;
+        final boolean isZGC;
         private String[] keys;
         long lastGcTotalDuration = 0;
 
 
-        GCState(GarbageCollectorMXBean gcBean, boolean assumeGCIsPartiallyConcurrent, boolean assumeGCIsOldGen)
+        GCState(GarbageCollectorMXBean gcBean, boolean assumeGCIsPartiallyConcurrent, boolean assumeGCIsOldGen, boolean isZGC)
         {
             this.gcBean = gcBean;
             this.assumeGCIsPartiallyConcurrent = assumeGCIsPartiallyConcurrent;
             this.assumeGCIsOldGen = assumeGCIsOldGen;
+            this.isZGC = isZGC;
         }
 
         String[] keys(GarbageCollectionNotificationInfo info)
@@ -130,6 +145,11 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             Arrays.sort(keys);
 
             return keys;
+        }
+
+        public boolean isZGC()
+        {
+            return isZGC;
         }
     }
 
@@ -145,7 +165,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             for (ObjectName name : MBeanWrapper.instance.queryNames(gcName, null))
             {
                 GarbageCollectorMXBean gc = ManagementFactory.newPlatformMXBeanProxy(MBeanWrapper.instance.getMBeanServer(), name.getCanonicalName(), GarbageCollectorMXBean.class);
-                gcStates.put(gc.getName(), new GCState(gc, assumeGCIsPartiallyConcurrent(gc), assumeGCIsOldGen(gc)));
+                gcStates.put(gc.getName(), new GCState(gc, assumeGCIsPartiallyConcurrent(gc), assumeGCIsOldGen(gc), isZGC(gc)));
             }
             ObjectName me = new ObjectName(MBEAN_NAME);
             if (!MBeanWrapper.instance.isRegistered(me))
@@ -164,8 +184,14 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         ObjectName gcName = new ObjectName(ManagementFactory.GARBAGE_COLLECTOR_MXBEAN_DOMAIN_TYPE + ",*");
         for (ObjectName name : server.queryNames(gcName, null))
         {
+            logger.info("Notification listener is added for: {}", name);
             server.addNotificationListener(name, inspector, null, null);
         }
+    }
+
+    private static boolean isZGC(GarbageCollectorMXBean gc)
+    {
+        return gc.getName().contains("ZGC");
     }
 
     /*
@@ -173,27 +199,35 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
      * should be used to calculate application stopped time due to the GC.
      *
      * If the GC isn't recognized then assume that is concurrent and we need to do our own calculation
-     * via the the side channel.
+     * via the side channel.
      */
     private static boolean assumeGCIsPartiallyConcurrent(GarbageCollectorMXBean gc)
     {
         switch (gc.getName())
         {
-                //First two are from the serial collector
+                // First two are from the serial collector
             case "Copy":
             case "MarkSweepCompact":
-                //Parallel collector
+                // Parallel collector
             case "PS MarkSweep":
             case "PS Scavenge":
             case "G1 Young Generation":
-                //CMS young generation collector
+                // CMS young generation collector
             case "ParNew":
+                // gen zgc
+            case "ZGC Minor Pauses":
+            case "ZGC Major Pauses":
+                // zgc
+            case "ZGC Pauses":
                 return false;
             case "ConcurrentMarkSweep":
             case "G1 Old Generation":
+            case "ZGC Minor Cycles":
+            case "ZGC Major Cycles":
+            case "ZGC Cycles":
                 return true;
             default:
-                //Assume possibly concurrent if unsure
+                // Assume possibly concurrent if unsure
                 return true;
         }
     }
@@ -212,15 +246,22 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             case "PS Scavenge":
             case "G1 Young Generation":
             case "ParNew":
+            case "ZGC Minor Cycles":
+            case "ZGC Minor Pauses":
                 return false;
             case "MarkSweepCompact":
             case "PS MarkSweep":
             case "ConcurrentMarkSweep":
             case "G1 Old Generation":
+            case "ZGC Major Cycles":
+            case "ZGC Major Pauses":
+                // assume non-generational zgc is old gen
+            case "ZGC Cycles":
+            case "ZGC Pauses":
                 return true;
             default:
-                //Assume not old gen otherwise, don't call
-                //TransactionLogs.rescheduleFailedTasks()
+                // Assume not old gen otherwise, don't call
+                // TransactionLogs.rescheduleFailedTasks()
                 return false;
         }
     }
@@ -252,6 +293,11 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 duration = total - previousTotal; // may be zero for a really fast collection
             }
 
+            logger.trace("Received GarbageCollectionNotificationInfo with gcId: {}, gcName: {}, " +
+                         "gcCause: {}, gcAction: {}, event duration: {} ms, calculated duration: {} ms",
+                         gcInfo.getId(), info.getGcName(), info.getGcCause(), info.getGcAction(),
+                         gcInfo.getDuration(), duration);
+
             StringBuilder sb = new StringBuilder();
             sb.append(info.getGcName()).append(" GC in ").append(duration).append("ms.  ");
             long bytes = 0;
@@ -278,22 +324,55 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 if (state.compareAndSet(prev, new State(duration, bytes, prev)))
                     break;
             }
-            
-            if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
-                logger.warn(sb.toString());
-            else if (duration > getGcLogThresholdInMs())
-                logger.info(sb.toString());
-            else if (logger.isTraceEnabled())
-                logger.trace(sb.toString());
 
-            if (duration > this.getStatusThresholdInMs())
-                StatusLogger.log();
+            if (isConcurrentPhase(info.getGcCause(), info.getGcName()))
+            {
+                if (getGcConcurrentPhaseWarnThresholdInMs() != 0 && duration > getGcConcurrentPhaseWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcConcurrentPhaseLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+
+                if (duration > this.getConcurrentStatusThresholdInMs())
+                    StatusLogger.log();
+            }
+            else
+            {
+                if (getGcWarnThresholdInMs() != 0 && duration > getGcWarnThresholdInMs())
+                    logger.warn(sb.toString());
+                else if (duration > getGcLogThresholdInMs())
+                    logger.info(sb.toString());
+                else if (logger.isTraceEnabled())
+                    logger.trace(sb.toString());
+
+                if (duration > this.getStatusThresholdInMs())
+                    StatusLogger.log();
+            }
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
             if (gcState.assumeGCIsOldGen)
                 LifecycleTransaction.rescheduleFailedDeletions();
         }
     }
+
+    static boolean isConcurrentPhase(String cause, String name) {
+        // Mostly taken from: https://github.com/Netflix/spectator/blob/v1.7.x/spectator-ext-gc/src/main/java/com/netflix/spectator/gc/GcLogger.java
+        // So far the only indicator known is that the cause will be reported as "No GC"
+        // when using CMS.
+        //
+        // For ZGC, behavior was changed in JDK17: https://bugs.openjdk.java.net/browse/JDK-8265136
+        // For ZGC in older versions, there is no way to accurately get the amount of time
+        // in STW pauses.
+        //
+        // For G1, a new bean is added in JDK20 to indicate time spent in concurrent phases:
+        // https://bugs.openjdk.org/browse/JDK-8297247
+
+        return "No GC".equals(cause)                // CMS
+               || "G1 Concurrent GC".equals(name)   // G1 in JDK20+
+               || name.endsWith(" Cycles");         // Shenandoah, ZGC
+    }
+
 
     public State getTotalSinceLastCheck()
     {
@@ -303,44 +382,85 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     public double[] getAndResetStats()
     {
         State state = getTotalSinceLastCheck();
-        double[] r = new double[7];
+        double[] r = new double[9];
         r[0] = TimeUnit.NANOSECONDS.toMillis(nanoTime() - state.startNanos);
         r[1] = state.maxRealTimeElapsed;
         r[2] = state.totalRealTimeElapsed;
         r[3] = state.sumSquaresRealTimeElapsed;
         r[4] = state.totalBytesReclaimed;
         r[5] = state.count;
-        r[6] = getAllocatedDirectMemory();
+        r[6] = getTotalDirectMemory();
+        r[7] = getMaxDirectMemory();
+        r[8] = getReservedDirectMemory();
 
         return r;
     }
 
-    private static long getAllocatedDirectMemory()
+    private static long getTotalDirectMemory()
     {
-        if (BITS_TOTAL_CAPACITY == null) return -1;
+        return getFieldValue(BITS_TOTAL_CAPACITY, true);
+    }
+
+    private static long getMaxDirectMemory()
+    {
+        return getFieldValue(BITS_MAX, false);
+    }
+
+    private static long getReservedDirectMemory()
+    {
+        return getFieldValue(BITS_RESERVED, true);
+    }
+
+    private static Field getField(Class<?> clazz, String fieldName)
+    {
         try
         {
-            return BITS_TOTAL_CAPACITY.getLong(null);
+            Field field = clazz.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field;
         }
         catch (Throwable t)
         {
-            logger.trace("Error accessing field of java.nio.Bits", t);
+            logger.trace("Error accessing field {} of {}", fieldName, clazz.getName(), t);
+            // Return null to indicate failure
+            return null;
+        }
+    }
+
+    /**
+     * Retrieves the value of a Field, handling both regular long fields and AtomicLong fields.
+     *
+     * From the implementation of java.nio.Bits, we can infer that TOTAL_CAPACITY/RESERVED_MEMORY is AtomicLong
+     * and MAX_MEMORY is long.
+     *
+     * @param field the Field to retrieve the value from
+     * @param isAtomicLong true if the field is an AtomicLong, false if it's a regular long
+     * @return the field value, or -1 if retrieval fails or field is null.
+     */
+    private static long getFieldValue(Field field, boolean isAtomicLong)
+    {
+        if (field == null) return -1;
+        try
+        {
+            return isAtomicLong ? ((AtomicLong) field.get(null)).get() : field.getLong(null);
+        }
+        catch (Throwable t)
+        {
+            logger.trace("Error accessing field value of {}", field.getName(), t);
             //Don't care how or why we failed to get the value in this JVM. Return -1 to indicate failure
             return -1;
         }
     }
 
+    /**
+     * While we _technically_ could only set the threshold based on which GC we're running, there's really no
+     * perceptable value-add from doing that. Responsibility for enforcing the validity of the params is entrusted
+     * to the {@link DatabaseDescriptor}
+     */
+    @Override
     public void setGcWarnThresholdInMs(long threshold)
     {
-        long gcLogThresholdInMs = getGcLogThresholdInMs();
-        if (threshold < 0)
-            throw new IllegalArgumentException("Threshold must be greater than or equal to 0");
-        if (threshold != 0 && threshold <= gcLogThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be greater than gcLogThresholdInMs which is currently "
-                    + gcLogThresholdInMs);
-        if (threshold > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Threshold must be less than Integer.MAX_VALUE");
-        DatabaseDescriptor.setGCWarnThreshold((int)threshold);
+        DatabaseDescriptor.setGCWarnThreshold(threshold);
     }
 
     public long getGcWarnThresholdInMs()
@@ -350,15 +470,27 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
     public void setGcLogThresholdInMs(long threshold)
     {
-        if (threshold <= 0)
-            throw new IllegalArgumentException("Threshold must be greater than 0");
-
-        long gcWarnThresholdInMs = getGcWarnThresholdInMs();
-        if (gcWarnThresholdInMs != 0 && threshold > gcWarnThresholdInMs)
-            throw new IllegalArgumentException("Threshold must be less than gcWarnThresholdInMs which is currently "
-                                               + gcWarnThresholdInMs);
-
         DatabaseDescriptor.setGCLogThreshold((int) threshold);
+    }
+
+    public int getGcConcurrentPhaseWarnThresholdInMs()
+    {
+        return DatabaseDescriptor.getGCConcurrentPhaseWarnThreshold();
+    }
+
+    public void setGcConcurrentPhaseWarnThresholdInMs(int threshold)
+    {
+        DatabaseDescriptor.setGCConcurrentPhaseWarnThreshold(threshold);
+    }
+
+    public int getGcConcurrentPhaseLogThresholdInMs()
+    {
+        return DatabaseDescriptor.getGCConcurrentPhaseLogThreshold();
+    }
+
+    public void setGcConcurrentPhaseLogThresholdInMs(int threshold)
+    {
+        DatabaseDescriptor.setGCConcurrentPhaseLogThreshold(threshold);
     }
 
     public long getGcLogThresholdInMs()
@@ -371,4 +503,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         return getGcWarnThresholdInMs() != 0 ? getGcWarnThresholdInMs() : getGcLogThresholdInMs();
     }
 
+    public long getConcurrentStatusThresholdInMs()
+    {
+        return getGcConcurrentPhaseWarnThresholdInMs() != 0 ? getGcConcurrentPhaseWarnThresholdInMs() : getGcConcurrentPhaseLogThresholdInMs();
+    }
 }

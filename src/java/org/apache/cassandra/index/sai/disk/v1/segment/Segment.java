@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -26,47 +27,45 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
-import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
-import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.CloseableIterator;
 
 /**
  * Each segment represents an on-disk index structure (balanced tree/terms/postings) flushed by memory limit or token boundaries.
  * It also helps to reduce resource consumption for read requests as only segments that intersect with read request data
  * range need to be loaded.
  */
-public class Segment implements Closeable
+public class Segment implements SegmentOrdering, Closeable
 {
     private final Token.KeyBound minKeyBound;
     private final Token.KeyBound maxKeyBound;
 
-    // per sstable
-    final PrimaryKeyMap.Factory primaryKeyMapFactory;
     // per-segment
     public final SegmentMetadata metadata;
 
     private final IndexSegmentSearcher index;
 
-    public Segment(IndexContext indexContext, SSTableContext sstableContext, PerColumnIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
+    public Segment(StorageAttachedIndex index, SSTableContext sstableContext, PerColumnIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
     {
         this.minKeyBound = metadata.minKey.token().minKeyBound();
         this.maxKeyBound = metadata.maxKey.token().maxKeyBound();
 
-        this.primaryKeyMapFactory = sstableContext.primaryKeyMapFactory;
         this.metadata = metadata;
 
-        this.index = IndexSegmentSearcher.open(primaryKeyMapFactory, indexFiles, metadata, indexContext);
+        this.index = IndexSegmentSearcher.open(sstableContext.primaryKeyMapFactory, sstableContext.sstable.getId(), indexFiles, metadata, index);
     }
 
     @VisibleForTesting
     public Segment(Token minKey, Token maxKey)
     {
-        this.primaryKeyMapFactory = null;
         this.metadata = null;
         this.minKeyBound = minKey.minKeyBound();
         this.maxKeyBound = maxKey.maxKeyBound();
@@ -105,9 +104,28 @@ public class Segment implements Closeable
 
      * @return range iterator that matches given expression
      */
-    public KeyRangeIterator search(Expression expression, QueryContext context) throws IOException
+    public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
-        return index.search(expression, context);
+        return index.search(expression, keyRange, context);
+    }
+
+    /**
+     * Order the on-disk index synchronously and produce an iterator in score order
+     *
+     * @param orderer    the expression to use when searching the on disk index
+     * @param keyRange   key range specific in read command, used by ANN index
+     * @param context    to track per sstable cache and per query metrics
+     * @return an iterator of {@link PrimaryKeyWithScore} in score order
+     */
+    public CloseableIterator<PrimaryKeyWithScore> orderBy(Expression orderer, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
+    {
+        return index.orderBy(orderer, keyRange, context);
+    }
+
+    @Override
+    public CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext context, List<PrimaryKey> results, Expression orderer) throws IOException
+    {
+        return index.orderResultsBy(context, results, orderer);
     }
 
     @Override

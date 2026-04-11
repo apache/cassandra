@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 

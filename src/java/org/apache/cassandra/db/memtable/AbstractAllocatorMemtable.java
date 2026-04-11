@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.github.jamm.Unmetered;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -46,7 +49,6 @@ import org.apache.cassandra.utils.memory.MemtableCleaner;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
-import org.github.jamm.Unmetered;
 
 /**
  * A memtable that uses memory tracked and maybe allocated via a MemtableAllocator from a MemtablePool.
@@ -128,13 +130,13 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     }
 
     @Override
-    public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
+    public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason, TableMetadata latest)
     {
         switch (reason)
         {
         case SCHEMA_CHANGE:
-            return initialComparator != metadata().comparator // If the CF comparator has changed, because our partitions reference the old one
-                   || !initialFactory.equals(metadata().params.memtable.factory()); // If a different type of memtable is requested
+            return initialComparator != latest.comparator // If the CF comparator has changed, because our partitions reference the old one
+                   || !initialFactory.equals(latest.params.memtable.factory()); // If a different type of memtable is requested
         case OWNED_RANGES_CHANGE:
             return false; // by default we don't use the local ranges, thus this has no effect
         default:
@@ -218,6 +220,12 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
                 Memtable current = owner.getCurrentMemtable();
                 if (current instanceof AbstractAllocatorMemtable)
                     ((AbstractAllocatorMemtable) current).flushIfPeriodExpired();
+            }
+
+            @Override
+            public String toString()
+            {
+                return "Scheduled Flush of " + owner;
             }
         };
         ScheduledExecutors.scheduledTasks.scheduleSelfRecurring(runnable, period, TimeUnit.MILLISECONDS);

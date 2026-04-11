@@ -26,6 +26,8 @@ import com.google.common.collect.Iterables;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import org.apache.cassandra.cql3.statements.SelectOptions;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.pager.MultiPartitionPager;
 import org.apache.cassandra.service.pager.PagingState;
@@ -51,9 +54,10 @@ public interface SinglePartitionReadQuery extends ReadQuery
                                                                         RowFilter rowFilter,
                                                                         DataLimits limits,
                                                                         List<DecoratedKey> partitionKeys,
-                                                                        ClusteringIndexFilter clusteringIndexFilter)
+                                                                        ClusteringIndexFilter clusteringIndexFilter,
+                                                                        PotentialTxnConflicts potentialTxnConflicts)
     {
-        return SinglePartitionReadCommand.Group.create(metadata, nowInSec, columnFilter, rowFilter, limits, partitionKeys, clusteringIndexFilter);
+        return SinglePartitionReadCommand.Group.create(metadata, nowInSec, columnFilter, rowFilter, limits, partitionKeys, clusteringIndexFilter, potentialTxnConflicts);
     }
 
 
@@ -174,6 +178,16 @@ public interface SinglePartitionReadQuery extends ReadQuery
             this.selectsFullPartitions = firstQuery.selectsFullPartition();
             for (int i = 1; i < queries.size(); i++)
                 assert queries.get(i).nowInSec() == nowInSec;
+        }
+
+        @Override
+        public void maybeValidateIndex(SelectOptions selectOptions)
+        {
+            for (ReadQuery query : queries)
+            {
+                query.maybeValidateIndex(selectOptions);
+                selectOptions.validate(metadata(), IndexRegistry.obtain(metadata()), query.indexQueryPlan());
+            }
         }
 
         public long nowInSec()

@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.db.rows;
 
-import static org.apache.cassandra.SchemaLoader.standardCFMD;
-import static org.junit.Assert.*;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -31,7 +28,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.Iterators;
-import org.junit.BeforeClass;
+
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -56,7 +53,6 @@ import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -66,19 +62,18 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 public class ThrottledUnfilteredIteratorTest extends CQLTester
 {
     private static final String KSNAME = "ThrottledUnfilteredIteratorTest";
     private static final String CFNAME = "StandardInteger1";
-
-    @BeforeClass
-    public static void defineSchema() throws ConfigurationException
-    {
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KSNAME,
-                                    KeyspaceParams.simple(1),
-                                    standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
-    }
 
     static final TableMetadata metadata;
     static final ColumnMetadata v1Metadata;
@@ -214,8 +209,6 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
         {
             try (UnfilteredRowIterator rowIterator = scanner.next())
             {
-                // only 1 partition data
-                assertFalse(scanner.hasNext());
                 List<Unfiltered> expectedUnfiltereds = new ArrayList<>();
                 rowIterator.forEachRemaining(expectedUnfiltereds::add);
 
@@ -227,15 +220,17 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
                         assertTrue(scannerForThrottle.hasNext());
                         try (UnfilteredRowIterator rowIteratorForThrottle = scannerForThrottle.next())
                         {
-                            assertFalse(scannerForThrottle.hasNext());
                             verifyThrottleIterator(expectedUnfiltereds,
                                                    rowIteratorForThrottle,
                                                    new ThrottledUnfilteredIterator(rowIteratorForThrottle, throttle),
                                                    throttle);
                         }
+                        assertFalse(scannerForThrottle.hasNext());
                     }
                 }
             }
+            // only 1 partition data
+            assertFalse(scanner.hasNext());
         }
     }
 
@@ -606,6 +601,9 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
     @Test
     public void testThrottledIteratorWithRangeDeletions() throws Exception
     {
+        SchemaLoader.createKeyspace(KSNAME,
+                                    KeyspaceParams.simple(1),
+                                    standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
         Keyspace keyspace = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CFNAME);
 

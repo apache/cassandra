@@ -24,13 +24,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.CQL3CasRequest;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
  * A set of <code>ColumnCondition</code>s.
@@ -73,7 +74,7 @@ public final class ColumnConditions extends AbstractConditions
     public Collection<ColumnMetadata> getColumns()
     {
         return Stream.concat(columnConditions.stream(), staticConditions.stream())
-                     .map(e -> e.column)
+                     .map(e -> e.columnsExpression.firstColumn())
                      .collect(Collectors.toList());
     }
 
@@ -139,7 +140,7 @@ public final class ColumnConditions extends AbstractConditions
         public Builder add(ColumnCondition condition)
         {
             List<ColumnCondition> conds;
-            if (condition.column.isStatic())
+            if (condition.columnsExpression.firstColumn().isStatic())
             {
                 if (staticConditions.isEmpty())
                     staticConditions = new ArrayList<>();

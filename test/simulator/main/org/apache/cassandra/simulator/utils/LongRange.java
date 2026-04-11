@@ -91,4 +91,12 @@ public class LongRange
         return parse.substring(0, parse.length() - (units == SECONDS ? 1 : 2));
     }
 
+    @Override
+    public String toString()
+    {
+        return "LongRange{" +
+               "min=" + min +
+               ", max=" + max +
+               '}';
+    }
 }

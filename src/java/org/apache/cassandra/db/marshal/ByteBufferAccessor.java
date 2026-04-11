@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.util.UUID;
@@ -29,9 +30,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -244,6 +245,18 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public float[] toFloatArray(ByteBuffer value, int dimension)
+    {
+        FloatBuffer floatBuffer = value.asFloatBuffer();
+        if (floatBuffer.remaining() != dimension)
+            throw new IllegalArgumentException(String.format("Could not convert to a float[] with different dimension. " +
+                                                             "Was expecting %d but got %d", dimension, floatBuffer.remaining()));
+        float[] floatArray = new float[floatBuffer.remaining()];
+        floatBuffer.get(floatArray);
+        return floatArray;
+    }
+
+    @Override
     public double toDouble(ByteBuffer value)
     {
         return ByteBufferUtil.toDouble(value);
@@ -300,6 +313,35 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     {
         dst.putFloat(dst.position() + offset, value);
         return TypeSizes.FLOAT_SIZE;
+    }
+
+    @Override
+    public int putLeastSignificantBytes(ByteBuffer dst, int offset, long register, int bytes)
+    {
+        int pos = dst.position() + offset;
+        if (dst.limit() - pos < Long.BYTES)
+        {
+            return ValueAccessor.putLeastSignificantBytes(this, dst, offset, register, bytes);
+        }
+        else
+        {
+            dst.putLong(pos, register << (64 - (bytes * 8)));
+        }
+        return bytes;
+    }
+
+    @Override
+    public long getLeastSignificantBytes(ByteBuffer dst, int offset, int bytes)
+    {
+        int pos = dst.position() + offset;
+        if (dst.limit() - pos < Long.BYTES)
+        {
+            return ValueAccessor.getLeastSignificantBytes(this, dst, offset, bytes);
+        }
+        else
+        {
+            return dst.getLong(pos) >>> (64 - (bytes * 8));
+        }
     }
 
     @Override

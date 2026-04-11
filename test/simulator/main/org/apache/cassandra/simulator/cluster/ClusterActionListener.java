@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.simulator.cluster;
 
+import org.apache.cassandra.simulator.cluster.OnInstanceRepair.RepairType;
+
 public interface ClusterActionListener
 {
     interface TopologyChangeValidator
@@ -28,7 +30,7 @@ public interface ClusterActionListener
 
     interface RepairValidator
     {
-        public void before(Topology topology, boolean repairPaxos, boolean repairOnlyPaxos);
+        public void before(Topology topology, RepairType repairType);
         public void after();
     }
 
@@ -61,7 +63,7 @@ public interface ClusterActionListener
             return new RepairValidator()
             {
                 @Override
-                public void before(Topology topology, boolean repairPaxos, boolean repairOnlyPaxos)
+                public void before(Topology topology, RepairType repairType)
                 {
                 }
 

@@ -35,6 +35,20 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
+import org.openjdk.jmh.annotations.Warmup;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -68,28 +82,15 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.BenchmarkMode;
-import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.Threads;
-import org.openjdk.jmh.annotations.Warmup;
 
 import static java.lang.Long.min;
 import static java.lang.Math.max;
@@ -107,7 +108,7 @@ public class AtomicBTreePartitionUpdateBench
     private static final MutableDeletionInfo NO_DELETION_INFO = new MutableDeletionInfo(DeletionTime.LIVE);
     private static final HeapPool POOL = new HeapPool(Long.MAX_VALUE, 1.0f, () -> ImmediateFuture.success(Boolean.TRUE));
     private static final ByteBuffer zero = Int32Type.instance.decompose(0);
-    private static final DecoratedKey decoratedKey = new BufferDecoratedKey(new ByteOrderedPartitioner().getToken(zero), zero);
+    private static final DecoratedKey decoratedKey = new BufferDecoratedKey(ByteOrderedPartitioner.instance.getToken(zero), zero);
 
     static
     {
@@ -339,6 +340,12 @@ public class AtomicBTreePartitionUpdateBench
                     return new ByteBufferCloner()
                     {
                         @Override
+                        public boolean isContextAwareCloningSupported()
+                        {
+                            return false;
+                        }
+
+                        @Override
                         public ByteBuffer allocate(int size)
                         {
                             if (invalidateOn > 0 && --invalidateOn == 0)
@@ -565,6 +572,7 @@ public class AtomicBTreePartitionUpdateBench
                                                           "",
                                                           new ColumnIdentifier(prefix + i, true),
                                                           type,
+                                                          ColumnMetadata.NO_UNIQUE_ID,
                                                           kind != ColumnMetadata.Kind.REGULAR ? i : ColumnMetadata.NO_POSITION,
                                                           kind,
                                                           null))

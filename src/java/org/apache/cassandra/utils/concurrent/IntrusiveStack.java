@@ -20,11 +20,15 @@ package org.apache.cassandra.utils.concurrent;
 
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
+import accord.utils.TriFunction;
+
 import org.apache.cassandra.utils.LongAccumulator;
 
 /**
@@ -64,21 +68,33 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     T next;
 
     @Inline
-    protected static <O, T extends IntrusiveStack<T>> T push(AtomicReferenceFieldUpdater<? super O, T> headUpdater, O owner, T prepend)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(AtomicReferenceFieldUpdater<? super O, T> headUpdater, O owner, T prepend)
     {
-        return push(headUpdater, owner, prepend, (prev, next) -> {
+        return getAndPush(headUpdater, owner, prepend, (prev, next) -> {
             next.next = prev;
             return next;
         });
     }
 
-    protected static <O, T extends IntrusiveStack<T>> T push(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
     {
         while (true)
         {
             T head = headUpdater.get(owner);
-            if (headUpdater.compareAndSet(owner, head, combine.apply(head, prepend)))
+            T newHead = combine.apply(head, prepend);
+            if (headUpdater.compareAndSet(owner, head, newHead))
                 return head;
+        }
+    }
+
+    protected static <O, T extends IntrusiveStack<T>> T pushAndGet(AtomicReferenceFieldUpdater<O, T> headUpdater, O owner, T prepend, BiFunction<T, T, T> combine)
+    {
+        while (true)
+        {
+            T head = headUpdater.get(owner);
+            T newHead = combine.apply(head, prepend);
+            if (head == newHead || headUpdater.compareAndSet(owner, head, newHead))
+                return newHead;
         }
     }
 
@@ -88,15 +104,15 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
     }
 
     @Inline
-    protected static <O, T extends IntrusiveStack<T>> T push(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend)
     {
-        return push(getter, setter, owner, prepend, (prev, next) -> {
+        return getAndPush(getter, setter, owner, prepend, (prev, next) -> {
             next.next = prev;
             return next;
         });
     }
 
-    protected static <O, T extends IntrusiveStack<T>> T push(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend, BiFunction<T, T, T> combine)
+    protected static <O, T extends IntrusiveStack<T>> T getAndPush(Function<O, T> getter, Setter<O, T> setter, O owner, T prepend, BiFunction<T, T, T> combine)
     {
         while (true)
         {
@@ -150,12 +166,19 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
         return size;
     }
 
+    protected static boolean isSize(int size, IntrusiveStack<?> list)
+    {
+        while (list != null && --size >= 0)
+            list = list.next;
+        return list == null && size == 0;
+    }
+
     protected static <T extends IntrusiveStack<T>> long accumulate(T list, LongAccumulator<T> accumulator, long initialValue)
     {
         long value = initialValue;
         while (list != null)
         {
-            value = accumulator.apply(list, initialValue);
+            value = accumulator.apply(list, value);
             list = list.next;
         }
         return value;
@@ -188,11 +211,37 @@ public class IntrusiveStack<T extends IntrusiveStack<T>> implements Iterable<T>
         forEach((T)this, forEach);
     }
 
+    public <P, V> V foldl(TriFunction<? super T, P, ? super V, ? extends V> foldl, P param, V accumulator)
+    {
+        T list = (T) this;
+        while (list != null)
+        {
+            accumulator = foldl.apply(list, param, accumulator);
+            list = list.next;
+        }
+        return accumulator;
+    }
+
     protected static <T extends IntrusiveStack<T>> void forEach(T list, Consumer<? super T> forEach)
+    {
+        forEach(list, Function.identity(), forEach);
+    }
+
+    protected static <T extends IntrusiveStack<T>, P> void forEach(T list, BiConsumer<P, ? super T> forEach, P param)
+    {
+        forEach(list, Function.identity(), forEach, param);
+    }
+
+    protected static <T extends IntrusiveStack<T>, V> void forEach(T list, Function<? super T, ? extends V> getter, Consumer<? super V> forEach)
+    {
+        forEach(list, getter, Consumer::accept, forEach);
+    }
+
+    protected static <P, T extends IntrusiveStack<T>, V> void forEach(T list, Function<? super T, ? extends V> getter, BiConsumer<? super P, ? super V> forEach, P param)
     {
         while (list != null)
         {
-            forEach.accept(list);
+            forEach.accept(param, getter.apply(list));
             list = list.next;
         }
     }

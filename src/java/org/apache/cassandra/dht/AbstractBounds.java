@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
@@ -27,6 +26,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
@@ -50,7 +50,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
     public AbstractBounds(T left, T right)
     {
-        assert left.getPartitioner() == right.getPartitioner();
+        assert left.getPartitioner().getClass().equals(right.getPartitioner().getClass()); // todo: is this enough?
         this.left = left;
         this.right = right;
     }
@@ -195,7 +195,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
             serializer.serialize(range.right, out, version);
         }
 
-        public AbstractBounds<T> deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public AbstractBounds<T> deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             boolean isToken, startInclusive, endInclusive;
             // !WARNING! See serialize method above for why we still need to have that condition.

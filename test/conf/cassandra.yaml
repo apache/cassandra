@@ -3,11 +3,13 @@
 # Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
 #
 cluster_name: Test Cluster
-# memtable_allocation_type: heap_buffers
-memtable_allocation_type: offheap_objects
-commitlog_sync: batch
+memtable_allocation_type: heap_buffers
+# memtable_allocation_type: offheap_objects
+commitlog_sync: periodic
+commitlog_sync_period: 10s
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
+commitlog_disk_access_mode: legacy
 # commitlog_compression:
 # - class_name: LZ4Compressor
 cdc_raw_directory: build/test/cassandra/cdc_raw
@@ -23,7 +25,7 @@ column_index_size: 4KiB
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
-disk_access_mode: mmap
+disk_access_mode: mmap_index_only
 seed_provider:
     - class_name: org.apache.cassandra.locator.SimpleSeedProvider
       parameters:
@@ -65,6 +67,17 @@ local_read_size_warn_threshold: 4096KiB
 local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
+write_thresholds_enabled: true
+write_size_warn_threshold: 4096KiB
+write_tombstone_warn_threshold: 1000
+min_tracked_partition_size: 1MiB
+min_tracked_partition_tombstone_count: 500
+
+accord:
+    enabled: true
+    journal_directory: build/test/cassandra/accord_journal
+    queue_shard_count: 2
+    command_store_shard_count: 4
 
 memtable:
     configurations:

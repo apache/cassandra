@@ -18,7 +18,10 @@
 package org.apache.cassandra.db.virtual;
 
 import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.schema.TableMetadata;

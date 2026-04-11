@@ -18,16 +18,16 @@
 */
 package org.apache.cassandra.db.marshal;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-
 import java.nio.ByteBuffer;
+
+import org.junit.Test;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JsonUtils;
 
-import org.junit.Test;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertEquals;
 
 public class JsonConversionTest
 {

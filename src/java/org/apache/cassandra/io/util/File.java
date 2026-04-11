@@ -36,12 +36,14 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
 
 import net.openhft.chronicle.core.util.ThrowingFunction;
+
 import org.apache.cassandra.io.FSWriteError;
 
 import static org.apache.cassandra.io.util.PathUtils.filename;
@@ -223,6 +225,15 @@ public class File implements Comparable<File>
     public void deleteRecursive()
     {
         PathUtils.deleteRecursive(toPathForWrite());
+    }
+
+    /**
+     * Deletes all files and subdirectories under "dir".
+     * @return false if the root cannot be deleted
+     */
+    public boolean tryDeleteRecursive()
+    {
+        return PathUtils.tryDeleteRecursive(toPathForWrite());
     }
 
     /**

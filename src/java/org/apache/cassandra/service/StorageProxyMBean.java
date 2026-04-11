@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 public interface StorageProxyMBean
 {
     public long getTotalHints();
@@ -56,6 +55,9 @@ public interface StorageProxyMBean
     public void setNativeTransportMaxConcurrentConnections(Long nativeTransportMaxConcurrentConnections);
     public Long getNativeTransportMaxConcurrentConnections();
 
+    public void setNativeTransportMaxConcurrentConnectionsPerIp(Long nativeTransportMaxConcurrentConnections);
+    public Long getNativeTransportMaxConcurrentConnectionsPerIp();
+
     public void reloadTriggerClasses();
 
     public long getReadRepairAttempted();
@@ -63,7 +65,8 @@ public interface StorageProxyMBean
     public long getReadRepairRepairedBackground();
     public long getReadRepairRepairTimedOut();
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15066 */
+    @Deprecated(since = "4.0")
     public int getOtcBacklogExpirationInterval();
 
     public void loadPartitionDenylist();
@@ -79,11 +82,15 @@ public interface StorageProxyMBean
     public void setDenylistMaxKeysTotal(int value);
     public boolean isKeyDenylisted(String keyspace, String table, String partitionKeyAsString);
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15066 */
+    @Deprecated(since = "4.0")
     public void setOtcBacklogExpirationInterval(int intervalInMillis);
 
-    /** Returns each live node's schema version */
-    @Deprecated public Map<String, List<String>> getSchemaVersions();
+    /**
+     * Returns each live node's schema version.
+     * @deprecated See CASSANDRA-7544
+     */
+    @Deprecated(since = "4.0") public Map<String, List<String>> getSchemaVersions();
     public Map<String, List<String>> getSchemaVersionsWithPort();
 
     public int getNumberOfTables();

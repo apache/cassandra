@@ -29,17 +29,18 @@ import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
+import static java.util.Arrays.asList;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.asString;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
 import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
-import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 
 public class SlicedTrieTest
@@ -304,19 +305,26 @@ public class SlicedTrieTest
         return new Trie<Integer>()
         {
             @Override
-            protected Cursor<Integer> cursor()
+            protected Cursor<Integer> cursor(Direction direction)
             {
-                return new singleLevelCursor();
+                return new singleLevelCursor(direction);
             }
 
             class singleLevelCursor implements Cursor<Integer>
             {
+                final Direction direction;
                 int current = -1;
+
+                singleLevelCursor(Direction direction)
+                {
+                    this.direction = direction;
+                    current = direction.select(-1, childs);
+                }
 
                 @Override
                 public int advance()
                 {
-                    ++current;
+                    current += direction.increase;
                     return depth();
                 }
 
@@ -329,9 +337,9 @@ public class SlicedTrieTest
                 @Override
                 public int depth()
                 {
-                    if (current == -1)
+                    if (current == direction.select(-1, childs))
                         return 0;
-                    if (current < childs)
+                    if (direction.inLoop(current, 0, childs - 1))
                         return 1;
                     return -1;
                 }

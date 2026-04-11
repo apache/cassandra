@@ -24,13 +24,14 @@ import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -65,15 +66,15 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
 {
     private static final Logger logger = LoggerFactory.getLogger(BtiTableWriter.class);
 
-    public BtiTableWriter(Builder builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    public BtiTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
-        super(builder, lifecycleNewTracker, owner);
+        super(builder, txn, owner);
     }
 
     @Override
     protected TrieIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException
     {
-        TrieIndexEntry entry = TrieIndexEntry.create(partitionWriter.getInitialPosition(),
+        TrieIndexEntry entry = TrieIndexEntry.create(partitionWriter.getPartitionStartPosition(),
                                                      finishResult,
                                                      partitionLevelDeletion,
                                                      partitionWriter.getRowIndexBlockCount());
@@ -81,7 +82,7 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
         return entry;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
+    @SuppressWarnings({ "resource", "RedundantSuppression" }) // dataFile is closed along with the reader
     private BtiTableReader openInternal(OpenReason openReason, boolean isFinal, Supplier<PartitionIndex> partitionIndexSupplier)
     {
         IFilter filter = null;
@@ -145,7 +146,6 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
     }
 
     @Override
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
     protected SSTableReader openFinal(OpenReason openReason)
     {
 
@@ -263,8 +263,8 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
         PartitionIndex completedPartitionIndex()
         {
             complete();
-            rowIndexFHBuilder.withLengthOverride(0);
-            partitionIndexFHBuilder.withLengthOverride(0);
+            rowIndexFHBuilder.withLengthOverride(NO_LENGTH_OVERRIDE);
+            partitionIndexFHBuilder.withLengthOverride(NO_LENGTH_OVERRIDE);
             try
             {
                 return PartitionIndex.load(partitionIndexFHBuilder, metadata.getLocal().partitioner, false);
@@ -335,7 +335,8 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
                                              getIOOptions().writerOptions,
                                              getMetadataCollector(),
                                              ensuringInBuildInternalContext(operationType),
-                                             getIOOptions().flushCompression);
+                                             getIOOptions().flushCompression,
+                                             getCompressionDictionaryManager());
         }
 
         @Override
@@ -372,14 +373,14 @@ public class BtiTableWriter extends SortedTableWriter<BtiFormatPartitionWriter, 
         }
 
         @Override
-        protected BtiTableWriter buildInternal(LifecycleNewTracker lifecycleNewTracker, Owner owner)
+        protected BtiTableWriter buildInternal(ILifecycleTransaction txn, Owner owner)
         {
             try
             {
                 this.mmappedRegionsCache = new MmappedRegionsCache();
-                this.operationType = lifecycleNewTracker.opType();
+                this.operationType = txn.opType();
 
-                return new BtiTableWriter(this, lifecycleNewTracker, owner);
+                return new BtiTableWriter(this, txn, owner);
             }
             catch (RuntimeException | Error ex)
             {

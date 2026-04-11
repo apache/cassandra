@@ -19,11 +19,12 @@
 package org.apache.cassandra.utils.memory;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
+import java.util.concurrent.atomic.LongAdder;
+
+import com.codahale.metrics.Timer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.codahale.metrics.Timer;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -111,7 +112,7 @@ public abstract class MemtableAllocator
         private volatile LifeCycle state;
 
         // the amount of memory/resource owned by this object
-        private volatile long owns;
+        private final LongAdder owns = new LongAdder();
         // the amount of memory we are reporting to collect; this may be inaccurate, but is close
         // and is used only to ensure that once we have reclaimed we mark the tracker with the same amount
         private volatile long reclaiming;
@@ -150,7 +151,7 @@ public abstract class MemtableAllocator
          */
         void releaseAll()
         {
-            parent.released(ownsUpdater.getAndSet(this, 0));
+            parent.released(owns.sumThenReset());
             parent.reclaimed(reclaimingUpdater.getAndSet(this, 0));
         }
 
@@ -204,12 +205,11 @@ public abstract class MemtableAllocator
         private void allocated(long size)
         {
             parent.allocated(size);
-            ownsUpdater.addAndGet(this, size);
+            owns.add(size);
 
             if (state == LifeCycle.DISCARDING)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Allocated {} bytes whilst discarding", size);
+                logger.trace("Allocated {} bytes whilst discarding", size);
                 updateReclaiming();
             }
         }
@@ -222,12 +222,11 @@ public abstract class MemtableAllocator
         private void acquired(long size)
         {
             parent.acquired();
-            ownsUpdater.addAndGet(this, size);
+            owns.add(size);
 
             if (state == LifeCycle.DISCARDING)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Allocated {} bytes whilst discarding", size);
+                logger.trace("Allocated {} bytes whilst discarding", size);
                 updateReclaiming();
             }
         }
@@ -246,12 +245,11 @@ public abstract class MemtableAllocator
             if (state == LifeCycle.LIVE)
             {
                 parent.released(size);
-                ownsUpdater.addAndGet(this, -size);
+                owns.add(-size);
             }
             else
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("Tried to release {} bytes whilst discarding", size);
+                logger.trace("Tried to release {} bytes whilst discarding", size);
             }
         }
 
@@ -267,7 +265,7 @@ public abstract class MemtableAllocator
         {
             while (true)
             {
-                long cur = owns;
+                long cur = owns.sum();
                 long prev = reclaiming;
                 if (!reclaimingUpdater.compareAndSet(this, prev, cur))
                     continue;
@@ -279,7 +277,7 @@ public abstract class MemtableAllocator
 
         public long owns()
         {
-            return owns;
+            return owns.sum();
         }
 
         public long getReclaiming()
@@ -289,13 +287,12 @@ public abstract class MemtableAllocator
 
         public float ownershipRatio()
         {
-            float r = owns / (float) parent.limit;
+            float r = owns.sum() / (float) parent.limit;
             if (Float.isNaN(r))
                 return 0;
             return r;
         }
 
-        private static final AtomicLongFieldUpdater<SubAllocator> ownsUpdater = AtomicLongFieldUpdater.newUpdater(SubAllocator.class, "owns");
         private static final AtomicLongFieldUpdater<SubAllocator> reclaimingUpdater = AtomicLongFieldUpdater.newUpdater(SubAllocator.class, "reclaiming");
     }
 

@@ -26,9 +26,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -48,8 +50,8 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
@@ -97,6 +99,15 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         return partitions.isEmpty();
     }
 
+    @Override
+    public Token lastToken()
+    {
+        Iterator<PartitionPosition> iterator = partitions.keySet().iterator();
+        if (iterator.hasNext())
+            return iterator.next().getToken();
+        return null;
+    }
+
     /**
      * Should only be called by ColumnFamilyStore.apply via Keyspace.apply, which supplies the appropriate
      * OpOrdering.
@@ -104,15 +115,14 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
      * commitLogSegmentPosition should only be null if this is a secondary index, in which case it is *expected* to be null
      */
     @Override
-    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+    public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, boolean assumeMissing)
     {
-        Cloner cloner = allocator.cloner(opGroup);
-        AtomicBTreePartition previous = partitions.get(update.partitionKey());
-
         long initialSize = 0;
+        Cloner cloner = allocator.cloner(opGroup);
+        AtomicBTreePartition previous = assumeMissing ? null : partitions.get(update.partitionKey());
         if (previous == null)
         {
-            final DecoratedKey cloneKey = cloner.clone(update.partitionKey());
+            DecoratedKey cloneKey = cloner.clone(update.partitionKey());
             AtomicBTreePartition empty = new AtomicBTreePartition(metadata, cloneKey, allocator);
             // We'll add the columns later. This avoids wasting works if we get beaten in the putIfAbsent
             previous = partitions.putIfAbsent(cloneKey, empty);
@@ -225,10 +235,10 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             final Object val = new Object();
             final int testBufferSize = 8;
             for (int i = 0 ; i < count ; i++)
-                partitions.put(cloner.clone(new BufferDecoratedKey(new LongToken(i), ByteBuffer.allocate(testBufferSize))), val);
+                partitions.put(cloner.clone(new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getRandomToken(), ByteBuffer.allocate(testBufferSize))), val);
             double avgSize = ObjectSizes.measureDeepOmitShared(partitions) / (double) count;
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
-            rowOverhead -= new LongToken(0).getHeapSize();
+            rowOverhead -= DatabaseDescriptor.getPartitioner().getRandomToken().getHeapSize();
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
             rowOverhead += BTreePartitionData.UNSHARED_HEAP_SIZE;
             if (!(allocator instanceof NativeAllocator))
@@ -237,6 +247,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             // Decorated key overhead with byte buffer (if needed) is included
             allocator.setDiscarding();
             allocator.setDiscarded();
+            logger.info("Estimated SkipListMemtable row overhead: {}", rowOverhead);
             return rowOverhead;
         }
     }
@@ -247,6 +258,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
         Map<PartitionPosition, AtomicBTreePartition> toFlush = getPartitionsSubMap(from, true, to, false);
         long keysSize = 0;
         long keyCount = 0;
+        TableMetadata currentTableMetadata = metadata();
 
         boolean trackContention = logger.isTraceEnabled();
         if (trackContention)
@@ -261,7 +273,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
                     heavilyContendedRowCount++;
             }
 
-            if (heavilyContendedRowCount > 0)
+            if (heavilyContendedRowCount > 0 && logger.isTraceEnabled())
                 logger.trace("High update contention in {}/{} partitions of {} ", heavilyContendedRowCount, toFlush.size(), SkipListMemtable.this);
         }
         else
@@ -279,6 +291,8 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
         return new AbstractFlushablePartitionSet<AtomicBTreePartition>()
         {
+            private final TableMetadata tableMetadata = currentTableMetadata;
+
             @Override
             public Memtable memtable()
             {
@@ -313,6 +327,12 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             public long partitionKeysSize()
             {
                 return partitionKeysSize;
+            }
+
+            @Override
+            public TableMetadata metadata()
+            {
+                return tableMetadata;
             }
         };
     }

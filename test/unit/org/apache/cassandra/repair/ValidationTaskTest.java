@@ -18,17 +18,17 @@
 
 package org.apache.cassandra.repair;
 
+import java.net.UnknownHostException;
+import java.util.UUID;
+
+import org.junit.Test;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
-
-import org.junit.Test;
-
-import java.net.UnknownHostException;
-import java.util.UUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
@@ -67,7 +67,7 @@ public class ValidationTaskTest
 
         IPartitioner partitioner = Murmur3Partitioner.instance;
         MerkleTrees trees = new MerkleTrees(partitioner);
-        trees.addMerkleTree(128, new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumToken()));
+        trees.addMerkleTree(128, new Range<>(partitioner.getMinimumToken(), partitioner.getMaximumTokenForSplitting()));
         task.treesReceived(trees);
         assertEquals(1, trees.size());
         
@@ -79,6 +79,6 @@ public class ValidationTaskTest
     private ValidationTask createTask() throws UnknownHostException {
         InetAddressAndPort addressAndPort = InetAddressAndPort.getByName("127.0.0.1");
         RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), null);
-        return new ValidationTask(SharedContext.Global.instance, desc, addressAndPort, 0, PreviewKind.NONE);
+        return new ValidationTask(SharedContext.Global.instance, desc, addressAndPort, 0, PreviewKind.NONE, false);
     }
 }

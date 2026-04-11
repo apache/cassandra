@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterables;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -262,7 +263,7 @@ public class CachingBenchTest extends CQLTester
 
         String hashesBefore = getHashes();
         long startTime = currentTimeMillis();
-        CompactionManager.instance.performMaximal(cfs, true);
+        CompactionManager.instance.performMaximal(cfs, true, 0);
         long endTime = currentTimeMillis();
 
         int endRowCount = countRows(cfs);

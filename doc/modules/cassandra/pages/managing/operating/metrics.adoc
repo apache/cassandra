@@ -181,6 +181,15 @@ by compression meta data.
 |TombstoneScannedHistogram |Histogram |Histogram of tombstones scanned
 in queries on this table.
 
+|PurgeableTombstoneScannedHistogram |Histogram |Histogram of purgeable tombstones scanned
+in queries on this table. Use tombstone_read_purgeable_metric_granularity property in cassandra.yaml to enable it.
+
+|TombstoneWarnings |Counter |Number of tombstone read warnings (reads that scanned more than
+tombstone_warn_threshold tombstones).
+
+|TombstoneFailures |Counter |Number of tombstone read failures (reads that scanned more than
+tombstone_failure_threshold tombstones).
+
 |LiveScannedHistogram |Histogram |Histogram of live cells scanned in
 queries on this table.
 
@@ -246,11 +255,18 @@ during validation.
 |PartitionsValidated |Histogram |Histogram over the number of partitions
 read during validation.
 
-|BytesAnticompacted |Counter |How many bytes we anticompacted.
+|BytesAnticompacted |Meter |How many bytes we anticompacted.
 
-|BytesMutatedAnticompaction |Counter |How many bytes we avoided
+|BytesMutatedAnticompaction |Meter |How many bytes we avoided
 anticompacting because the sstable was fully contained in the repaired
 range.
+
+|BytesPreviewed |Meter |Estimated number of bytes that were scanned for local replica during preview repair
+
+|BytesPreviewedDesynchronized |Meter |Number of desynchronized bytes that were detected among all replicas during preview repair
+
+|TokenRangesPreviewedDesynchronized |Meter |Number of token ranges among all replicas where desynchronization was found
+during preview repair. These ranges would need to be streamed during subsequent repair.
 
 |MutatedAnticompactionGauge |Gauge<Double> |Ratio of bytes mutated vs
 total bytes repaired.
@@ -528,9 +544,16 @@ ViewReplicasSuccess.
 base table and when CL.ONE is achieved on view.
 |===
 
-== Cache Metrics
+== Weighted Cache Metrics
 
-Cassandra caches have metrics to track the effectivness of the caches.
+[NOTE]
+====
+The non-auth caches are weighted (they do care about weight of a single entry) whereas the auth caches are
+non-weighted. Particularly it affects Capacity and Size attributes of the MBeans.
+For weighted caches they represent size of entries in bytes, for non-weighted caches they represent number of entries.
+====
+
+Cassandra caches have metrics to track the effectivness of the weighted caches.
 Though the `Table Metrics` might be more useful.
 
 Reported name format:
@@ -538,7 +561,7 @@ Reported name format:
 *Metric Name*::
   `org.apache.cassandra.metrics.Cache.<MetricName>.<CacheName>`
 *JMX MBean*::
-  `org.apache.cassandra.metrics:type=Cache scope=<CacheName> name=<MetricName>`
+  `org.apache.cassandra.metrics:type=Cache,scope=<CacheName>,name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
@@ -569,8 +592,57 @@ The following caches are covered:
 
 [NOTE]
 ====
-Misses and MissLatency are only defined for the ChunkCache
+* Misses and MissLatency are only defined for the ChunkCache
+* ChunkCache MBean is only available if the cache is enabled
 ====
+
+== Unweighted Cache Metrics
+
+Cassandra caches have metrics to track the effectivness of the unweighted caches.
+
+Reported name format:
+
+*Metric Name*::
+`org.apache.cassandra.metrics.UnweightedCache.<MetricName>.<CacheName>`
+
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=UnweightedCache,scope=<CacheName>,name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|MaxEntries |Gauge<Integer> |Maximum number of entries.
+|Entries |Gauge<Integer> |Total number of cache entries.
+|FifteenMinuteCacheHitRate |Gauge<Double> |15m cache hit rate.
+|FiveMinuteCacheHitRate |Gauge<Double> |5m cache hit rate.
+|OneMinuteCacheHitRate |Gauge<Double> |1m cache hit rate.
+|HitRate |Gauge<Double> |All time cache hit rate.
+|Hits |Meter |Total number of cache hits.
+|Misses |Meter |Total number of cache misses.
+|MissLatency |Timer |Latency of misses.
+|Requests |Gauge<Long> |Total number of cache requests.
+|===
+
+The following caches are covered:
+
+[cols=",",options="header",]
+|===
+|Name |Description
+|CredentialsCache |Auth cache for credentials.
+|JmxPermissionsCache |Auth cache for JMX permissions.
+|CIDRPermissionsCache | Auth cache for CIDR permissions.
+|IdentityCache| Auth cache for `MutualTlsAuthenticator`.
+|NetworkPermissionsCache |Auth cache for network permissions.
+|PermissionsCache |Auth cache for permissions.
+|RolesCache |Auth cache for roles.
+|===
+
+[NOTE]
+.Note
+====
+AuthCache metrics MBeans are only available if corresponding authorizers and authenticators are enabled.
+====
+
 == CQL Metrics
 
 Metrics specific to CQL prepared statement caching.
@@ -599,6 +671,8 @@ executed.
 
 |PreparedStatementsRatio |Gauge<Double> |Percentage of statements that
 are prepared vs unprepared.
+
+|PreparedStatementsCacheSize | Gauge<Long> | The size of the prepared statements cache in bytes.
 |===
 
 [[dropped-metrics]]
@@ -736,22 +810,24 @@ Reported name format:
 *Metric Name*::
   `org.apache.cassandra.metrics.Storage.<MetricName>`
 *JMX MBean*::
-  `org.apache.cassandra.metrics:type=Storage name=<MetricName>`
+  `org.apache.cassandra.metrics:type=Storage,name=<MetricName>`
 
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
 |Exceptions |Counter |Number of internal exceptions caught. Under normal
 exceptions this should be zero.
-
 |Load |Counter |Size, in bytes, of the on disk data size this node
 manages.
-
 |TotalHints |Counter |Number of hint messages written to this node since
 [re]start. Includes one entry for each host to be hinted per hint.
-
 |TotalHintsInProgress |Counter |Number of hints attemping to be sent
 currently.
+|BootstrapFilesReceived | Gauage<Long> | Number of files received during bootstrap.
+|BootstrapFilesTotal | Gauge<Long> | Total number of files to be received during bootstrap.
+|BootstrapFilesThroughput | Meter | Throughput of files received during bootstrap.
+|BootstrapLastSeenError | Gauge<String> | Last error message seen during bootstrap.
+|BootstrapLastSeenStatus | Gauge<String> | Last status message seen during bootstrap.
 |===
 
 [[handoff-metrics]]
@@ -812,41 +888,15 @@ Reported name format:
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|HintsSucceeded a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints successfully delivered
-____
-
-|HintsFailed a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints that failed deliver
-____
-
-|HintsTimedOut a|
-____
-Meter
-____
-
-a|
-____
-A meter of the hints that timed out
-____
-
-|Hint_delays |Histogram |Histogram of hint delivery delays (in
-milliseconds)
-
-|Hint_delays-<PeerIP> |Histogram |Histogram of hint delivery delays (in
-milliseconds) per peer
+|HintsSucceeded|Meter|A meter of the hints successfully delivered
+|HintsFailed |Meter|A meter of the hints that failed deliver
+|HintsTimedOut |Meter|A meter of the hints that timed out
+|Hint_delays |Histogram |Histogram of hint delivery delays (in milliseconds)
+|Hint_delays-<PeerIP> |Histogram |Histogram of hint delivery delays (in milliseconds) per peer
+|HintsFileSize |Gauge| Total size of hints of a node
+|HintsThrottle |Counter|Increased when rate limiter is acquired
+|HintsApplySucceeded|Meter|A meter of succeeded applications of a hint
+|HintsApplyFailed|Meter|A meter of failed applications of a hint
 |===
 
 == SSTable Index Metrics
@@ -913,14 +963,87 @@ Reported name format:
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
-|connectedNativeClients |Gauge<Integer> |Number of clients connected to
+|AuthFailure |Meter | Rate of failed authentications
+
+|AuthSuccess |Meter | Rate of successful authentications
+
+|ClientsByProtocolVersion |Gauge<List<Map<String, Integer>> | List of
+all connections' protocol version and ip address
+
+|ConnectedNativeClients |Gauge<Integer> |Number of clients connected to
 this nodes native protocol server
 
-|connections |Gauge<List<Map<String, String>> |List of all connections
+|ConnectedNativeClientsByUser |Gauge<Map<String, Integer>> |Number of
+connnective native clients by username
+
+|Connections |Gauge<List<Map<String, String>> |List of all connections
 and their state information
 
-|connectedNativeClientsByUser |Gauge<Map<String, Int> |Number of
-connnective native clients by username
+|PausedConnections|Gauge<Integer>|Number of connections currently
+paused by rate limiter
+
+|ProtocolException|Meter|Rate of requests resulting in a protocol
+exception
+
+|UnknownException|Meter|Rate of requests resulting in an unknown
+exception
+
+|RequestDiscarded|Meter|Rate of requests discarded by rate limiter
+
+|RequestDispatched|Meter|Rate of requests dispatched (not discarded)
+
+|RequestsSizeByIpDistribution|Histogram|Histogram of distribution of
+requests coming from unique IPs
+
+|===
+
+== Client Encryption Metrics
+
+Metrics specific to Client encryption
+
+*Metric Name*::
+`org.apache.cassandra.metrics.Client.<Encrypted|Unencrypted>.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=Client scope=<Encrypted|Unencrypted> name=<MetricName>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|ConnectedNativeClients |Gauge<Integer> |Number of clients connected in
+this way to this nodes native protocol server
+
+|===
+
+== Client Authentication Mode-Specific Metrics
+
+Metrics specific to connectivity for a given Authentication 'mode'.
+
+*Metric Name*::
+`org.apache.cassandra.metrics.Client.<Mode>.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=Client scope=<Mode> name=<MetricName>`
+
+An authentication mode is a supported method of authentication. The following
+authentication modes exist for the given supported `IAuthenticators`:
+
+* `PasswordAuthenticator` - Password
+* `MutualTlsAuthenticator` - MutualTls
+* `MutualTlsWithPasswordFallbackAuthenticator` - MutualTls, Password
+* `AllowAllAuthenticator` - Unauthenticated
+
+A custom implementation of `IAuthenticator` may expose metrics on their own
+custom mode by implementing `IAuthenticator.getSupportedAuthenticationModes()`.
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|ConnectedNativeClients |Gauge<Int> |Number of clients connected and
+authenticated to this nodes native protocol server using this mode
+
+|AuthFailure |Meter | Rate of failed authentications using this mode
+
+|AuthSuccess |Meter | Rate of successful authentications using this mode
+
 |===
 
 == Batch Metrics
@@ -946,6 +1069,85 @@ partitions processed per logged batch
 |PartitionsPerUnloggedBatch |Histogram |Distribution of the number of
 partitions processed per unlogged batch
 |===
+
+== Automated Repair Metrics
+
+Metrics specifc to automated repair.
+
+Reported name format:
+
+*Metric Name*::
+`org.apache.cassandra.metrics.AutoRepair.<MetricName>`
+*JMX MBean*::
+`org.apache.cassandra.metrics:type=AutoRepair name=<MetricName> repairType=<RepairType>`
+
+[cols=",,",options="header",]
+|===
+|Name |Type |Description
+|RepairsInProgress |Gauge<Integer> |Repair is in progress
+on the node.
+
+|NodeRepairTimeInSec |Gauge<Integer> |Time taken to repair
+the node in seconds.
+
+|ClusterRepairTimeInSec |Gauge<Integer> |Time taken to repair
+the entire Cassandra cluster in seconds.
+
+|LongestUnrepairedSec |Gauge<Integer> |Time since the last repair
+ran on the node in seconds.
+
+|RepairStartLagSec|Gauge<Integer> |If a repair has not run within min_repair_interval, how long past this value since
+repairs last completed.  Useful for determining if repairs are behind schedule.
+
+|SucceededTokenRangesCount |Gauge<Integer> |Number of token ranges successfully repaired on the node.
+
+|FailedTokenRangesCount |Gauge<Integer> |Number of token ranges failed to repair on the node.
+
+|SkippedTokenRangesCount |Gauge<Integer> |Number of token ranges skipped
+on the node.
+
+|SkippedTablesCount |Gauge<Integer> |Number of tables skipped
+on the node.
+
+|TotalMVTablesConsideredForRepair |Gauge<Integer> |Number of materialized
+views considered on the node.
+
+|TotalDisabledRepairTables |Gauge<Integer> |Number of tables on which
+the automated repair has been disabled on the node.
+
+|TotalBytesToRepair |Gauge<Long> |Total bytes to be repaired across all keyspaces and tables involved in the current
+repair schedule.
+
+|BytesAlreadyRepaired |Gauge<Long> |Cumulative number of bytes successfully repaired so far in the current
+repair schedule.
+NOTE: This calculation is the best effort for the FixedSplitTokenRangeSplitter. In practice, this metric
+may not give you an accurate view in case of uneven data distribution.
+
+
+|TotalKeyspaceRepairPlansToRepair |Gauge<Integer> |Represents the total number of keyspace-level repair plans scheduled
+for execution. If no table-level repair priorities are configured, this number typically matches the total number
+of keyspaces under repair. However, if certain tables have repair priorities set, this number is usually higher than
+the number of keyspaces, as multiple repair plans may be generated for different prioritized tables within the
+same keyspace.
+
+|KeyspaceRepairPlansAlreadyRepaired |Gauge<Integer> |Cumulative number of keyspace-level repair plans successfully
+repaired so far in the current repair schedule.
+
+|RepairTurnMyTurn |Counter |Represents the node's turn to repair.
+
+|RepairTurnMyTurnDueToPriority |Counter |Represents the node's turn to repair
+due to priority set in the automated repair.
+
+|RepairDelayedByReplica |Counter |Represents occurrences of a node's turn being
+delayed because a replica was currently taking its turn. Only relevant if
+`allow_parallel_replica_repair` is false.
+
+|RepairDelayedBySchedule |Counter |Represents occurrences of a node's turn being
+delayed because it was already being repaired in another schedule. Only relevant
+if `allow_parallel_replica_repair_across_schedules` is false.
+
+|===
+
 
 == JVM Metrics
 

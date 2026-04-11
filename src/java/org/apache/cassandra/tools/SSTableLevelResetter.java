@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -60,18 +61,15 @@ public class SSTableLevelResetter
         }
 
         Util.initDatabaseDescriptor();
-
+        ClusterMetadataService.initializeForTools(false);
         // TODO several daemon threads will run from here.
         // So we have to explicitly call System.exit.
         try
         {
-            // load keyspace descriptions.
-            Schema.instance.loadFromDisk();
-
             String keyspaceName = args[1];
             String columnfamily = args[2];
             // validate columnfamily
-            if (Schema.instance.getTableMetadataRef(keyspaceName, columnfamily) == null)
+            if (Schema.instance.getTableMetadata(keyspaceName, columnfamily) == null)
             {
                 System.err.println("ColumnFamily not found: " + keyspaceName + "/" + columnfamily);
                 System.exit(1);

@@ -27,6 +27,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.Collections.emptyList;
+
 public class SessionInfoTest
 {
     /**
@@ -41,11 +43,11 @@ public class SessionInfoTest
         Collection<StreamSummary> summaries = new ArrayList<>();
         for (int i = 0; i < 10; i++)
         {
-            StreamSummary summary = new StreamSummary(tableId, i, (i + 1) * 10);
+            StreamSummary summary = new StreamSummary(tableId, emptyList(), i, (i + 1) * 10);
             summaries.add(summary);
         }
 
-        StreamSummary sending = new StreamSummary(tableId, 10, 100);
+        StreamSummary sending = new StreamSummary(tableId, emptyList(), 10, 100);
         SessionInfo info = new SessionInfo(local, 0, local, summaries, Collections.singleton(sending), StreamSession.State.PREPARING, null);
 
         assert info.getTotalFilesToReceive() == 45;

@@ -21,11 +21,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 
-import org.apache.cassandra.cql3.Constants;
-
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UTF8Serializer;
@@ -80,7 +79,7 @@ public class UTF8Type extends StringType
     {
         // Anything that is ascii is also utf8, and they both use bytes
         // comparison
-        return this == previous || previous == AsciiType.instance;
+        return this == previous || previous == AsciiType.instance || previous instanceof PseudoUtf8Type;
     }
 
     @Override

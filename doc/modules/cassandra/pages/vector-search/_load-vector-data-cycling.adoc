@@ -1,0 +1,8 @@
+= Load vector data into your database
+
+Insert data into the table using the new type:
+
+[source,cql]
+----
+include::example$CQL/vector-search/vector-search-cycling.cql[tag=insert-vector-data-cycling]
+----

@@ -27,24 +27,25 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.FastThreadLocal;
+import accord.utils.UnhandledEnum;
+
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
+import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.Task;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.concurrent.LocalAwareSequentialExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
-import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.SyncFutureTask;
 import org.apache.cassandra.concurrent.TaskFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -57,18 +58,22 @@ import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.simulator.systems.InterceptibleThreadFactory.ConcreteInterceptibleThreadFactory;
 import org.apache.cassandra.simulator.systems.InterceptibleThreadFactory.PlainThreadFactory;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.DiscardingSequentialExecutor;
-import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingTaskFactory;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingLocalAwareSequentialExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingPooledExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingPooledLocalAwareExecutor;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingSequentialExecutor;
+import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingTaskFactory;
 import org.apache.cassandra.simulator.systems.InterceptorOfExecution.InterceptExecution;
 import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.INFINITE_LOOP;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_DAEMON;
+import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.THREAD;
 
 public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
 {
@@ -185,15 +190,17 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
     final ClassLoader classLoader;
     final ThreadGroup threadGroup;
     final IIsolatedExecutor.DynamicFunction<Serializable> transferToInstance;
+    final Supplier<Long> idSupplier;
     volatile boolean isClosed;
 
-    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup)
+    InterceptingExecutorFactory(SimulatedExecution simulatedExecution, InterceptorOfGlobalMethods interceptorOfGlobalMethods, ClassLoader classLoader, ThreadGroup threadGroup, Supplier<Long> idSupplier)
     {
         this.simulatedExecution = simulatedExecution;
         this.interceptorOfGlobalMethods = interceptorOfGlobalMethods;
         this.classLoader = classLoader;
         this.threadGroup = threadGroup;
         this.transferToInstance = IsolatedExecutor.transferTo(classLoader);
+        this.idSupplier = idSupplier;
     }
 
     public InterceptibleThreadFactory factory(String name)
@@ -230,7 +237,7 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
         else if (!this.threadGroup.parentOf(threadGroup)) throw new IllegalArgumentException();
         Runnable onTermination = transferToInstance.apply((SerializableRunnable)FastThreadLocal::removeAll);
         LocalTime time = transferToInstance.apply((SerializableCallable<LocalTime>) SimulatedTime.Global::current).call();
-        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo);
+        return factory.create(name, Thread.NORM_PRIORITY, classLoader, uncaughtExceptionHandler, threadGroup, onTermination, time, this, extraInfo, idSupplier);
     }
 
     @Override
@@ -327,9 +334,18 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
         return configurePooled(name, threads).build();
     }
 
-    public Thread startThread(String name, Runnable runnable, Daemon daemon)
+    public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
     {
-        return simulatedExecution.intercept().start(SimulatedAction.Kind.THREAD, factory(name)::newThread, runnable);
+        SimulatedAction.Kind kind;
+        switch (simulatorTag)
+        {
+            default: throw UnhandledEnum.unknown(simulatorTag);
+            case INFINITE_LOOP: kind = INFINITE_LOOP; break;
+            case JOB: kind = THREAD; break;
+            case DAEMON: kind = SCHEDULED_DAEMON; break;
+        }
+
+        return simulatedExecution.intercept().start(kind, factory(name)::newThread, runnable);
     }
 
     @VisibleForTesting
@@ -341,7 +357,7 @@ public class InterceptingExecutorFactory implements ExecutorFactory, Closeable
     }
 
     @Override
-    public Interruptible infiniteLoop(String name, Task task, SimulatorSafe simulatorSafe, Daemon daemon, Interrupts interrupts)
+    public Interruptible infiniteLoop(String name, Task task, SimulatorSafe simulatorSafe, SystemThreadTag systemTag, Interrupts interrupts)
     {
         if (simulatorSafe != SimulatorSafe.SAFE)
         {

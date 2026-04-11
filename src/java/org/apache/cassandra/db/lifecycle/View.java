@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -35,6 +38,8 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.LatencyMetrics;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Interval;
 
 import static com.google.common.base.Predicates.equalTo;
@@ -296,7 +301,7 @@ public class View
     }
 
     // construct a function to change the liveset in a Snapshot
-    static Function<View, View> updateLiveSet(final Set<SSTableReader> remove, final Iterable<SSTableReader> add)
+    static Function<View, View> updateLiveSet(final Set<SSTableReader> remove, final Collection<SSTableReader> add, @Nullable LatencyMetrics sstableIntervalTreeLatency)
     {
         if (remove.isEmpty() && Iterables.isEmpty(add))
             return Functions.identity();
@@ -305,8 +310,28 @@ public class View
             public View apply(View view)
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
-                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
-                                SSTableIntervalTree.build(sstableMap.keySet()));
+                long treeBuildStart = Clock.Global.nanoTime();
+                SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.update(view.intervalTree, remove, add);
+                if (sstableIntervalTreeLatency != null)
+                    sstableIntervalTreeLatency.addNano(Clock.Global.nanoTime() - treeBuildStart);
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
+            }
+        };
+    }
+
+    // construct a function to replace the SSTable that have the same [first,last] intervals
+    static Function<View, View> replaceSSTables(final Set<SSTableReader> remove, final Iterable<SSTableReader> add, final Map<SSTableReader, SSTableReader> replacementMap, LatencyMetrics sstableIntervalTreeLatency)
+    {
+        return new Function<View, View>()
+        {
+            public View apply(View view)
+            {
+                Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
+                long treeBuildStart = Clock.Global.nanoTime();
+                SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.replace(view.intervalTree, replacementMap);
+                if (sstableIntervalTreeLatency != null)
+                    sstableIntervalTreeLatency.addNano(Clock.Global.nanoTime() - treeBuildStart);
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
             }
         };
     }
@@ -345,7 +370,7 @@ public class View
     }
 
     // called after flush: removes memtable from flushingMemtables, and inserts flushed into the live sstable set
-    static Function<View, View> replaceFlushed(final Memtable memtable, final Iterable<SSTableReader> flushed)
+    static Function<View, View> replaceFlushed(final Memtable memtable, final Collection<SSTableReader> flushed, @Nullable LatencyMetrics sstableIntervalTreeLatency)
     {
         return new Function<View, View>()
         {
@@ -359,8 +384,11 @@ public class View
                                     view.compactingMap, view.intervalTree);
 
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
-                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
-                                SSTableIntervalTree.build(sstableMap.keySet()));
+                long treeBuildStart = Clock.Global.nanoTime();
+                SSTableIntervalTree sstableIntervalTree = SSTableIntervalTree.addSSTables(view.intervalTree, flushed);
+                if (sstableIntervalTreeLatency != null)
+                    sstableIntervalTreeLatency.addNano(Clock.Global.nanoTime() - treeBuildStart);
+                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap, sstableIntervalTree);
             }
         };
     }

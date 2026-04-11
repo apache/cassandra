@@ -22,7 +22,7 @@
 ################################
 
 # variables, w/ defaults, w/ checks
-[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
+[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 [ "x${RPM_BUILD_DIR}" != "x" ] || RPM_BUILD_DIR="$(mktemp -d /tmp/rpmbuild.XXXXXX)"
 
@@ -35,24 +35,6 @@ command -v rpmbuild >/dev/null 2>&1 || { echo >&2 "rpm-build needs to be install
 [ -d "${DIST_DIR}" ] || mkdir -p "${DIST_DIR}"
 [ -d "${RPM_BUILD_DIR}/SOURCES" ] || mkdir -p ${RPM_BUILD_DIR}/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 
-
-if [ "$1" == "-h" ]; then
-   echo "$0 [-h] [dist_type]"
-   echo "dist types are [rpm, noboolean] and rpm is default"
-   exit 1
-fi
-
-RPM_DIST=$1
-[ "x${RPM_DIST}" != "x" ] || RPM_DIST="rpm"
-
-if [ "${RPM_DIST}" == "rpm" ]; then
-   RPM_SPEC="redhat/cassandra.spec"
-elif [ "${RPM_DIST}" == "noboolean" ]; then # noboolean
-   RPM_SPEC="redhat/noboolean/cassandra.spec"
-else
-   echo >&2 "Only rpm and noboolean are valid dist_type arguments. Got ${RPM_DIST}"
-   exit 1
-fi
 
 ################################
 #
@@ -104,19 +86,21 @@ else
    # from the branch name. In this case, fall back to version specified in build.xml.
    CASSANDRA_VERSION="${buildxml_version}"
    dt=`date +"%Y%m%d"`
-   ref=`git rev-parse --short HEAD`
+   ref=`git rev-parse --short HEAD || grep -q GitSHA src/resources/org/apache/cassandra/config/version.properties && grep GitSHA src/resources/org/apache/cassandra/config/version.properties | cut -d"=" -f2 || echo unknown`
    CASSANDRA_REVISION="${dt}git${ref}"
 fi
 
 # Artifact will only be used internally for build process and won't be found with snapshot suffix
-ant artifacts -Drelease=true -Dant.gen-doc.skip=true -Djavadoc.skip=true -Dcheck.skip=true
+rm -rf ${DIST_DIR}/apache-cassandra-*.jar # realclean fails on permissions inside docker
+ant clean artifacts-with-docs -Drelease=true -Djavadoc.skip=true -Dcheck.skip=true
 cp ${DIST_DIR}/apache-cassandra-*-src.tar.gz ${RPM_BUILD_DIR}/SOURCES/
 
 # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, then rpmbuild fails on the '-' char; replace with '~'
 CASSANDRA_VERSION=${CASSANDRA_VERSION/-/\~}
+CASSANDRA_REVISION=${CASSANDRA_REVISION/-/_}
 
 command -v python >/dev/null 2>&1 || alias python=/usr/bin/python3
-rpmbuild --define="version ${CASSANDRA_VERSION}" --define="revision ${CASSANDRA_REVISION}" --define="_topdir ${RPM_BUILD_DIR}" -ba ${RPM_SPEC}
+rpmbuild --define="version ${CASSANDRA_VERSION}" --define="revision ${CASSANDRA_REVISION}" --define="_topdir ${RPM_BUILD_DIR}" -ba redhat/cassandra.spec
 cp ${RPM_BUILD_DIR}/SRPMS/*.rpm ${RPM_BUILD_DIR}/RPMS/noarch/*.rpm ${DIST_DIR}
 
 popd >/dev/null

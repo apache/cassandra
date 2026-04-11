@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.List;
 import java.util.Map;
+
 import javax.management.openmbean.TabularData;
 
 public interface CompactionManagerMBean
@@ -121,6 +122,14 @@ public interface CompactionManagerMBean
      * Returns core size of view build thread pool
      */
     public int getCoreViewBuildThreads();
+
+    int getMaximumSecondaryIndexExecutorThreads();
+
+    void setMaximumSecondaryIndexExecutorThreads(int number);
+
+    int getCoreSecondaryIndexExecutorThreads();
+
+    void setCoreSecondaryIndexExecutorThreads(int number);
 
     /**
      * Enable / disable STCS in L0

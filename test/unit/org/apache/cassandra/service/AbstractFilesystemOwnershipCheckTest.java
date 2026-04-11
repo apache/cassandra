@@ -33,14 +33,15 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 
-import static org.apache.cassandra.service.FileSystemOwnershipCheck.DEFAULT_FS_OWNERSHIP_FILENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.ERROR_PREFIX;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.INCONSISTENT_FILES_FOUND;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.INVALID_FILE_COUNT;
@@ -54,7 +55,6 @@ import static org.apache.cassandra.service.FileSystemOwnershipCheck.TOKEN;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.UNSUPPORTED_VERSION;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.VERSION;
 import static org.apache.cassandra.service.FileSystemOwnershipCheck.VOLUME_COUNT;
-import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_filesystem_ownership;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -65,9 +65,14 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     protected File tempDir;
     protected String token;
 
-    protected StartupChecksOptions options = new StartupChecksOptions();
+    protected StartupChecksConfiguration options;
 
     static WithProperties properties;
+
+    protected static String ownershipCheckFileName()
+    {
+        return FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getDefaultValue();
+    }
 
     protected void setup()
     {
@@ -75,9 +80,9 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         tempDir = new File(com.google.common.io.Files.createTempDir());
         token = makeRandomString(10);
         properties = new WithProperties();
-        System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getKey());
-        System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
-        System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey());
+        System.clearProperty(FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getKey());
+        System.clearProperty(FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
+        System.clearProperty(FILE_SYSTEM_CHECK_ENABLE.getKey());
     }
 
     static File writeFile(File dir, String filename, Properties props) throws IOException
@@ -93,7 +98,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     }
 
     private static void executeAndFail(FileSystemOwnershipCheck checker,
-                                       StartupChecksOptions options,
+                                       StartupChecksConfiguration options,
                                        String messageTemplate,
                                        Object...messageArgs)
     {
@@ -118,7 +123,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
 
     private static File writeFile(File dir, int volumeCount, String token) throws IOException
     {
-        return AbstractFilesystemOwnershipCheckTest.writeFile(dir, DEFAULT_FS_OWNERSHIP_FILENAME, 1, volumeCount, token);
+        return AbstractFilesystemOwnershipCheckTest.writeFile(dir, ownershipCheckFileName(), 1, volumeCount, token);
     }
 
     private static File writeFile(File dir, final String filename, int version, int volumeCount, String token)
@@ -200,8 +205,8 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void skipCheckDisabledIfSystemPropertyIsEmpty() throws Exception
     {
         // no exceptions thrown from the supplier because the check is skipped
-        options.disable(check_filesystem_ownership);
-        System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey());
+        options.disable("check_filesystem_ownership");
+        System.clearProperty(FILE_SYSTEM_CHECK_ENABLE.getKey());
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
 
@@ -209,24 +214,24 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void skipCheckDisabledIfSystemPropertyIsFalseButOptionsEnabled() throws Exception
     {
         // no exceptions thrown from the supplier because the check is skipped
-        options.enable(check_filesystem_ownership);
-        CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.setBoolean(false);
+        options.enable("check_filesystem_ownership");
+        FILE_SYSTEM_CHECK_ENABLE.setBoolean(false);
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
 
     @Test
     public void checkEnabledButClusterPropertyIsEmpty()
     {
-        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.setString("");
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(tempDir), options, MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
+        FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.setString("");
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(tempDir), options, MISSING_PROPERTY, FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }
 
     @Test
     public void checkEnabledButClusterPropertyIsUnset()
     {
-        Assume.assumeFalse(options.getConfig(check_filesystem_ownership).containsKey("ownership_token"));
-        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(tempDir), options, MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
+        Assume.assumeFalse(options.getConfig("check_filesystem_ownership").containsKey("ownership_token"));
+        FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(tempDir), options, MISSING_PROPERTY, FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }
 
     // tests for presence/absence of files in dirs
@@ -319,7 +324,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void propsFileIllegalContent() throws Exception
     {
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        File propsFile = new File(leafDir, DEFAULT_FS_OWNERSHIP_FILENAME); //checkstyle: permit this instantiation
+        File propsFile = new File(leafDir, ownershipCheckFileName()); //checkstyle: permit this instantiation
         assertTrue(propsFile.createFileIfNotExists());
         try (OutputStream os = Files.newOutputStream(propsFile.toPath()))
         {
@@ -360,9 +365,9 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     {
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
         writeFile(leafDir.parent(), "other_file", AbstractFilesystemOwnershipCheckTest.makeProperties(1, 1, token));
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir), options, NO_OWNERSHIP_FILE, quote(leafDir.absolutePath()));
-        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.setString("other_file");
-        AbstractFilesystemOwnershipCheckTest.checker(leafDir).execute(options);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir), options, NO_OWNERSHIP_FILE, quote(leafDir.absolutePath()));
+        FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.setString("other_file");
+        checker(leafDir).execute(options);
     }
 
     // check consistency between discovered files
@@ -404,11 +409,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void emptyPropertiesFile() throws Exception
     {
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, new Properties());
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), new Properties());
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, VERSION),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -418,11 +423,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         p.setProperty(VOLUME_COUNT, "1");
         p.setProperty(TOKEN, "foo");
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, p);
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), p);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, VERSION),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -431,11 +436,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         Properties p = new Properties();
         p.setProperty(VERSION, "abc");
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, p);
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), p);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, VERSION),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -444,11 +449,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         Properties p = new Properties();
         p.setProperty(VERSION, "99");
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, p);
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), p);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(UNSUPPORTED_VERSION, "99"),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -458,11 +463,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         p.setProperty(VERSION, "1");
         p.setProperty(TOKEN, token);
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, p);
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), p);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, VOLUME_COUNT),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -473,11 +478,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         p.setProperty(VOLUME_COUNT, "bar");
         p.setProperty(TOKEN, token);
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, p);
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), p);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, VOLUME_COUNT),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -487,11 +492,11 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         p.setProperty(VERSION, "1");
         p.setProperty(VOLUME_COUNT, "1");
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
-        writeFile(leafDir.parent(), DEFAULT_FS_OWNERSHIP_FILENAME, p);
-        AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
+        writeFile(leafDir.parent(), ownershipCheckFileName(), p);
+        AbstractFilesystemOwnershipCheckTest.executeAndFail(checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, TOKEN),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -502,7 +507,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
                                                             options,
                                                             String.format(INVALID_PROPERTY_VALUE, TOKEN),
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     @Test
@@ -514,7 +519,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir),
                                                             options,
                                                             MISMATCHING_TOKEN,
-                                                            leafDir.parent().toPath().resolve(DEFAULT_FS_OWNERSHIP_FILENAME));
+                                                            leafDir.parent().toPath().resolve(ownershipCheckFileName()));
     }
 
     // Validate volume_count prop values match number of files found

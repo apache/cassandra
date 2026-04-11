@@ -21,18 +21,23 @@ import java.io.Closeable;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 
@@ -43,6 +48,23 @@ import static org.junit.Assert.fail;
  */
 public class OutOfSpaceTest extends CQLTester
 {
+
+    /**
+     * Shadows the same method on the superclass as we don't want to join the ring
+     * because this test depends on local ranges being null and has done since its
+     * introduction.
+     * TODO investigate whether this is correct.
+     */
+    @BeforeClass
+    public static void setUpClass()
+    {   DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
+        ServerTestUtils.markCMS();
+        StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
+        CassandraDaemon.getInstanceForTesting().completeSetup();
+    }
+
     @Test
     public void testFlushUnwriteableDie() throws Throwable
     {
@@ -57,6 +79,7 @@ public class OutOfSpaceTest extends CQLTester
             flushAndExpectError();
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
+            Assert.assertFalse(killerForTests.calledShutDownOnLogger());
         }
         finally
         {
@@ -116,10 +139,9 @@ public class OutOfSpaceTest extends CQLTester
     {
         try
         {
-            Keyspace.open(KEYSPACE)
-                    .getColumnFamilyStore(currentTable())
-                    .forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS)
-                    .get();
+            ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
+            cfs.getDiskBoundaries().invalidate();
+            cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS).get();
             fail("FSWriteError expected.");
         }
         catch (ExecutionException e)

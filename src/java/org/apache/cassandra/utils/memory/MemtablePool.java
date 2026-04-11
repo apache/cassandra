@@ -22,15 +22,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.apache.cassandra.metrics.MetricNameFactory;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
@@ -41,6 +42,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
  */
 public abstract class MemtablePool
 {
+    public static final String TYPE_NAME = "MemtablePool";
     final MemtableCleanerThread<?> cleaner;
 
     // the total memory used by this pool
@@ -59,7 +61,7 @@ public abstract class MemtablePool
         this.onHeap = getSubPool(maxOnHeapMemory, cleanThreshold);
         this.offHeap = getSubPool(maxOffHeapMemory, cleanThreshold);
         this.cleaner = getCleaner(cleaner);
-        DefaultNameFactory nameFactory = new DefaultNameFactory("MemtablePool");
+        MetricNameFactory nameFactory = new DefaultNameFactory(TYPE_NAME);
         blockedOnAllocating = CassandraMetricsRegistry.Metrics.timer(nameFactory.createMetricName("BlockedOnAllocation"));
         numPendingTasks = CassandraMetricsRegistry.Metrics.register(nameFactory.createMetricName("PendingFlushTasks"),
                                                                     () -> (long) this.cleaner.numPendingTasks());
@@ -150,14 +152,23 @@ public abstract class MemtablePool
 
         boolean tryAllocate(long size)
         {
-            while (true)
-            {
-                long cur;
-                if ((cur = allocated) + size > limit)
-                    return false;
-                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-                    return true;
+            long result = allocatedUpdater.addAndGet(this, size);
+            if (result > limit) {
+                // We have switched from CAS loop and a strict limit check
+                // to addAndGet with a possible post-correction for perf reasons.
+                // Why this is OK:
+                // - We may temporarily exceed the limit here, but that also happens in case of blocking op order.
+                // - We decrease the allocated value, but that was also possible as part of the adjustment logic.
+                //
+                // We don’t call released() here because it triggers hasRoom.signalAll(), which would
+                //   immediately wake up the current thread before memory is reclaimed and cause a busy loop.
+                // In a rare case, an unsuccessful attempt of a larger allocation near a limit by one thread
+                // may temporarily block progress on a smaller concurrent allocation by another thread,
+                // but both threads will be signaled and be able to proceed once memory is reclaimed.
+                allocatedUpdater.addAndGet(this, -size);
+                return false;
             }
+            return true;
         }
 
         /**
@@ -166,12 +177,7 @@ public abstract class MemtablePool
          */
         private void adjustAllocated(long size)
         {
-            while (true)
-            {
-                long cur = allocated;
-                if (allocatedUpdater.compareAndSet(this, cur, cur + size))
-                    return;
-            }
+            allocatedUpdater.addAndGet(this, size);
         }
 
         void allocated(long size)

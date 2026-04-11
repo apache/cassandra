@@ -22,10 +22,13 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -35,9 +38,12 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
+import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static java.lang.String.format;
@@ -143,6 +149,17 @@ public final class Guardrails implements GuardrailsMBean
                  "Table Properties");
 
     /**
+     * Guardrail warning about, ignoring or rejecting the usage of certain keyspace properties.
+     */
+    public static final Values<String> keyspaceProperties =
+    new Values<>("keyspace_properties",
+                 null,
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesWarned(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesIgnored(),
+                 state -> CONFIG_PROVIDER.getOrCreate(state).getKeyspacePropertiesDisallowed(),
+                 "Keyspace Properties");
+
+    /**
      * Guardrail disabling user-provided timestamps.
      */
     public static final EnableFlag userTimestampsEnabled =
@@ -224,6 +241,21 @@ public final class Guardrails implements GuardrailsMBean
                    state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSWarned(),
                    state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSEnabled(),
                    "0 default_time_to_live on a table with " + TimeWindowCompactionStrategy.class.getSimpleName() + " compaction strategy");
+
+    /**
+     * Guardrail to warn on or fail filtering queries that contain intersections on mutable columns at consistency
+     * levels that require coordinator reconciliation.
+     * 
+     * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-19007">CASSANDRA-19007</a>
+     */
+    public static final EnableFlag intersectFilteringQueryEnabled =
+            new EnableFlag("intersect_filtering_query",
+                           "Filtering queries involving an intersection on multiple mutable (i.e. non-key) columns " +
+                           "over unrepaired data at read consistency levels that would require coordinator " +
+                           "reconciliation may violate the guarantees of those consistency levels.",
+                           state -> CONFIG_PROVIDER.getOrCreate(state).getIntersectFilteringQueryWarned(),
+                           state -> CONFIG_PROVIDER.getOrCreate(state).getIntersectFilteringQueryEnabled(),
+                           "Filtering query with intersection on mutable columns at consistency level requiring coordinator reconciliation");
 
     /**
      * Guardrail on the number of elements returned within page.
@@ -345,7 +377,7 @@ public final class Guardrails implements GuardrailsMBean
                                     what, value, isWarning ? "warning" : "failure", threshold));
 
     /**
-     * Guardrail on the size of a collection.
+     * Guardrail on the size of a simple type column.
      */
     public static final MaxThreshold columnValueSize =
     new MaxThreshold("column_value_size",
@@ -353,8 +385,47 @@ public final class Guardrails implements GuardrailsMBean
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeWarnThreshold()),
                      state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnValueSizeFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                     format("Value of column %s has size %s, this exceeds the %s threshold of %s.",
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
+
+
+    /**
+     * Guardrail on the size of an ascii type column.
+     */
+    public static final MaxThreshold columnAsciiValueSize =
+    new MaxThreshold("column_ascii_value_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnAsciiValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnAsciiValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a blob type column.
+     */
+    public static final MaxThreshold columnBlobValueSize =
+    new MaxThreshold("column_blob_value_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnBlobValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnBlobValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+
+    /**
+     * Guardrail on the size of a text and varchar type column.
+     */
+    public static final MaxThreshold columnTextAndVarcharValueSize =
+    new MaxThreshold("column_text_value_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextAndVarcharValueSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getColumnTextAndVarcharValueSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
 
     /**
      * Guardrail on the size of a collection.
@@ -367,6 +438,45 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, what, value, threshold) ->
                      format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
                             what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a map collection.
+     */
+    public static final FallbackThreshold<MaxThreshold> collectionMapSize = new FallbackThreshold<>(
+    new MaxThreshold("collection_map_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionMapSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold)),
+    collectionSize);
+
+    /**
+     * Guardrail on the size of a set collection.
+     */
+    public static final FallbackThreshold<MaxThreshold> collectionSetSize = new FallbackThreshold<>(
+    new MaxThreshold("collection_set_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionSetSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold))
+    , collectionSize);
+
+    /**
+     * Guardrail on the size of a list collection.
+     */
+    public static final FallbackThreshold<MaxThreshold> collectionListSize = new FallbackThreshold<>(
+    new MaxThreshold("collection_list_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getCollectionListSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Detected collection %s of size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold)),
+    collectionSize);
 
     /**
      * Guardrail on the number of items of a collection.
@@ -393,6 +503,19 @@ public final class Guardrails implements GuardrailsMBean
                                         what, value, threshold)
                                : format("User types cannot have more than %s columns, but %s provided for user type %s.",
                                         threshold, value, what));
+
+    /**
+     * Guardrail on the usage of vector type.
+     *
+     * This may be useful when running clusters that have diverse clients, where some do not support the vector type.
+     * Clients that do not support vector may fail to establish sessions or fail to read results containing vector
+     * columns.
+     */
+    public static final EnableFlag vectorTypeEnabled =
+    new EnableFlag("vector_type_enabled",
+                     null,
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getVectorTypeEnabled(),
+                    "usage of the vector type");
 
     /**
      * Guardrail on the number of dimensions of vector columns.
@@ -435,6 +558,30 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, value) ->
                      isWarning ? "Replica disk usage exceeds warning threshold"
                                : "Write request failed because disk usage exceeds failure threshold");
+    /**
+     * Guardrail on the data disk usage of replicas across a datacenter which replicates a given keyspace.
+     * This is used at write time to verify the status of any node which might replicate a given keyspace.
+     */
+    public static final Predicates<String> diskUsageKeyspaceWideProtection =
+    new Predicates<>("disk_usage_keyspace_wide_protection",
+                     null,
+                     state -> DiskUsageBroadcaster.instance::isDatacenterStuffed,
+                     state -> DiskUsageBroadcaster.instance::isDatacenterFull,
+                     (isWarning, value) ->
+                     isWarning ? "Disk usage in keyspace datacenter exceeds warning threshold"
+                               : "Write request failed because disk usage exceeds failure threshold in keyspace datacenter.");
+
+    /**
+     * Guardrail on passwords for CREATE / ALTER ROLE statements.
+     */
+    public static final PasswordPolicyGuardrail passwordPolicy =
+    new PasswordPolicyGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getPasswordPolicyConfig());
+
+    /**
+     * Guardrail on name for CREATE ROLE / USER statements.
+     */
+    public static final RoleNamePolicyGuardrail roleNamePolicy =
+    new RoleNamePolicyGuardrail(() -> CONFIG_PROVIDER.getOrCreate(null).getRoleNamePolicyConfig());
 
     static
     {
@@ -474,8 +621,8 @@ public final class Guardrails implements GuardrailsMBean
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampWarnThreshold()),
                      state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampFailThreshold()),
                      (isWarning, what, value, threshold) ->
-                    format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
-                           what, value, isWarning ? "warning" : "failure", threshold));
+                     format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
+                            what, value, isWarning ? "warning" : "failure", threshold));
 
     public static final MinThreshold minimumAllowableTimestamp =
     new MinThreshold("minimum_timestamp",
@@ -485,6 +632,70 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, what, value, threshold) ->
                      format("The modification to table %s has a timestamp %s before the minimum allowable %s threshold %s",
                             what, value, isWarning ? "warning" : "failure", threshold));
+
+    public static final MaxThreshold saiSSTableIndexesPerQuery =
+    new MaxThreshold("sai_sstable_indexes_per_query",
+                     "High number of referenced indexes per query may negatively effect performance",
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSaiSSTableIndexesPerQueryWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getSaiSSTableIndexesPerQueryFailThreshold(),
+                     ((isWarning, what, value, threshold) ->
+                      format("The number of SSTable indexes queried on index %s violated %s threshold value %s with value %s",
+                             what, isWarning ? "warning" : "failure", threshold, value)));
+
+    /**
+     * Guardrail on the size of a string term written to SAI index.
+     */
+    public static final MaxThreshold saiStringTermSize =
+    new MaxThreshold("sai_string_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiStringTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiStringTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a frozen term written to SAI index.
+     */
+    public static final MaxThreshold saiFrozenTermSize =
+    new MaxThreshold("sai_frozen_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiFrozenTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiFrozenTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
+     * Guardrail on the size of a vector term written to SAI index.
+     */
+    public static final MaxThreshold saiVectorTermSize =
+    new MaxThreshold("sai_vector_term_size",
+                     null,
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiVectorTermSizeWarnThreshold()),
+                     state -> sizeToBytes(CONFIG_PROVIDER.getOrCreate(state).getSaiVectorTermSizeFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("Value of column '%s' has size %s, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    public static final EnableFlag nonPartitionRestrictedIndexQueryEnabled =
+    new EnableFlag("non_partition_restricted_index_query_enabled",
+                   "Executing a query on secondary indexes without partition key restriction might degrade performance",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getNonPartitionRestrictedQueryEnabled(),
+                   "Non-partition key restricted query");
+
+    public static EnableFlag unsetTrainingMinFrequency =
+    new EnableFlag("unset_training_min_frequency_enabled",
+                   format("Table uses ZstdDictionaryCompressor without %s set. Unlimited training frequency may degrade " +
+                          "compression quality and accumulate dictionaries in %s.%s. " +
+                          "Consider to set %s to a non-zero value.",
+                          IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME,
+                          SystemDistributedKeyspace.NAME,
+                          SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                          IDictionaryCompressor.TRAINING_MIN_FREQUENCY_PARAMETER_NAME),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyWarned(),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getUnsetTrainingMinFrequencyEnabled(),
+                   "unset minimum frequency of training for dictionary compressor");
 
     private Guardrails()
     {
@@ -680,6 +891,93 @@ public final class Guardrails implements GuardrailsMBean
         setTablePropertiesIgnored(fromCSV(properties));
     }
 
+    @Override
+    public Set<String> getKeyspacePropertiesWarned()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesWarned();
+    }
+
+    @Override
+    public String getKeyspacePropertiesWarnedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesWarned());
+    }
+
+    public void setKeyspacePropertiesWarned(String... properties)
+    {
+        setKeyspacePropertiesWarned(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesWarned(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesWarned(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesWarnedCSV(String properties)
+    {
+        setKeyspacePropertiesWarned(fromCSV(properties));
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesDisallowed()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesDisallowed();
+    }
+
+    @Override
+    public String getKeyspacePropertiesDisallowedCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesDisallowed());
+    }
+
+    public void setKeyspacePropertiesDisallowed(String... properties)
+    {
+        setKeyspacePropertiesDisallowed(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesDisallowed(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesDisallowed(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesDisallowedCSV(String properties)
+    {
+        setKeyspacePropertiesDisallowed(fromCSV(properties));
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesIgnored()
+    {
+        return DEFAULT_CONFIG.getKeyspacePropertiesIgnored();
+    }
+
+    @Override
+    public String getKeyspacePropertiesIgnoredCSV()
+    {
+        return toCSV(DEFAULT_CONFIG.getKeyspacePropertiesIgnored());
+    }
+
+    public void setKeyspacePropertiesIgnored(String... properties)
+    {
+        setKeyspacePropertiesIgnored(ImmutableSet.copyOf(properties));
+    }
+
+    @Override
+    public void setKeyspacePropertiesIgnored(Set<String> properties)
+    {
+        DEFAULT_CONFIG.setKeyspacePropertiesIgnored(properties);
+    }
+
+    @Override
+    public void setKeyspacePropertiesIgnoredCSV(String properties)
+    {
+        setKeyspacePropertiesIgnored(fromCSV(properties));
+    }
+    
     @Override
     public boolean getUserTimestampsEnabled()
     {
@@ -908,6 +1206,66 @@ public final class Guardrails implements GuardrailsMBean
 
     @Override
     @Nullable
+    public String getColumnAsciiValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnAsciiValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnAsciiValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnAsciiValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnAsciiValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnAsciiValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getColumnBlobValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnBlobValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnBlobValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnBlobValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnBlobValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnBlobValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getColumnTextAndVarcharValueSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnTextAndVarcharValueSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getColumnTextAndVarcharValueSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getColumnTextAndVarcharValueSizeFailThreshold());
+    }
+
+    @Override
+    public void setColumnTextAndVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setColumnTextAndVarcharValueSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
     public String getCollectionSizeWarnThreshold()
     {
         return sizeToString(DEFAULT_CONFIG.getCollectionSizeWarnThreshold());
@@ -924,6 +1282,66 @@ public final class Guardrails implements GuardrailsMBean
     public void setCollectionSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
     {
         DEFAULT_CONFIG.setCollectionSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionMapSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionMapSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionMapSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionMapSizeFailThreshold());
+    }
+
+    @Override
+    public void setCollectionMapSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setCollectionMapSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionSetSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionSetSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionSetSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionSetSizeFailThreshold());
+    }
+
+    @Override
+    public void setCollectionSetSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setCollectionSetSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionListSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionListSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getCollectionListSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getCollectionListSizeFailThreshold());
+    }
+
+    @Override
+    public void setCollectionListSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setCollectionListSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
     }
 
     @Override
@@ -1095,6 +1513,18 @@ public final class Guardrails implements GuardrailsMBean
     }
 
     @Override
+    public void setVectorTypeEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setVectorTypeEnabled(enabled);
+    }
+
+    @Override
+    public boolean getVectorTypeEnabled()
+    {
+        return DEFAULT_CONFIG.getVectorTypeEnabled();
+    }
+
+    @Override
     public int getMaximumReplicationFactorWarnThreshold()
     {
         return DEFAULT_CONFIG.getMaximumReplicationFactorWarnThreshold();
@@ -1110,6 +1540,58 @@ public final class Guardrails implements GuardrailsMBean
     public void setMaximumReplicationFactorThreshold (int warn, int fail)
     {
         DEFAULT_CONFIG.setMaximumReplicationFactorThreshold(warn, fail);
+    }
+
+    @Override
+    public String getPasswordPolicy()
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(passwordPolicy.getConfig());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize password_policy configuration");
+        }
+    }
+
+    @Override
+    public String getRoleNamePolicy()
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(roleNamePolicy.getConfig());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize role_name_policy configuration");
+        }
+    }
+
+    @Override
+    public void setPasswordPolicy(String value)
+    {
+        try
+        {
+            passwordPolicy.reconfigure(JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {}));
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
+    }
+
+    @Override
+    public void setRoleNamePolicy(String value)
+    {
+        try
+        {
+            roleNamePolicy.reconfigure(JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {}));
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(t);
+        }
     }
 
     @Override
@@ -1141,6 +1623,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDataDiskUsageMaxDiskSize(@Nullable String size)
     {
         DEFAULT_CONFIG.setDataDiskUsageMaxDiskSize(sizeFromString(size));
+    }
+
+    @Override
+    public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
+    {
+        return DEFAULT_CONFIG.getDataDiskUsageKeyspaceWideProtectionEnabled();
+    }
+
+    @Override
+    public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setDataDiskUsageKeyspaceWideProtectionEnabled(enabled);
     }
 
     @Override
@@ -1219,6 +1713,144 @@ public final class Guardrails implements GuardrailsMBean
     public void setMinimumTimestampThreshold(String warnSeconds, String failSeconds)
     {
         DEFAULT_CONFIG.setMinimumTimestampThreshold(durationFromString(warnSeconds), durationFromString(failSeconds));
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getSaiSSTableIndexesPerQueryWarnThreshold();
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryFailThreshold()
+    {
+        return DEFAULT_CONFIG.getSaiSSTableIndexesPerQueryFailThreshold();
+    }
+
+    @Override
+    public void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setSaiSSTableIndexesPerQueryThreshold(warn, fail);
+    }
+
+    @Override
+    @Nullable
+    public String getSaiStringTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiStringTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiStringTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiStringTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiStringTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getSaiFrozenTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiFrozenTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiFrozenTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiFrozenTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiFrozenTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiFrozenTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    @Nullable
+    public String getSaiVectorTermSizeWarnThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiVectorTermSizeWarnThreshold());
+    }
+
+    @Override
+    @Nullable
+    public String getSaiVectorTermSizeFailThreshold()
+    {
+        return sizeToString(DEFAULT_CONFIG.getSaiVectorTermSizeFailThreshold());
+    }
+
+    @Override
+    public void setSaiVectorTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize)
+    {
+        DEFAULT_CONFIG.setSaiVectorTermSizeThreshold(sizeFromString(warnSize), sizeFromString(failSize));
+    }
+
+    @Override
+    public boolean getNonPartitionRestrictedQueryEnabled()
+    {
+        return DEFAULT_CONFIG.getNonPartitionRestrictedQueryEnabled();
+    }
+
+    @Override
+    public void setNonPartitionRestrictedQueryEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setNonPartitionRestrictedQueryEnabled(enabled);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryWarned()
+    {
+        return DEFAULT_CONFIG.getIntersectFilteringQueryWarned();
+    }
+
+    @Override
+    public void setIntersectFilteringQueryWarned(boolean value)
+    {
+        DEFAULT_CONFIG.setIntersectFilteringQueryWarned(value);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryEnabled()
+    {
+        return DEFAULT_CONFIG.getIntersectFilteringQueryEnabled();
+    }
+
+    @Override
+    public void setIntersectFilteringQueryEnabled(boolean value)
+    {
+        DEFAULT_CONFIG.setIntersectFilteringQueryEnabled(value);
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyWarned(boolean value)
+    {
+        DEFAULT_CONFIG.setUnsetTrainingMinFrequencyWarned(value);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyWarned()
+    {
+        return DEFAULT_CONFIG.getUnsetTrainingMinFrequencyWarned();
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyEnabled(boolean value)
+    {
+        DEFAULT_CONFIG.setUnsetTrainingMinFrequencyEnabled(value);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyEnabled()
+    {
+        return DEFAULT_CONFIG.getUnsetTrainingMinFrequencyEnabled();
     }
 
     private static String toCSV(Set<String> values)

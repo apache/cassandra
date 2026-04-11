@@ -79,7 +79,7 @@ class BtiFormatPartitionWriter extends SortedTablePartitionWriter
         super.addUnfiltered(unfiltered);
 
         // if we hit the column index size that we have to index after, go ahead and index it.
-        if (currentPosition() - startPosition >= rowIndexBlockSize)
+        if (currentOffsetInPartition() - indexBlockStartOffset >= rowIndexBlockSize)
             addIndexBlock();
     }
 
@@ -112,7 +112,7 @@ class BtiFormatPartitionWriter extends SortedTablePartitionWriter
 
     protected void addIndexBlock() throws IOException
     {
-        IndexInfo cIndexInfo = new IndexInfo(startPosition, startOpenMarker);
+        IndexInfo cIndexInfo = new IndexInfo(indexBlockStartOffset, startOpenMarker);
         rowTrie.add(firstClustering, lastClustering, cIndexInfo);
         firstClustering = null;
         ++rowIndexBlockCount;

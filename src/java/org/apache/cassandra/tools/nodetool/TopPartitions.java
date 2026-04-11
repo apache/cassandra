@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+import picocli.CommandLine.Command;
 
 @Command(name = "toppartitions", description = "Sample and print the most active partitions")
-@Deprecated
+/** @deprecated See CASSANDRA-14436 */
+@Deprecated(since = "4.0")
 public class TopPartitions extends ProfileLoad
 {
 }

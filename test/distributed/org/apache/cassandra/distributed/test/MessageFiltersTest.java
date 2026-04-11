@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -214,7 +216,7 @@ public class MessageFiltersTest extends TestBaseImpl
                                                                Message decoded = Instance.deserializeMessage(msg);
                                                                return (Integer) decoded.verb().id;
                                                            }).call();
-                                                           Assert.assertTrue(verbs.contains(id));
+                                                           Assertions.assertThat(verbs).describedAs("Unexpected verb %s", Verb.fromId(id)).contains(id);
                                                            counter.incrementAndGet();
                                                            return false;
                                                        }).drop();
@@ -274,7 +276,8 @@ public class MessageFiltersTest extends TestBaseImpl
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withConfig(config -> config.with(GOSSIP)
                                                                          .with(NETWORK)
-                                                                         .set("hinted_handoff_enabled", true))
+                                                                         .set("hinted_handoff_enabled", true)
+                                                                         .set("accord.enabled", false))
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int)"));

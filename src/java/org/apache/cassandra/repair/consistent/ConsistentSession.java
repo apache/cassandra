@@ -31,8 +31,8 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -44,7 +44,6 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
-import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tools.nodetool.RepairAdmin;
@@ -70,7 +69,7 @@ import org.apache.cassandra.utils.TimeUUID;
  *  {@code PREPARED}, and a {@link PrepareConsistentResponse} is sent to the coordinator indicating success or failure.
  *  If the pending anti-compaction fails, the local session state is set to {@code FAILED}.
  *  <p/>
- *  (see {@link LocalSessions#handlePrepareMessage(InetAddressAndPort, PrepareConsistentRequest)}
+ *  (see {@link LocalSessions#handlePrepareMessage(org.apache.cassandra.net.Message)}
  *  <p/>
  *  Once the coordinator recieves positive {@code PrepareConsistentResponse} messages from all the participants, the
  *  coordinator begins the normal repair process.
@@ -207,6 +206,12 @@ public abstract class ConsistentSession
         this.repairedAt = builder.repairedAt;
         this.ranges = ImmutableSet.copyOf(builder.ranges);
         this.participants = ImmutableSet.copyOf(builder.participants);
+    }
+
+    public boolean isCompleted()
+    {
+        State s = getState();
+        return s == State.FINALIZED || s == State.FAILED;
     }
 
     public State getState()

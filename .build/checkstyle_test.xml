@@ -134,8 +134,25 @@
       <property name="message" value="Please do not hardcode '/tmp' for test files and directories. Use Files.createTempDirectory to create a base test directory instead." />
     </module>
 
+    <module name="AvoidStarImport"/>
+    <module name="ImportOrder">
+      <property name="groups" value="java,javax,/^com\./,/^net\./,/^org\./,/^accord\./,/^org\.apache\.cassandra\./"/>
+      <property name="ordered" value="true"/>
+      <property name="separated" value="true"/>
+      <property name="option" value="bottom"/>
+      <property name="sortStaticImportsAlphabetically" value="true"/>
+    </module>
+
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+    <module name="MissingDeprecated"/>
+    <module name="MatchXpath">
+      <property name="query" value="//ANNOTATION[./IDENT[@text='Deprecated']
+              and not(./ANNOTATION_MEMBER_VALUE_PAIR/IDENT[@text='since'])]"/>
+      <message key="matchxpath.match"
+               value="'Deprecated annotation must provide 'since' value."/>
+    </module>
   </module>
 
 </module>

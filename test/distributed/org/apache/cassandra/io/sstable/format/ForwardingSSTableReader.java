@@ -27,6 +27,7 @@ import java.util.Set;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -238,15 +239,26 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public KeyReader keyReader() throws IOException
+    public KeyReader keyReader(boolean detailed) throws IOException
     {
-        return delegate.keyReader();
+        return delegate.keyReader(detailed);
+    }
+
+    public KeyReader keyReader(PartitionPosition key) throws IOException
+    {
+        return delegate.keyReader(key);
     }
 
     @Override
     public KeyIterator keyIterator() throws IOException
     {
         return delegate.keyIterator();
+    }
+
+    @Override
+    public KeyIterator keyIterator(AbstractBounds<PartitionPosition> range) throws IOException
+    {
+        return delegate.keyIterator(range);
     }
 
     @Override
@@ -331,6 +343,18 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
         return delegate.getScanner(rangeIterator);
+    }
+
+    @Override
+    public ISSTableScanner getScanner(DiskAccessMode diskAccessMode)
+    {
+        return delegate.getScanner(diskAccessMode);
+    }
+
+    @Override
+    public ISSTableScanner getScanner(Collection<Range<Token>> ranges, DiskAccessMode diskAccessMode)
+    {
+        return delegate.getScanner(ranges, diskAccessMode);
     }
 
     @Override

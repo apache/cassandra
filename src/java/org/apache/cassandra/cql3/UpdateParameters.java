@@ -20,14 +20,28 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.rows.ArrayCell;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.partitions.Partition;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -37,45 +51,36 @@ import org.apache.cassandra.utils.TimeUUID;
 public class UpdateParameters
 {
     public final TableMetadata metadata;
-    public final RegularAndStaticColumns updatedColumns;
     public final ClientState clientState;
     public final QueryOptions options;
 
     private final long nowInSec;
-    private final long timestamp;
+    protected final long timestamp;
     private final int ttl;
 
-    private final DeletionTime deletionTime;
+    private DeletionTime deletionTime;
 
-    // For lists operation that require a read-before-write. Will be null otherwise.
+    // Holds data for operations that require a read-before-write. Will be null otherwise.
     private final Map<DecoratedKey, Partition> prefetchedRows;
-
-    private Row.Builder staticBuilder;
-    private Row.Builder regularBuilder;
 
     // The builder currently in use. Will alias either staticBuilder or regularBuilder, which are themselves built lazily.
     private Row.Builder builder;
 
     public UpdateParameters(TableMetadata metadata,
-                            RegularAndStaticColumns updatedColumns,
                             ClientState clientState,
                             QueryOptions options,
                             long timestamp,
                             long nowInSec,
                             int ttl,
-                            Map<DecoratedKey, Partition> prefetchedRows)
-    throws InvalidRequestException
+                            Map<DecoratedKey, Partition> prefetchedRows) throws InvalidRequestException
     {
         this.metadata = metadata;
-        this.updatedColumns = updatedColumns;
         this.clientState = clientState;
         this.options = options;
 
         this.nowInSec = nowInSec;
         this.timestamp = timestamp;
         this.ttl = ttl;
-
-        this.deletionTime = DeletionTime.build(timestamp, nowInSec);
 
         this.prefetchedRows = prefetchedRows;
 
@@ -99,20 +104,8 @@ public class UpdateParameters
                     throw new InvalidRequestException("Invalid empty or null value for column " + metadata.clusteringColumns().get(0).name);
             }
         }
-
-        if (clustering == Clustering.STATIC_CLUSTERING)
-        {
-            if (staticBuilder == null)
-                staticBuilder = BTreeRow.unsortedBuilder();
-            builder = staticBuilder;
-        }
-        else
-        {
-            if (regularBuilder == null)
-                regularBuilder = BTreeRow.unsortedBuilder();
-            builder = regularBuilder;
-        }
-
+        assert builder == null : "newRow called without building the previous row";
+        builder = BTreeRow.pooledUnsortedBuilder();
         builder.newRow(clustering);
     }
 
@@ -123,10 +116,20 @@ public class UpdateParameters
 
     public void addPrimaryKeyLivenessInfo()
     {
-        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
+        addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
+    }
+
+    private void addPrimaryKeyLivenessInfo(LivenessInfo info)
+    {
+        builder.addPrimaryKeyLivenessInfo(info);
     }
 
     public void addRowDeletion()
+    {
+        addRowDeletion(Row.Deletion.regular(deletionTime()));
+    }
+
+    private void addRowDeletion(Row.Deletion deletion)
     {
         // For compact tables, at the exclusion of the static row (of static compact tables), each row ever has a single column,
         // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later
@@ -134,7 +137,7 @@ public class UpdateParameters
         if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
             addTombstone(((TableMetadata.CompactTableMetadata) metadata).compactValueColumn);
         else
-            builder.addRowDeletion(Row.Deletion.regular(deletionTime));
+            builder.addRowDeletion(deletion);
     }
 
     public void addTombstone(ColumnMetadata column) throws InvalidRequestException
@@ -161,18 +164,83 @@ public class UpdateParameters
         return addCell(column, null, value);
     }
 
+    public Cell<?> addCell(ColumnMetadata column, byte[] value) throws InvalidRequestException
+    {
+        return addCell(column, null, value);
+    }
+
     public Cell<?> addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
-        Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
-
-        if (path != null && column.type.isMultiCell())
-            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
+        validateCell(column, path, value.remaining());
 
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
         return cell;
+    }
+
+    public Cell<?> addCell(ColumnMetadata column, CellPath path, byte[] value) throws InvalidRequestException
+    {
+        validateCell(column, path, value.length);
+
+        Cell<?> cell = ttl == LivenessInfo.NO_TTL
+                       ? ArrayCell.live(column, timestamp, value, path)
+                       : ArrayCell.expiring(column, timestamp, ttl, nowInSec, value, path);
+        builder.addCell(cell);
+        return cell;
+    }
+
+    private void validateCell(ColumnMetadata column, CellPath path, int valueSize)
+    {
+        // General column value size
+        Guardrails.columnValueSize.guard(valueSize, column.name.toString(), false, clientState);
+
+        // Check specific sizes per column type
+        validateColumnSize(column, valueSize);
+
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
+    }
+
+    public void addRow(Row row)
+    {
+        newRow(row.clustering());
+        addRowDeletion(row.deletion());
+        addPrimaryKeyLivenessInfo(row.primaryKeyLivenessInfo());
+        row.iterator().forEachRemaining(cd -> {
+            if (cd instanceof Cell<?>)
+            {
+                builder.addCell((Cell<?>) cd);
+            }
+            else if (cd instanceof ComplexColumnData)
+            {
+                ComplexColumnData ccd = (ComplexColumnData) cd;
+                builder.addComplexDeletion(ccd.column(), ccd.complexDeletion());
+                ccd.iterator().forEachRemaining(builder::addCell);
+            }
+            else
+            {
+                throw new AssertionError("Unexpected type: " + cd.getClass() + "; " + cd);
+            }
+        });
+    }
+
+    private void validateColumnSize(ColumnMetadata column, int valueSize)
+    {
+        CQL3Type cql3Type = column.type.asCQL3Type();
+        if (cql3Type.equals(CQL3Type.Native.ASCII)) // Ascii size specific guardrail
+        {
+            Guardrails.columnAsciiValueSize.guard(valueSize, column.name.toString(), false, clientState);
+        }
+        else if (cql3Type.equals(CQL3Type.Native.BLOB)) // Blob size specific guardrail
+        {
+            Guardrails.columnBlobValueSize.guard(valueSize, column.name.toString(), false, clientState);
+        }
+        else if (cql3Type.equals(CQL3Type.Native.TEXT)) // text and varchar size specific guardrails
+        {
+            Guardrails.columnTextAndVarcharValueSize.guard(valueSize, column.name.toString(), false, clientState);
+        }
     }
 
     public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException
@@ -196,11 +264,12 @@ public class UpdateParameters
 
     public void setComplexDeletionTime(ColumnMetadata column)
     {
-        builder.addComplexDeletion(column, deletionTime);
+        builder.addComplexDeletion(column, deletionTime());
     }
 
     public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
+        DeletionTime deletionTime = deletionTime();
         builder.addComplexDeletion(column, DeletionTime.build(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
     }
 
@@ -213,7 +282,9 @@ public class UpdateParameters
 
     public DeletionTime deletionTime()
     {
-        return deletionTime;
+         if (deletionTime == null)
+             deletionTime = DeletionTime.build(timestamp, nowInSec);
+         return deletionTime;
     }
 
     public RangeTombstone makeRangeTombstone(ClusteringComparator comparator, Clustering<?> clustering)
@@ -223,7 +294,7 @@ public class UpdateParameters
 
     public RangeTombstone makeRangeTombstone(Slice slice)
     {
-        return new RangeTombstone(slice, deletionTime);
+        return new RangeTombstone(slice, deletionTime());
     }
 
     public byte[] nextTimeUUIDAsBytes()

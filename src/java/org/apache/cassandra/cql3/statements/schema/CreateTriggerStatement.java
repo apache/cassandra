@@ -17,20 +17,30 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QualifiedName;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TriggerMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.triggers.TriggerExecutor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.triggers.TriggerExecutor;
 
 public final class CreateTriggerStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(CreateTriggerStatement.class);
     private final String tableName;
     private final String triggerName;
     private final String triggerClass;
@@ -45,8 +55,31 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public void validate(ClientState state)
     {
+        try
+        {
+            TriggerExecutor.instance.loadTriggerClass(triggerClass);
+        }
+        catch (Exception e)
+        {
+            InvalidRequestException thrown = ire("Trigger class '%s' couldn't be loaded during validation. Reason : %s.", triggerClass, e.getMessage());
+            thrown.initCause(e);
+            throw thrown;
+        }
+    }
+
+    @Override
+    public boolean compatibleWith(ClusterMetadata metadata)
+    {
+        return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+    }
+
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
+    {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);
@@ -69,11 +102,11 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
 
         try
         {
-            TriggerExecutor.instance.loadTriggerInstance(triggerClass);
+            TriggerExecutor.instance.loadTriggerClass(triggerClass);
         }
         catch (Exception e)
         {
-            throw ire("Trigger class '%s' couldn't be loaded", triggerClass);
+            logger.warn(String.format("Trigger class '%s' couldn't be loaded at apply stage.", triggerClass));
         }
 
         TableMetadata newTable = table.withSwapped(table.triggers.with(TriggerMetadata.create(triggerName, triggerClass)));

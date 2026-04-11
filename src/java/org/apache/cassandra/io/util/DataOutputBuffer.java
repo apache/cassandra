@@ -21,9 +21,14 @@ import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import io.netty.util.concurrent.FastThreadLocal;
 
@@ -57,7 +62,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      * Scratch buffers used mostly for serializing in memory. It's important to call #close() when finished
      * to keep the memory overhead from being too large in the system.
      */
-    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<DataOutputBuffer>()
+    public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<>()
     {
         @Override
         protected DataOutputBuffer initialValue()
@@ -180,7 +185,8 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     protected void setBuffer(ByteBuffer newBuffer)
     {
-        FileUtils.clean(buffer); // free if direct
+        // free if direct
+        MemoryUtil.clean(buffer);
         buffer = newBuffer;
     }
 
@@ -285,5 +291,29 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         byte[] result = new byte[buffer.remaining()];
         buffer.get(result);
         return result;
+    }
+
+    /**
+     * If the calling logic knows that no new calls to this object will happen after calling this
+     * method, then this method can avoid the ByteBuffer copying done in {@link #buffer()}.
+     */
+    public byte[] unsafeToByteArray()
+    {
+        ByteBuffer buffer = unsafeGetBufferAndFlip();
+        byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
+
+    public String asString()
+    {
+        try
+        {
+            return ByteBufferUtil.string(buffer(), StandardCharsets.UTF_8);
+        }
+        catch (CharacterCodingException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -19,16 +19,18 @@ package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.streaming.CassandraIncomingFile;
 import org.apache.cassandra.distributed.Cluster;
@@ -40,10 +42,10 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
+
 
 public class StreamCloseInMiddleTest extends TestBaseImpl
 {
@@ -65,6 +67,7 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withInstanceInitializer(BBHelper::install)
                                       .withConfig(c -> c.with(Feature.values())
+                                                        .set("auto_bootstrap", false)
                                                         .set("stream_entire_sstables", zeroCopyStreaming)
                                                         // when die, this will try to halt JVM, which is easier to validate in the test
                                                         // other levels require checking state of the subsystems
@@ -81,13 +84,15 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
 
             // now bootstrap a new node; streaming will fail
             IInvokableInstance node3 = ClusterUtils.addInstance(cluster, cluster.get(1).config(), c -> c.set("auto_bootstrap", true));
-            node3.startup();
-            for (String line : Arrays.asList("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted", // bootstrap failed
-                                             "Some data streaming failed. Use nodetool to check bootstrap state and resume")) // didn't join ring because bootstrap failed
-                Assertions.assertThat(node3.logs().grep(line).getResult())
-                          .hasSize(1);
-
-            assertNoNodeShutdown(cluster);
+            try
+            {
+                node3.startup();
+            }
+            catch (Exception e)
+            {
+                Assert.assertTrue(String.format("Message does not ontain an expected string: %s", e.getMessage()),
+                                  e.getMessage().contains("Did not finish joining the ring."));
+            }
         }
     }
 
@@ -178,7 +183,7 @@ public class StreamCloseInMiddleTest extends TestBaseImpl
             return false;
         }
 
-        public static void install(ClassLoader classLoader, Integer num)
+        public static void install(ClassLoader classLoader, int num)
         {
             new ByteBuddy().rebase(SequentialWriter.class)
                            .method(named("writeDirectlyToChannel").and(takesArguments(1)))

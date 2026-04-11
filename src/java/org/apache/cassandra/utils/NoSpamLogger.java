@@ -21,10 +21,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.utils.Clock.Global;
 
@@ -47,23 +47,22 @@ public class NoSpamLogger
      */
     public enum Level
     {
-        INFO, WARN, ERROR
+        DEBUG, INFO, WARN, ERROR
     }
 
     @VisibleForTesting
-    static interface Clock
+    public interface Clock
     {
         long nanoTime();
     }
 
+    private static Clock CLOCK = Global::nanoTime;
+
     @VisibleForTesting
-    static Clock CLOCK = new Clock()
+    public static void unsafeSetClock(Clock clock)
     {
-        public long nanoTime()
-        {
-            return Global.nanoTime();
-        }
-    };
+        CLOCK = clock;
+    }
 
     public class NoSpamLogStatement extends AtomicLong
     {
@@ -79,7 +78,7 @@ public class NoSpamLogger
             this.minIntervalNanos = minIntervalNanos;
         }
 
-        private boolean shouldLog(long nowNanos)
+        public boolean shouldLog(long nowNanos)
         {
             long expected = get();
             return nowNanos >= expected && compareAndSet(expected, nowNanos + minIntervalNanos);
@@ -101,6 +100,9 @@ public class NoSpamLogger
         {
             switch (l)
             {
+                case DEBUG:
+                    wrapped.debug(statement, objects);
+                    break;
                 case INFO:
                     wrapped.info(statement, objects);
                     break;
@@ -114,6 +116,16 @@ public class NoSpamLogger
                     throw new AssertionError();
             }
             return true;
+        }
+
+        public boolean debug(long nowNanos, Object... objects)
+        {
+            return NoSpamLogStatement.this.log(Level.DEBUG, nowNanos, objects);
+        }
+
+        public boolean debug(Object... objects)
+        {
+            return NoSpamLogStatement.this.debug(CLOCK.nanoTime(), objects);
         }
 
         public boolean info(long nowNanos, Object... objects)
@@ -216,6 +228,21 @@ public class NoSpamLogger
     {
         this.wrapped = wrapped;
         minIntervalNanos = timeUnit.toNanos(minInterval);
+    }
+
+    public static NoSpamLogger wrap(Logger wrapped, long minInterval, TimeUnit timeUnit)
+    {
+        return new NoSpamLogger(wrapped, minInterval, timeUnit);
+    }
+
+    public boolean debug(long nowNanos, String s, Object... objects)
+    {
+        return NoSpamLogger.this.log( Level.DEBUG, s, nowNanos, objects);
+    }
+
+    public boolean debug(String s, Object... objects)
+    {
+        return NoSpamLogger.this.debug(CLOCK.nanoTime(), s, objects);
     }
 
     public boolean info(long nowNanos, String s, Object... objects)

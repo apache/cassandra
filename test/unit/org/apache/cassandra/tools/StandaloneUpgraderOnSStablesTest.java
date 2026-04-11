@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.tools;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -34,9 +34,8 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.LegacySSTableTest;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
@@ -93,9 +92,7 @@ public class StandaloneUpgraderOnSStablesTest
     {
         LegacySSTableTest.truncateLegacyTables(legacyId);
         LegacySSTableTest.loadLegacyTables(legacyId);
-        StorageService.instance.takeSnapshot("testsnapshot",
-                                             Collections.emptyMap(),
-                                             "legacy_tables.legacy_" + legacyId + "_simple");
+        SnapshotManager.instance.takeSnapshot("testsnapshot", "legacy_tables.legacy_" + legacyId + "_simple");
 
         ToolResult tool = ToolRunner.invokeClass(StandaloneUpgrader.class,
                                                  "-k",

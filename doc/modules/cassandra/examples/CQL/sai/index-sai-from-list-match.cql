@@ -1,3 +1,3 @@
-CREATE CUSTOM INDEX events_idx 
+CREATE INDEX events_idx 
     ON cycling.upcoming_calendar (events) 
-    USING 'StorageAttachedIndex';
+    USING 'sai';

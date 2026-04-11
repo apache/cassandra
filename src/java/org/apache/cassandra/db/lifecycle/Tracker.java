@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -31,10 +31,12 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -44,6 +46,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
@@ -56,9 +59,12 @@ import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.notifications.TableDroppedNotification;
+import org.apache.cassandra.notifications.TablePreScrubNotification;
 import org.apache.cassandra.notifications.TruncationNotification;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static com.google.common.base.Predicates.and;
@@ -86,10 +92,13 @@ public class Tracker
 {
     private static final Logger logger = LoggerFactory.getLogger(Tracker.class);
 
-    private final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<>();
+    private final List<INotificationConsumer> subscribers = new CopyOnWriteArrayList<>();
 
     public final ColumnFamilyStore cfstore;
-    final AtomicReference<View> view;
+
+    // Constructing views update can be quite slow so locking generates less CPU/garbage compared to CAS
+    final ReentrantLock viewUpdateLock = new ReentrantLock(true);
+    volatile View view = null;
     public final boolean loadsstables;
 
     /**
@@ -100,7 +109,6 @@ public class Tracker
     public Tracker(ColumnFamilyStore columnFamilyStore, Memtable memtable, boolean loadsstables)
     {
         this.cfstore = columnFamilyStore;
-        this.view = new AtomicReference<>();
         this.loadsstables = loadsstables;
         this.reset(memtable);
     }
@@ -120,11 +128,19 @@ public class Tracker
      */
     public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType)
     {
+        return tryModify(sstables, operationType, TimeUUID.Generator.nextTimeUUID());
+    }
+
+    /**
+     * @return a Transaction over the provided sstables if we are able to mark the given @param sstables as compacted, before anyone else
+     */
+    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType, TimeUUID operationId)
+    {
         if (Iterables.isEmpty(sstables))
-            return new LifecycleTransaction(this, operationType, sstables);
+            return new LifecycleTransaction(this, operationType, sstables, operationId);
         if (null == apply(permitCompacting(sstables), updateCompacting(emptySet(), sstables)))
             return null;
-        return new LifecycleTransaction(this, operationType, sstables);
+        return new LifecycleTransaction(this, operationType, sstables, operationId);
     }
 
 
@@ -154,15 +170,22 @@ public class Tracker
      */
     Pair<View, View> apply(Predicate<View> permit, Function<View, View> function)
     {
-        while (true)
+        View updated;
+        View cur;
+        viewUpdateLock.lock();
+        try
         {
-            View cur = view.get();
+            cur = view;
             if (!permit.apply(cur))
                 return null;
-            View updated = function.apply(cur);
-            if (view.compareAndSet(cur, updated))
-                return Pair.create(cur, updated);
+            updated = function.apply(cur);
+            view = updated;
         }
+        finally
+        {
+            viewUpdateLock.unlock();
+        }
+        return Pair.create(cur, updated);
     }
 
     Throwable updateSizeTracking(Iterable<SSTableReader> oldSSTables, Iterable<SSTableReader> newSSTables, Throwable accumulate)
@@ -225,14 +248,20 @@ public class Tracker
 
     // SETUP / CLEANUP
 
-    public void addInitialSSTables(Iterable<SSTableReader> sstables)
+    public void addInitialSSTables(Collection<SSTableReader> sstables)
     {
         addSSTablesInternal(sstables, true, false, true);
     }
 
-    public void addInitialSSTablesWithoutUpdatingSize(Iterable<SSTableReader> sstables)
+    public void addInitialSSTablesWithoutUpdatingSize(Collection<SSTableReader> sstables)
     {
-        addSSTablesInternal(sstables, true, false, false);
+        if (!isDummy())
+        {
+            for (SSTableReader reader : sstables)
+                reader.setupOnline();
+        }
+        apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
+        notifyAdded(sstables, true);
     }
 
     public void updateInitialSSTableSize(Iterable<SSTableReader> sstables)
@@ -240,19 +269,19 @@ public class Tracker
         maybeFail(updateSizeTracking(emptySet(), sstables, null));
     }
 
-    public void addSSTables(Iterable<SSTableReader> sstables)
+    public void addSSTables(Collection<SSTableReader> sstables)
     {
         addSSTablesInternal(sstables, false, true, true);
     }
 
-    private void addSSTablesInternal(Iterable<SSTableReader> sstables,
+    private void addSSTablesInternal(Collection<SSTableReader> sstables,
                                      boolean isInitialSSTables,
                                      boolean maybeIncrementallyBackup,
                                      boolean updateSize)
     {
         if (!isDummy())
             setupOnline(sstables);
-        apply(updateLiveSet(emptySet(), sstables));
+        apply(updateLiveSet(emptySet(), sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
         if(updateSize)
             maybeFail(updateSizeTracking(emptySet(), sstables, null));
         if (maybeIncrementallyBackup)
@@ -264,11 +293,19 @@ public class Tracker
     @VisibleForTesting
     public void reset(Memtable memtable)
     {
-        view.set(new View(memtable != null ? singletonList(memtable) : Collections.emptyList(),
-                          Collections.emptyList(),
-                          Collections.emptyMap(),
-                          Collections.emptyMap(),
-                          SSTableIntervalTree.empty()));
+        viewUpdateLock.lock();
+        try
+        {
+            view = new View(memtable != null ? singletonList(memtable) : Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyMap(),
+                            Collections.emptyMap(),
+                            SSTableIntervalTree.empty());
+        }
+        finally
+        {
+            viewUpdateLock.unlock();
+        }
     }
 
     public Throwable dropSSTablesIfInvalid(Throwable accumulate)
@@ -297,7 +334,7 @@ public class Tracker
         {
             Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
-                return updateLiveSet(toremove, emptySet()).apply(view);
+                return updateLiveSet(toremove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view);
             });
 
             Set<SSTableReader> removed = Sets.difference(result.left.sstables, result.right.sstables);
@@ -359,12 +396,13 @@ public class Tracker
         // there may be multiple memtables in the list that would 'accept' us, however we only ever choose
         // the oldest such memtable, as accepts() only prevents us falling behind (i.e. ensures we don't
         // assign operations to a memtable that was retired/queued before we started)
-        for (Memtable memtable : view.get().liveMemtables)
+        View view = this.view;
+        for (Memtable memtable : view.liveMemtables)
         {
             if (memtable.accepts(opGroup, commitLogPosition))
                 return memtable;
         }
-        throw new AssertionError(view.get().liveMemtables.toString());
+        throw new AssertionError(view.liveMemtables.toString());
     }
 
     /**
@@ -381,7 +419,7 @@ public class Tracker
         if (truncating)
             notifyRenewed(newMemtable);
         else
-            notifySwitched(result.left.getCurrentMemtable());
+            notifySwitched(result.left.getCurrentMemtable(), result.right.getCurrentMemtable());
 
         return result.left.getCurrentMemtable();
     }
@@ -391,14 +429,14 @@ public class Tracker
         apply(View.markFlushing(memtable));
     }
 
-    public void replaceFlushed(Memtable memtable, Iterable<SSTableReader> sstables)
+    public void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables)
     {
         assert !isDummy();
         if (Iterables.isEmpty(sstables))
         {
             // sstable may be null if we flushed batchlog and nothing needed to be retained
             // if it's null, we don't care what state the cfstore is in, we just replace it and continue
-            apply(View.replaceFlushed(memtable, null));
+            apply(View.replaceFlushed(memtable, null, maybeGetSSTableIntervalTreeLatencyMetrics()));
             return;
         }
 
@@ -406,7 +444,7 @@ public class Tracker
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstables);
 
-        apply(View.replaceFlushed(memtable, sstables));
+        apply(View.replaceFlushed(memtable, sstables, maybeGetSSTableIntervalTreeLatencyMetrics()));
 
         Throwable fail;
         fail = updateSizeTracking(emptySet(), sstables, null);
@@ -429,17 +467,17 @@ public class Tracker
 
     public Set<SSTableReader> getCompacting()
     {
-        return view.get().compacting;
+        return view.compacting;
     }
 
     public Iterable<SSTableReader> getUncompacting()
     {
-        return view.get().select(SSTableSet.NONCOMPACTING);
+        return view.select(SSTableSet.NONCOMPACTING);
     }
 
     public Iterable<SSTableReader> getUncompacting(Iterable<SSTableReader> candidates)
     {
-        return view.get().getUncompacting(candidates);
+        return view.getUncompacting(candidates);
     }
 
     public void maybeIncrementallyBackup(final Iterable<SSTableReader> sstables)
@@ -502,31 +540,36 @@ public class Tracker
 
     public void notifySSTableRepairedStatusChanged(Collection<SSTableReader> repairStatusesChanged)
     {
-        INotification notification = new SSTableRepairStatusChanged(repairStatusesChanged);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
+        if (repairStatusesChanged.isEmpty())
+            return;
+        notify(new SSTableRepairStatusChanged(repairStatusesChanged));
     }
 
     public void notifySSTableMetadataChanged(SSTableReader levelChanged, StatsMetadata oldMetadata)
     {
-        INotification notification = new SSTableMetadataChanged(levelChanged, oldMetadata);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
-
+        notify(new SSTableMetadataChanged(levelChanged, oldMetadata));
     }
 
     public void notifyDeleting(SSTableReader deleting)
     {
-        INotification notification = new SSTableDeletingNotification(deleting);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
+        notify(new SSTableDeletingNotification(deleting));
     }
 
-    public void notifyTruncated(long truncatedAt)
+    public void notifyTruncated(boolean disableSnapshot,
+                                long truncatedAt,
+                                DurationSpec.IntSecondsBound ttl)
     {
-        INotification notification = new TruncationNotification(truncatedAt);
-        for (INotificationConsumer subscriber : subscribers)
-            subscriber.handleNotification(notification, this);
+        notify(new TruncationNotification(cfstore, disableSnapshot, truncatedAt, ttl));
+    }
+
+    public void notifyDropped(DurationSpec.IntSecondsBound ttl)
+    {
+        notify(new TableDroppedNotification(cfstore, ttl));
+    }
+
+    public void notifyPreScrubbed()
+    {
+        notify(new TablePreScrubNotification(cfstore));
     }
 
     public void notifyRenewed(Memtable renewed)
@@ -534,9 +577,9 @@ public class Tracker
         notify(new MemtableRenewedNotification(renewed));
     }
 
-    public void notifySwitched(Memtable previous)
+    public void notifySwitched(Memtable previous, Memtable next)
     {
-        notify(new MemtableSwitchedNotification(previous));
+        notify(new MemtableSwitchedNotification(previous, next));
     }
 
     public void notifyDiscarded(Memtable discarded)
@@ -560,6 +603,12 @@ public class Tracker
         subscribers.add(consumer);
     }
 
+    @VisibleForTesting
+    public boolean contains(INotificationConsumer consumer)
+    {
+        return subscribers.contains(consumer);
+    }
+
     public void unsubscribe(INotificationConsumer consumer)
     {
         subscribers.remove(consumer);
@@ -572,12 +621,19 @@ public class Tracker
 
     public View getView()
     {
-        return view.get();
+        return view;
     }
 
     @VisibleForTesting
     public void removeUnsafe(Set<SSTableReader> toRemove)
     {
-        Pair<View, View> result = apply(view -> updateLiveSet(toRemove, emptySet()).apply(view));
+        Pair<View, View> result = apply(view -> updateLiveSet(toRemove, emptySet(), maybeGetSSTableIntervalTreeLatencyMetrics()).apply(view));
+    }
+
+    public LatencyMetrics maybeGetSSTableIntervalTreeLatencyMetrics()
+    {
+        if (cfstore == null)
+            return null;
+        return cfstore.metric != null ? cfstore.metric.viewSSTableIntervalTree : null;
     }
 }

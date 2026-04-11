@@ -24,13 +24,26 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import org.awaitility.Awaitility;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -41,9 +54,10 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertArrayEquals;
@@ -57,6 +71,12 @@ import static org.junit.Assert.fail;
  */
 public class CassandraIndexTest extends CQLTester
 {
+    @BeforeClass
+    public static void setup()
+    {
+        StorageService.instance.unsafeSetInitialized();
+    }
+
     @Test
     public void indexOnRegularColumn() throws Throwable
     {
@@ -480,6 +500,7 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void updateTTLOnIndexedClusteringValue() throws Throwable
     {
+        Util.assumeLegacySecondaryIndex();
         int basePk = 1;
         int indexedVal = 2;
         int initialTtl = 3600;
@@ -567,25 +588,25 @@ public class CassandraIndexTest extends CQLTester
         Awaitility.await()
                   .atMost(1, TimeUnit.MINUTES)
                   .pollDelay(1, TimeUnit.SECONDS)
-                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null)));
+                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null)));
 
         String indexName = "build_remove_test_idx";
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
 
         // check that there are no other rows in the built indexes table
-        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null));
+        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null));
 
         // rebuild the index and verify the built status table
         getCurrentColumnFamilyStore().rebuildSecondaryIndex(indexName);
         waitForIndexQueryable(indexName);
 
         // check that there are no other rows in the built indexes table
-        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null));
+        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null));
 
         // check that dropping the index removes it from the built indexes table
         dropIndex("DROP INDEX %s." + indexName);
-        assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null));
+        assertRows(execute(selectBuiltIndexesQuery), row("system", "PaxosUncommittedIndex", null), row("system_accord", AccordKeyspace.JOURNAL_INDEX_NAME, null));
     }
 
 

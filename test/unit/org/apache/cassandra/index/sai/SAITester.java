@@ -31,35 +31,42 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 import javax.management.AttributeNotFoundException;
 import javax.management.ObjectName;
-
-import com.google.common.collect.Sets;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.datastax.driver.core.QueryTrace;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.Ints;
+
+import org.apache.lucene.codecs.CodecUtil;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -70,7 +77,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
@@ -80,6 +87,8 @@ import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.ResourceLeakDetector;
 import org.apache.cassandra.inject.Injection;
@@ -90,16 +99,20 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotOptions;
+import org.apache.cassandra.utils.ConfigGenBuilder;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.lucene.codecs.CodecUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.quote;
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
@@ -107,7 +120,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public abstract class SAITester extends CQLTester
+public abstract class SAITester extends CQLTester.Fuzzed
 {
     protected static final Logger logger = LoggerFactory.getLogger(SAITester.class);
 
@@ -147,7 +160,19 @@ public abstract class SAITester extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        CQLTester.setUpClass();
+        CONFIG_GEN = new ConfigGenBuilder()
+                     .withPartitioner(Murmur3Partitioner.instance)
+                     // some tests timeout in CI with batch, so rely only on perioid
+                     .withCommitLogSync(Config.CommitLogSync.periodic)
+                     .withCommitLogSyncPeriod(new DurationSpec.IntMillisecondsBound(10, TimeUnit.SECONDS))
+                     .build();
+        CQLTester.Fuzzed.setUpClass();
+
+        /*
+         * Enable external execution of all queries because we want to use reconciliation in SELECT queries so that we can
+         * simulate the application of the entire row filter in the coordinator node, even if unit tests are not multinode.
+         */
+        CQLTester.enableCoordinatorExecution();
 
         // Ensure that the on-disk format statics are loaded before the test run
         Version.LATEST.onDiskFormat();
@@ -155,9 +180,6 @@ public abstract class SAITester extends CQLTester
 
     @Rule
     public TestRule testRules = new ResourceLeakDetector();
-
-    @Rule
-    public FailureWatcher failureRule = new FailureWatcher();
 
     @After
     public void removeAllInjections()
@@ -172,6 +194,12 @@ public abstract class SAITester extends CQLTester
     {
         if (random == null)
             random = new Randomization();
+        return random;
+    }
+
+    @Nullable
+    public static Randomization getRandomOrNull()
+    {
         return random;
     }
 
@@ -250,21 +278,69 @@ public abstract class SAITester extends CQLTester
         public abstract void corrupt(File file) throws IOException;
     }
 
-    public static IndexContext createIndexContext(String name, AbstractType<?> validator)
+    public static StorageAttachedIndex createMockIndex(ColumnMetadata column)
     {
-        return new IndexContext("test_ks",
-                                "test_cf",
-                                UTF8Type.instance,
-                                Murmur3Partitioner.instance,
-                                new ClusteringComparator(),
-                                ColumnMetadata.regularColumn("sai", "internal", name, validator),
-                                IndexTarget.Type.SIMPLE,
-                                IndexMetadata.fromSchemaMetadata(name, IndexMetadata.Kind.CUSTOM, null));
+        TableMetadata table = TableMetadata.builder(column.ksName, column.cfName)
+                                           .addPartitionKeyColumn("pk", Int32Type.instance)
+                                           .addRegularColumn(column.name, column.type)
+                                           .partitioner(Murmur3Partitioner.instance)
+                                           .caching(CachingParams.CACHE_NOTHING)
+                                           .build();
+
+        Map<String, String> options = new HashMap<>();
+        options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StorageAttachedIndex.class.getCanonicalName());
+        options.put("target", column.name.toString());
+
+        IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(column.name.toString(), IndexMetadata.Kind.CUSTOM, options);
+
+        ColumnFamilyStore cfs = MockSchema.newCFS(table);
+
+        return new StorageAttachedIndex(cfs, indexMetadata);
+    }
+
+    public static StorageAttachedIndex createMockIndex(AbstractType<?> cellType)
+    {
+        TableMetadata table = TableMetadata.builder("test", "test")
+                                           .addPartitionKeyColumn("pk", Int32Type.instance)
+                                           .addRegularColumn("val", cellType)
+                                           .partitioner(Murmur3Partitioner.instance)
+                                           .caching(CachingParams.CACHE_NOTHING)
+                                           .build();
+
+        Map<String, String> options = new HashMap<>();
+        options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StorageAttachedIndex.class.getCanonicalName());
+        options.put("target", "val");
+
+        IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("val", IndexMetadata.Kind.CUSTOM, options);
+
+        ColumnFamilyStore cfs = MockSchema.newCFS(table);
+
+        return new StorageAttachedIndex(cfs, indexMetadata);
+    }
+
+    public static IndexTermType createIndexTermType(AbstractType<?> cellType)
+    {
+        return IndexTermType.create(ColumnMetadata.regularColumn("sai", "internal", "val", cellType, ColumnMetadata.NO_UNIQUE_ID), Collections.emptyList(), IndexTarget.Type.SIMPLE);
+    }
+
+    public IndexIdentifier createIndexIdentifier(String indexName)
+    {
+        return createIndexIdentifier(keyspace(), currentTable(), indexName);
+    }
+
+    public static IndexIdentifier createIndexIdentifier(String keyspaceName, String tableName, String indexName)
+    {
+        return new IndexIdentifier(keyspaceName, tableName, indexName);
     }
 
     protected StorageAttachedIndexGroup getCurrentIndexGroup()
     {
         return StorageAttachedIndexGroup.getIndexGroup(getCurrentColumnFamilyStore());
+    }
+
+    protected void dropIndex(IndexIdentifier indexIdentifier) throws Throwable
+    {
+        dropIndex("DROP INDEX %s." + indexIdentifier.indexName);
     }
 
     protected void simulateNodeRestart()
@@ -294,12 +370,12 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    protected void corruptIndexComponent(IndexComponent indexComponent, IndexContext indexContext, CorruptionType corruptionType) throws Exception
+    protected void corruptIndexComponent(IndexComponent indexComponent, IndexIdentifier indexIdentifier, CorruptionType corruptionType) throws Exception
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            File file = IndexDescriptor.create(sstable).fileFor(indexComponent, indexContext);
+            File file = IndexDescriptor.create(sstable).fileFor(indexComponent, indexIdentifier);
             corruptionType.corrupt(file);
         }
     }
@@ -316,29 +392,15 @@ public abstract class SAITester extends CQLTester
         waitForAssert(() -> assertTrue(indexNeedsFullRebuild(indexName)));
     }
 
-    protected boolean verifyChecksum(IndexContext indexContext)
+    protected boolean verifyChecksum(IndexTermType indexContext, IndexIdentifier indexIdentifier)
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM)
-                || !indexDescriptor.validatePerIndexComponents(indexContext, IndexValidation.CHECKSUM))
-                return false;
-        }
-        return true;
-    }
-
-    protected boolean validateComponents(IndexContext indexContext)
-    {
-        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-        {
-            IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.HEADER_FOOTER)
-                || !indexDescriptor.validatePerIndexComponents(indexContext, IndexValidation.HEADER_FOOTER))
+            if (!indexDescriptor.validatePerSSTableComponents(IndexValidation.CHECKSUM, true, false)
+                || !indexDescriptor.validatePerIndexComponents(indexContext, indexIdentifier, IndexValidation.CHECKSUM, true, false))
                 return false;
         }
         return true;
@@ -467,67 +529,45 @@ public abstract class SAITester extends CQLTester
         assertTrue(indexFiles().isEmpty());
     }
 
-    protected void verifyIndexFiles(IndexContext numericIndexContext, IndexContext literalIndexContext, int numericFiles, int literalFiles)
+    protected void verifyIndexFiles(IndexTermType indexTermType,
+                                    IndexIdentifier indexIdentifier,
+                                    int indexFiles)
     {
-        verifyIndexFiles(numericIndexContext,
-                         literalIndexContext,
-                         Math.max(numericFiles, literalFiles),
-                         numericFiles,
-                         literalFiles,
-                         numericFiles,
-                         literalFiles);
+        verifyIndexFiles(indexTermType, indexIdentifier, indexFiles, indexFiles, indexFiles);
     }
 
-    protected void verifyIndexFiles(IndexContext numericIndexContext,
-                                    IndexContext literalIndexContext,
+    protected void verifyIndexFiles(IndexTermType indexTermType,
+                                    IndexIdentifier indexIdentifier,
                                     int perSSTableFiles,
-                                    int numericFiles,
-                                    int literalFiles,
-                                    int numericCompletionMarkers,
-                                    int literalCompletionMarkers)
+                                    int perColumnFiles,
+                                    int completionMarkers)
     {
         Set<File> indexFiles = indexFiles();
 
         for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perSSTableIndexComponents(false))
         {
-            Set<File> tableFiles = componentFiles(indexFiles, SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent, null)));
+            Component component = SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent, null));
+            Set<File> tableFiles = componentFiles(indexFiles, component);
             assertEquals(tableFiles.toString(), perSSTableFiles, tableFiles.size());
         }
 
-        if (literalIndexContext != null)
+        for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perColumnIndexComponents(indexTermType))
         {
-            for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perColumnIndexComponents(literalIndexContext))
-            {
-                Set<File> stringIndexFiles = componentFiles(indexFiles,
-                                                            SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent,
-                                                                                                                                                            literalIndexContext)));
-                if (isBuildCompletionMarker(indexComponent))
-                    assertEquals(literalCompletionMarkers, stringIndexFiles.size());
-                else
-                    assertEquals(stringIndexFiles.toString(), literalFiles, stringIndexFiles.size());
-            }
-        }
-
-        if (numericIndexContext != null)
-        {
-            for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perColumnIndexComponents(numericIndexContext))
-            {
-                Set<File> numericIndexFiles = componentFiles(indexFiles,
-                                                             SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent,
-                                                                                                                                                             numericIndexContext)));
-                if (isBuildCompletionMarker(indexComponent))
-                    assertEquals(numericCompletionMarkers, numericIndexFiles.size());
-                else
-                    assertEquals(numericIndexFiles.toString(), numericFiles, numericIndexFiles.size());
-            }
+            String componentName = Version.LATEST.fileNameFormatter().format(indexComponent, indexIdentifier);
+            Component component = SSTableFormat.Components.Types.CUSTOM.createComponent(componentName);
+            Set<File> stringIndexFiles = componentFiles(indexFiles, component);
+            if (isBuildCompletionMarker(indexComponent))
+                assertEquals(completionMarkers, stringIndexFiles.size());
+            else
+                assertEquals(stringIndexFiles.toString(), perColumnFiles, stringIndexFiles.size());
         }
     }
 
-    protected void verifySSTableIndexes(String indexName, int count)
+    protected void verifySSTableIndexes(IndexIdentifier indexIdentifier, int count)
     {
         try
         {
-            verifySSTableIndexes(indexName, count, count);
+            verifySSTableIndexes(indexIdentifier, count, count);
         }
         catch (Exception e)
         {
@@ -535,16 +575,24 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    protected void verifySSTableIndexes(String indexName, int sstableContextCount, int sstableIndexCount)
+    protected void verifySSTableIndexes(IndexIdentifier indexIdentifier, int sstableContextCount, int sstableIndexCount)
+    {
+        verifySSTableIndexes(indexIdentifier, sstableContextCount, sstableIndexCount, 0);
+    }
+
+    protected void verifySSTableIndexes(IndexIdentifier indexIdentifier, int sstableContextCount, int sstableIndexCount, int expectedEmptyIndexCount)
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         StorageAttachedIndexGroup indexGroup = getCurrentIndexGroup();
         int contextCount = indexGroup.sstableContextManager().size();
         assertEquals("Expected " + sstableContextCount +" SSTableContexts, but got " + contextCount, sstableContextCount, contextCount);
 
-        StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
-        Collection<SSTableIndex> sstableIndexes = sai == null ? Collections.emptyList() : sai.getIndexContext().getView().getIndexes();
-        assertEquals("Expected " + sstableIndexCount +" SSTableIndexes, but got " + sstableIndexes.toString(), sstableIndexCount, sstableIndexes.size());
+        StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexIdentifier.indexName);
+        Collection<SSTableIndex> sstableIndexes = sai == null ? Collections.emptyList() : sai.view().getIndexes();
+        long nonEmptyIndexCount = sstableIndexes.stream().filter(i -> i.getRowCount() > 0).count();
+        long emptyIndexCount = sstableIndexes.stream().filter(i -> i.getRowCount() == 0).count();
+        assertEquals("Expected " + sstableIndexCount +" SSTableIndexes, but got " + sstableIndexes.toString(), sstableIndexCount, nonEmptyIndexCount);
+        assertEquals("Expected " + expectedEmptyIndexCount + " empty indexes, but got " + emptyIndexCount, expectedEmptyIndexCount, emptyIndexCount);
     }
 
     protected boolean isBuildCompletionMarker(IndexComponent indexComponent)
@@ -647,14 +695,15 @@ public abstract class SAITester extends CQLTester
 
     protected int getCompactionTasks()
     {
-        return CompactionManager.instance.getActiveCompactions() + CompactionManager.instance.getPendingTasks();
+        long activeCount = CompactionManager.instance.active.getCompactions().stream().filter(compaction -> compaction.getCompactionInfo().getTableMetadata().keyspace.equals(KEYSPACE)).count();
+        int pendingCount = Keyspace.open(KEYSPACE).getColumnFamilyStores().stream().map(columnFamilyStore -> columnFamilyStore.getCompactionStrategyManager().getEstimatedRemainingTasks()).reduce(0, Integer::sum);
+        return Ints.checkedCast(activeCount + pendingCount);
     }
 
     protected int snapshot(String snapshotName)
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        TableSnapshot snapshot = cfs.snapshot(snapshotName);
-        return snapshot.getDirectories().size();
+        return SnapshotManager.instance.takeSnapshot(SnapshotOptions.userSnapshot(snapshotName, cfs.getKeyspaceTableName())).iterator().next().getDirectories().size();
     }
 
     protected void restoreSnapshot(String snapshot)
@@ -782,6 +831,11 @@ public abstract class SAITester extends CQLTester
         return null;
     }
 
+    protected ByteComparable integerToByteComparable(int value)
+    {
+        return v -> Int32Type.instance.asComparableBytes(Int32Type.instance.decompose(value), v);
+    }
+
     /**
      *  Because the tracing executor is single threaded, submitting an empty event should ensure
      *  that all tracing events mutations have been applied.
@@ -801,18 +855,16 @@ public abstract class SAITester extends CQLTester
 
     public static class Randomization
     {
-        private final long seed;
         private final Random random;
 
         Randomization()
         {
-            seed = TEST_RANDOM_SEED.getLong(System.nanoTime());
-            random = new Random(seed);
+            random = random().asJdkRandom();
         }
 
-        public void printSeedOnFailure()
+        public long seed()
         {
-            logger.error("Randomized test failed. To rerun test use -D{}={}", TEST_RANDOM_SEED.getKey(), seed);
+            return Fuzzed.seed();
         }
 
         public int nextInt()
@@ -892,15 +944,6 @@ public abstract class SAITester extends CQLTester
         }
     }
 
-    public static class FailureWatcher extends TestWatcher
-    {
-        @Override
-        protected void failed(Throwable e, Description description)
-        {
-            if (random != null)
-                random.printSeedOnFailure();
-        }
-    }
     /**
      * Run repeated verification task concurrently with target test
      */

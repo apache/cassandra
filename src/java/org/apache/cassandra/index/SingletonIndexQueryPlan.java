@@ -23,6 +23,7 @@ package org.apache.cassandra.index;
 
 import java.util.Collections;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -45,9 +46,12 @@ public class SingletonIndexQueryPlan implements Index.QueryPlan
     @Nullable
     protected static SingletonIndexQueryPlan create(Index index, RowFilter rowFilter)
     {
+        if (rowFilter.indexHints.excludes(index))
+            return null;
+
         for (RowFilter.Expression e : rowFilter.getExpressions())
         {
-            if (index.supportsExpression(e.column(), e.operator()))
+            if (index.supportsExpression(e))
                 return new SingletonIndexQueryPlan(index, index.getPostIndexQueryFilter(rowFilter));
         }
 

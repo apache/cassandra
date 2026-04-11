@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,9 +35,9 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 
@@ -62,6 +63,7 @@ public class CQLVectorTest extends CQLTester.InMemory
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2])"), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 2], [1, 2])"), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN (?)", vector), row);
+        assertRows(execute("SELECT * FROM %s WHERE pk IN ?", list(vector)), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, 1 + 1])"), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, ?])", 2), row);
         assertRows(execute("SELECT * FROM %s WHERE pk IN ([1, (int) ?])", 2), row);
@@ -189,6 +191,22 @@ public class CQLVectorTest extends CQLTester.InMemory
     }
 
     @Test
+    public void sandwichBetweenUDTs()
+    {
+        schemaChange("CREATE TYPE cql_test_keyspace.b (y int);");
+        schemaChange("CREATE TYPE cql_test_keyspace.a (z vector<frozen<b>, 2>);");
+
+        // make sure types can be loaded back; see https://issues.apache.org/jira/browse/CASSANDRA-18964
+        SchemaKeyspace.fetchNonSystemKeyspaces();
+
+        createTable("CREATE TABLE %s (pk int primary key, value a)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, {z: [{y:1}, {y:2}]})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, userType("z", vector((Object)userType("y", 1), (Object)userType("y", 2)))));
+    }
+
+    @Test
     public void invalidElementTypeFixedWidth() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int primary key, value vector<int, 2>)");
@@ -298,7 +316,7 @@ public class CQLVectorTest extends CQLTester.InMemory
                                   InvalidRequestException.class,
                                   "INSERT INTO %s (k, v) VALUES (0, 0x)");
 
-        assertInvalidThrowMessage("Invalid empty vector value",
+        assertInvalidThrowMessage(format("Not enough bytes to read a vector<%s, 2>", type),
                                   InvalidRequestException.class,
                                   "INSERT INTO %s (k, v) VALUES (0, ?)",
                                   ByteBufferUtil.EMPTY_BYTE_BUFFER);
@@ -387,7 +405,7 @@ public class CQLVectorTest extends CQLTester.InMemory
         Vector<Integer> vector = vector(1, 2);
         execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector);
 
-        // identitiy function
+        // identity function
         String f = createFunction(KEYSPACE,
                                   "",
                                   "CREATE FUNCTION %s (x vector<int, 2>) " +

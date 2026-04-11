@@ -19,10 +19,12 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.COMPACTION_TYPE_PROPERTY;
@@ -41,6 +43,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
         // all upgrades from v40 to current, excluding v50 -> v51
         .singleUpgradeToCurrentFrom(v40)
         .singleUpgradeToCurrentFrom(v41)
+        .withConfig(c -> c.with(Feature.GOSSIP))
         .setup((cluster) -> {
             //create table
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tb (" +
@@ -63,14 +66,17 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             cluster.stream().forEach(node -> node.nodetool("disableautocompaction"));
             ToolRunner.ToolResult toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
             toolHistory.assertOnCleanExit();
-            // upgraded system.compaction_history data verify
-            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of());
+
+            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(), "{}");
 
             // force compact
             cluster.stream().forEach(node -> node.nodetool("compact"));
             toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
             toolHistory.assertOnCleanExit();
-            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type));
+
+            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb",
+                                          ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type),
+                                          OperationType.MAJOR_COMPACTION.type);
         })
         .run();
     }

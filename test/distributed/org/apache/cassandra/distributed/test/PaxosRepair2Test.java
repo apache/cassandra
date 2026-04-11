@@ -23,12 +23,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.distributed.shared.WithProperties;
 import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
@@ -66,11 +66,13 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -83,6 +85,8 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosKeyState;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker;
@@ -90,8 +94,10 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker.Up
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Shared;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS;
@@ -99,8 +105,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PA
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
-
-import org.apache.cassandra.utils.CloseableIterator;
 
 // quick workaround for metaspace ooms, will properly reuse clusters later
 public class PaxosRepair2Test extends TestBaseImpl
@@ -112,6 +116,7 @@ public class PaxosRepair2Test extends TestBaseImpl
     static
     {
         CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
+        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -145,8 +150,9 @@ public class PaxosRepair2Test extends TestBaseImpl
         options.put(RepairOption.FORCE_REPAIR_KEY, Boolean.toString(force));
         options.put(RepairOption.PREVIEW, PreviewKind.NONE.toString());
         options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(false));
+        options.put(RepairOption.REPAIR_DATA_KEY, Boolean.toString(false));
         options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(true));
-        options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(true));
+        options.put(RepairOption.REPAIR_ACCORD_KEY, Boolean.toString(false));
 
         cluster.get(1).runOnInstance(() -> {
             int cmd = StorageService.instance.repairAsync(keyspace, options);
@@ -197,6 +203,7 @@ public class PaxosRepair2Test extends TestBaseImpl
             repair(cluster, KEYSPACE, TABLE);
 
             // stop and start node 2 to test loading paxos repair history from disk
+            cluster.get(2).flush(SYSTEM_KEYSPACE_NAME);
             cluster.get(2).shutdown().get();
             cluster.get(2).startup();
 
@@ -286,7 +293,7 @@ public class PaxosRepair2Test extends TestBaseImpl
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
         FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false, 0));
     }
 
     private static Map<Integer, PaxosRow> getPaxosRows()
@@ -455,6 +462,13 @@ public class PaxosRepair2Test extends TestBaseImpl
         }
     }
 
+    @Shared(scope = Shared.Scope.ANY)
+    public static class Conditions
+    {
+        public java.util.concurrent.CountDownLatch beforeKeyspaceDrop = new CountDownLatch(1);
+        public java.util.concurrent.CountDownLatch afterKeyspaceDrop = new CountDownLatch(1);
+    }
+
     @Test
     public void legacyPurgeRepairLoop() throws Exception
     {
@@ -572,6 +586,43 @@ public class PaxosRepair2Test extends TestBaseImpl
                 assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
                 assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
                 assertUncommitted(cluster.get(3), KEYSPACE, TABLE, 0);
+
+                Conditions conditions = new Conditions();
+
+                Thread keyspaceDropTask = new Thread(() -> {
+                    try
+                    {
+                        conditions.beforeKeyspaceDrop.await();
+                        cluster.schemaChange("DROP KEYSPACE " + KEYSPACE, 3);
+                        conditions.afterKeyspaceDrop.countDown();
+                    }
+                    catch (InterruptedException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                keyspaceDropTask.start();
+
+                boolean failedAsExpected = cluster.get(3).applyOnInstance(conds -> {
+                    try
+                    {
+                        TableId tableId = Schema.instance.getTableMetadata(KEYSPACE, TABLE).id;
+                        Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
+                        Collection<Range<Token>> ranges = Collections.singleton(new Range<>(token, token));
+                        PaxosCleanupLocalCoordinator repair = PaxosCleanupLocalCoordinator.createForAutoRepair(SharedContext.Global.instance, tableId, ranges);
+                        conds.beforeKeyspaceDrop.countDown();
+                        conds.afterKeyspaceDrop.await();
+                        repair.start();
+                        PaxosCleanupResponse result = repair.get();
+                        return !result.wasSuccessful && result.message.contains("Unknown keyspace: " + KEYSPACE);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }, conditions);
+                Assert.assertTrue(failedAsExpected);
             }
         }
         finally

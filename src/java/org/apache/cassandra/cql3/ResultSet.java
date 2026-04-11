@@ -30,8 +30,6 @@ import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
@@ -40,6 +38,8 @@ import org.apache.cassandra.transport.DataType;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MD5Digest;
+
+import io.netty.buffer.ByteBuf;
 
 public class ResultSet
 {
@@ -314,8 +314,8 @@ public class ResultSet
 
         public static ResultMetadata fromPrepared(CQLStatement statement)
         {
-            if (statement instanceof SelectStatement)
-                return ((SelectStatement)statement).getResultMetadata();
+            if (statement instanceof CQLStatement.ReturningCQLStatement)
+                return ((CQLStatement.ReturningCQLStatement) statement).getResultMetadata();
 
             return ResultSet.ResultMetadata.EMPTY;
         }

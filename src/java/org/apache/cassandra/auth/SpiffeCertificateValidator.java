@@ -21,37 +21,47 @@ package org.apache.cassandra.auth;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.exceptions.AuthenticationException;
 
+import static org.apache.cassandra.auth.MutualTlsUtil.castCertsToX509;
+
 /**
  * This class assumes that the identity of a certificate is SPIFFE which is a URI that is present as part of the SAN
  * of the client certificate. It has logic to extract identity (Spiffe) out of a certificate & knows how to validate
  * the client certificates.
- * <p>
  *
- * <p>
- * Example:
+ * <p>Example:
+ * <pre>
  * internode_authenticator:
- * class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
- * parameters :
- * validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+ *   class_name: org.apache.cassandra.auth.MutualTlsAuthenticator
+ *   parameters:
+ *     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+ * </pre>
+ *
+ * <pre>
  * authenticator:
- * class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
- * parameters :
- * validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+ *   class_name: org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+ *   parameters:
+ *     validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+ * </pre>
  */
 public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
 {
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isValidCertificate(Certificate[] clientCertificateChain)
     {
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String identity(Certificate[] clientCertificateChain) throws AuthenticationException
     {
@@ -85,10 +95,5 @@ public class SpiffeCertificateValidator implements MutualTlsCertificateValidator
             }
         }
         throw new CertificateException("Unable to extract Spiffe from the certificate");
-    }
-
-    private static X509Certificate[] castCertsToX509(Certificate[] clientCertificateChain)
-    {
-        return Arrays.asList(clientCertificateChain).toArray(new X509Certificate[0]);
     }
 }

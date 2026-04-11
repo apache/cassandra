@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class InetAddressSerializer extends TypeSerializer<InetAddress>
 {

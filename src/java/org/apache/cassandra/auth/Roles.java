@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -80,6 +81,19 @@ public class Roles
     public static Set<RoleResource> getAllRoles()
     {
         return cache.getAllRoles();
+    }
+
+    /**
+     * Gets all roles which pass the predicate.
+     *
+     * @param predicate a predicate to filter roles with
+     * @return unmodifiable set of role resources passing the predicate
+     */
+    public static Set<RoleResource> getAllRoles(Predicate<RoleResource> predicate)
+    {
+        return getAllRoles().stream()
+                            .filter(predicate)
+                            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

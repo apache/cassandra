@@ -22,11 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.functions.Arguments;
@@ -213,7 +214,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testPreparedStatement() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v text MASKED WITH DEFAULT)");
@@ -251,7 +251,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testPreparedStatementOnView() throws Throwable
     {
         createTable("CREATE TABLE %s (k int, c int, v text MASKED WITH DEFAULT, PRIMARY KEY (k, c))");

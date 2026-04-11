@@ -18,39 +18,48 @@
 
 package org.apache.cassandra.simulator.debug;
 
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.simulator.ClusterSimulation;
-import org.apache.cassandra.simulator.RandomSource;
-import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
-import org.apache.cassandra.simulator.systems.SimulatedTime;
-import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.concurrent.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.channels.Channels;
-import java.util.*;
+import java.util.Arrays;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.RandomSource;
+import org.apache.cassandra.simulator.Simulation;
+import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
+import org.apache.cassandra.simulator.systems.SimulatedTime;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.CloseableIterator;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Threads;
+
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
-import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.*;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.NONE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.VALUE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.WITH_CALLSITES;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class Record
 {
     private static final Logger logger = LoggerFactory.getLogger(Record.class);
     private static final Pattern NORMALISE_THREAD_RECORDING_OUT = Pattern.compile("(Thread\\[[^]]+:[0-9]+),[0-9](,node[0-9]+)_[0-9]+]");
-    private static final Pattern NORMALISE_LAMBDA = Pattern.compile("((\\$\\$Lambda\\$[0-9]+/[0-9]+)?(@[0-9a-f]+)?)");
+    private static final Pattern NORMALISE_LAMBDA = Pattern.compile("((\\$\\$Lambda\\$[0-9]+/(0x)?[a-f0-9]+)?(@[0-9a-f]+)?)");
 
     public static void record(String saveToDir, long seed, RecordOption withRng, RecordOption withTime, ClusterSimulation.Builder<?> builder)
     {
@@ -73,6 +82,7 @@ public class Record
             if (builder.capture().wakeSites)
                 modifiers.add("WakeSites");
             logger.error("Seed 0x{} ({}) (With: {})", Long.toHexString(seed), eventFile, modifiers);
+            logger.info("Cassandra {} / {}", FBUtilities.getReleaseVersionString(), FBUtilities.getGitSHA());
         }
 
         try (PrintWriter eventOut = new PrintWriter(new GZIPOutputStream(eventFile.newOutputStream(OVERWRITE), 1 << 16));
@@ -149,9 +159,10 @@ public class Record
             flusher.setDaemon(true);
             flusher.start();
 
-            try (ClusterSimulation<?> cluster = builder.create(seed))
+            try (ClusterSimulation<?> clusterSimulation = builder.create(seed))
             {
-                try (CloseableIterator<?> iter = cluster.simulation.iterator();)
+                try (Simulation simulation = clusterSimulation.simulation();
+                     CloseableIterator<?> iter = simulation.iterator())
                 {
                     while (iter.hasNext())
                         eventOut.println(normaliseRecordingOut(iter.next().toString()));

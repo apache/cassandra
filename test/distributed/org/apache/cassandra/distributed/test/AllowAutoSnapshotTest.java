@@ -27,7 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 
 import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
@@ -147,8 +147,8 @@ public class AllowAutoSnapshotTest extends TestBaseImpl
         {
             final int node = i; // has to be effectively final for the usage in "until" method
             await().until(() -> cluster.get(node).appliesOnInstance((IIsolatedExecutor.SerializableTriFunction<Boolean, String, String, Boolean>) (shouldContainSnapshot, tableName, prefix) -> {
-                                                                     Stream<String> stream = StorageService.instance.getSnapshotDetails(Collections.emptyMap()).keySet().stream();
-                                                                     Predicate<String> predicate = tag -> tag.startsWith(prefix + '-') && tag.endsWith('-' + tableName);
+                                                                     Stream<String> stream = SnapshotManager.instance.listSnapshots(Collections.emptyMap()).keySet().stream();
+                                                                     Predicate<String> predicate = tag -> tag.contains(prefix + '-' + table);
                                                                      return shouldContainSnapshot ? stream.anyMatch(predicate) : stream.noneMatch(predicate);
             }).apply(shouldContain, table, snapshotPrefix));
         }

@@ -20,8 +20,9 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.db.commitlog.AbstractCommitLogService;
+
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
+import org.apache.cassandra.db.commitlog.AbstractCommitLogService;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -30,7 +31,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class CommitLogMetrics
 {
-    public static final MetricNameFactory factory = new DefaultNameFactory("CommitLog");
+    public static final String TYPE_NAME = "CommitLog";
+    public static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     /** Number of completed tasks */
     public Gauge<Long> completedTasks;

@@ -22,7 +22,9 @@ import java.util.HashSet;
 import java.util.function.Function;
 
 import com.google.common.collect.Sets;
+
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -31,7 +33,6 @@ import org.apache.cassandra.io.sstable.SSTableFormatTest.Format1;
 import org.apache.cassandra.io.sstable.SSTableFormatTest.Format2;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
-import org.mockito.Mockito;
 
 import static org.apache.cassandra.io.sstable.SSTableFormatTest.factory;
 import static org.assertj.core.api.Assertions.assertThat;

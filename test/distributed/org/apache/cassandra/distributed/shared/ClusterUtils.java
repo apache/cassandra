@@ -18,54 +18,96 @@
 
 package org.apache.cassandra.distributed.shared;
 
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
-import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Futures;
 
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.io.util.File;
+import org.agrona.collections.IntArrayList;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import accord.primitives.TxnId;
+import accord.topology.EpochReady;
+
+import org.apache.cassandra.db.virtual.AccordDebugKeyspace;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
+import org.apache.cassandra.distributed.impl.TestChangeListener;
+import org.apache.cassandra.distributed.test.log.TestProcessor;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tools.SystemExitException;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
+import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -79,6 +121,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Isolated
 public class ClusterUtils
 {
+    private static final Logger logger = LoggerFactory.getLogger(ClusterUtils.class);
     /**
      * Start the instance with the given System Properties, after the instance has started, the properties will be cleared.
      */
@@ -144,6 +187,47 @@ public class ClusterUtils
     public static <I extends IInstance> void stopAll(ICluster<I> cluster)
     {
         cluster.stream().forEach(ClusterUtils::stopUnchecked);
+    }
+
+    /**
+     * Restart an instance in a blocking manner.
+     *
+     * @param instance the instance to restart
+     */
+    public static void restartUnchecked(IInstance instance)
+    {
+        logger.info("Stopping instance {} to restart it", instance);
+        stopUnchecked(instance);
+        logger.info("Instance {} stopped, trying to start it now", instance);
+        instance.startup();
+        logger.info("Instance {} startup was success", instance);
+    }
+
+    /**
+     * Create a new instance and add it to the cluster, without starting it.
+     *
+     * @param cluster to add to
+     * @param fn function to add to the config before starting
+     * @param <I> instance type
+     * @return the instance added
+     */
+    public static <I extends IInstance> I addInstance(AbstractCluster<I> cluster, Consumer<IInstanceConfig> fn)
+    {
+        I inst = cluster.stream().filter(i -> !i.isShutdown()).findFirst().get();
+        return addInstance(cluster, inst.config(), fn);
+    }
+
+    /**
+     * Create a new instance and add it to the cluster, without starting it.
+     *
+     * @param cluster to add to
+     * @param <I> instance type
+     * @return the instance added
+     */
+    public static <I extends IInstance> I addInstance(AbstractCluster<I> cluster)
+    {
+        I inst = cluster.stream().filter(i -> !i.isShutdown()).findFirst().get();
+        return addInstance(cluster, inst.config(), c -> {});
     }
 
     /**
@@ -215,7 +299,7 @@ public class ClusterUtils
      * @param <I> instance type
      * @return the instance added
      */
-    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster, IInstance toReplace)
+    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster, I toReplace)
     {
         return replaceHostAndStart(cluster, toReplace, ignore -> {});
     }
@@ -232,7 +316,7 @@ public class ClusterUtils
      * @return the instance added
      */
     public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
-                                                              IInstance toReplace,
+                                                              I toReplace,
                                                               Consumer<WithProperties> fn)
     {
         return replaceHostAndStart(cluster, toReplace, (ignore, prop) -> fn.accept(prop));
@@ -250,12 +334,42 @@ public class ClusterUtils
      * @return the instance added
      */
     public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
-                                                              IInstance toReplace,
+                                                              I toReplace,
                                                               BiConsumer<I, WithProperties> fn)
     {
-        IInstanceConfig toReplaceConf = toReplace.config();
-        I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true));
+        return replaceHostAndStart(cluster, toReplace, fn, ignore -> {});
+    }
 
+    public static <I extends IInstance> I replaceHostAndStart(AbstractCluster<I> cluster,
+                                                              I toReplace,
+                                                              BiConsumer<I, WithProperties> fn,
+                                                              Consumer<IInstanceConfig> configFn)
+    {
+        IInstanceConfig toReplaceConf = toReplace.config();
+        I inst = addInstance(cluster, toReplaceConf, c -> {
+            c.set("auto_bootstrap", true)
+             .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE);
+            configFn.accept(c);
+        });
+        return startHostReplacement(toReplace, inst, fn);
+    }
+
+    public static <I extends IInstance> I startHostReplacement(I toReplace, I inst)
+    {
+        return startHostReplacement(toReplace, inst, (i1, i2) -> {});
+    }
+
+    /**
+     * Start a instance with the properties needed to perform a host replacement.
+     *
+     * @param toReplace instance to replace
+     * @param inst      to start
+     * @param fn        lambda to add additional properties or modify instance
+     * @param <I>       instance type
+     * @return inst
+     */
+    public static <I extends IInstance> I startHostReplacement(I toReplace, I inst, BiConsumer<I, WithProperties> fn)
+    {
         return start(inst, properties -> {
             // lower this so the replacement waits less time
             properties.set(BROADCAST_INTERVAL_MS, Long.toString(TimeUnit.SECONDS.toMillis(30)));
@@ -264,32 +378,103 @@ public class ClusterUtils
             properties.set(BOOTSTRAP_SCHEMA_DELAY_MS, TimeUnit.SECONDS.toMillis(10));
 
             // state which node to replace
-            properties.set(REPLACE_ADDRESS_FIRST_BOOT, toReplace.config().broadcastAddress().getAddress().getHostAddress());
+            InetSocketAddress address = toReplace.config().broadcastAddress();
+            // when port isn't defined we use the default port, but in jvm-dtest the port might change!
+            properties.set(REPLACE_ADDRESS_FIRST_BOOT, address.getAddress().getHostAddress() + ":" + address.getPort());
 
             fn.accept(inst, properties);
         });
     }
 
     /**
-     * Calls {@link org.apache.cassandra.locator.TokenMetadata#sortedTokens()}, returning as a list of strings.
+     * Calls TokenMap#tokens(), returning as a list of strings.
      */
     public static List<String> getTokenMetadataTokens(IInvokableInstance inst)
     {
         return inst.callOnInstance(() ->
-                                   StorageService.instance.getTokenMetadata()
-                                                          .sortedTokens().stream()
-                                                          .map(Object::toString)
-                                                          .collect(Collectors.toList()));
+                                   ClusterMetadata.current().tokenMap.tokens()
+                                                                     .stream()
+                                                                     .map(Object::toString)
+                                                                     .collect(Collectors.toList()));
     }
 
     public static Collection<String> getLocalTokens(IInvokableInstance inst)
     {
         return inst.callOnInstance(() -> {
             List<String> tokens = new ArrayList<>();
-            for (Token t : StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddressAndPort()))
+
+            for (Token t : ClusterMetadata.current().tokenMap.tokens(ClusterMetadata.current().myNodeId()))
                 tokens.add(t.getTokenValue().toString());
             return tokens;
         });
+    }
+
+    public static List<String> getPeerDirectoryDebugStrings(IInvokableInstance inst)
+    {
+        String s = inst.callOnInstance(() -> ClusterMetadata.current().directory.toDebugString());
+        return Arrays.asList(s.split("\n"));
+    }
+
+    public static List<String> getTokenMapDebugStrings(IInvokableInstance inst)
+    {
+        String s = inst.callOnInstance(() -> ClusterMetadata.current().tokenMap.toDebugString());
+        return Arrays.asList(s.split("\n"));
+    }
+
+    public static void logTokenMapDebugString(IInvokableInstance inst)
+    {
+        inst.runOnInstance(() -> ClusterMetadata.current().tokenMap.logDebugString());
+    }
+
+    @SuppressWarnings("rawtypes")
+    public static Map<String, List[]> getDataPlacementDebugInfo(IInvokableInstance inst)
+    {
+        return inst.callOnInstance(() -> getPlacementDebugInfo(ClusterMetadataService.instance()));
+    }
+
+
+    // not pretty, but this is for testing. For each keyspace, includes 2—element array of List<Replica>.
+    // Element 0 is the read replicas for the keyspace, element 1 is the write replicas.
+    @VisibleForTesting
+    @SuppressWarnings("rawtypes")
+    public static Map<String, List[]> getPlacementDebugInfo(ClusterMetadataService metadataService)
+    {
+        ClusterMetadata metadata = metadataService.metadata();
+        Map<String, List[]> byKeyspace = new HashMap<>();
+        for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
+        {
+            List[] placements = new List[2];
+            placements[0] = metadata.placements.get(keyspace.params.replication).reads.toReplicaStringList();
+            placements[1] = metadata.placements.get(keyspace.params.replication).writes.toReplicaStringList();
+            byKeyspace.put(keyspace.name, placements);
+        }
+        return byKeyspace;
+    }
+
+    public static void logDataPlacementDebugString(IInvokableInstance inst, boolean byEndpoint)
+    {
+        inst.runOnInstance(() -> logPlacementDebugString(ClusterMetadataService.instance(), byEndpoint));
+    }
+
+    public static void logPlacementDebugString(ClusterMetadataService metadataService, boolean byEndpoint)
+    {
+        ClusterMetadata metadata = metadataService.metadata();
+        List<String> keyspaces = new ArrayList<>();
+        for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
+        {
+            StringBuilder builder = new StringBuilder();
+            builder.append("'keyspace' { 'name':").append(keyspace.name).append("', ");
+            builder.append("'reads':['");
+            ReplicaGroups placement = metadata.placements.get(keyspace.params.replication).reads;
+            builder.append(byEndpoint ? placement.toStringByEndpoint() : placement.toString());
+            builder.append("'], 'writes':['");
+            placement = metadata.placements.get(keyspace.params.replication).writes;
+            builder.append(byEndpoint ? placement.toStringByEndpoint() : placement.toString());
+            builder.append("']}");
+            keyspaces.add(builder.toString());
+        }
+        String debug = String.join("\n", keyspaces);
+        logger.debug(debug);
     }
 
     public static <I extends IInstance> void runAndWaitForLogs(Runnable r, String waitString, AbstractCluster<I> cluster) throws TimeoutException
@@ -307,6 +492,407 @@ public class ClusterUtils
             instances[i].logs().watchFor(marks[i], waitString);
     }
 
+    public static Epoch getClusterMetadataVersion(IInvokableInstance inst)
+    {
+        return decode(inst.callOnInstance(() -> encode(ClusterMetadata.current().epoch)));
+    }
+
+    public static long encode(Epoch epoch)
+    {
+        return epoch.getEpoch();
+    }
+
+    public static Epoch decode(long periodEpoch)
+    {
+        return Epoch.create(periodEpoch);
+    }
+
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, IInvokableInstance leader, int...ignored)
+    {
+        ClusterUtils.waitForCMSToQuiesce(cluster, getClusterMetadataVersion(leader), ignored);
+    }
+
+    public static void dropAllEntriesBeginningAt(IInvokableInstance instance, Epoch epoch)
+    {
+        instance.runOnInstance(() -> ClusterMetadataService.instance().log().addFilter(e -> e.epoch.isEqualOrAfter(epoch)));
+    }
+
+    public static void clearEntryFilters(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> ClusterMetadataService.instance().log().clearFilters());
+    }
+
+    public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, long epoch)
+    {
+        return pauseBeforeEnacting(instance, Epoch.create(epoch), 30, TimeUnit.SECONDS);
+    }
+
+    public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, Epoch epoch)
+    {
+        return pauseBeforeEnacting(instance, epoch, 30, TimeUnit.SECONDS);
+    }
+
+    protected static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance,
+                                                        Epoch epoch,
+                                                        long wait,
+                                                        TimeUnit waitUnit)
+    {
+        return instance.callOnInstance(() -> {
+            TestChangeListener listener = TestChangeListener.instance;
+            AsyncPromise<?> promise = new AsyncPromise<>();
+            listener.pauseBefore(epoch, () -> {
+                logger.info("Notifying waiter of pausing for pauseBeforeEnacting epoch {}", epoch);
+                promise.setSuccess(null);
+            });
+            return () -> {
+                try
+                {
+                    logger.info("EpochPause Waiting before enacting epoch {}", epoch);
+                    promise.get(wait, waitUnit);
+                    logger.info("EpochPause stopped waiting before enacting epoch {}", epoch);
+                    return null;
+                }
+                catch (Throwable e)
+                {
+                    logger.info("EpochPause Timed out waiting for before enacting epoch {}", epoch);
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+    }
+
+    public static Callable<Void> pauseAfterEnacting(IInvokableInstance instance, Epoch epoch)
+    {
+        return pauseAfterEnacting(instance, epoch, 10, TimeUnit.SECONDS);
+    }
+
+    protected static Callable<Void> pauseAfterEnacting(IInvokableInstance instance,
+                                                       Epoch epoch,
+                                                       long wait,
+                                                       TimeUnit waitUnit)
+    {
+        return instance.callOnInstance(() -> {
+            TestChangeListener listener = TestChangeListener.instance;
+            AsyncPromise<?> promise = new AsyncPromise<>();
+            listener.pauseAfter(epoch, () -> {
+                logger.info("Notifying waiter of pausing for pauseAfterEnacting epoch {}", epoch);
+                promise.setSuccess(null);
+            });
+            return () -> {
+                try
+                {
+                    logger.info("EpochPause Waiting after enacting epoch {}", epoch);
+                    promise.get(wait, waitUnit);
+                    logger.info("EpochPause done waiting after enacting epoch {}", epoch);
+                    return null;
+                }
+                catch (Throwable e)
+                {
+                    logger.info("EpochPause Timed out waiting for after enacting epoch {}", epoch);
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+    }
+
+    public static Callable<Epoch> pauseBeforeCommit(IInvokableInstance cmsInstance, SerializablePredicate<Transformation> predicate)
+    {
+        Callable<Long> remoteCallable = cmsInstance.callOnInstance(() -> {
+            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
+            AsyncPromise<Epoch> promise = new AsyncPromise<>();
+            processor.pauseIf(predicate, () -> promise.setSuccess(ClusterMetadata.current().epoch));
+            return () -> {
+                try
+                {
+                    logger.info("EpochPause Waiting before commit");
+                    return promise.get(30, TimeUnit.SECONDS).getEpoch();
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+        return () -> Epoch.create(remoteCallable.call());
+
+    }
+
+    public static Callable<Epoch> getSequenceAfterCommit(IInvokableInstance cmsInstance,
+                                                         SerializableBiPredicate<Transformation, Commit.Result> predicate)
+    {
+        Callable<Long> remoteCallable = cmsInstance.callOnInstance(() -> {
+            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
+
+            AsyncPromise<Epoch> promise = new AsyncPromise<>();
+            processor.registerCommitPredicate((event, result) -> {
+                if (predicate.test(event, result))
+                {
+                    promise.setSuccess(result.success().logState.latestEpoch());
+                    return true;
+                }
+
+                return false;
+            });
+            return () -> {
+                try
+                {
+                    return promise.get(30, TimeUnit.SECONDS).getEpoch();
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+
+        return () -> Epoch.create(remoteCallable.call());
+    }
+
+    public static void unpauseCommits(IInvokableInstance instance)
+    {
+        if (instance.isShutdown())
+            return;
+        instance.runOnInstance(() -> {
+            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
+            processor.unpause();
+        });
+    }
+
+    public static void unpauseEnactment(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> TestChangeListener.instance.unpause());
+    }
+
+    public static void clearAndUnpause(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> TestChangeListener.instance.clearAndUnpause());
+    }
+
+    public static boolean isMigrating(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> ClusterMetadataService.instance().isMigrating());
+    }
+
+    public static interface SerializablePredicate<T> extends Predicate<T>, Serializable
+    {}
+
+    public static interface SerializableBiPredicate<T1, T2> extends BiPredicate<T1, T2>, Serializable {}
+
+    private static class ClusterMetadataVersion
+    {
+        public final int node;
+        public final Epoch epoch;
+
+        private ClusterMetadataVersion(int node, Epoch epoch)
+        {
+            this.node = node;
+            this.epoch = epoch;
+        }
+
+        public String toString()
+        {
+            return "Version{" +
+                    "node=" + node +
+                    ", epoch=" + epoch +
+                    '}';
+        }
+    }
+
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, int... cmsNodes)
+    {
+        // first step; find the largest epoch
+        waitForCMSToQuiesce(cluster, maxEpoch(cluster, cmsNodes));
+    }
+
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster)
+    {
+        IntArrayList up = new IntArrayList();
+        for (var inst : cluster)
+        {
+            if (inst.isShutdown()) continue;
+            up.add(inst.config().num());
+        }
+        return maxEpoch(cluster, up.toIntArray());
+    }
+
+    public static Epoch maxEpoch(ICluster<IInvokableInstance> cluster, int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            return maxEpoch(cluster);
+
+        Epoch max = null;
+        for (int id : nodes)
+        {
+            IInvokableInstance inst = cluster.get(id);
+            if (inst.isShutdown()) continue;
+            Epoch version = getClusterMetadataVersion(inst);
+            if (max == null || version.getEpoch() > max.getEpoch())
+                max = version;
+        }
+        if (max == null)
+            throw new AssertionError("Unable to find max epoch from " + Arrays.toString(nodes));
+        return max;
+    }
+
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, Epoch awaitedEpoch, int...ignored)
+    {
+        waitForCMSToQuiesce(cluster, awaitedEpoch, false, ignored);
+    }
+
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, Epoch awaitedEpoch, boolean fetchLogWhenBehind, int...ignored)
+    {
+        List<ClusterMetadataVersion> notMatching = new ArrayList<>();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < deadline)
+        {
+            notMatching.clear();
+            for (int j = 1; j <= cluster.size(); j++)
+            {
+                boolean skip = false;
+                for (int ignore : ignored)
+                    if (ignore == j)
+                        skip = true;
+
+                if (skip)
+                    continue;
+
+                IInvokableInstance inst = cluster.get(j);
+                if (inst.isShutdown())
+                    continue;
+                Epoch version = getClusterMetadataVersion(inst);
+                if (fetchLogWhenBehind && version.getEpoch() < awaitedEpoch.getEpoch())
+                    version = fetchLogFromCMS(inst, awaitedEpoch);
+                if (version.getEpoch() < awaitedEpoch.getEpoch())
+                    notMatching.add(new ClusterMetadataVersion(j, version));
+            }
+            if (notMatching.isEmpty())
+                return;
+
+            sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+        }
+        throw new AssertionError(String.format("Some instances have not reached schema agreement with the leader. Awaited %s; diverging nodes: %s. ", awaitedEpoch, notMatching));
+    }
+
+    public static Epoch fetchLogFromCMS(IInvokableInstance inst, Epoch awaitedEpoch)
+    {
+        return fetchLogFromCMS(inst, awaitedEpoch.getEpoch());
+    }
+
+    public static Epoch fetchLogFromCMS(IInvokableInstance inst, long awaitedEpoch)
+    {
+        long latest = inst.callOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(awaitedEpoch)).epoch.getEpoch());
+        return Epoch.create(latest);
+    }
+
+    public static Epoch getCurrentEpoch(IInvokableInstance inst)
+    {
+        return decode(inst.callOnInstance(() -> encode(ClusterMetadata.current().epoch)));
+    }
+
+    public static Epoch getNextEpoch(IInvokableInstance inst)
+    {
+        return decode(inst.callOnInstance(() -> encode(ClusterMetadata.current().nextEpoch())));
+    }
+
+    public static Epoch snapshotClusterMetadata(IInvokableInstance inst)
+    {
+        return decode(inst.callOnInstance(() -> {
+            ClusterMetadata snapshotted = ClusterMetadataService.instance().triggerSnapshot();
+            return encode(snapshotted.epoch);
+        }));
+    }
+
+    public static Map<String, Epoch> getPeerEpochs(IInvokableInstance requester)
+    {
+        Map<String, Long> map = requester.callOnInstance(() -> {
+            Set<InetAddressAndPort> peers = ClusterMetadata.current().directory.allAddresses();
+            CountDownLatch latch = CountDownLatch.newCountDownLatch(peers.size());
+            Map<String, Long> epochs = new ConcurrentHashMap<>(peers.size());
+            peers.forEach(peer -> {
+                Message<Epoch> request = Message.out(Verb.TCM_CURRENT_EPOCH_REQ, ClusterMetadata.current().epoch);
+                RequestCallback<Epoch> callback = response -> {
+                    epochs.put(peer.toString(), encode(response.payload));
+                    latch.decrement();
+                };
+                MessagingService.instance().sendWithCallback(request, peer, callback);
+            });
+            latch.awaitUninterruptibly();
+            return epochs;
+        });
+        return map.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> decode(e.getValue())));
+    }
+
+    public static Set<String> getCMSMembers(IInvokableInstance inst)
+    {
+        return inst.callOnInstance(() -> ClusterMetadata.current()
+                                                        .fullCMSMembers()
+                                                        .stream()
+                                                        .map(InetSocketAddress::getAddress)
+                                                        .map(Object::toString)
+                                                        .collect(Collectors.toSet()));
+    }
+
+    public static boolean decommission(IInvokableInstance leaving)
+    {
+        return leaving.callOnInstance(() -> {
+            try
+            {
+                StorageService.instance.decommission(true);
+                return true;
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                return false;
+            }
+        });
+    }
+
+    public static NodeId getNodeId(IInvokableInstance target)
+    {
+        return new NodeId(getNodeId(target, target));
+    }
+
+    public static int getNodeId(IInvokableInstance target, IInvokableInstance executor)
+    {
+        InetSocketAddress targetAddress = target.config().broadcastAddress();
+        return executor.callOnInstance(() -> {
+            try
+            {
+                return ClusterMetadata.current().directory.peerId(toCassandraInetAddressAndPort(targetAddress)).id();
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                return null;
+            }
+        });
+    }
+
+    public static boolean cancelInProgressSequences(IInvokableInstance executor)
+    {
+        return cancelInProgressSequences(getNodeId(executor), executor);
+    }
+
+    public static boolean cancelInProgressSequences(NodeId nodeId, IInvokableInstance executor)
+    {
+        int id = nodeId.id();
+        return executor.callOnInstance(() -> {
+            try
+            {
+
+                StorageService.instance.cancelInProgressSequences(new NodeId(id));
+                return true;
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+                return false;
+            }
+        });
+    }
 
     /**
      * Get the ring from the perspective of the instance.
@@ -349,10 +935,9 @@ public class ClusterUtils
         List<RingInstanceDetails> match = ring.stream()
                                               .filter(d -> d.address.equals(targetAddress))
                                               .collect(Collectors.toList());
-        assertThat(match)
-        .isNotEmpty()
-        .as("State was expected to be %s but was not", state)
-        .anyMatch(r -> r.state.equals(state));
+        assertThat(match).isNotEmpty()
+                         .as("State was expected to be %s but was not", state)
+                         .anyMatch(r -> r.state.equals(state));
         return ring;
     }
 
@@ -384,7 +969,19 @@ public class ClusterUtils
             }
             sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
-        throw new AssertionError(errorMessage + "\n" + ring);
+        throw new AssertionError(errorMessage + "\nsrc=" + src + "\nring=" + ring);
+    }
+
+    /**
+     * Wait for the target to be in the ring as seen by the source instances
+     * @param cluster to check on
+     * @param nodes in the cluster to check
+     * @param expectedInRing instance to wait for
+     */
+    public static void awaitRingJoin(Cluster cluster, int[] nodes, IInvokableInstance expectedInRing)
+    {
+        for (IInvokableInstance inst : cluster.get(nodes))
+            awaitRingJoin(inst, expectedInRing);
     }
 
     /**
@@ -428,8 +1025,8 @@ public class ClusterUtils
     public static List<RingInstanceDetails> awaitRingHealthy(IInstance src)
     {
         return awaitRing(src, "Timeout waiting for ring to become healthy",
-                         ring ->
-                         ring.stream().allMatch(ClusterUtils::isRingInstanceDetailsHealthy));
+                ring ->
+                        ring.stream().allMatch(ClusterUtils::isRingInstanceDetailsHealthy));
     }
 
     /**
@@ -496,8 +1093,8 @@ public class ClusterUtils
     public static List<RingInstanceDetails> assertRingIs(IInstance instance, Collection<? extends IInstance> expectedInRing)
     {
         Set<String> expectedRingAddresses = expectedInRing.stream()
-                                                         .map(i -> i.config().broadcastAddress().getAddress().getHostAddress())
-                                                         .collect(Collectors.toSet());
+                                                          .map(i -> i.config().broadcastAddress().getAddress().getHostAddress())
+                                                          .collect(Collectors.toSet());
         return assertRingIs(instance, expectedRingAddresses);
     }
 
@@ -514,8 +1111,8 @@ public class ClusterUtils
         List<RingInstanceDetails> ring = ring(instance);
         Set<String> ringAddresses = ring.stream().map(d -> d.address).collect(Collectors.toSet());
         assertThat(ringAddresses)
-        .as("Ring addreses did not match for instance %s", instance)
-        .isEqualTo(expectedRingAddresses);
+                .as("Ring addreses did not match for instance %s", instance)
+                .isEqualTo(expectedRingAddresses);
         return ring;
     }
 
@@ -630,9 +1227,9 @@ public class ClusterUtils
         for (int i = 0; i < 100; i++)
         {
             matches = cluster.stream().map(ClusterUtils::gossipInfo)
-                             .map(gi -> Objects.requireNonNull(gi.get(getBroadcastAddressString(expectedInGossip))))
-                             .map(m -> m.get(key.name()))
-                             .collect(Collectors.toSet());
+                                      .map(gi -> Objects.requireNonNull(gi.get(getBroadcastAddressString(expectedInGossip))))
+                                      .map(m -> m.get(key.name()))
+                                      .collect(Collectors.toSet());
             if (matches.isEmpty() || matches.size() == 1)
                 return;
             sleepUninterruptibly(1, TimeUnit.SECONDS);
@@ -750,11 +1347,7 @@ public class ClusterUtils
      */
     public static File getCommitLogDirectory(IInstance instance)
     {
-        IInstanceConfig conf = instance.config();
-        // this isn't safe as it assumes the implementation of InstanceConfig
-        // might need to get smarter... some day...
-        String d = (String) conf.get("commitlog_directory");
-        return new File(d);
+        return getDirectory(instance, "commitlog_directory");
     }
 
     /**
@@ -765,11 +1358,7 @@ public class ClusterUtils
      */
     public static File getHintsDirectory(IInstance instance)
     {
-        IInstanceConfig conf = instance.config();
-        // this isn't safe as it assumes the implementation of InstanceConfig
-        // might need to get smarter... some day...
-        String d = (String) conf.get("hints_directory");
-        return new File(d);
+        return getDirectory(instance, "hints_directory");
     }
 
     /**
@@ -780,10 +1369,32 @@ public class ClusterUtils
      */
     public static File getSavedCachesDirectory(IInstance instance)
     {
+        return getDirectory(instance, "saved_caches_directory");
+    }
+
+    /**
+     * Get the journal directory for the given instance.
+     * This directory is used by the Accord consensus protocol to store its journal files.
+     *
+     * @param instance to get the journal directory for
+     * @return journal directory
+     */
+    public static File getJournalDirectory(IInstance instance)
+    {
+        return getDirectory(instance, "accord.journal_directory");
+    }
+
+    public static File getCdcRawDirectory(IInstance instance)
+    {
+        return getDirectory(instance, "cdc_raw_directory");
+    }
+
+    private static File getDirectory(IInstance instance, String key)
+    {
         IInstanceConfig conf = instance.config();
         // this isn't safe as it assumes the implementation of InstanceConfig
         // might need to get smarter... some day...
-        String d = (String) conf.get("saved_caches_directory");
+        String d = (String) conf.get(key);
         return new File(d);
     }
 
@@ -800,7 +1411,25 @@ public class ClusterUtils
         out.add(getCommitLogDirectory(instance));
         out.add(getHintsDirectory(instance));
         out.add(getSavedCachesDirectory(instance));
+        out.add(getJournalDirectory(instance));
+        out.add(getCdcRawDirectory(instance));
         return out;
+    }
+
+    /**
+     * Stops the instance then deletes all directories, effectively resets the instance to a clean state.
+     *
+     * @param inst the instance to clean up
+     */
+    public static void cleanup(IInvokableInstance inst)
+    {
+        stopUnchecked(inst);
+        for (var f : getDirectories(inst))
+        {
+            if (f.exists())
+                f.deleteRecursive();
+        }
+        inst.startup();
     }
 
     /**
@@ -882,11 +1511,41 @@ public class ClusterUtils
     }
 
     /**
+     * @return the native address in host:port format (ex. 127.0.0.1:9042)
+     */
+    public static InetSocketAddress getNativeInetSocketAddress(IInstance target)
+    {
+        return new InetSocketAddress(target.config().broadcastAddress().getAddress(),
+                getIntConfig(target.config(), "native_transport_port", 9042));
+    }
+
+    /**
      * Get the broadcast address InetAddess string (ex. localhost/127.0.0.1 or /127.0.0.1)
      */
     private static String getBroadcastAddressString(IInstance target)
     {
         return target.config().broadcastAddress().getAddress().toString();
+    }
+
+    /**
+     * Tries to return the integer configuration from the {@code config}, fallsback to {@code defaultValue}
+     * when it fails to retrieve the value.
+     *
+     * @param config       the config instance
+     * @param configName   the name of the configuration
+     * @param defaultValue the default value
+     * @return the integer value from the configuration, or the default value when it fails to retrieve it
+     */
+    public static int getIntConfig(IInstanceConfig config, String configName, int defaultValue)
+    {
+        try
+        {
+            return config.getInt(configName);
+        }
+        catch (NullPointerException npe)
+        {
+            return defaultValue;
+        }
     }
 
     public static final class RingInstanceDetails
@@ -958,23 +1617,150 @@ public class ClusterUtils
 
     public static void preventSystemExit()
     {
-        System.setSecurityManager(new SecurityManager()
+        System.setSecurityManager(new PreventSystemExit());
+    }
+
+    public static void awaitInPeers(Cluster cluster, int[] nodes, IInstance expectedInPeers)
+    {
+        for (IInvokableInstance inst : cluster.get(nodes))
         {
-            @Override
-            public void checkExit(int status)
-            {
-                throw new SystemExitException(status);
-            }
+            if (inst.config().num() == expectedInPeers.config().num()) continue; // ignore self as self is not in peers
+            awaitInPeers(inst, expectedInPeers);
+        }
+    }
 
-            @Override
-            public void checkPermission(Permission perm)
-            {
-            }
+    public static void awaitInPeers(IInstance instance, IInstance expectedInPeers)
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            if (isInPeers(instance, expectedInPeers))
+                return;
+            sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
+        throw new AssertionError("Unable to find " + expectedInPeers.config().broadcastAddress() + " in peers");
+    }
 
-            @Override
-            public void checkPermission(Permission perm, Object context)
+    public static boolean isInPeers(IInstance instance, IInstance expectedInPeers)
+    {
+        SimpleQueryResult qr = instance.executeInternalWithResult("select tokens, data_center, rack from system.peers WHERE peer=?", expectedInPeers.config().broadcastAddress().getAddress());
+        if (!qr.hasNext()) return false;
+        Row row = qr.next();
+        // peer is known, but is it fully defined?
+        Collection<String> tokens = row.get("tokens");
+        String dc = row.getString("data_center");
+        String rack = row.getString("rack");
+        return tokens != null && !tokens.isEmpty() && !Strings.isNullOrEmpty(dc) && !Strings.isNullOrEmpty(rack);
+    }
+
+    public static StorageService.Mode mode(IInvokableInstance inst)
+    {
+        String name = inst.callOnInstance(() -> StorageService.instance.operationMode().name());
+        return StorageService.Mode.valueOf(name);
+    }
+
+    public static void assertModeJoined(IInvokableInstance inst)
+    {
+        Assertions.assertThat(mode(inst))
+                .describedAs("Unexpected StorageService operation mode")
+                .isEqualTo(StorageService.Mode.NORMAL);
+    }
+
+    public static <T extends IInstance> LinkedHashMap<String, SimpleQueryResult> queryTxnState(AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        String cql = String.format("SELECT * FROM %s.%s WHERE txn_id=?", SchemaConstants.VIRTUAL_ACCORD_DEBUG, AccordDebugKeyspace.TXN_BLOCKED_BY);
+        LinkedHashMap<String, SimpleQueryResult> map = new LinkedHashMap<>();
+        Iterable<T> it = nodes.length == 0 ? cluster : cluster.get(nodes);
+        for (T i : it)
+        {
+            if (i.isShutdown())
+                continue;
+            SimpleQueryResult result = i.executeInternalWithResult(cql, txnId.toString());
+            map.put(i.toString(), result);
+        }
+        return map;
+    }
+
+    public static <T extends IInstance> String queryTxnStateAsString(AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        StringBuilder sb = new StringBuilder();
+        queryTxnStateAsString(sb, cluster, txnId, nodes);
+        return sb.toString();
+    }
+
+    public static <T extends IInstance> void queryTxnStateAsString(StringBuilder sb, AbstractCluster<T> cluster, TxnId txnId, int... nodes)
+    {
+        LinkedHashMap<String, SimpleQueryResult> map = queryTxnState(cluster, txnId, nodes);
+        for (var e : map.entrySet())
+        {
+            sb.append(e.getKey()).append(":\n");
+            SimpleQueryResult result = e.getValue();
+            if (!result.names().isEmpty())
+                sb.append(result.names()).append('\n');
+            while (result.hasNext())
             {
+                var row = result.next();
+                sb.append(Arrays.asList(row.toObjectArray())).append('\n');
             }
+        }
+    }
+
+    public static TableId tableId(Cluster cluster, String ks, String table)
+    {
+        String str = cluster.getFirstRunningInstance().callOnInstance(() -> Schema.instance.getKeyspaceInstance(ks).getColumnFamilyStore(table).getTableId().toString());
+        return TableId.fromString(str);
+    }
+
+    public static void awaitAccordEpochReady(Cluster cluster, long epoch)
+    {
+        cluster.forEach(i -> {
+            if (i.isShutdown()) return;
+            i.runOnInstance(() -> {
+                try
+                {
+                    AccordService.instance().epochReady(Epoch.create(epoch), EpochReady::reads).get();
+                }
+                catch (InterruptedException | ExecutionException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
+        });
+    }
+
+    @Shared
+    public static class Range implements Serializable
+    {
+        public final String left, right;
+
+        public Range(String left, String right)
+        {
+            this.left = left;
+            this.right = right;
+        }
+
+        public Range(long left, long right)
+        {
+            this(Long.toString(left), Long.toString(right));
+        }
+
+        public long left()
+        {
+            return Long.parseLong(left);
+        }
+
+        public long right()
+        {
+            return Long.parseLong(right);
+        }
+    }
+
+    public static List<Range> getPrimaryRanges(IInvokableInstance instance, String keyspace)
+    {
+        return instance.callOnInstance(() -> {
+            var ranges = TokenRingUtils.getPrimaryRangesForEndpoint(keyspace, FBUtilities.getBroadcastAddressAndPort());
+            return ranges.stream()
+                    .flatMap(r -> r.unwrap().stream().map(r2 -> new Range(r2.left.toString(), r2.right.toString())))
+                    .collect(Collectors.toList());
         });
     }
 }

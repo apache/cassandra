@@ -19,7 +19,18 @@ package org.apache.cassandra.index;
 
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -41,6 +52,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,18 +61,42 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.MutableDeletionInfo;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Cells;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowDiffListener;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index.IndexBuildingSupport;
 import org.apache.cassandra.index.internal.CassandraIndex;
@@ -69,18 +105,25 @@ import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.SinglePartitionPager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.concurrent.*;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.FORCE_DEFAULT_INDEXING_PAGE_SIZE;
@@ -162,7 +205,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * The groups of all the registered indexes
      */
-    private final Map<Object, Index.Group> indexGroups = Maps.newConcurrentMap();
+    private final Map<Index.Group.Key, Index.Group> indexGroups = Maps.newConcurrentMap();
 
     /**
      * The count of pending index builds for each index.
@@ -193,10 +236,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Drops and adds new indexes associated with the underlying CF
      */
-    public void reload()
+    public void reload(TableMetadata baseTable)
     {
         // figure out what needs to be added and dropped.
-        Indexes tableIndexes = baseCfs.metadata().indexes;
+        Indexes tableIndexes = baseTable.indexes;
         indexes.keySet()
                .stream()
                .filter(indexName -> !tableIndexes.has(indexName))
@@ -205,7 +248,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         // we call add for every index definition in the collection as
         // some may not have been created here yet, only added to schema
         for (IndexMetadata tableIndex : tableIndexes)
-            addIndex(tableIndex, false);
+            addIndex(tableIndex, SystemKeyspace.isIndexBuilt(baseTable.keyspace, tableIndex.name));
     }
 
     private Future<?> reloadIndex(IndexMetadata indexDef)
@@ -238,7 +281,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             try
             {
-                Callable<?> call = index.getInitializationTask();
+                Callable<?> call = DatabaseDescriptor.isDaemonInitialized() ? index.getInitializationTask() : null;
                 if (call != null)
                     initialBuildTask = new FutureTask<>(call);
             }
@@ -304,17 +347,29 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     /**
      * Throws an {@link IndexNotAvailableException} if any of the indexes in the specified {@link Index.QueryPlan} is
-     * not queryable, as it's defined by {@link #isIndexQueryable(Index)}.
+     * not queryable, as it's defined by {@link #isIndexQueryable(Index)}. If the reason for the index to be not available
+     * is that it's building, it will throw an {@link IndexBuildInProgressException}.
      *
      * @param queryPlan a query plan
      * @throws IndexNotAvailableException if the query plan has any index that is not queryable
      */
     public void checkQueryability(Index.QueryPlan queryPlan)
     {
+        InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
+
         for (Index index : queryPlan.getIndexes())
         {
+            String indexName = index.getIndexMetadata().name;
+            Index.Status indexStatus = IndexStatusManager.instance.getIndexStatus(endpoint, keyspace.getName(), indexName);
+
             if (!isIndexQueryable(index))
+            {
+                // isQueryable is always true for non-SAI index implementations,  thus we need to check both not queryable and building
+                if (indexStatus == Index.Status.FULL_REBUILD_STARTED)
+                    throw new IndexBuildInProgressException(index);
+
                 throw new IndexNotAvailableException(index);
+            }
         }
     }
 
@@ -344,14 +399,16 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public synchronized void removeIndex(String indexName)
     {
-        Index index = unregisterIndex(indexName);
-        if (null != index)
+        Index removedIndex = indexes.remove(indexName);
+
+        if (removedIndex != null)
         {
+            removedIndex.unregister(this);
+
             markIndexRemoved(indexName);
-            executeBlocking(index.getInvalidateTask(), null);
+            executeBlocking(removedIndex.getInvalidateTask(), null);
         }
     }
-
 
     public Set<IndexMetadata> getDependentIndexes(ColumnMetadata column)
     {
@@ -500,6 +557,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      *
      * @param sstables SSTables for which indexes in the group should be built
      * @param throwOnIncomplete whether to throw an error if any index in the group is incomplete
+     * @param validateChecksum whether to validate checksum or not
      *
      * @return true if all indexes in all groups are complete and valid
      *         false if an index in any group is incomplete and {@code throwOnIncomplete} is false 
@@ -507,14 +565,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @throws IllegalStateException if {@code throwOnIncomplete} is true and an index in any group is incomplete
      * @throws UncheckedIOException if there is a problem validating any on-disk component in any group
      */
-    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete)
+    public boolean validateSSTableAttachedIndexes(Collection<SSTableReader> sstables, boolean throwOnIncomplete, boolean validateChecksum)
     {
         boolean complete = true;
 
         for (Index.Group group : indexGroups.values())
         {
             if (group.getIndexes().stream().anyMatch(Index::isSSTableAttached))
-                complete &= group.validateSSTableAttachedIndexes(sstables, throwOnIncomplete);
+                complete &= group.validateSSTableAttachedIndexes(sstables, throwOnIncomplete, validateChecksum);
         }
 
         return complete;
@@ -1044,25 +1102,36 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SinglePartitionPager pager = new SinglePartitionPager(cmd, null, ProtocolVersion.CURRENT);
             while (!pager.isExhausted())
             {
+                UnfilteredRowIterator partition;
                 try (ReadExecutionController controller = cmd.executionController();
-                     WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing();
                      UnfilteredPartitionIterator page = pager.fetchPageUnfiltered(baseCfs.metadata(), pageSize, controller))
                 {
                     if (!page.hasNext())
                         break;
 
-                    try (UnfilteredRowIterator partition = page.next())
+                    try (UnfilteredRowIterator onePartition = page.next())
                     {
-                        Set<Index.Indexer> indexers = indexGroups.values().stream()
-                                                             .map(g -> g.indexerFor(indexes::contains,
-                                                                                    key,
-                                                                                    partition.columns(),
-                                                                                    nowInSec,
-                                                                                    ctx,
-                                                                                    IndexTransaction.Type.UPDATE,
-                                                                                    null))
-                                                             .filter(Objects::nonNull)
-                                                             .collect(Collectors.toSet());
+                        partition = ImmutableBTreePartition.create(onePartition).unfilteredIterator();
+                    }
+                }
+
+                try (WriteContext ctx = keyspace.getWriteHandler().createContextForIndexing())
+                {
+                    {
+                        Set<Index.Indexer> indexers = new HashSet<>(indexGroups.size());
+
+                        for (Index.Group g : indexGroups.values())
+                        {
+                            Index.Indexer indexerFor = g.indexerFor(indexes::contains,
+                                                                    key,
+                                                                    partition.columns(),
+                                                                    nowInSec,
+                                                                    ctx,
+                                                                    IndexTransaction.Type.UPDATE,
+                                                                    null);
+                            if (indexerFor != null)
+                                indexers.add(indexerFor);
+                        }
 
                         // Short-circuit empty partitions if static row is processed or isn't read
                         if (!readStatic && partition.isEmpty() && partition.staticRow().isEmpty())
@@ -1111,6 +1180,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                         indexers.forEach(Index.Indexer::finish);
                     }
                 }
+                finally
+                {
+                    if (partition != null)
+                    {
+                        partition.close();
+                    }
+                }
             }
         }
     }
@@ -1141,14 +1217,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         int pageSize = (int) Math.max(1, Math.min(DEFAULT_PAGE_SIZE, targetPageSizeInBytes / meanRowSize));
 
-        logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
-                     pageSize,
-                     baseCfs.metadata.keyspace,
-                     baseCfs.metadata.name,
-                     meanPartitionSize,
-                     meanCellsPerPartition,
-                     meanRowsPerPartition,
-                     meanRowSize);
+        if (logger.isTraceEnabled())
+            logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
+                         pageSize,
+                         baseCfs.metadata.keyspace,
+                         baseCfs.metadata.name,
+                         meanPartitionSize,
+                         meanCellsPerPartition,
+                         meanRowsPerPartition,
+                         meanRowSize);
 
         return pageSize;
     }
@@ -1192,7 +1269,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Called at query time to choose which (if any) of the registered index implementations to use for a given query.
      * <p>
-     * This is a two step processes, firstly compiling the set of searchable indexes then choosing the one which reduces
+     * This is a two-step processes, firstly compiling the set of searchable indexes then choosing the one which reduces
      * the search space the most.
      * <p>
      * In the first phase, if the command's RowFilter contains any custom index expressions, the indexes that they
@@ -1201,6 +1278,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * <p>
      * The filtered set then sorted by selectivity, as reported by the Index implementations' getEstimatedResultRows
      * method.
+     * Once we have the filtered set of indexes, one is selected as the best one according to the following rules:
+     * <ol>
+     *     <li>An index included by the query's index hints is better than an index not included by the hints.</li>
+     *     <li>An index more selective according to {@link Index#getEstimatedResultRows()} is better. This is done
+     *     accordingly to the {@link Index.QueryPlan#getEstimatedResultRows()} method. Please note that some index
+     *     implementations (SASI and SAI) will always return -1 for that method to prioritize themselves. Third party
+     *     implementations can also return similar fixed values.</li>
+     * </ol>
      * <p>
      * Implementation specific validation of the target expression, either custom or standard, by the selected
      * index should be performed in the searcherFor method to ensure that we pick the right index regardless of
@@ -1233,11 +1318,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             }
         }
 
-        Set<Index.QueryPlan> queryPlans = indexGroups.values()
-                                                     .stream()
-                                                     .map(g -> g.queryPlanFor(rowFilter))
-                                                     .filter(Objects::nonNull)
-                                                     .collect(Collectors.toSet());
+        Set<Index.QueryPlan> queryPlans = new HashSet<>(indexGroups.size());
+        for (Index.Group g : indexGroups.values())
+        {
+            Index.QueryPlan queryPlan = g.queryPlanFor(rowFilter);
+
+            if (queryPlan != null)
+                queryPlans.add(queryPlan);
+        }
 
         if (queryPlans.isEmpty())
         {
@@ -1246,42 +1334,57 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             return null;
         }
 
+        // Prepare a plan comparator based first on the user-provided hints, which will prefer the plan closest to
+        // satisfying the index hints, then on the index-provided selectivity, which prefers the most selective index.
+        // Selectivity is determined by the Index#getEstimatedResultRows() method. Please note that some index
+        // implementations may return fixed values for that method to prioritize themselves.
+        // We let pass plans that don't satisfy the index hints so we can provide a better error message later,
+        // at the validation at the end of this method. That validation will be done over the plan that is closest to
+        // satisfying the index hints, so the error message will only complain about the missing parts.
+        Comparator<Index.QueryPlan> planComparator =
+            rowFilter.indexHints.comparator().thenComparing(Comparator.<Index.QueryPlan>naturalOrder().reversed());
+
         // find the best plan
         Index.QueryPlan selected = queryPlans.size() == 1
                                    ? Iterables.getOnlyElement(queryPlans)
                                    : queryPlans.stream()
-                                               .min(Comparator.naturalOrder())
+                                               .max(planComparator)
                                                .orElseThrow(() -> new AssertionError("Could not select most selective index"));
 
         // pay for an additional threadlocal get() rather than build the strings unnecessarily
         if (Tracing.isTracing())
         {
+            StringJoiner joiner = new StringJoiner(",");
+
+            for (Index.QueryPlan p : queryPlans)
+                joiner.add(commaSeparated(p.getIndexes()) + ':' + p.getEstimatedResultRows());
+
             Tracing.trace("Index mean cardinalities are {}. Scanning with {}.",
-                          queryPlans.stream()
-                                    .map(p -> commaSeparated(p.getIndexes()) + ':' + p.getEstimatedResultRows())
-                                    .collect(Collectors.joining(",")),
-                          commaSeparated(selected.getIndexes()));
+                          joiner.toString(), commaSeparated(selected.getIndexes()));
         }
+
         return selected;
     }
 
     private static String commaSeparated(Collection<Index> indexes)
     {
-        return indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(","));
+        StringJoiner joiner = new StringJoiner(",");
+
+        for (Index i : indexes)
+            joiner.add(i.getIndexMetadata().name);
+
+        return joiner.toString();
     }
 
-    public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+    @Override
+    public Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints hints)
     {
-        return indexes.values().stream().filter((i) -> i.supportsExpression(expression.column(), expression.operator())).findFirst();
+        return hints.getBestIndexFor(indexes.values(), i -> i.supportsExpression(expression.column(), expression.operator()));
     }
 
-    public <T extends Index> Set<T> getBestIndexFor(RowFilter.Expression expression, Class<T> indexType)
+    public <T extends Index> Optional<T> getBestIndexFor(RowFilter.Expression expression, Class<T> indexType, IndexHints hints)
     {
-        return indexes.values()
-                      .stream()
-                      .filter(i -> indexType.isInstance(i) && i.supportsExpression(expression.column(), expression.operator()))
-                      .map(indexType::cast)
-                      .collect(Collectors.toSet());
+        return hints.getBestIndexFor(indexes.values(), i -> i.supportsExpression(expression.column(), expression.operator()) && indexType.isInstance(i)).map(indexType::cast);
     }
 
     /**
@@ -1292,17 +1395,22 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * implementations
      *
      * @param update PartitionUpdate containing the values to be validated by registered Index implementations
+     * @param state state related to the client connection
      */
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    @Override
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {
+        if (indexes.isEmpty())
+            return;
         for (Index index : indexes.values())
-            index.validate(update);
+            index.validate(update, state);
     }
 
     /*
      * IndexRegistry methods
      */
-    public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier)
+    @Override
+    public void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier)
     {
         String name = index.getIndexMetadata().name;
         indexes.put(name, index);
@@ -1312,41 +1420,26 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         Index.Group group = indexGroups.computeIfAbsent(groupKey, k -> groupSupplier.get());
 
         // add the created index to its group if it is not a singleton group
-        if (!(group instanceof SingletonIndexGroup))
-        {
-            if (index.getBackingTable().isPresent())
-                throw new InvalidRequestException("Indexes belonging to a group of indexes shouldn't have a backing table");
-
-            group.addIndex(index);
-        }
+        group.addIndex(index);
     }
 
-    private Index unregisterIndex(String name)
+    @Override
+    public void unregisterIndex(Index removed, Index.Group.Key groupKey)
     {
-        Index removed = indexes.remove(name);
-        logger.trace(removed == null ? "Index {} was not registered" : "Removed index {} from registry", name);
-
-        if (removed != null)
+        Index.Group group = indexGroups.get(groupKey);
+        if (group != null && group.containsIndex(removed))
         {
-            // Remove the index from any non-singleton groups...
-            for (Index.Group group : listIndexGroups())
+            // Remove the index from non-singleton groups...
+            group.removeIndex(removed);
+
+            // if the group is a singleton or there are no more indexes left in the group, remove it
+            if (group.isSingleton() || group.getIndexes().isEmpty())
             {
-                if (!(group instanceof SingletonIndexGroup) && group.containsIndex(removed))
-                {
-                    group.removeIndex(removed);
-
-                    if (group.getIndexes().isEmpty())
-                    {
-                        indexGroups.remove(group);
-                    }
-                }
+                Index.Group removedGroup = indexGroups.remove(groupKey);
+                if (removedGroup != null)
+                    removedGroup.invalidate();
             }
-
-            // ...and remove singleton groups entirely.
-            indexGroups.remove(removed);
         }
-
-        return removed;
     }
 
     public Index getIndex(IndexMetadata metadata)
@@ -1364,14 +1457,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return ImmutableSet.copyOf(indexGroups.values());
     }
 
-    public Index.Group getIndexGroup(Object key)
+    public Index.Group getIndexGroup(Index.Group.Key key)
     {
         return indexGroups.get(key);
     }
 
     /**
      * Returns the {@link Index.Group} the specified index belongs to, as specified during registering with
-     * {@link #registerIndex(Index, Object, Supplier)}.
+     * {@link #registerIndex(Index, Index.Group.Key, Supplier)}.
      *
      * @param metadata the index metadata
      * @return the group the index belongs to, or {@code null} if the index is not registered or if it hasn't been
@@ -1392,7 +1485,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public Index.Group getIndexGroup(Index index)
     {
-        return indexGroups.values().stream().filter(g -> g.containsIndex(index)).findAny().orElse(null);
+        for (Index.Group g : indexGroups.values())
+            if (g.containsIndex(index))
+                return g;
+
+        return null;
     }
 
     /*
@@ -1409,18 +1506,23 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (!hasIndexes())
             return UpdateTransaction.NO_OP;
 
-        Index.Indexer[] indexers = listIndexGroups().stream()
-                                          .map(g -> g.indexerFor(writableIndexSelector(),
-                                                                 update.partitionKey(),
-                                                                 update.columns(),
-                                                                 nowInSec,
-                                                                 ctx,
-                                                                 IndexTransaction.Type.UPDATE,
-                                                                 memtable))
-                                          .filter(Objects::nonNull)
-                                          .toArray(Index.Indexer[]::new);
+        List<Index.Indexer> indexers = new ArrayList<>(indexGroups.size());
 
-        return indexers.length == 0 ? UpdateTransaction.NO_OP : new WriteTimeTransaction(indexers);
+        for (Index.Group g : indexGroups.values())
+        {
+            Index.Indexer indexer = g.indexerFor(writableIndexSelector(),
+                                                 update.partitionKey(),
+                                                 update.columns(),
+                                                 nowInSec,
+                                                 ctx,
+                                                 IndexTransaction.Type.UPDATE,
+                                                 memtable);
+            if (indexer != null)
+                indexers.add(indexer);
+        }
+
+        return indexers.isEmpty() ? UpdateTransaction.NO_OP
+                                  : new WriteTimeTransaction(indexers.toArray(Index.Indexer[]::new));
     }
 
     private Predicate<Index> writableIndexSelector()

@@ -1,0 +1,124 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.index.sai.cql;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.segment.VectorIndexSegmentSearcher;
+import org.apache.cassandra.index.sai.disk.v1.vector.ConcurrentVectorValues;
+import org.apache.cassandra.index.sai.utils.Glove;
+
+import io.github.jbellis.jvector.graph.GraphIndexBuilder;
+import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.vector.VectorEncoding;
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+
+@Ignore
+@RunWith(Parameterized.class)
+public class VectorTester extends SAITester
+{
+    protected static Glove.WordVector word2vec;
+
+    @BeforeClass
+    public static void loadModel() throws Throwable
+    {
+        word2vec = Glove.parse(VectorTester.class.getClassLoader().getResourceAsStream("glove.3K.50d.txt"));
+    }
+
+    @Parameterized.Parameter
+    public Boolean forceBruteForceQueries;
+
+    @Parameterized.Parameters(name = "forceBruteForceQueries={0}")
+    public static Iterable<Object[]> data()
+    {
+        return Arrays.asList(new Object[][]{{true}, {false}, {null}});
+    }
+
+    @Before
+    public void setup() throws Throwable
+    {
+        VectorIndexSegmentSearcher.FORCE_BRUTE_FORCE_ANN = forceBruteForceQueries;
+    }
+
+    public static double rawIndexedRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException
+    {
+        ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
+        int ordinal = 0;
+
+        var graphBuilder = new GraphIndexBuilder<>(vectorValues,
+                                                   VectorEncoding.FLOAT32,
+                                                   VectorSimilarityFunction.COSINE,
+                                                   16,
+                                                   100,
+                                                   1.2f,
+                                                   1.4f);
+
+        for (float[] vector : vectors)
+        {
+            vectorValues.add(ordinal, vector);
+            graphBuilder.addGraphNode(ordinal++, vectorValues);
+        }
+
+        var results = GraphSearcher.search(query,
+                                           topK,
+                                           vectorValues,
+                                           VectorEncoding.FLOAT32,
+                                           VectorSimilarityFunction.COSINE,
+                                           graphBuilder.getGraph(),
+                                           null);
+
+        List<float[]> nearestNeighbors = new ArrayList<>();
+        for (var ns : results.getNodes())
+            nearestNeighbors.add(vectorValues.vectorValue(ns.node));
+
+        return recallMatch(nearestNeighbors, result, topK);
+    }
+
+    public static double recallMatch(List<float[]> expected, List<float[]> actual, int topK)
+    {
+        if (expected.isEmpty() && actual.isEmpty())
+            return 1.0;
+
+        int matches = 0;
+        for (float[] in : expected)
+        {
+            for (float[] out : actual)
+            {
+                if (Arrays.compare(in, out) == 0)
+                {
+                    matches++;
+                    break;
+                }
+            }
+        }
+
+        return (double) matches / topK;
+    }
+}

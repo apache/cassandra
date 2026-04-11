@@ -24,11 +24,16 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.stress.Operation;
-import org.apache.cassandra.stress.generate.*;
+import org.apache.cassandra.stress.generate.Distribution;
+import org.apache.cassandra.stress.generate.DistributionFactory;
+import org.apache.cassandra.stress.generate.DistributionFixed;
+import org.apache.cassandra.stress.generate.PartitionGenerator;
+import org.apache.cassandra.stress.generate.RatioDistribution;
+import org.apache.cassandra.stress.generate.Row;
+import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.operations.PartitionOperation;
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.Command;
-import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.StressSettings;
 
 public abstract class PredefinedOperation extends PartitionOperation
@@ -36,7 +41,6 @@ public abstract class PredefinedOperation extends PartitionOperation
     public static final byte[] EMPTY_BYTE_ARRAY = {};
     public final Command type;
     private final Distribution columnCount;
-    private Object cqlCache;
 
     public PredefinedOperation(Command type, Timer timer, PartitionGenerator generator, SeedManager seedManager, StressSettings settings)
     {
@@ -48,16 +52,6 @@ public abstract class PredefinedOperation extends PartitionOperation
     private static DataSpec spec(PartitionGenerator generator, SeedManager seedManager, RatioDistribution rowPopulationCount)
     {
         return new DataSpec(generator, seedManager, new DistributionFixed(1), rowPopulationCount, 1);
-    }
-
-
-    public Object getCqlCache()
-    {
-        return cqlCache;
-    }
-    public void storeCqlCache(Object val)
-    {
-        cqlCache = val;
     }
 
     protected ByteBuffer getKey()

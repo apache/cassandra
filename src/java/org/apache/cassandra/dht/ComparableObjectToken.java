@@ -21,7 +21,7 @@ abstract class ComparableObjectToken<C extends Comparable<C>> extends Token
 {
     private static final long serialVersionUID = 1L;
 
-    final C token;   // Package-private to allow access from subtypes, which should all reside in the dht package.
+    C token;   // Package-private to allow access from subtypes, which should all reside in the dht package.
 
     protected ComparableObjectToken(C token)
     {
@@ -62,7 +62,7 @@ abstract class ComparableObjectToken<C extends Comparable<C>> extends Token
     public int compareTo(Token o)
     {
         if (o.getClass() != getClass())
-            throw new IllegalArgumentException("Invalid type of Token.compareTo() argument.");
+            throw new IllegalArgumentException(String.format("Invalid type of Token.compareTo() argument. %s != %s", o.getClass(), getClass()));
 
         return token.compareTo(((ComparableObjectToken<C>) o).token);
     }
@@ -76,6 +76,13 @@ abstract class ComparableObjectToken<C extends Comparable<C>> extends Token
 
     @Override
     public Token nextValidToken()
+    {
+        throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
+                                                              getClass().getSimpleName()));
+    }
+
+    @Override
+    public Token decreaseSlightly()
     {
         throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
                                                               getClass().getSimpleName()));

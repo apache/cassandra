@@ -21,8 +21,13 @@ import java.util.Arrays;
 import java.util.Random;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
+import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -32,10 +37,6 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
-import org.quicktheories.core.Gen;
-import org.quicktheories.impl.Constraint;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
@@ -77,6 +78,7 @@ public class ColumnFamilyStoreMBeanTest
     public void testInvalidateTokenRangesFormat()
     {
         ColumnFamilyStore store = Mockito.mock(ColumnFamilyStore.class);
+        Mockito.when(store.getPartitioner()).thenReturn(ByteOrderedPartitioner.instance);
         Mockito.doCallRealMethod().when(store).forceCompactionForTokenRanges(Mockito.any());
         IPartitioner previous = DatabaseDescriptor.getPartitioner();
         try

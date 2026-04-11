@@ -27,11 +27,9 @@ import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -90,7 +88,7 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
         {
             Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks.name);
             if (keyspace == null)
-                throw new IllegalStateException("Unknown keyspace " + ks.name + ". This can occur if the keyspace is being dropped.");
+                throw new IllegalStateException("Unknown keyspace " + ks + ". This can occur if the keyspace is being dropped.");
 
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
             {
@@ -100,19 +98,24 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
                 {
                     Token.TokenFactory tokenFactory = cfs.metadata().partitioner.getTokenFactory();
 
-                    for (Index index : group.getIndexes())
-                    {
-                        IndexContext indexContext = ((StorageAttachedIndex)index).getIndexContext();
+                    group.getIndexes().forEach(i -> {
+                        StorageAttachedIndex index = (StorageAttachedIndex)i;
 
-                        for (SSTableIndex sstableIndex : indexContext.getView())
+                        for (SSTableIndex sstableIndex : index.view())
                         {
+                            // Empty indexes are tracked internally for the sake of having complete views. However,
+                            // these indexes have not historically been exposed in this virtual table, so we skip
+                            // them for now.
+                            if (sstableIndex.getRowCount() == 0)
+                                continue;
+
                             SSTableReader sstable = sstableIndex.getSSTable();
                             Descriptor descriptor = sstable.descriptor;
                             AbstractBounds<Token> bounds = sstable.getBounds();
 
-                            dataset.row(ks.name, indexContext.getIndexName(), sstable.getFilename())
+                            dataset.row(ks.name, index.identifier().indexName, sstable.getFilename())
                                    .column(TABLE_NAME, descriptor.cfname)
-                                   .column(COLUMN_NAME, indexContext.getColumnName())
+                                   .column(COLUMN_NAME, index.termType().columnName())
                                    .column(FORMAT_VERSION, sstableIndex.getVersion().toString())
                                    .column(CELL_COUNT, sstableIndex.getRowCount())
                                    .column(MIN_ROW_ID, sstableIndex.minSSTableRowId())
@@ -122,7 +125,7 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
                                    .column(PER_TABLE_DISK_SIZE, sstableIndex.getSSTableContext().diskUsage())
                                    .column(PER_COLUMN_DISK_SIZE, sstableIndex.sizeOfPerColumnComponents());
                         }
-                    }
+                    });
                 }
             }
         }

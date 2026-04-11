@@ -25,10 +25,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.transport.ClientResourceLimits.Overload;
-import org.apache.cassandra.utils.MonotonicClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.net.AsyncChannelPromise;
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.SupportedMessage;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -36,11 +41,6 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.VoidChannelPromise;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.util.Attribute;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.net.AsyncChannelPromise;
-import org.apache.cassandra.transport.messages.ErrorMessage;
-import org.apache.cassandra.transport.messages.StartupMessage;
-import org.apache.cassandra.transport.messages.SupportedMessage;
 
 /**
  * Added to the Netty pipeline whenever a new Channel is initialized. This handler only processes
@@ -105,6 +105,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         attrConn.set(connection);
                     }
                     assert connection instanceof ServerConnection;
+                    ServerConnection serverConnection = (ServerConnection) connection;
 
                     StartupMessage startup = (StartupMessage) Message.Decoder.decodeMessage(ctx.channel(), inbound);
                     InetAddress remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress();
@@ -121,7 +122,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                             if (future.isSuccess())
                             {
                                 logger.trace("Response to STARTUP sent, configuring pipeline for {}", inbound.header.version);
-                                configurator.configureModernPipeline(ctx, allocator, inbound.header.version, startup.options);
+                                configurator.configureModernPipeline(ctx, serverConnection, allocator, inbound.header.version, startup.options);
                                 allocator.release(inbound.header.bodySizeInBytes);
                             }
                             else
@@ -149,8 +150,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                         promise = new VoidChannelPromise(ctx.channel(), false);
                     }
 
-                    long approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
-                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, approxStartTimeNanos);
+                    final Message.Response response = Dispatcher.processRequest(ctx.channel(), startup, Overload.NONE, Dispatcher.RequestTime.forImmediateExecution());
 
                     outbound = response.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound, promise);

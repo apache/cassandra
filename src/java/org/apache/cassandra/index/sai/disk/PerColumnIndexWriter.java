@@ -31,6 +31,8 @@ public interface PerColumnIndexWriter
 {
     /**
      * Adds a row to this index.
+     * <p>
+     * Note: Callers are responsible for ensuring that rows are added in {@link PrimaryKey} order.
      */
     void addRow(PrimaryKey key, Row row, long sstableRowId) throws IOException;
 
@@ -40,8 +42,14 @@ public interface PerColumnIndexWriter
     void complete(Stopwatch stopwatch) throws IOException;
 
     /**
+     * Called when current SSTable writer is switched during sharded compaction to free any in-memory resources associated
+     * with the SSTable for current index without waiting for full transaction to complete
+     */
+    void onSSTableWriterSwitched(Stopwatch stopwatch) throws IOException;
+    
+    /**
      * Aborts accumulating data. Allows to clean up resources on error.
-     * 
+     * <p> 
      * Note: Implementations should be idempotent, i.e. safe to call multiple times without producing undesirable side-effects.
      */
     void abort(Throwable cause);

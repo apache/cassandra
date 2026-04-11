@@ -20,49 +20,57 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.io.Closeable;
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingListRangeIterator;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.utils.CloseableIterator;
 
 /**
  * Abstract reader for individual segments of an on-disk index.
- *
+ * <p>
  * Accepts shared resources (token/offset file readers), and uses them to perform lookups against on-disk data
  * structures.
  */
-public abstract class IndexSegmentSearcher implements Closeable
+public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
 {
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerColumnIndexFiles indexFiles;
     final SegmentMetadata metadata;
-    final IndexContext indexContext;
+    final StorageAttachedIndex index;
 
     IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                          PerColumnIndexFiles perIndexFiles,
                          SegmentMetadata segmentMetadata,
-                         IndexContext indexContext)
+                         StorageAttachedIndex index)
     {
         this.primaryKeyMapFactory = primaryKeyMapFactory;
         this.indexFiles = perIndexFiles;
         this.metadata = segmentMetadata;
-        this.indexContext = indexContext;
+        this.index = index;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static IndexSegmentSearcher open(PrimaryKeyMap.Factory primaryKeyMapFactory,
+                                            SSTableId sstableId,
                                             PerColumnIndexFiles indexFiles,
                                             SegmentMetadata segmentMetadata,
-                                            IndexContext indexContext) throws IOException
+                                            StorageAttachedIndex index) throws IOException
     {
-        return indexContext.isLiteral()
-               ? new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext)
-               : new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        if (index.termType().isVector())
+            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, sstableId, indexFiles, segmentMetadata, index);
+        else if (index.termType().isLiteral())
+            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
+        else
+            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
     }
 
     /**
@@ -78,11 +86,26 @@ public abstract class IndexSegmentSearcher implements Closeable
      *
      * @return {@link KeyRangeIterator} with matches for the given expression
      */
-    public abstract KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException;
+    public abstract KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
 
-    KeyRangeIterator toIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    /**
+     * Order the rows by the given expression.
+     *
+     * @param orderer  the object containing the ordering logic
+     * @param keyRange key range specific in read command, used by ANN index
+     * @param context  to track per sstable cache and per query metrics
+     *
+     * @return an iterator of {@link PrimaryKeyWithScore} in descending score order
+     */
+    public CloseableIterator<PrimaryKeyWithScore> orderBy(Expression orderer, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
-        if (postingList == null)
+        throw new UnsupportedOperationException();
+    }
+
+
+    KeyRangeIterator toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    {
+        if (postingList == null || postingList.size() == 0)
             return KeyRangeIterator.empty();
 
         IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,
@@ -91,6 +114,6 @@ public abstract class IndexSegmentSearcher implements Closeable
                                                                                       queryContext,
                                                                                       PeekablePostingList.makePeekable(postingList));
 
-        return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
+        return new PostingListRangeIterator(index.identifier(), primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
     }
 }

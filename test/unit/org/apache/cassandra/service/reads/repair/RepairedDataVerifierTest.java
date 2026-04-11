@@ -277,9 +277,11 @@ public class RepairedDataVerifierTest
     {
         StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
         {
-            super(isDigest,
+            super(metadata.epoch,
+                  isDigest,
                   0,
                   false,
+                  PotentialTxnConflicts.DISALLOW,
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),
@@ -288,7 +290,8 @@ public class RepairedDataVerifierTest
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   new ClusteringIndexSliceFilter(Slices.ALL, false),
                   null,
-                  false);
+                  false,
+                  null);
         }
     }
 }

@@ -28,6 +28,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -39,6 +40,8 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.base.Throwables.getStackTraceAsString;
+
 public final class Throwables
 {
     public enum FileOpType { READ, WRITE }
@@ -46,6 +49,23 @@ public final class Throwables
     public interface DiscreteAction<E extends Exception>
     {
         void perform() throws E;
+    }
+
+    public interface ThrowingRunnable
+    {
+        void run() throws Exception;
+    }
+
+    public static void runUnchecked(ThrowingRunnable runnable)
+    {
+        try
+        {
+            runnable.run();
+        }
+        catch (Exception e)
+        {
+            throwAsUncheckedException(e);
+        }
     }
 
     public static boolean isCausedBy(Throwable t, Predicate<Throwable> cause)
@@ -191,7 +211,7 @@ public final class Throwables
     }
 
     /**
-     * @see {@link #closeAndAddSuppressed(Throwable, Iterable)}
+     * See {@link #closeAndAddSuppressed(Throwable, Iterable)}
      */
     public static void closeAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
     {
@@ -332,5 +352,24 @@ public final class Throwables
     {
         if (!anyCauseMatches(err, cause::isInstance))
             throw new AssertionError("The exception is not caused by " + cause.getName(), err);
+    }
+
+    @VisibleForTesting
+    public static void assertAnyCause(Throwable err, Class<? extends Throwable>... causeClasses)
+    {
+        if (Arrays.stream(causeClasses).noneMatch(c -> anyCauseMatches(err, c::isInstance)))
+            throw new AssertionError("The exception is not caused by any of " + Arrays.toString(causeClasses), err);
+    }
+
+    public static Object getStackTraceAsToString(Throwable t)
+    {
+        return new Object()
+        {
+            @Override
+            public String toString()
+            {
+                return getStackTraceAsString(t);
+            }
+        };
     }
 }

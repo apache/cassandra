@@ -21,6 +21,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.util.Collection;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,7 +31,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
-import org.assertj.core.api.Assertions;
 
 public class SchemaMutationsSerializerTest extends CQLTester
 {

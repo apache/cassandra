@@ -27,6 +27,8 @@ import java.util.Map;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -50,6 +52,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.auth.AuthKeyspace.CIDR_GROUPS;
 import static org.apache.cassandra.auth.AuthKeyspace.CIDR_PERMISSIONS;
 import static org.apache.cassandra.auth.AuthTestUtils.auth;
+import static org.apache.cassandra.auth.AuthTestUtils.getClientState;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
@@ -57,28 +60,16 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
 {
     private static final AuthTestUtils.LocalCassandraCIDRAuthorizer cidrAuthorizer = new AuthTestUtils.LocalCassandraCIDRAuthorizer();
 
-    private static void setupSuperUser()
-    {
-        QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) "
-                                                     + "VALUES ('%s', true, true, '%s')",
-                                                     AUTH_KEYSPACE_NAME,
-                                                     AuthKeyspace.ROLES,
-                                                     CassandraRoleManager.DEFAULT_SUPERUSER_NAME,
-                                                     "xxx"));
-    }
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
-
         SchemaLoader.setupAuth(new AuthTestUtils.LocalCassandraRoleManager(),
                                new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),
                                new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
                                cidrAuthorizer);
         AuthCacheService.initializeAndRegisterCaches();
-        setupSuperUser();
+        AuthTestUtils.setupSuperUser();
     }
 
     @Before
@@ -253,6 +244,28 @@ public class CassandraCIDRAuthorizerEnforceModeTest extends CQLTester
         UntypedResultSet results = getCidrGroups(role);
         Assert.assertEquals(Sets.newHashSet("cidrGroup1"),
                             Iterables.getOnlyElement(results).getFrozenSet("cidr_groups", UTF8Type.instance));
+
+        AuthTestUtils.auth("DROP ROLE %s", role);
+        assertEmpty(getCidrGroups(role));
+    }
+
+    @Test
+    public void testAlterRoleWithCidrsClauseAsNonSuperUser() throws Throwable
+    {
+        String role = "role1";
+
+        assertEmpty(getCidrGroups(role));
+
+        auth("CREATE ROLE %s WITH password = 'password' AND LOGIN = true ", role);
+        auth("ALTER ROLE %s WITH ACCESS FROM CIDRS {'%s'}", role, "cidrGroup1");
+
+        UntypedResultSet results = getCidrGroups(role);
+        Assert.assertEquals(Sets.newHashSet("cidrGroup1"),
+                            Iterables.getOnlyElement(results).getFrozenSet("cidr_groups", UTF8Type.instance));
+
+        Assertions.assertThatThrownBy(() -> auth("ALTER ROLE %s WITH ACCESS FROM ALL CIDRS", getClientState(role), role))
+                  .hasMessage("Only superusers are allowed to alter access from CIDR groups.")
+                  .isInstanceOf(UnauthorizedException.class);
 
         AuthTestUtils.auth("DROP ROLE %s", role);
         assertEmpty(getCidrGroups(role));

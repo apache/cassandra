@@ -17,24 +17,33 @@
  */
 package org.apache.cassandra.db.view;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Striped;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ENABLE_COORDINATOR_BATCHLOG;
 
@@ -70,11 +79,26 @@ public class ViewManager
         this.keyspace = keyspace;
     }
 
+    public boolean updatesAffectView(IMutation mutation, boolean coordinatorBatchlog)
+    {
+        if (!enableCoordinatorBatchlog && coordinatorBatchlog)
+            return false;
+
+        if (viewsByName.isEmpty())
+            return false;
+
+        return updatesAffectView(Collections.singleton(mutation), coordinatorBatchlog);
+    }
+
     public boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
         if (!enableCoordinatorBatchlog && coordinatorBatchlog)
             return false;
 
+        if (viewsByName.isEmpty())
+            return false;
+
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
@@ -84,7 +108,8 @@ public class ViewManager
                 if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata().id).updatedViews(update).isEmpty())
+                TableViews tableViews = forTable(update.metadata());
+                if (tableViews.hasViews() && !tableViews.updatedViews(update, metadata).isEmpty())
                     return true;
             }
         }
@@ -97,9 +122,9 @@ public class ViewManager
         return viewsByName.values();
     }
 
-    public void reload(boolean buildAllViews)
+    public void reload(KeyspaceMetadata keyspaceMetadata)
     {
-        Views views = keyspace.getMetadata().views;
+        Views views = keyspaceMetadata.views;
         Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
         for (ViewMetadata definition : views)
         {
@@ -111,10 +136,16 @@ public class ViewManager
             if (!viewsByName.containsKey(entry.getKey()))
                 addView(entry.getValue());
         }
+    }
 
-        if (!buildAllViews)
-            return;
-
+    public void buildViews()
+    {
+        Views views = keyspace.getMetadata().views;
+        Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
+        for (ViewMetadata definition : views)
+        {
+            newViewsByName.put(definition.name(), definition);
+        }
         // Building views involves updating view build status in the system_distributed
         // keyspace and therefore it requires ring information. This check prevents builds
         // being submitted when Keyspaces are initialized during CassandraDaemon::setup as
@@ -149,7 +180,7 @@ public class ViewManager
         }
 
         View view = new View(definition, keyspace.getColumnFamilyStore(definition.baseTableId));
-        forTable(view.getDefinition().baseTableId).add(view);
+        forTable(keyspace.getMetadata().tables.getNullable(view.getDefinition().baseTableId)).add(view);
         viewsByName.put(definition.name(), view);
     }
 
@@ -166,7 +197,7 @@ public class ViewManager
             return;
 
         view.stopBuild();
-        forTable(view.getDefinition().baseTableId).removeByName(name);
+        forTable(view.getDefinition().baseTableMetadata()).removeByName(name);
         SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
         SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
@@ -182,13 +213,13 @@ public class ViewManager
             view.build();
     }
 
-    public TableViews forTable(TableId id)
+    public TableViews forTable(TableMetadata metadata)
     {
-        TableViews views = viewsByBaseTable.get(id);
+        TableViews views = viewsByBaseTable.get(metadata.id);
         if (views == null)
         {
-            views = new TableViews(id);
-            TableViews previous = viewsByBaseTable.putIfAbsent(id, views);
+            views = new TableViews(metadata);
+            TableViews previous = viewsByBaseTable.putIfAbsent(metadata.id, views);
             if (previous != null)
                 views = previous;
         }

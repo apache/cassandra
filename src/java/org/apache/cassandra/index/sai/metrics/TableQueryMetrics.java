@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
+
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
@@ -31,6 +32,8 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 public class TableQueryMetrics extends AbstractMetrics
 {
     public static final String TABLE_QUERY_METRIC_TYPE = "TableQueryMetrics";
+
+    public final Timer postFilteringReadLatency;
 
     private final PerQueryMetrics perQueryMetrics;
 
@@ -44,6 +47,8 @@ public class TableQueryMetrics extends AbstractMetrics
         super(table.keyspace, table.name, TABLE_QUERY_METRIC_TYPE);
 
         perQueryMetrics = new PerQueryMetrics(table);
+
+        postFilteringReadLatency = Metrics.timer(createMetricName("PostFilteringReadLatency"));
 
         totalPartitionReads = Metrics.counter(createMetricName("TotalPartitionReads"));
         totalRowsFiltered = Metrics.counter(createMetricName("TotalRowsFiltered"));
@@ -67,6 +72,8 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public class PerQueryMetrics extends AbstractMetrics
     {
+        public static final String PER_QUERY_METRICS_TYPE = "PerQuery";
+
         private final Timer queryLatency;
 
         /**
@@ -95,7 +102,7 @@ public class TableQueryMetrics extends AbstractMetrics
 
         public PerQueryMetrics(TableMetadata table)
         {
-            super(table.keyspace, table.name, "PerQuery");
+            super(table.keyspace, table.name, PER_QUERY_METRICS_TYPE);
 
             queryLatency = Metrics.timer(createMetricName("QueryLatency"));
 

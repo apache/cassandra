@@ -20,23 +20,23 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 
 import java.io.Closeable;
 import java.io.IOException;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.agrona.collections.LongArrayList;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.packed.DirectWriter;
+
 import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.packed.DirectWriter;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.max;
@@ -87,8 +87,6 @@ import static java.lang.Math.max;
 @NotThreadSafe
 public class PostingsWriter implements Closeable
 {
-    protected static final Logger logger = LoggerFactory.getLogger(PostingsWriter.class);
-
     // import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
     private final static int BLOCK_SIZE = 128;
 
@@ -109,9 +107,9 @@ public class PostingsWriter implements Closeable
     private long maxDelta;
     private long totalPostings;
 
-    public PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+    public PostingsWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier) throws IOException
     {
-        this(indexDescriptor, indexContext, BLOCK_SIZE);
+        this(indexDescriptor, indexIdentifier, BLOCK_SIZE);
     }
 
     public PostingsWriter(IndexOutputWriter dataOutput) throws IOException
@@ -120,9 +118,9 @@ public class PostingsWriter implements Closeable
     }
 
     @VisibleForTesting
-    PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, int blockSize) throws IOException
+    PostingsWriter(IndexDescriptor indexDescriptor, IndexIdentifier indexIdentifier, int blockSize) throws IOException
     {
-        this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true), blockSize);
+        this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexIdentifier, true), blockSize);
     }
 
     private PostingsWriter(IndexOutputWriter dataOutput, int blockSize) throws IOException

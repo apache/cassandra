@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -36,13 +35,14 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static java.util.Collections.singleton;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -56,7 +56,7 @@ public class TopPartitionTrackerTest extends CQLTester
         DatabaseDescriptor.setMaxTopSizePartitionCount(5);
         DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("12B"));
 
-        Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
+        Collection<Range<Token>> fullRange = singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
         TopPartitionTracker.Collector collector = new TopPartitionTracker.Collector(fullRange);
         for (int i = 5; i < 15; i++)
@@ -87,7 +87,7 @@ public class TopPartitionTrackerTest extends CQLTester
         createTable("create table %s (id bigint primary key, x int)");
         DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMaxTopSizePartitionCount(5);
-        Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
+        Collection<Range<Token>> fullRange = singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
         TopPartitionTracker.Collector collector = new TopPartitionTracker.Collector(fullRange);
         for (int i = 5; i < 15; i++)
@@ -113,7 +113,7 @@ public class TopPartitionTrackerTest extends CQLTester
         createTable("create table %s (id bigint primary key, x int)");
         DatabaseDescriptor.setMinTrackedPartitionSizeInBytes(new DataStorageSpec.LongBytesBound("0B"));
         DatabaseDescriptor.setMaxTopSizePartitionCount(10);
-        Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
+        Collection<Range<Token>> fullRange = singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
         TopPartitionTracker.Collector collector = new TopPartitionTracker.Collector(fullRange);
         for (int i = 0; i < 10; i++)
@@ -144,7 +144,7 @@ public class TopPartitionTrackerTest extends CQLTester
         DatabaseDescriptor.setMinTrackedPartitionTombstoneCount(0);
         DatabaseDescriptor.setMaxTopSizePartitionCount(10);
         DatabaseDescriptor.setMaxTopTombstonePartitionCount(10);
-        Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
+        Collection<Range<Token>> fullRange = singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
         assertEquals(0, tpt.topSizes().lastUpdate);
         assertEquals(0, tpt.topTombstones().lastUpdate);
@@ -214,7 +214,7 @@ public class TopPartitionTrackerTest extends CQLTester
         for (int i = 0; i < keyCount; i++)
             keys.add(dk(i));
 
-        Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
+        Collection<Range<Token>> fullRange = singleton(r(0, 0));
         List<Pair<DecoratedKey, Long>> expected = new ArrayList<>();
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
         TopPartitionTracker.Collector collector = new TopPartitionTracker.Collector(fullRange);
@@ -262,7 +262,7 @@ public class TopPartitionTrackerTest extends CQLTester
         for (int i = 0; i < 10000; i++)
             keys.add(Pair.create(dk(i), Math.abs(r.nextLong() % 20000)));
 
-        Collection<Range<Token>> fullRange = Collections.singleton(r(0, 0));
+        Collection<Range<Token>> fullRange = singleton(r(0, 0));
         TopPartitionTracker tpt = new TopPartitionTracker(getCurrentColumnFamilyStore().metadata());
         TopPartitionTracker.Collector collector = new TopPartitionTracker.Collector(fullRange);
         for (int i = 0; i < keys.size(); i++)
@@ -271,9 +271,9 @@ public class TopPartitionTrackerTest extends CQLTester
             collector.trackPartitionSize(entry.left, entry.right);
         }
         tpt.merge(collector);
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.updateNormalToken(t(0), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalToken(t(Long.MAX_VALUE - 1), InetAddressAndPort.getByName("127.0.0.2"));
+        InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
+        ClusterMetadataTestHelper.register(ep2);
+        ClusterMetadataTestHelper.join(ep2, singleton(t(Long.MAX_VALUE - 1)));
         Iterator<TopPartitionTracker.TopPartition> trackedTop = tpt.topSizes().top.iterator();
         Collection<Range<Token>> localRanges = StorageService.instance.getLocalReplicas(keyspace()).ranges();
         int outOfRangeCount = 0;

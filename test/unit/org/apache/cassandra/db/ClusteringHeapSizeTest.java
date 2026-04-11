@@ -21,15 +21,16 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.NativePool;
-import org.assertj.core.api.Assertions;
 
 @RunWith(Parameterized.class)
 public class ClusteringHeapSizeTest
@@ -64,13 +65,14 @@ public class ClusteringHeapSizeTest
     @Test
     public void testSingletonClusteringHeapSize()
     {
-        Clustering<?> clustering = this.clustering.accessor().factory().staticClustering();
+        ValueAccessor.ObjectFactory<?> factory = this.clustering.ensureAccessorFactorySupport().accessor().factory();
+        Clustering<?> clustering = factory.staticClustering();
         Assertions.assertThat(clustering.unsharedHeapSize())
                   .isEqualTo(0);
         Assertions.assertThat(clustering.unsharedHeapSizeExcludingData())
                   .isEqualTo(0);
 
-        clustering = this.clustering.accessor().factory().clustering();
+        clustering = factory.clustering();
         Assertions.assertThat(clustering.unsharedHeapSize())
                   .isEqualTo(0);
         Assertions.assertThat(clustering.unsharedHeapSizeExcludingData())

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Random;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,23 +83,24 @@ public class Validator implements Runnable
     private final PreviewKind previewKind;
     public final ValidationState state;
     public TopPartitionTracker.Collector topPartitionCollector;
+    public final boolean dontPurgeTombstones;
 
     public Validator(ValidationState state, long nowInSec, PreviewKind previewKind)
     {
-        this(SharedContext.Global.instance, state, nowInSec, false, false, previewKind);
+        this(SharedContext.Global.instance, state, nowInSec, false, false, previewKind, false);
     }
 
-    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind)
+    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones)
     {
-        this(ctx, state, nowInSec, false, isIncremental, previewKind);
+        this(ctx, state, nowInSec, false, isIncremental, previewKind, dontPurgeTombstones);
     }
 
-    public Validator(ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind)
+    public Validator(ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones)
     {
-        this(SharedContext.Global.instance, state, nowInSec, false, isIncremental, previewKind);
+        this(SharedContext.Global.instance, state, nowInSec, false, isIncremental, previewKind, dontPurgeTombstones);
     }
 
-    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
+    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones)
     {
         this.ctx = ctx;
         this.state = state;
@@ -107,6 +109,7 @@ public class Validator implements Runnable
         this.nowInSec = nowInSec;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
+        this.dontPurgeTombstones = dontPurgeTombstones;
         validated = 0;
         range = null;
         ranges = null;

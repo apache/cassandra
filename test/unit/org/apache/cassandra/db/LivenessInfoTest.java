@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.db;
 
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class LivenessInfoTest extends CQLTester
 {
@@ -75,6 +78,11 @@ public class LivenessInfoTest extends CQLTester
         // timestamp ties, both are mv expired liveness, local deletion time win
         first = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds + 1);
         second = LivenessInfo.withExpirationTime(100, LivenessInfo.EXPIRED_LIVENESS_TTL, nowInSeconds);
+        assertSupersedes(first, second);
+
+        // rewritten expiring with the same expiration time and a lower TTL, take the lower TTL as likely to be more recent
+        first = LivenessInfo.withExpirationTime(100, 4, nowInSeconds);
+        second = LivenessInfo.withExpirationTime(100, 5, nowInSeconds);
         assertSupersedes(first, second);
     }
 

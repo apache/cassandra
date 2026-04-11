@@ -17,6 +17,15 @@
  */
 package org.apache.cassandra.utils.btree;
 
+import java.util.Comparator;
+import java.util.Random;
+import java.util.SortedSet;
+import java.util.TreeSet;
+
+import com.google.common.collect.Iterables;
+
+import org.junit.Test;
+
 import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
 import static org.apache.cassandra.utils.btree.BTreeRemoval.remove;
 import static org.junit.Assert.assertArrayEquals;
@@ -24,15 +33,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-
-import java.util.Comparator;
-import java.util.Random;
-import java.util.SortedSet;
-import java.util.TreeSet;
-
-import org.junit.Test;
-
-import com.google.common.collect.Iterables;
 
 public class BTreeRemovalTest
 {
@@ -57,7 +57,7 @@ public class BTreeRemovalTest
         {
             for (int i = BTree.getChildStart(btree); i < BTree.getChildEnd(btree); ++i)
                 result[i] = copy((Object[]) btree[i]);
-            final int[] sizeMap = BTree.getSizeMap(btree);
+            final int[] sizeMap = BTree.sizeMap(btree);
             final int[] resultSizeMap = new int[sizeMap.length];
             System.arraycopy(sizeMap, 0, resultSizeMap, 0, sizeMap.length);
             result[result.length - 1] = resultSizeMap;
@@ -96,7 +96,7 @@ public class BTreeRemovalTest
                 assertEquals(expected[i], result[i]);
             for (int i = BTree.getChildStart(expected); i < BTree.getChildEnd(expected); ++i)
                 assertBTree((Object[]) expected[i], (Object[]) result[i]);
-            assertArrayEquals(BTree.getSizeMap(expected), BTree.getSizeMap(result));
+            assertArrayEquals(BTree.sizeMap(expected), BTree.sizeMap(result));
         }
     }
 

@@ -1,0 +1,33 @@
+NAME
+        nodetool repair_admin cancel - cancel an incremental repair session.
+        Use --force to cancel from a node other than the repair coordinator
+        Attempting to cancel FINALIZED or FAILED sessions is an error.
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] repair_admin cancel
+                [(-f | --force)] [(-s <session> | --session <session>)]
+
+OPTIONS
+        -f, --force
+            Force a cancellation.
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -s <session>, --session <session>
+            The session to cancel
+
+        -u <username>, --username <username>
+            Remote jmx agent username

@@ -21,12 +21,12 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

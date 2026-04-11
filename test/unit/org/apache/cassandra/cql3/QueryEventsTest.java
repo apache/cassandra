@@ -18,20 +18,21 @@
 
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nullable;
 
-import org.junit.Test;
+import javax.annotation.Nullable;
 
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
@@ -39,16 +40,16 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteArrayUtil;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import static com.google.common.collect.Lists.newArrayList;
 
 public class QueryEventsTest extends CQLTester
 {
@@ -144,9 +145,9 @@ public class QueryEventsTest extends CQLTester
         assertEquals(3, listener.queries.size());
         assertEquals(BatchStatement.Type.UNLOGGED, listener.batchType);
         assertEquals(newArrayList(q1, q1, q2), listener.queries);
-        assertEquals(newArrayList(newArrayList(ByteBufferUtil.bytes(1), ByteBufferUtil.bytes(1)),
-                                  newArrayList(ByteBufferUtil.bytes(2), ByteBufferUtil.bytes(2)),
-                                  newArrayList(newArrayList())), listener.values);
+        assertListOfArraysEquals(newArrayList(new byte[][] {ByteArrayUtil.bytes(1), ByteArrayUtil.bytes(1)},
+                                              new byte[][] {ByteArrayUtil.bytes(2), ByteArrayUtil.bytes(2)},
+                                              new byte[][] {}), listener.values);
 
         batch.add(new SimpleStatement("insert into abc.def (id, v) values (1,1)"));
         try
@@ -162,10 +163,17 @@ public class QueryEventsTest extends CQLTester
         assertEquals(3, listener.queries.size());
         assertEquals(BatchStatement.Type.UNLOGGED, listener.batchType);
         assertEquals(newArrayList(q1, q1, q2), listener.queries);
-        assertEquals(newArrayList(newArrayList(ByteBufferUtil.bytes(1), ByteBufferUtil.bytes(1)),
-                                  newArrayList(ByteBufferUtil.bytes(2), ByteBufferUtil.bytes(2)),
-                                  newArrayList(newArrayList()),
-                                  newArrayList(newArrayList())), listener.values);
+        assertListOfArraysEquals(newArrayList(new byte[][] { ByteArrayUtil.bytes(1), ByteArrayUtil.bytes(1)},
+                                              new byte[][] {ByteArrayUtil.bytes(2), ByteArrayUtil.bytes(2)},
+                                              new byte[][] {},
+                                              new byte[][] {}), listener.values);
+    }
+
+    private static void assertListOfArraysEquals(List<byte[][]> expected, List<byte[][]> actual)
+    {
+        assertEquals(expected.size(), actual.size());
+        for (int i = 0; i < expected.size(); i++)
+            assertArrayEquals(expected.get(i), actual.get(i));
     }
 
     @Test
@@ -323,7 +331,7 @@ public class QueryEventsTest extends CQLTester
     private static class BatchMockListener extends MockListener
     {
         private List<String> queries;
-        private List<List<ByteBuffer>> values;
+        private List<byte[][]> values;
         private BatchStatement.Type batchType;
 
         BatchMockListener(ColumnFamilyStore currentColumnFamilyStore)
@@ -331,7 +339,7 @@ public class QueryEventsTest extends CQLTester
             super(currentColumnFamilyStore);
         }
 
-        public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+        public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<byte[][]> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
         {
             inc("batchSuccess");
             this.queries = queries;
@@ -340,7 +348,7 @@ public class QueryEventsTest extends CQLTester
             this.queryTime = queryTime;
         }
 
-        public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, Exception cause)
+        public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<byte[][]> values, QueryOptions options, QueryState state, Exception cause)
         {
             inc("batchFailure");
             this.queries = queries;

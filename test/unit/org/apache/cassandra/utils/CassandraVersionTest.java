@@ -24,14 +24,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.datastax.driver.core.VersionNumber;
 import com.google.common.base.Splitter;
-import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.commons.lang3.ArrayUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.datastax.driver.core.VersionNumber;
-import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.Generate;
 import org.quicktheories.generators.SourceDSL;

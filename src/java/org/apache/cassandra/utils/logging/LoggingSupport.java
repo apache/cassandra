@@ -21,6 +21,7 @@ package org.apache.cassandra.utils.logging;
 import java.util.Map;
 import java.util.Optional;
 
+import ch.qos.logback.classic.Logger;
 import ch.qos.logback.core.Appender;
 
 /**
@@ -53,7 +54,12 @@ public interface LoggingSupport
      */
     Map<String, String> getLoggingLevels();
 
-    default Optional<Appender<?>> getAppender(Class<?> appenderClass, String appenderName)
+    default <T extends Appender<?>> Optional<T> getAppender(Class<T> appenderClass, String appenderName)
+    {
+        return Optional.empty();
+    }
+
+    default Optional<Logger> getLogger(String loggerName)
     {
         return Optional.empty();
     }

@@ -26,7 +26,10 @@ import java.util.Map;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.UTName;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -34,6 +37,8 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -44,7 +49,6 @@ import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.join;
 import static java.util.function.Predicate.isEqual;
 import static java.util.stream.Collectors.toList;
-
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public abstract class AlterTypeStatement extends AlterSchemaStatement
@@ -69,8 +73,10 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         return new SchemaChange(Change.UPDATED, Target.TYPE, keyspaceName, typeName);
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata)
     {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         UserType type = null == keyspace
@@ -123,6 +129,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
             // save the query state to use it for guardrails validation in #apply
             this.state = state;
+        }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
@@ -183,6 +195,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             this.renamedFields = renamedFields;
         }
 
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+        }
+
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
         {
             List<String> dependentAggregates =
@@ -228,6 +246,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         private AlterField(String keyspaceName, String typeName, boolean ifExists)
         {
             super(keyspaceName, typeName, ifExists);
+        }
+
+        @Override
+        public boolean compatibleWith(ClusterMetadata metadata)
+        {
+            return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
         }
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)

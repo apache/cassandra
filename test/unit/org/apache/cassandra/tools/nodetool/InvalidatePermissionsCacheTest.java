@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -54,28 +55,35 @@ public class InvalidatePermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
-
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
         AuthCacheService.initializeAndRegisterCaches();
+        requireNetwork();
+        startJMXServer();
+    }
 
+    @Before
+    public void grantInitialPermissions()
+    {
+        // Because we reset the CMS in CQLTester::afterTest, the per-test keyspaces created in CQLTester::beforeTest
+        // get dropped and re-created for every individual test. This means we need to recreate the perms here (we
+        // could markCMS() after granting the first time and add a flag to avoid re-granting but this is simpler).
         List<IResource> resources = Arrays.asList(
-                DataResource.root(),
-                DataResource.keyspace(KEYSPACE),
-                DataResource.allTables(KEYSPACE),
-                DataResource.table(KEYSPACE, "t1"),
-                RoleResource.root(),
-                RoleResource.role("role_x"),
-                FunctionResource.root(),
-                FunctionResource.keyspace(KEYSPACE),
-                // Particular function is excluded from here and covered by a separate test because in order to grant
-                // permissions we need to have a function registered. However, the function cannot be registered via
-                // CQLTester.createFunction from static contex. That's why we initialize it in a separate test case.
-                JMXResource.root(),
-                JMXResource.mbean("org.apache.cassandra.auth:type=*"));
+            DataResource.root(),
+            DataResource.keyspace(KEYSPACE),
+            DataResource.allTables(KEYSPACE),
+            DataResource.table(KEYSPACE, "t1"),
+            RoleResource.root(),
+            RoleResource.role("role_x"),
+            FunctionResource.root(),
+            FunctionResource.keyspace(KEYSPACE),
+            // Particular function is excluded from here and covered by a separate test because in order to grant
+            // permissions we need to have a function registered. However, the function cannot be registered via
+            // CQLTester.createFunction from static contex. That's why we initialize it in a separate test case.
+            JMXResource.root(),
+            JMXResource.mbean("org.apache.cassandra.auth:type=*"));
 
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         for (IResource resource : resources)
@@ -84,99 +92,6 @@ public class InvalidatePermissionsCacheTest extends CQLTester
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
         }
-
-        requireNetwork();
-        startJMXServer();
-    }
-
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "invalidatepermissionscache");
-        tool.assertOnCleanExit();
-
-        String help =   "NAME\n" +
-                        "        nodetool invalidatepermissionscache - Invalidate the permissions cache\n" +
-                        "\n" +
-                        "SYNOPSIS\n" +
-                        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                        "                [(-u <username> | --username <username>)] invalidatepermissionscache\n" +
-                        "                [--all-functions] [--all-keyspaces] [--all-mbeans] [--all-roles]\n" +
-                        "                [--all-tables] [--function <function>]\n" +
-                        "                [--functions-in-keyspace <functions-in-keyspace>]\n" +
-                        "                [--keyspace <keyspace>] [--mbean <mbean>] [--role <role>]\n" +
-                        "                [--table <table>] [--] [<role>]\n" +
-                        "\n" +
-                        "OPTIONS\n" +
-                        "        --all-functions\n" +
-                        "            Invalidate permissions for 'ALL FUNCTIONS'\n" +
-                        "\n" +
-                        "        --all-keyspaces\n" +
-                        "            Invalidate permissions for 'ALL KEYSPACES'\n" +
-                        "\n" +
-                        "        --all-mbeans\n" +
-                        "            Invalidate permissions for 'ALL MBEANS'\n" +
-                        "\n" +
-                        "        --all-roles\n" +
-                        "            Invalidate permissions for 'ALL ROLES'\n" +
-                        "\n" +
-                        "        --all-tables\n" +
-                        "            Invalidate permissions for 'ALL TABLES'\n" +
-                        "\n" +
-                        "        --function <function>\n" +
-                        "            Function to invalidate permissions for (you must specify\n" +
-                        "            --functions-in-keyspace for using this option; function format:\n" +
-                        "            name[arg1^..^agrN], for example: foo[Int32Type^DoubleType])\n" +
-                        "\n" +
-                        "        --functions-in-keyspace <functions-in-keyspace>\n" +
-                        "            Keyspace to invalidate permissions for\n" +
-                        "\n" +
-                        "        -h <host>, --host <host>\n" +
-                        "            Node hostname or ip address\n" +
-                        "\n" +
-                        "        --keyspace <keyspace>\n" +
-                        "            Keyspace to invalidate permissions for\n" +
-                        "\n" +
-                        "        --mbean <mbean>\n" +
-                        "            MBean to invalidate permissions for\n" +
-                        "\n" +
-                        "        -p <port>, --port <port>\n" +
-                        "            Remote jmx agent port number\n" +
-                        "\n" +
-                        "        -pp, --print-port\n" +
-                        "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                        "\n" +
-                        "        -pw <password>, --password <password>\n" +
-                        "            Remote jmx agent password\n" +
-                        "\n" +
-                        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                        "            Path to the JMX password file\n" +
-                        "\n" +
-                        "        --role <role>\n" +
-                        "            Role to invalidate permissions for\n" +
-                        "\n" +
-                        "        --table <table>\n" +
-                        "            Table to invalidate permissions for (you must specify --keyspace for\n" +
-                        "            using this option)\n" +
-                        "\n" +
-                        "        -u <username>, --username <username>\n" +
-                        "            Remote jmx agent username\n" +
-                        "\n" +
-                        "        --\n" +
-                        "            This option can be used to separate command-line options from the\n" +
-                        "            list of argument, (useful when arguments might be mistaken for\n" +
-                        "            command-line options\n" +
-                        "\n" +
-                        "        [<role>]\n" +
-                        "            A role for which permissions to specified resources need to be\n" +
-                        "            invalidated\n" +
-                        "\n" +
-                        "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -197,7 +112,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--invalid-option");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
-                .isEqualTo(wrapByDefaultNodetoolMessage("A single <role> is only supported / you have a typo in the resource options spelling"));
+                .isEqualTo(wrapByDefaultNodetoolMessage("Unknown option: '--invalid-option'"));
         assertThat(tool.getCleanedStderr()).isEmpty();
 
         tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "role1", "--all-tables");

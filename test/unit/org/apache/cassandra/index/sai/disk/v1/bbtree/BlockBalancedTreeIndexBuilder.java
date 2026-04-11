@@ -28,9 +28,10 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import com.carrotsearch.hppc.LongArrayList;
+
 import org.junit.Assert;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -39,18 +40,20 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.segment.NumericIndexSegmentSearcher;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcher;
+import org.apache.cassandra.index.sai.disk.v1.segment.NumericIndexSegmentSearcher;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.utils.AbstractGuavaIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -68,6 +71,12 @@ public class BlockBalancedTreeIndexBuilder
         private final PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(Murmur3Partitioner.instance, null);
 
         @Override
+        public SSTableId getSSTableId()
+        {
+            return null;
+        }
+
+        @Override
         public PrimaryKey primaryKeyFromRowId(long sstableRowId)
         {
             return primaryKeyFactory.create(new Murmur3Partitioner.LongToken(sstableRowId));
@@ -78,6 +87,18 @@ public class BlockBalancedTreeIndexBuilder
         {
             return key.token().getLongValue();
         }
+
+        @Override
+        public long ceiling(Token token)
+        {
+            return token.getLongValue();
+        }
+
+        @Override
+        public long floor(Token token)
+        {
+            return token.getLongValue();
+        }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;
 
@@ -85,38 +106,35 @@ public class BlockBalancedTreeIndexBuilder
     private static final BigDecimal ONE_TENTH = BigDecimal.valueOf(1, 1);
 
     private final IndexDescriptor indexDescriptor;
-    private final AbstractType<?> type;
     private final AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> terms;
     private final int size;
     private final int minSegmentRowId;
     private final int maxSegmentRowId;
 
     public BlockBalancedTreeIndexBuilder(IndexDescriptor indexDescriptor,
-                                         AbstractType<?> type,
                                          AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> terms,
                                          int size,
                                          int minSegmentRowId,
                                          int maxSegmentRowId)
     {
         this.indexDescriptor = indexDescriptor;
-        this.type = type;
         this.terms = terms;
         this.size = size;
         this.minSegmentRowId = minSegmentRowId;
         this.maxSegmentRowId = maxSegmentRowId;
     }
 
-    NumericIndexSegmentSearcher flushAndOpen() throws IOException
+    NumericIndexSegmentSearcher flushAndOpen(AbstractType<?> type) throws IOException
     {
         final TermsIterator termEnum = new MemtableTermsIterator(null, null, terms);
         final SegmentMetadata metadata;
 
-        IndexContext columnContext = SAITester.createIndexContext("test", Int32Type.instance);
+        StorageAttachedIndex index = SAITester.createMockIndex(type);
+
         NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                           columnContext,
-                                                           TypeUtil.fixedSizeOf(type),
-                                                           maxSegmentRowId);
-        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(BlockBalancedTreeIterator.fromTermsIterator(termEnum, type));
+                                                           index.identifier(),
+                                                           index.termType().fixedSizeOf());
+        final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeCompleteSegment(termEnum);
         metadata = new SegmentMetadata(0,
                                        size,
                                        minSegmentRowId,
@@ -128,9 +146,9 @@ public class BlockBalancedTreeIndexBuilder
                                        UTF8Type.instance.fromString("d"),
                                        indexMetas);
 
-        try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, SAITester.createIndexContext("test", Int32Type.instance)))
+        try (PerColumnIndexFiles indexFiles = new PerColumnIndexFiles(indexDescriptor, index.termType(), index.identifier()))
         {
-            IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY, indexFiles, metadata, columnContext);
+            IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY, null, indexFiles, metadata, index);
             assertThat(searcher, is(instanceOf(NumericIndexSegmentSearcher.class)));
             return (NumericIndexSegmentSearcher) searcher;
         }
@@ -148,12 +166,11 @@ public class BlockBalancedTreeIndexBuilder
         final int size = endTermExclusive - startTermInclusive;
         Assert.assertTrue(size > 0);
         BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
-                                                                                       Int32Type.instance,
                                                                                        singleOrd(int32Range(startTermInclusive, endTermExclusive), Int32Type.instance, startTermInclusive, size),
                                                                                        size,
                                                                                        startTermInclusive,
                                                                                        endTermExclusive);
-        return indexBuilder.flushAndOpen();
+        return indexBuilder.flushAndOpen(Int32Type.instance);
     }
 
     public static IndexSegmentSearcher buildDecimalSearcher(IndexDescriptor indexDescriptor, BigDecimal startTermInclusive, BigDecimal endTermExclusive)
@@ -163,12 +180,11 @@ public class BlockBalancedTreeIndexBuilder
         int size = bigDifference.intValueExact() * 10;
         Assert.assertTrue(size > 0);
         BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
-                                                                                       DecimalType.instance,
                                                                                        singleOrd(decimalRange(startTermInclusive, endTermExclusive), DecimalType.instance, startTermInclusive.intValueExact() * 10, size),
                                                                                        size,
                                                                  startTermInclusive.intValueExact() * 10,
                                                                  endTermExclusive.intValueExact() * 10);
-        return indexBuilder.flushAndOpen();
+        return indexBuilder.flushAndOpen(DecimalType.instance);
     }
 
     public static IndexSegmentSearcher buildBigIntegerSearcher(IndexDescriptor indexDescriptor, BigInteger startTermInclusive, BigInteger endTermExclusive)
@@ -178,12 +194,11 @@ public class BlockBalancedTreeIndexBuilder
         int size = bigDifference.intValueExact();
         Assert.assertTrue(size > 0);
         BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
-                                                                                       IntegerType.instance,
                                                                                        singleOrd(bigIntegerRange(startTermInclusive, endTermExclusive), IntegerType.instance, startTermInclusive.intValueExact(), size),
                                                                                        size,
                                                                                        startTermInclusive.intValueExact(),
                                                                                        endTermExclusive.intValueExact());
-        return indexBuilder.flushAndOpen();
+        return indexBuilder.flushAndOpen(IntegerType.instance);
     }
 
     /**
@@ -198,12 +213,11 @@ public class BlockBalancedTreeIndexBuilder
         final long size = endTermExclusive - startTermInclusive;
         Assert.assertTrue(size > 0);
         BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
-                                                                                       LongType.instance,
                                                                                        singleOrd(longRange(startTermInclusive, endTermExclusive), LongType.instance, Math.toIntExact(startTermInclusive), Math.toIntExact(size)),
                                                                                        Math.toIntExact(size),
                                                                                        Math.toIntExact(startTermInclusive),
                                                                                        Math.toIntExact(endTermExclusive));
-        return indexBuilder.flushAndOpen();
+        return indexBuilder.flushAndOpen(LongType.instance);
     }
 
     /**
@@ -218,12 +232,11 @@ public class BlockBalancedTreeIndexBuilder
         final int size = endTermExclusive - startTermInclusive;
         Assert.assertTrue(size > 0);
         BlockBalancedTreeIndexBuilder indexBuilder = new BlockBalancedTreeIndexBuilder(indexDescriptor,
-                                                                                       ShortType.instance,
                                                                                        singleOrd(shortRange(startTermInclusive, endTermExclusive), ShortType.instance, startTermInclusive, size),
                                                                                        size,
                                                                                        startTermInclusive,
                                                                                        endTermExclusive);
-        return indexBuilder.flushAndOpen();
+        return indexBuilder.flushAndOpen(ShortType.instance);
     }
 
     /**
@@ -232,7 +245,8 @@ public class BlockBalancedTreeIndexBuilder
      */
     public static AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>> singleOrd(Iterator<ByteBuffer> terms, AbstractType<?> type, int segmentRowIdOffset, int size)
     {
-        return new AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>>()
+        IndexTermType indexTermType = SAITester.createIndexTermType(type);
+        return new AbstractGuavaIterator<>()
         {
             private long currentTerm = 0;
             private int currentSegmentRowId = segmentRowIdOffset;
@@ -249,7 +263,7 @@ public class BlockBalancedTreeIndexBuilder
                 postings.add(currentSegmentRowId++);
                 assertTrue(terms.hasNext());
 
-                final ByteSource encoded = TypeUtil.asComparableBytes(terms.next(), type, ByteComparable.Version.OSS50);
+                final ByteSource encoded = indexTermType.asComparableBytes(terms.next(), ByteComparable.Version.OSS50);
                 return Pair.create(v -> encoded, postings);
             }
         };
@@ -282,7 +296,7 @@ public class BlockBalancedTreeIndexBuilder
     public static Iterator<ByteBuffer> decimalRange(final BigDecimal startInclusive, final BigDecimal endExclusive)
     {
         int n = endExclusive.subtract(startInclusive).intValueExact() * 10;
-        final Supplier<BigDecimal> generator = new Supplier<BigDecimal>() {
+        final Supplier<BigDecimal> generator = new Supplier<>() {
             BigDecimal current = startInclusive;
 
             @Override
@@ -292,9 +306,10 @@ public class BlockBalancedTreeIndexBuilder
                 return result;
             }
         };
+        IndexTermType indexTermType = SAITester.createIndexTermType(DecimalType.instance);
         return Stream.generate(generator)
                      .limit(n)
-                     .map(bd -> TypeUtil.asIndexBytes(DecimalType.instance.decompose(bd), DecimalType.instance))
+                     .map(bd -> indexTermType.asIndexBytes(DecimalType.instance.decompose(bd)))
                      .collect(Collectors.toList())
                      .iterator();
     }
@@ -302,7 +317,7 @@ public class BlockBalancedTreeIndexBuilder
     public static Iterator<ByteBuffer> bigIntegerRange(final BigInteger startInclusive, final BigInteger endExclusive)
     {
         int n = endExclusive.subtract(startInclusive).intValueExact();
-        final Supplier<BigInteger> generator = new Supplier<BigInteger>() {
+        final Supplier<BigInteger> generator = new Supplier<>() {
             BigInteger current = startInclusive;
 
             @Override
@@ -312,9 +327,10 @@ public class BlockBalancedTreeIndexBuilder
                 return result;
             }
         };
+        IndexTermType indexTermType = SAITester.createIndexTermType(IntegerType.instance);
         return Stream.generate(generator)
                      .limit(n)
-                     .map(bd -> TypeUtil.asIndexBytes(IntegerType.instance.decompose(bd), IntegerType.instance))
+                     .map(bd -> indexTermType.asIndexBytes(IntegerType.instance.decompose(bd)))
                      .collect(Collectors.toList())
                      .iterator();
     }

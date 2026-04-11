@@ -20,14 +20,13 @@ package org.apache.cassandra.net;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.service.writes.thresholds.WriteThresholdMapSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
-import org.apache.cassandra.utils.RangesSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.Math.max;
-
 import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;
 
 /**
@@ -42,20 +41,23 @@ import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.f
  */
 public enum ParamType
 {
-    FORWARD_TO                  (0,  ForwardingInfo.serializer),
-    RESPOND_TO                  (1,  fwdFrmSerializer),
+    FORWARD_TO                       (0,  ForwardingInfo.serializer),
+    RESPOND_TO                       (1,  fwdFrmSerializer),
 
-    TRACE_SESSION               (5,  TimeUUID.Serializer.instance),
-    TRACE_TYPE                  (6,  Tracing.traceTypeSerializer),
+    TRACE_SESSION                    (5,  TimeUUID.Serializer.instance),
+    TRACE_TYPE                       (6,  Tracing.traceTypeSerializer),
 
-    TOMBSTONE_FAIL              (8,  Int32Serializer.serializer),
-    TOMBSTONE_WARNING           (9,  Int32Serializer.serializer),
-    LOCAL_READ_SIZE_FAIL        (10, Int64Serializer.serializer),
-    LOCAL_READ_SIZE_WARN        (11, Int64Serializer.serializer),
-    ROW_INDEX_READ_SIZE_FAIL    (12, Int64Serializer.serializer),
-    ROW_INDEX_READ_SIZE_WARN    (13, Int64Serializer.serializer),
-    CUSTOM_MAP                  (14, CustomParamsSerializer.serializer),
-    SNAPSHOT_RANGES             (15, RangesSerializer.serializer);
+    TOMBSTONE_FAIL                   (8,  Int32Serializer.serializer),
+    TOMBSTONE_WARNING                (9,  Int32Serializer.serializer),
+    LOCAL_READ_SIZE_FAIL             (10, Int64Serializer.serializer),
+    LOCAL_READ_SIZE_WARN             (11, Int64Serializer.serializer),
+    ROW_INDEX_READ_SIZE_FAIL         (12, Int64Serializer.serializer),
+    ROW_INDEX_READ_SIZE_WARN         (13, Int64Serializer.serializer),
+    CUSTOM_MAP                       (14, CustomParamsSerializer.serializer),
+    TOO_MANY_REFERENCED_INDEXES_WARN (16, Int32Serializer.serializer),
+    TOO_MANY_REFERENCED_INDEXES_FAIL (17, Int32Serializer.serializer),
+    WRITE_SIZE_WARN                  (18, WriteThresholdMapSerializer.serializer),
+    WRITE_TOMBSTONE_WARN             (19, WriteThresholdMapSerializer.serializer);
 
     final int id;
     final IVersionedSerializer serializer;

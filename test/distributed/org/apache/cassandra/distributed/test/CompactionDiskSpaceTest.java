@@ -26,20 +26,22 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileStoreUtils;
-import org.apache.cassandra.io.util.PathUtils;
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+
+import org.junit.Test;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.ActiveCompactions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileStoreUtils;
+import org.apache.cassandra.io.util.PathUtils;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.fail;
@@ -58,7 +60,7 @@ public class CompactionDiskSpaceTest extends TestBaseImpl
             cluster.schemaChange("create table "+KEYSPACE+".tbl (id int primary key, x int) with compaction = {'class':'SizeTieredCompactionStrategy'}");
             cluster.coordinator(1).execute("insert into "+KEYSPACE+".tbl (id, x) values (1,1)", ConsistencyLevel.ALL);
             cluster.get(1).flush(KEYSPACE);
-            cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Not enough space for compaction") && t.getMessage().contains(KEYSPACE+".tbl"));
+            cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Not enough space for compaction") && (t.getMessage().contains(KEYSPACE+".tbl") || t.getMessage().contains("system_")));
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
                 BB.estimatedRemaining.set(2000);

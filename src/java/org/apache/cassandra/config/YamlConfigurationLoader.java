@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -36,11 +38,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.File;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
@@ -52,14 +53,39 @@ import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.parser.ParserImpl;
+import org.yaml.snakeyaml.representer.Representer;
+import org.yaml.snakeyaml.resolver.Resolver;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.JsonUtils;
+import org.apache.cassandra.utils.LocalizeString;
+
+import static org.apache.cassandra.config.CassandraRelevantEnv.CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_ENVIRONMENT_VARIABLES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
+    final static Set<String> OVERRIDABLE_CONFIG_NAMES;
+
+    static
+    {
+        // Configs can be overriden via system properties and environment variables entirely or partially
+        // For example: sai_options.prioritize_over_legacy_index=true or
+        //              sai_options: {prioritize_over_legacy_index=true, segment_write_buffer_size=100MiB}
+        Loader loader = Properties.defaultLoader();
+        Map<String, Property> topLevelConfigs = loader.getProperties(Config.class);
+        Map<String, Property> flattenedConfigs = Properties.flatten(loader, loader.getProperties(Config.class), Properties.DELIMITER, true);
+        OVERRIDABLE_CONFIG_NAMES = Collections.unmodifiableSet(Sets.union(topLevelConfigs.keySet(), flattenedConfigs.keySet()));
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
 
     /**
@@ -67,6 +93,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      * system properties do not conflict with other system properties; the name "settings" matches system_views.settings.
      */
     static final String SYSTEM_PROPERTY_PREFIX = "cassandra.settings.";
+    static final String ENVIRONMENT_VARIABLE_PREFIX = "CASSANDRA_SETTINGS_";
+    public static final String NESTED_CONFIG_SEPARATOR = ".";
+    public static final String NESTED_CONFIG_SEPARATOR_ENVIRONMENT = "__";
 
     /**
      * Inspect the classpath to find storage configuration file
@@ -130,16 +159,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
-            Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
-            verifyReplacements(replacements, configBytes);
-            PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
-            constructor.setPropertyUtils(propertiesChecker);
-            Yaml yaml = new Yaml(constructor);
-            Config result = loadConfig(yaml, configBytes);
-            propertiesChecker.check();
-            maybeAddSystemProperties(result);
-            return result;
+            return loadConfig(configBytes);
         }
         catch (YAMLException e)
         {
@@ -147,23 +167,123 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
+    @VisibleForTesting
+    static Config loadConfig(byte[] configBytes)
+    {
+        SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
+        Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+        verifyReplacements(replacements, configBytes);
+        PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
+        constructor.setPropertyUtils(propertiesChecker);
+        Yaml yaml = new Yaml(constructor);
+        Config result = loadConfig(yaml, configBytes);
+        propertiesChecker.check();
+        maybeAddEnvironmentVariables(result);
+        maybeAddSystemProperties(result);
+        return result;
+    }
+
     private static void maybeAddSystemProperties(Object obj)
     {
-        if (CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES.getBoolean())
+        if (CONFIG_ALLOW_SYSTEM_PROPERTIES.getBoolean())
         {
+            Map<String, String> orderedPropertiesMap = new TreeMap<>();
             java.util.Properties props = System.getProperties();
-            Map<String, String> map = new HashMap<>();
-            for (String name : props.stringPropertyNames())
+            props.stringPropertyNames().forEach(key -> orderedPropertiesMap.put(key, props.getProperty(key)));
+
+            Map<String, Object> overridingProperties = new HashMap<>();
+            for (String originalKey : orderedPropertiesMap.keySet())
             {
-                if (name.startsWith(SYSTEM_PROPERTY_PREFIX))
+                if (originalKey.startsWith(SYSTEM_PROPERTY_PREFIX))
                 {
-                    String value = props.getProperty(name);
-                    if (value != null)
-                        map.put(name.replace(SYSTEM_PROPERTY_PREFIX, ""), value);
+                    String value = props.getProperty(originalKey);
+                    String configKey = originalKey.replace(SYSTEM_PROPERTY_PREFIX, "");
+                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey))
+                    {
+                        if (value != null && !overridingProperties.containsKey(configKey))
+                        {
+                            if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
+                                logger.warn("Detected JVM property {}={} override for Cassandra configuration '{}'.", originalKey, value, configKey);
+                            overridingProperties.put(configKey, getScalarOrJsonTree(value));
+                        }
+                    }
+                    else
+                    {
+                        logger.warn("Used sytem property variable {} to override Cassandra configuration but there is no such system property counter-part to override.", originalKey);
+                    }
                 }
             }
-            if (!map.isEmpty())
-                updateFromMap(map, false, obj);
+            if (!overridingProperties.isEmpty())
+                updateFromMap(maybeFlattenNestedProperties(overridingProperties), false, obj);
+        }
+    }
+
+    private static void maybeAddEnvironmentVariables(Object obj)
+    {
+        if (CONFIG_ALLOW_ENVIRONMENT_VARIABLES.getBoolean(CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES.getBooleanOrDefault(false)))
+        {
+            Map<String, String> orderedEnvironmentMap = new TreeMap<>(System.getenv()); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+            Map<String, Object> overridingProperties = new HashMap<>();
+            for (Map.Entry<String, String> env : orderedEnvironmentMap.entrySet())
+            {
+                String originalKey = env.getKey();
+                if (env.getKey().startsWith(ENVIRONMENT_VARIABLE_PREFIX))
+                {
+                    String configKey = LocalizeString.toLowerCaseLocalized(originalKey.replace(ENVIRONMENT_VARIABLE_PREFIX, "")
+                                                                                      .replace(NESTED_CONFIG_SEPARATOR_ENVIRONMENT, NESTED_CONFIG_SEPARATOR));
+                    String configValue = env.getValue();
+                    if (OVERRIDABLE_CONFIG_NAMES.contains(configKey))
+                    {
+                        if (configValue != null && !overridingProperties.containsKey(configKey))
+                        {
+                            if (!DatabaseDescriptor.hasLoggedConfig()) // CASSANDRA-9909: Avoid flooding config during initialization
+                                logger.warn("Detected environment variable {}={} override for Cassandra configuration '{}'.", originalKey, configValue, configKey);
+                            overridingProperties.put(configKey, getScalarOrJsonTree(configValue));
+                        }
+                    }
+                    else
+                    {
+                        logger.warn("Used environment property variable {} to override Cassandra configuration but there is no such environment property counter-part to override.", originalKey);
+                    }
+                }
+            }
+            if (!overridingProperties.isEmpty())
+                updateFromMap(maybeFlattenNestedProperties(overridingProperties), false, obj);
+        }
+    }
+
+    private static Map<String, Object> maybeFlattenNestedProperties(Map<String, Object> overridingProperties)
+    {
+        Map<String, Object> copyOfProperties = new HashMap<>(overridingProperties);
+        for (Map.Entry<String, Object> entry : overridingProperties.entrySet())
+        {
+            String[] parts = entry.getKey().split("\\.");
+            if (parts.length > 1 && !parts[parts.length - 1].equals("parameters") && !parts[parts.length - 1].equals("configurations"))
+            {
+                if (entry.getValue() instanceof Map)
+                {
+                    copyOfProperties.remove(entry.getKey());
+                    for (Map.Entry<String, Object> mapEntry : ((Map<String, Object>) entry.getValue()).entrySet())
+                    {
+                        String newKey = entry.getKey() + '.' + mapEntry.getKey();
+                        Object newValue = mapEntry.getValue();
+                        copyOfProperties.put(newKey, newValue);
+                    }
+                }
+            }
+        }
+        return copyOfProperties;
+    }
+
+    private static Object getScalarOrJsonTree(String value)
+    {
+        try
+        {
+            return JsonUtils.decodeJson(value);
+        }
+        catch (Exception e)
+        {
+            return value;
         }
     }
 
@@ -195,7 +315,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     private static void verifyReplacements(Map<Class<?>, Map<String, Replacement>> replacements, byte[] configBytes)
     {
-        LoaderOptions loaderOptions = new LoaderOptions();
+        LoaderOptions loaderOptions = getDefaultLoaderOptions();
         loaderOptions.setAllowDuplicateKeys(ALLOW_DUPLICATE_CONFIG_KEYS.getBoolean());
         Yaml rawYaml = new Yaml(loaderOptions);
 
@@ -222,17 +342,11 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
         Node node = yaml.represent(map);
-        constructor.setComposer(new Composer(null, null)
-        {
-            @Override
-            public Node getSingleNode()
-            {
-                return node;
-            }
-        });
+        constructor.setComposer(getDefaultComposer(node));
         T value = (T) constructor.getSingleData(klass);
         if (shouldCheck)
             propertiesChecker.check();
+        maybeAddEnvironmentVariables(value);
         maybeAddSystemProperties(value);
         return value;
     }
@@ -256,18 +370,41 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
         Node node = yaml.represent(map);
-        constructor.setComposer(new Composer(null, null)
+        constructor.setComposer(getDefaultComposer(node));
+        T value = (T) constructor.getSingleData(klass);
+        if (shouldCheck)
+            propertiesChecker.check();
+        return value;
+    }
+
+    public static String toYaml(Object map)
+    {
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setExplicitStart(true);
+        class NoTags extends Representer
+        {
+            public NoTags() {
+                super(options);
+                this.multiRepresenters.put(Enum.class, data -> representScalar(Tag.STR, ((Enum<?>) data).name()));
+            }
+        }
+
+        Yaml yaml = new Yaml(new NoTags(), options);
+
+        return yaml.dump(map);
+    }
+
+    private static Composer getDefaultComposer(Node node)
+    {
+        return new Composer(new ParserImpl(null), new Resolver(), getDefaultLoaderOptions())
         {
             @Override
             public Node getSingleNode()
             {
                 return node;
             }
-        });
-        T value = (T) constructor.getSingleData(klass);
-        if (shouldCheck)
-            propertiesChecker.check();
-        return value;
+        };
     }
 
     @VisibleForTesting
@@ -275,7 +412,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
         {
-            super(theRoot, classLoader);
+            super(theRoot, classLoader, getDefaultLoaderOptions());
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
@@ -344,7 +481,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             {
                 Replacement replacement = typeReplacements.get(name);
                 result = replacement.toProperty(getProperty0(type, replacement.newName));
-                
+
                 if (replacement.deprecated)
                     deprecationWarnings.add(replacement.oldName);
             }
@@ -386,7 +523,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
         private Property getProperty0(Class<? extends Object> type, String name)
         {
-            if (name.contains("."))
+            if (name.contains(NESTED_CONFIG_SEPARATOR))
                 return getNestedProperty(type, name);
             return getFlatProperty(type, name);
         }
@@ -426,5 +563,12 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 logger.warn("{} parameters have been deprecated. They have new names and/or value format; For more information, please refer to NEWS.txt", deprecationWarnings);
         }
     }
-}
 
+    public static LoaderOptions getDefaultLoaderOptions()
+    {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(64 * 1024 * 1024); // 64 MiB
+        loaderOptions.setWarnOnDuplicateKeys(false);
+        return loaderOptions;
+    }
+}

@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.util.PriorityQueue;
 import java.util.SortedSet;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -37,7 +38,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
      */
     public InMemoryKeyRangeIterator(SortedSet<PrimaryKey> keys)
     {
-        super(keys.first(), keys.last(), keys.size());
+        super(keys.first(), keys.last(), keys.size(), () -> {});
         this.keys = new PriorityQueue<>(keys);
         this.uniqueKeys = true;
     }
@@ -48,7 +49,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
      */
     public InMemoryKeyRangeIterator(PrimaryKey min, PrimaryKey max, PriorityQueue<PrimaryKey> keys)
     {
-        super(min, max, keys.size());
+        super(min, max, keys.size(), () -> {});
         this.keys = keys;
         this.uniqueKeys = false;
     }
@@ -70,7 +71,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
             if (uniqueKeys)
                 return key;
 
-            if (lastKey == null || lastKey.compareTo(key) != 0)
+            if (lastKey == null || lastKey.compareTo(key, false) != 0)
             {
                 next = key;
                 lastKey = key;
@@ -87,7 +88,7 @@ public class InMemoryKeyRangeIterator extends KeyRangeIterator
         while (!keys.isEmpty())
         {
             PrimaryKey key = keys.peek();
-            if (key.compareTo(nextKey) >= 0)
+            if (key.compareTo(nextKey, false) >= 0)
                 break;
 
             // consume smaller key

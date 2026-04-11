@@ -1,8 +1,0 @@
-== Use vector search keyspace
-
-Select the keyspace `cycling` for creating the vector search example:
-
-[source,cql]
-----
-include::cassandra:getting-started/example$CQL/use-vector-keyspace-cycling.cql[]
-----

@@ -24,10 +24,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.statements.RequestValidations;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -108,22 +119,9 @@ public class FunctionCall extends Term.NonTerminal
     {
         if (result == null)
             return null;
-        if (fun.returnType().isCollection())
-        {
-            switch (((CollectionType<?>) fun.returnType()).kind)
-            {
-                case LIST:
-                    return Lists.Value.fromSerialized(result, (ListType<?>) fun.returnType());
-                case SET:
-                    return Sets.Value.fromSerialized(result, (SetType<?>) fun.returnType());
-                case MAP:
-                    return Maps.Value.fromSerialized(result, (MapType<?, ?>) fun.returnType());
-            }
-        }
-        else if (fun.returnType().isUDT())
-        {
-            return UserTypes.Value.fromSerialized(result, (UserType) fun.returnType());
-        }
+
+        if (fun.returnType() instanceof MultiElementType<?>)
+            return MultiElements.Value.fromSerialized(result, (MultiElementType<?>) fun.returnType());
 
         return new Constants.Value(result);
     }
@@ -159,7 +157,7 @@ public class FunctionCall extends Term.NonTerminal
 
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);
+            Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type, UserFunctions.getCurrentUserFunctions(name, keyspace));
             if (fun == null)
                 throw invalidRequest("Unknown function %s called", name);
             if (fun.isAggregate())
@@ -203,7 +201,7 @@ public class FunctionCall extends Term.NonTerminal
             // later with a more helpful error message that if we were to return false here.
             try
             {
-                Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);
+                Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type, UserFunctions.getCurrentUserFunctions(name, keyspace));
 
                 // Because the return type of functions built by factories is not fixed but depending on the types of
                 // their arguments, we'll always get EXACT_MATCH.  To handle potentially ambiguous function calls with
@@ -230,7 +228,7 @@ public class FunctionCall extends Term.NonTerminal
         {
             try
             {
-                Function fun = FunctionResolver.get(keyspace, name, terms, null, null, null);
+                Function fun = FunctionResolver.get(keyspace, name, terms, null, null, null, UserFunctions.getCurrentUserFunctions(name, keyspace));
                 return fun == null ? null : fun.returnType();
             }
             catch (InvalidRequestException e)
@@ -244,6 +242,17 @@ public class FunctionCall extends Term.NonTerminal
             CqlBuilder cqlNameBuilder = new CqlBuilder();
             name.appendCqlTo(cqlNameBuilder);
             return cqlNameBuilder + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
+        }
+
+        @Override
+        public boolean containsBindMarker()
+        {
+            for (Term.Raw t : terms)
+            {
+                if (t.containsBindMarker())
+                    return true;
+            }
+            return false;
         }
     }
 }

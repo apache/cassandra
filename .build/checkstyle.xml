@@ -62,7 +62,13 @@
       <property name="idFormat" value="blockPathToFile"/>
       <property name="influenceFormat" value="0"/>
     </module>
- 
+
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: permit this invocation"/>
+      <property name="idFormat" value="blockToCases"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
+
     <module name="RegexpSinglelineJava">
       <!-- block system time -->
       <property name="id" value="blockSystemClock"/>
@@ -151,6 +157,14 @@
       <property name="message" value="Avoid Short() and use Short.valueOf()" />
     </module>
 
+    <module name="RegexpSinglelineJava">
+      <!-- block toLowerCase and toUpperCase -->
+      <property name="id" value="blockToCases"/>
+      <property name="format" value="toLowerCase\(|toUpperCase\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid toLowerCase() or toUpperCase() and use LocalizeString class instead" />
+    </module>
+
     <module name="SuppressionCommentFilter">
       <property name="offCommentFormat" value="checkstyle: suppress below '([\w\|]+)'"/>
       <property name="idFormat" value="$1"/>
@@ -169,8 +183,29 @@
       <property name="message" value="Use the CassandraRelevantProperties or CassandraRelevantEnv instead." />
     </module>
 
+    <module name="IllegalType"> <!-- usage of var check -->
+      <property name="illegalClassNames" value="var"/>
+    </module>
+
+    <module name="AvoidStarImport"/>
+    <module name="ImportOrder">
+      <property name="groups" value="java,javax,/^com\./,/^net\./,/^org\./,/^accord\./,/^org\.apache\.cassandra\./"/>
+      <property name="ordered" value="true"/>
+      <property name="separated" value="true"/>
+      <property name="option" value="bottom"/>
+      <property name="sortStaticImportsAlphabetically" value="true"/>
+    </module>
+
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+    <module name="MissingDeprecated"/>
+    <module name="MatchXpath">
+      <property name="query" value="//ANNOTATION[./IDENT[@text='Deprecated']
+              and not(./ANNOTATION_MEMBER_VALUE_PAIR/IDENT[@text='since'])]"/>
+      <message key="matchxpath.match"
+               value="'Deprecated annotation must provide 'since' value."/>
+    </module>
   </module>
 
 </module>

@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
+import java.util.function.Consumer;
+
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-
-import java.util.function.Consumer;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 
 public class Pre40MessageFilterTest extends UpgradeTestBase
 {
@@ -52,7 +52,7 @@ public class Pre40MessageFilterTest extends UpgradeTestBase
     @Test
     public void reserializePre40RequestPaxosWithoutNetworkTest() throws Throwable
     {
-        reserializePre40RequestPaxosTest(config -> {});
+        reserializePre40RequestPaxosTest(config -> config.with(Feature.GOSSIP));
     }
 
     @Test

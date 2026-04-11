@@ -32,23 +32,27 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.IGossiper;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Access methods to shared resources and services.
  * <p>
  * In many parts of the code base we reach into the global space to pull out singletons, but this makes testing much harder; the main goals for this type is to make users easier to test.
  *
- * @see {@link Global#instance} for the main production path
+ * See {@link Global#instance} for the main production path
  */
+// TODO (expected): move under Util since this is a class with shared logic
 public interface SharedContext
 {
     InetAddressAndPort broadcastAddressAndPort();
@@ -57,16 +61,38 @@ public interface SharedContext
     ExecutorFactory executorFactory();
     MBeanWrapper mbean();
     ScheduledExecutorPlus optionalTasks();
+    ScheduledExecutorPlus nonPeriodicTasks();
+    ScheduledExecutorPlus scheduledTasks();
 
     MessageDelivery messaging();
+    default SharedContext withMessaging(MessageDelivery messaging)
+    {
+        return new ForwardingSharedContext(this) {
+            @Override
+            public MessageDelivery messaging()
+            {
+                return messaging;
+            }
+        };
+    }
     IFailureDetector failureDetector();
-    IEndpointSnitch snitch();
+    Locator locator();
     IGossiper gossiper();
     ICompactionManager compactionManager();
     ActiveRepairService repair();
     IValidationManager validationManager();
     TableRepairManager repairManager(ColumnFamilyStore store);
     StreamExecutor streamExecutor();
+    PaxosRepairState paxosRepairState();
+    default Supplier<TimeUUID> timeUUID()
+    {
+        return TimeUUID.Generator::nextTimeUUID;
+    }
+
+    default ClusterMetadataService cms()
+    {
+        return ClusterMetadataService.instance();
+    }
 
     class Global implements SharedContext
     {
@@ -109,6 +135,18 @@ public interface SharedContext
         }
 
         @Override
+        public ScheduledExecutorPlus nonPeriodicTasks()
+        {
+            return ScheduledExecutors.nonPeriodicTasks;
+        }
+
+        @Override
+        public ScheduledExecutorPlus scheduledTasks()
+        {
+            return ScheduledExecutors.scheduledTasks;
+        }
+
+        @Override
         public MessageDelivery messaging()
         {
             return MessagingService.instance();
@@ -121,9 +159,9 @@ public interface SharedContext
         }
 
         @Override
-        public IEndpointSnitch snitch()
+        public Locator locator()
         {
-            return DatabaseDescriptor.getEndpointSnitch();
+            return DatabaseDescriptor.getLocator();
         }
 
         @Override
@@ -160,6 +198,135 @@ public interface SharedContext
         public StreamExecutor streamExecutor()
         {
             return StreamPlan::execute;
+        }
+
+        @Override
+        public PaxosRepairState paxosRepairState()
+        {
+            return PaxosRepairState.instance();
+        }
+    }
+
+    class ForwardingSharedContext implements SharedContext
+    {
+        private final SharedContext delegate;
+
+        public ForwardingSharedContext(SharedContext delegate)
+        {
+            this.delegate = delegate;
+        }
+
+        protected SharedContext delegate()
+        {
+            return delegate;
+        }
+
+        @Override
+        public InetAddressAndPort broadcastAddressAndPort()
+        {
+            return delegate().broadcastAddressAndPort();
+        }
+
+        @Override
+        public Supplier<Random> random()
+        {
+            return delegate().random();
+        }
+
+        @Override
+        public Clock clock()
+        {
+            return delegate().clock();
+        }
+
+        @Override
+        public ExecutorFactory executorFactory()
+        {
+            return delegate().executorFactory();
+        }
+
+        @Override
+        public MBeanWrapper mbean()
+        {
+            return delegate().mbean();
+        }
+
+        @Override
+        public ScheduledExecutorPlus optionalTasks()
+        {
+            return delegate().optionalTasks();
+        }
+
+        @Override
+        public ScheduledExecutorPlus nonPeriodicTasks()
+        {
+            return delegate().nonPeriodicTasks();
+        }
+
+        @Override
+        public ScheduledExecutorPlus scheduledTasks()
+        {
+            return delegate().scheduledTasks();
+        }
+
+        @Override
+        public MessageDelivery messaging()
+        {
+            return delegate().messaging();
+        }
+
+        @Override
+        public IFailureDetector failureDetector()
+        {
+            return delegate().failureDetector();
+        }
+
+        @Override
+        public Locator locator()
+        {
+            return delegate().locator();
+        }
+
+        @Override
+        public IGossiper gossiper()
+        {
+            return delegate().gossiper();
+        }
+
+        @Override
+        public ICompactionManager compactionManager()
+        {
+            return delegate().compactionManager();
+        }
+
+        @Override
+        public ActiveRepairService repair()
+        {
+            return delegate().repair();
+        }
+
+        @Override
+        public IValidationManager validationManager()
+        {
+            return delegate().validationManager();
+        }
+
+        @Override
+        public TableRepairManager repairManager(ColumnFamilyStore store)
+        {
+            return delegate().repairManager(store);
+        }
+
+        @Override
+        public StreamExecutor streamExecutor()
+        {
+            return delegate().streamExecutor();
+        }
+
+        @Override
+        public PaxosRepairState paxosRepairState()
+        {
+            return delegate().paxosRepairState();
         }
     }
 }

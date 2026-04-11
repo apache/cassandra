@@ -18,41 +18,77 @@
 package org.apache.cassandra.auth;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
+import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.NoOpGenerator;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.mindrot.jbcrypt.BCrypt;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.AUTH_BCRYPT_GENSALT_LOG2_ROUNDS;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * Responsible for the creation, maintenance and deletion of roles
@@ -79,13 +115,20 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * of the password itself (such as storing it in an alternative location) would
  * be added in overridden createRole and alterRole implementations.
  */
-public class CassandraRoleManager implements IRoleManager
+public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraRoleManager.class);
     private static final NoSpamLogger nospamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
     public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
+
+    @VisibleForTesting
+    static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD = "invalid_role_disconnect_task_period";
+    @VisibleForTesting
+    static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER = "invalid_role_disconnect_task_max_jitter";
+
+    public static final String MBEAN_NAME = "org.apache.cassandra.auth:type=CassandraRoleManager";
 
     /**
      * We need to treat the default superuser as a special case since during initial node startup, we may end up with
@@ -116,38 +159,77 @@ public class CassandraRoleManager implements IRoleManager
         }
     };
 
-    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
+    private static int PASSWORD_UPDATE_MIN_INTERVAL_MS = CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt();
+    // in-memory protection against excessive loadRoleWithWritetimeStatement queries
+    private static Cache<String, Boolean> recentPasswordUpdates = Caffeine.newBuilder()
+                                        .expireAfterWrite(PASSWORD_UPDATE_MIN_INTERVAL_MS, TimeUnit.MILLISECONDS)
+                                        .build();
 
-    static int getGensaltLogRounds()
+    @VisibleForTesting
+    public static synchronized void updatePasswordUpdateMinInterval(int newInterval)
     {
-        int rounds = AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getInt(10);
-        if (rounds < 4 || rounds > 30)
-            throw new ConfigurationException(String.format("Bad value for system property %s." +
-                                                           "Please use a value between 4 and 30 inclusively", AUTH_BCRYPT_GENSALT_LOG2_ROUNDS.getKey()));
-        return rounds;
+        recentPasswordUpdates = Caffeine.newBuilder().expireAfterWrite(newInterval, TimeUnit.MILLISECONDS).build();
+        PASSWORD_UPDATE_MIN_INTERVAL_MS = newInterval;
     }
 
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
+    private SelectStatement loadRoleWithWritetimeStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
 
+    private volatile ScheduledFuture<?> invalidRoleDisconnectTask;
+
+    private volatile long invalidClientDisconnectPeriodMillis;
+    private volatile long invalidClientDisconnectMaxJitterMillis;
+
     public CassandraRoleManager()
     {
-        supportedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.of(Option.LOGIN, Option.SUPERUSER);
+        this(Map.of());
+    }
+
+    public CassandraRoleManager(Map<String, String> parameters)
+    {
+        Set<Option> allowedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
+                                     ? EnumSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD, Option.GENERATED_NAME)
+                                     : EnumSet.of(Option.LOGIN, Option.SUPERUSER);
+
+        if (Guardrails.roleNamePolicy.getGenerator() != NoOpGenerator.INSTANCE)
+            allowedOptions.add(Option.OPTIONS);
+
+        supportedOptions = ImmutableSet.copyOf(allowedOptions);
         alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                         ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD)
-                         : ImmutableSet.<Option>of();
+                           ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
+                           : ImmutableSet.<Option>of();
+
+        // Inherit parsing and validation from existing config parser
+        invalidClientDisconnectPeriodMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "0h")).toMilliseconds();
+        invalidClientDisconnectMaxJitterMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER, "0h")).toMilliseconds();
+
+        if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
+            MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
     @Override
-    public void setup()
+    public void setup(boolean asyncRoleSetup)
     {
         loadRoleStatement();
         loadIdentityStatement();
+        scheduleDisconnectInvalidRoleTask();
+        if (!asyncRoleSetup)
+        {
+            try
+            {
+                // Try to set up synchronously
+                setupDefaultRole();
+                return;
+            }
+            catch (Throwable t)
+            {
+                // We tried to execute the task in a sync way, but failed. Try asynchronous setup.
+            }
+        }
         scheduleSetupTask(() -> {
             setupDefaultRole();
             return null;
@@ -218,6 +300,10 @@ public class CassandraRoleManager implements IRoleManager
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
+
+        loadRoleWithWritetimeStatement = (SelectStatement) prepare("SELECT writetime(salted_hash) AS salted_hash_writetime from %s.%s WHERE role = ?",
+                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                   AuthKeyspace.ROLES);
     }
 
 
@@ -276,6 +362,9 @@ public class CassandraRoleManager implements IRoleManager
 
     public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     {
+        if (options.getPassword().isPresent())
+            enforcePasswordUpdateRateLimit(performer, role.getRoleName());
+
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
         String assignments = optionsToAssignments(options.getOptions());
@@ -288,6 +377,20 @@ public class CassandraRoleManager implements IRoleManager
                                   escape(role.getRoleName())),
                     consistencyForRoleWrite(role.getRoleName()));
         }
+    }
+
+    @Override
+    public ResultMessage alterRoleWithResult(AuthenticatedUser performer, RoleResource role, RoleOptions options)
+    {
+        alterRole(performer, role, options);
+        return getResultMessageForRoleCreatedOrAltered(role, options);
+    }
+
+    @Override
+    public ResultMessage createRoleWithResult(AuthenticatedUser performer, RoleResource role, RoleOptions options)
+    {
+        createRole(performer, role, options);
+        return getResultMessageForRoleCreatedOrAltered(role, options);
     }
 
     public void grantRole(AuthenticatedUser performer, RoleResource role, RoleResource grantee)
@@ -417,7 +520,7 @@ public class CassandraRoleManager implements IRoleManager
      */
     private static void setupDefaultRole()
     {
-        if (StorageService.instance.getTokenMetadata().sortedTokens().isEmpty())
+        if (ClusterMetadata.current().tokenMap.tokens().isEmpty())
             throw new IllegalStateException("CassandraRoleManager skipped default role setup: no known tokens in ring");
 
         try
@@ -461,7 +564,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
         ScheduledExecutors.optionalTasks.scheduleSelfRecurring(() -> {
-            if (!StorageProxy.isSafeToPerformRead())
+            if (!StorageProxy.hasJoined())
             {
                 logger.trace("Setup task may not run due to it not being safe to perform reads... rescheduling");
                 scheduleSetupTask(setupTask);
@@ -487,7 +590,7 @@ public class CassandraRoleManager implements IRoleManager
         }
         catch (RequestValidationException e)
         {
-            throw new AssertionError(e); // not supposed to happen
+            throw new AssertionError(e + " " + FBUtilities.getJustLocalAddress()); // not supposed to happen
         }
     }
 
@@ -627,9 +730,44 @@ public class CassandraRoleManager implements IRoleManager
                       .collect(Collectors.joining(","));
     }
 
+    /**
+     * Rate limit password updates on each role.
+     * @throws OverloadedException if the password was changed within ROLE_PASSWORD_UPDATE_INTERVAL
+     */
+    private void enforcePasswordUpdateRateLimit(AuthenticatedUser performer, String roleName)
+    {
+        if (PASSWORD_UPDATE_MIN_INTERVAL_MS <= 0)
+            return;
+
+        if (Boolean.TRUE != recentPasswordUpdates.getIfPresent(roleName))
+        {
+            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRoleRead(roleName),
+                                                                 Collections.singletonList(ByteBufferUtil.bytes(roleName)));
+
+            ResultMessage.Rows rows = select(loadRoleWithWritetimeStatement, options);
+            boolean hasRecentPasswordUpdates = !rows.result.isEmpty();
+            if (hasRecentPasswordUpdates)
+            {
+                UntypedResultSet.Row row = UntypedResultSet.create(rows.result).one();
+
+                hasRecentPasswordUpdates = row.has("salted_hash_writetime")
+                                           && PASSWORD_UPDATE_MIN_INTERVAL_MS >= (Clock.Global.currentTimeMillis() - TimeUnit.MICROSECONDS.toMillis(row.getLong("salted_hash_writetime")));
+            }
+            if (!hasRecentPasswordUpdates)
+            {
+                recentPasswordUpdates.put(roleName, Boolean.TRUE);
+                logger.info(String.format("Password changing for role %s by %s", roleName, performer.getName()));
+                return;
+            }
+        }
+        String failure = String.format("Password for role %s can only be changed every %sms.", roleName, PASSWORD_UPDATE_MIN_INTERVAL_MS);
+        logger.warn(String.format("%s [performer: %s]", failure, performer.getName()));
+        throw new OverloadedException(failure);
+    }
+
     private static String hashpw(String password)
     {
-        return BCrypt.hashpw(password, BCrypt.gensalt(GENSALT_LOG2_ROUNDS));
+        return BCrypt.hashpw(password, PasswordSaltSupplier.get());
     }
 
     private static String escape(String name)
@@ -678,7 +816,7 @@ public class CassandraRoleManager implements IRoleManager
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(forInternalCalls(), options, nanoTime());
+        return statement.execute(forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Override
@@ -702,5 +840,125 @@ public class CassandraRoleManager implements IRoleManager
             );
             return entries;
         };
+    }
+
+    protected void disconnectInvalidRoles()
+    {
+        // This should always run with jitter, otherwise there's a risk that all nodes disconnect clients at the same time
+        StorageService.instance.disconnectInvalidRoles();
+    }
+
+    protected void invalidRoleDisconnectTask(LongSupplier delayMillis, ScheduledExecutorService executor)
+    {
+        try
+        {
+            disconnectInvalidRoles();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Failed to disconnect invalid roles", e);
+        }
+
+        long nextDelayMillis = delayMillis.getAsLong();
+        logger.info("Scheduling next invalid role disconnection in {} millis", nextDelayMillis);
+        this.invalidRoleDisconnectTask = executor.schedule(() -> invalidRoleDisconnectTask(delayMillis, executor), nextDelayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    protected void scheduleDisconnectInvalidRoleTask()
+    {
+        // Cancel any pending execution if it exists, since we may have changed period / jitter parameters
+        if (this.invalidRoleDisconnectTask != null)
+        {
+            logger.debug("Canceling previous invalidRoleDisconnectTask");
+            this.invalidRoleDisconnectTask.cancel(true);
+        }
+
+        long period = getInvalidClientDisconnectPeriodMillis();
+        long jitter = getInvalidClientDisconnectMaxJitterMillis();
+        if (period <= 0)
+        {
+            logger.info("Invalid role disconnection is disabled");
+            return;
+        }
+        LongSupplier delayMillis = () -> period + ThreadLocalRandom.current().nextLong(0, jitter);
+        long firstDelayMillis = delayMillis.getAsLong();
+        ScheduledExecutorPlus executor = ScheduledExecutors.optionalTasks;
+
+        logger.debug("Scheduling first invalid role disconnection in {} millis", firstDelayMillis);
+        this.invalidRoleDisconnectTask = executor.schedule(() -> invalidRoleDisconnectTask(delayMillis, executor), firstDelayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public long getInvalidClientDisconnectPeriodMillis()
+    {
+        return this.invalidClientDisconnectPeriodMillis;
+    }
+
+    @Override
+    public void setInvalidClientDisconnectPeriodMillis(long duration)
+    {
+        this.invalidClientDisconnectPeriodMillis = duration;
+        scheduleDisconnectInvalidRoleTask();
+    }
+
+    @Override
+    public long getInvalidClientDisconnectMaxJitterMillis()
+    {
+        return this.invalidClientDisconnectMaxJitterMillis;
+    }
+
+    @Override
+    public void setInvalidClientDisconnectMaxJitterMillis(long duration)
+    {
+        this.invalidClientDisconnectMaxJitterMillis = duration;
+        scheduleDisconnectInvalidRoleTask();
+    }
+
+    private static final ColumnSpecification GENERATED_PASSWORD_METADATA = new ColumnSpecification(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                   "generated_password",
+                                                                                                   new ColumnIdentifier("generated_password", true),
+                                                                                                   UTF8Type.instance);
+
+    private static final ColumnSpecification GENERATED_ROLE_NAME_METADATA = new ColumnSpecification(SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                    "generated_role_name",
+                                                                                                    new ColumnIdentifier("generated_role_name", true),
+                                                                                                    UTF8Type.instance);
+
+    protected ResultMessage getResultMessageForRoleCreatedOrAltered(RoleResource role, RoleOptions opts)
+    {
+        if (!opts.isGeneratedPassword() && !opts.isGeneratedName())
+            return null;
+
+        ResultSet resultSet = null;
+
+        if (opts.isGeneratedPassword() && !opts.isGeneratedName())
+        {
+            if (opts.getPassword().isEmpty())
+                return null;
+
+            resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_PASSWORD_METADATA)));
+            resultSet.addColumnValue(bytes(opts.getPassword().get()));
+        }
+        else if (!opts.isGeneratedPassword() && opts.isGeneratedName())
+        {
+            resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_ROLE_NAME_METADATA)));
+            resultSet.addColumnValue(bytes(role.getRoleName()));
+        }
+        else if (opts.isGeneratedName() && opts.isGeneratedPassword())
+        {
+            if (opts.getPassword().isEmpty())
+            {
+                resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_ROLE_NAME_METADATA)));
+                resultSet.addColumnValue(bytes(role.getRoleName()));
+            }
+            else
+            {
+                resultSet = new ResultSet(new ResultSet.ResultMetadata(List.of(GENERATED_PASSWORD_METADATA, GENERATED_ROLE_NAME_METADATA)));
+                resultSet.addColumnValue(bytes(opts.getPassword().get()));
+                resultSet.addColumnValue(bytes(role.getRoleName()));
+            }
+        }
+
+        return new ResultMessage.Rows(resultSet);
     }
 }

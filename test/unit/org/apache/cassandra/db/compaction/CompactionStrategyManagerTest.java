@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,6 +35,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -42,6 +44,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderPrepareServer;
+import org.apache.cassandra.CassandraTestBase.UseByteOrderedPartitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -53,15 +58,13 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -72,27 +75,27 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class CompactionStrategyManagerTest
+/**
+ * We use byte ordered partitioner in this test to be able to easily infer an SSTable
+ * disk assignment based on its generation - See {@link this#getSSTableIndex(Integer[], SSTableReader)}
+ */
+@SchemaLoaderPrepareServer
+@UseByteOrderedPartitioner
+public class CompactionStrategyManagerTest extends CassandraTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyManagerTest.class);
 
     private static final String KS_PREFIX = "Keyspace1";
     private static final String TABLE_PREFIX = "CF_STANDARD";
 
-    private static IPartitioner originalPartitioner;
     private static boolean backups;
 
     @BeforeClass
     public static void beforeClass()
     {
-        SchemaLoader.prepareServer();
         backups = DatabaseDescriptor.isIncrementalBackupsEnabled();
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
-        /**
-         * We use byte ordered partitioner in this test to be able to easily infer an SSTable
-         * disk assignment based on its generation - See {@link this#getSSTableIndex(Integer[], SSTableReader)}
-         */
-        originalPartitioner = StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
         SchemaLoader.createKeyspace(KS_PREFIX,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KS_PREFIX, TABLE_PREFIX)
@@ -109,7 +112,6 @@ public class CompactionStrategyManagerTest
     @AfterClass
     public static void afterClass()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
         DatabaseDescriptor.setIncrementalBackupsEnabled(backups);
     }
 
@@ -362,7 +364,7 @@ public class CompactionStrategyManagerTest
 
         DiskBoundaries boundaries = new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(),
                                                        Lists.newArrayList(forKey(100), forKey(200), forKey(300)),
-                                                       10, 10);
+                                                       Epoch.create(10), 10);
 
         CompactionStrategyManager csm = new CompactionStrategyManager(cfs, () -> boundaries, true);
 
@@ -431,6 +433,61 @@ public class CompactionStrategyManagerTest
             CompactionStrategyManager.sumCountsByBucket(ImmutableList.of(
                 Collections.emptyMap(),
                 Collections.emptyMap()), CompactionStrategyManager.TWCS_BUCKET_COUNT_MAX));
+    }
+
+    @Test
+    public void testAverageArrayFinalizer()
+    {
+        CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
+        Random random = new Random();
+        data.numberOfLevels = random.nextInt(32);
+
+        for (int i = 0; i < data.numberOfLevels; i++) {
+            data.sum[i] = random.nextInt(250);
+            data.count[i] = random.nextInt(10);
+        }
+
+        double[] res = CompactionStrategyManager.averageArrayFinalizer(data);
+        assertEquals(res.length, data.numberOfLevels);
+        for (int i = 0; i < data.numberOfLevels; i++)
+            if (data.count[i] == 0)
+                assertEquals(0, res[i], 0.0);
+            else
+                assertEquals(data.sum[i] / data.count[i], res[i], 0.1);
+    }
+
+    @Test
+    public void testMaxArrayFinalizer()
+    {
+        CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
+        Random random = new Random();
+        data.numberOfLevels = random.nextInt(32);
+
+        for (int i = 0; i < data.numberOfLevels; i++)
+            data.max[i] = random.nextInt(250);
+
+        double[] res = CompactionStrategyManager.maxArrayFinalizer(data);
+        assertEquals(res.length, data.numberOfLevels);
+        for (int i = 0; i < data.numberOfLevels; i++)
+            assertEquals(data.max[i], res[i], 0.0);
+    }
+
+    @Test
+    public void testRatioArrayFinalizer()
+    {
+        CompactionStrategyManager.CompactionStatsMetricsData data = new CompactionStrategyManager.CompactionStatsMetricsData();
+        Random random = new Random();
+        data.numberOfLevels = random.nextInt(32);
+
+        for (int i = 0; i < data.numberOfLevels; i++) {
+            data.sum[i] = random.nextInt(250);
+            data.max[i] = 250 + random.nextInt(500);
+        }
+
+        double[] res = CompactionStrategyManager.ratioArrayFinalizer(data);
+        assertEquals(res.length, data.numberOfLevels);
+        for (int i = 0; i < data.numberOfLevels; i++)
+            assertEquals(data.sum[i] / data.max[i], res[i], 0.1);
     }
 
     private MockCFS createJBODMockCFS(int disks)
@@ -530,7 +587,7 @@ public class CompactionStrategyManagerTest
         private DiskBoundaries createDiskBoundaries(ColumnFamilyStore cfs, Integer[] boundaries)
         {
             List<PartitionPosition> positions = Arrays.stream(boundaries).map(b -> Util.token(String.format(String.format("%04d", b))).minKeyBound()).collect(Collectors.toList());
-            return new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(), positions, 0, 0);
+            return new DiskBoundaries(cfs, cfs.getDirectories().getWriteableLocations(), positions, Epoch.create(0), 0);
         }
     }
 
@@ -555,7 +612,7 @@ public class CompactionStrategyManagerTest
     {
         MockCFS(ColumnFamilyStore cfs, Directories dirs)
         {
-            super(cfs.keyspace, cfs.getTableName(), Util.newSeqGen(), cfs.metadata, dirs, false, false, true);
+            super(cfs.keyspace, cfs.getTableName(), Util.newSeqGen(), cfs.metadata.get(), dirs, false, false);
         }
     }
 
@@ -566,7 +623,7 @@ public class CompactionStrategyManagerTest
 
         private MockCFSForCSM(ColumnFamilyStore cfs, CountDownLatch latch, AtomicInteger upgradeTaskCount)
         {
-            super(cfs.keyspace, cfs.name, Util.newSeqGen(10), cfs.metadata, cfs.getDirectories(), true, false, false);
+            super(cfs.keyspace, cfs.name, Util.newSeqGen(10), cfs.metadata.get(), cfs.getDirectories(), true, false);
             this.latch = latch;
             this.upgradeTaskCount = upgradeTaskCount;
         }

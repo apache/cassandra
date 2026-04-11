@@ -17,21 +17,31 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Map;
+
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.ForwardingInfo;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.tracing.Tracing;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
-public class MutationVerbHandler implements IVerbHandler<Mutation>
+public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
-    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
+    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress, Map<ParamType, Object> params)
     {
         Tracing.trace("Enqueuing response to {}", respondToAddress);
-        MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
+        Message<?> response = respondTo.emptyResponse();
+        if (!params.isEmpty())
+            response = response.withParams(params);
+        MessagingService.instance().send(response, respondToAddress);
     }
 
     private void failed()
@@ -41,9 +51,17 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
 
     public void doVerb(Message<Mutation> message)
     {
-        message.payload.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
+        if (approxTime.now() > message.expiresAtNanos())
+        {
+            Tracing.trace("Discarding mutation from {} (timed out)", message.from());
+            MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+            return;
+        }
 
-        // Check if there were any forwarding headers in this message
+        MessageParams.reset();
+        message.payload.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
+        WriteThresholds.checkWriteThresholds(message.payload);
+
         ForwardingInfo forwardTo = message.forwardTo();
         if (forwardTo != null)
             forwardToLocalNodes(message, forwardTo);
@@ -51,12 +69,18 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         InetAddressAndPort respondToAddress = message.respondTo();
         try
         {
-            message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());
+            processMessage(message, respondToAddress);
         }
         catch (WriteTimeoutException wto)
         {
             failed();
         }
+    }
+
+    protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
+    {
+        Map<ParamType, Object> params = MessageParams.capture();
+        message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress, params), wto -> failed());
     }
 
     private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)

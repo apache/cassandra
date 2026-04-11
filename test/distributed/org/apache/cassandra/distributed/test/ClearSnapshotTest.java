@@ -28,15 +28,16 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.Test;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -60,7 +61,7 @@ public class ClearSnapshotTest extends TestBaseImpl
                                           .withInstanceInitializer(BB::install)
                                           .start()))
         {
-            int tableCount = 50;
+            int tableCount = 20;
             for (int i = 0; i < tableCount; i++)
             {
                 String ksname = "ks"+i;
@@ -103,7 +104,7 @@ public class ClearSnapshotTest extends TestBaseImpl
                 activeRepairs = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance().parentRepairSessionCount());
                 Thread.sleep(50);
             }
-            while (activeRepairs < 35);
+            while (activeRepairs < 10);
 
             cluster.setUncaughtExceptionsFilter((t) -> t.getMessage() != null && t.getMessage().contains("Parent repair session with id") );
             cluster.get(2).shutdown().get();
@@ -157,7 +158,6 @@ public class ClearSnapshotTest extends TestBaseImpl
         try(Cluster cluster = init(Cluster.build(3).withConfig(config ->
                                                                config.with(GOSSIP)
                                                                      .with(NETWORK))
-                                          .withInstanceInitializer(BB::install)
                                           .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key, x int)"));

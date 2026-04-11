@@ -22,6 +22,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.utils.Shared;
 
@@ -45,7 +46,7 @@ public class Undead
     @Shared
     public static class State
     {
-        public static volatile boolean enabled = true;
+        public static volatile boolean enabled = false;
     }
 
     public static class BB

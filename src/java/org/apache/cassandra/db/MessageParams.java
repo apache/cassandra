@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.db;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class MessageParams
 {
@@ -63,6 +65,22 @@ public class MessageParams
     public static void reset()
     {
         get().clear();
+    }
+
+    /**
+     * Capture the current MessageParams for use across threads.
+     * This returns a copy of the current ThreadLocal params, which can be safely
+     * passed to async callbacks that may run on different threads.
+     *
+     * @return immutable copy of current params, or empty map if none
+     */
+    public static Map<ParamType, Object> capture()
+    {
+        Map<ParamType, Object> current = local.get();
+        if (current == null || current.isEmpty())
+            return Collections.emptyMap();
+
+        return new EnumMap<>(current);
     }
 
     public static <T> Message<T> addToMessage(Message<T> message)

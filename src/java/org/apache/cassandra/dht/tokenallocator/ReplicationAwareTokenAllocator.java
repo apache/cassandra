@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.dht.tokenallocator;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.PriorityQueue;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;

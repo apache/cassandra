@@ -23,14 +23,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -38,24 +32,29 @@ import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.SuperMethod;
 import net.bytebuddy.implementation.bind.annotation.This;
+
+import org.assertj.core.api.Assertions;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.CasWriteTimeoutException;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.utils.AssertionUtils;
-import org.apache.cassandra.exceptions.CasWriteTimeoutException;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.paxos.Paxos;
-import org.apache.cassandra.utils.concurrent.Awaitable;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
-import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -81,6 +80,11 @@ public class RequestTimeoutTest extends TestBaseImpl
     @AfterClass
     public static void cleanup()
     {
+        CLUSTER.forEach(i -> {
+            i.runOnInstance(() -> {
+                BB.ENABLED = false;
+            });
+        });
         if (CLUSTER != null)
             CLUSTER.close();
     }
@@ -191,12 +195,14 @@ public class RequestTimeoutTest extends TestBaseImpl
 
     public static class BB
     {
+        private static boolean ENABLED = true;
+
         public static void install(ClassLoader cl, int num)
         {
             if (num != COORDINATOR)
                 return;
             new ByteBuddy().rebase(Condition.Async.class)
-                           .method(named("await").and(takesArguments(2)))
+                           .method(named("awaitUntil").and(takesArguments(long.class)))
                            .intercept(MethodDelegation.to(BB.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
@@ -208,14 +214,21 @@ public class RequestTimeoutTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static boolean await(long time, TimeUnit units, @This Awaitable self, @SuperMethod Method method) throws InterruptedException, InvocationTargetException, IllegalAccessException
+        public static boolean awaitUntil(long deadlineNanos, @This Condition.Async self, @SuperMethod Method method) throws InterruptedException, InvocationTargetException, IllegalAccessException
         {
+            if (!ENABLED)
+                return (boolean) method.invoke(self, deadlineNanos);
+
+            boolean res = false;
             // make sure that the underline condition is met before returnning true
             // this way its know that the timeouts triggered!
-            while (!((boolean) method.invoke(self, time, units)))
+            while (ENABLED)
             {
+                res = (boolean) method.invoke(self, deadlineNanos);
+                if (res)
+                    return true;
             }
-            return true;
+            return res;
         }
 
         private static final AtomicInteger TIMEOUTS = new AtomicInteger(0);

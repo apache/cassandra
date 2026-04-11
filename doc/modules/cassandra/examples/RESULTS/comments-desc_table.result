@@ -1,0 +1,21 @@
+CREATE TABLE cycling.comments (
+    id uuid,
+    created_at timestamp,
+    comment text,
+    commenter text,
+    record_id timeuuid,
+    PRIMARY KEY (id, created_at)
+) WITH CLUSTERING ORDER BY (created_at DESC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'NONE', 'rows_per_partition': '10'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'enabled': 'true', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.DeflateCompressor'}
+    AND crc_check_chance = 1.0
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND speculative_retry = '99PERCENTILE';
+

@@ -27,7 +27,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -36,6 +38,20 @@ import static org.apache.cassandra.db.marshal.ValueAccessors.ACCESSORS;
 
 public class CollectionTypesTest
 {
+
+    private static final TestNativeDataAllocator allocator = new TestNativeDataAllocator();
+    @BeforeClass
+    public static void setSetMemoryAllocator()
+    {
+        NativeAccessor.setNativeMemoryAllocator(allocator);
+    }
+
+    @AfterClass
+    public static void releaseMemory()
+    {
+        allocator.close();
+    }
+
     interface TypeFactory<T extends CollectionType> { T createType(AbstractType<?> keyType, AbstractType<?> valType); }
     interface ValueFactory<T> { T createValue(ValueGenerator keyGen, ValueGenerator valGen, int size, Random random); }
 
@@ -68,6 +84,7 @@ public class CollectionTypesTest
                         Assert.assertEquals(srcString, dstString);
                     }
                 }
+                allocator.releaseMemory();
             }
         }
     }

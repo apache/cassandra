@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +57,7 @@ import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
  * Layout of Memory for index summaries:
  *
  * There are two sections:
- *  1. A "header" containing the offset into `bytes` of entries in the summary summary data, consisting of
+ *  1. A "header" containing the offset into `bytes` of entries in the summary data, consisting of
  *     one four byte position for each entry in the summary.  This allows us do simple math in getIndex()
  *     to find the position in the Memory to start reading the actual index summary entry.
  *     (This is necessary because keys can have different lengths.)
@@ -422,7 +423,6 @@ public class IndexSummary extends WrappedSharedCloseable
             out.write(t.entries, 0, t.entriesLength);
         }
 
-        @SuppressWarnings("resource")
         public <T extends InputStream & DataInputPlus> IndexSummary deserialize(T in, IPartitioner partitioner, int expectedMinIndexInterval, int maxIndexInterval) throws IOException
         {
             int minIndexInterval = in.readInt();
@@ -456,6 +456,18 @@ public class IndexSummary extends WrappedSharedCloseable
                 offsets.free();
                 entries.free();
                 throw ioe;
+            }
+
+            // Before 5.0 offsets were written using Native Endian, now they are stored as Little Endian,
+            // so we apply a heuristic here to detect
+            // if the loading index summary was created on a Big Endian machine using Native Endian format
+            if (offsets.size() > 0)
+            {
+                int offset = offsets.getInt(0);
+                int offsetReversed = Integer.reverseBytes(offset);
+                if (offsetReversed > 0 && offset > offsetReversed || offset - offsets.size() < 0)
+                    throw new IOException(String.format("Rebuilding index summary because offset value (%d) at position: %d " +
+                                                        "is Big Endian while Little Endian is expected", offset, 0));
             }
             // our on-disk representation treats the offsets and the summary data as one contiguous structure,
             // in which the offsets are based from the start of the structure. i.e., if the offsets occupy

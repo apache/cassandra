@@ -27,19 +27,22 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+
+import org.assertj.core.api.AbstractStringAssert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.Closeable;
-import org.assertj.core.api.AbstractStringAssert;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 
@@ -64,7 +67,9 @@ public class FailingRepairFuzzTest extends FuzzTestBase
             {
                 Cluster.Node coordinator = coordinatorGen.next(rs);
 
-                RepairCoordinator repair = coordinator.repair(KEYSPACE, repairOption(rs, coordinator, KEYSPACE, TABLES), false);
+                // exclude accord repair as this test breaks validation/sync; which accord doesn't have
+                RepairOption options = repairOption(rs, coordinator, KEYSPACE, TABLES);
+                RepairCoordinator repair = coordinator.repair(KEYSPACE, options, false);
                 repair.run();
                 InetAddressAndPort failingAddress = pickParticipant(rs, coordinator, repair);
                 Cluster.Node failingNode = cluster.nodes.get(failingAddress);
@@ -114,6 +119,7 @@ public class FailingRepairFuzzTest extends FuzzTestBase
                 }
 
                 cluster.processAll();
+                Assertions.assertThat(repair.state.isComplete()).describedAs("Repair job did not complete, and no work is pending...").isTrue();
                 Assertions.assertThat(repair.state.getResult().kind).describedAs("Unexpected state: %s -> %s; example %d", repair.state, repair.state.getResult(), example).isEqualTo(Completable.Result.Kind.FAILURE);
                 switch (stage)
                 {
@@ -154,6 +160,7 @@ public class FailingRepairFuzzTest extends FuzzTestBase
                     default:
                         throw new IllegalArgumentException("Unknown stage: " + stage);
                 }
+                assertParticipateResult(cluster, repair, Completable.Result.Kind.FAILURE);
                 closeables.forEach(Closeable::close);
                 closeables.clear();
             }

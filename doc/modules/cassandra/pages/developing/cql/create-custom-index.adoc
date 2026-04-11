@@ -28,12 +28,12 @@ See the xref:cassandra:developing/cql/indexing/sai/sai-overview.adoc[SAI section
 
 // tag::syntax[]
 ----
-CREATE CUSTOM INDEX [ IF NOT EXISTS ] [ <index_name> ]
+CREATE [CUSTOM] INDEX [ IF NOT EXISTS ] [ <index_name> ]
   ON [ <keyspace_name>.]<table_name> (<column_name>)
     | [ (KEYS(<map_name>)) ]
     | [ (VALUES(<map_name>)) ]
     | [ (ENTRIES(<map_name>)) ]
-  USING 'StorageAttachedIndex'
+  USING 'sai'
   [ WITH OPTIONS = { <option_map> } ] ;
 ----
 // end::syntax[]
@@ -156,9 +156,9 @@ Creating multiple SAI indexes with different map types *on the same column* requ
 
 [source,language-cql]
 ----
-CREATE CUSTOM INDEX ON audit (KEYS(text_map)) USING 'StorageAttachedIndex';
-CREATE CUSTOM INDEX ON audit (VALUES(text_map)) USING 'StorageAttachedIndex';
-CREATE CUSTOM INDEX ON audit (ENTRIES(text_map)) USING 'StorageAttachedIndex';
+CREATE INDEX ON audit (KEYS(text_map)) USING 'sai';
+CREATE INDEX ON audit (VALUES(text_map)) USING 'sai';
+CREATE INDEX ON audit (ENTRIES(text_map)) USING 'sai';
 ----
 
 Insert some data:
@@ -321,7 +321,7 @@ Create an SAI index using the collection's `years` column.
 
 [source,language-cql]
 ----
-CREATE CUSTOM INDEX ON calendar(years) USING 'StorageAttachedIndex';
+CREATE INDEX ON calendar(years) USING 'sai';
 ----
 
 Insert some random `int` list data for `years`, just for demo purposes.
@@ -381,7 +381,7 @@ Create an SAI index using the collection's `years` column -- this time for the `
 
 [source,language-cql]
 ----
-CREATE CUSTOM INDEX ON calendar2(years) USING 'StorageAttachedIndex';
+CREATE INDEX ON calendar2(years) USING 'sai';
 ----
 
 Insert some random `int` set data for `years`, again just for demo purposes.

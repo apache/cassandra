@@ -23,12 +23,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 
-import com.google.common.collect.ListMultimap;
-
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.ColumnMetadata.Kind;
 import org.apache.cassandra.utils.FBUtilities;
@@ -37,22 +35,25 @@ import static org.apache.cassandra.index.sai.plan.Operation.BooleanOperator;
 
 /**
  * Tree-like structure to filter base table data using indexed expressions and non-user-defined filters.
- *
+ * <p>
  * This is needed because:
  * 1. SAI doesn't index tombstones, base data may have been shadowed.
  * 2. Replica filter protecting may fetch data that doesn't match index expressions.
  */
 public class FilterTree
 {
-    protected final BooleanOperator op;
-    protected final ListMultimap<ColumnMetadata, Expression> expressions;
+    protected final BooleanOperator baseOperator;
+    protected final Operation.Expressions expressions;
     protected final List<FilterTree> children = new ArrayList<>();
+    private final boolean isStrict;
+    private final QueryContext context;
 
-    FilterTree(BooleanOperator operation,
-               ListMultimap<ColumnMetadata, Expression> expressions)
+    FilterTree(BooleanOperator baseOperator, Operation.Expressions expressions, boolean isStrict, QueryContext context)
     {
-        this.op = operation;
+        this.baseOperator = baseOperator;
         this.expressions = expressions;
+        this.isStrict = isStrict;
+        this.context = context;
     }
 
     void addChild(FilterTree child)
@@ -60,58 +61,118 @@ public class FilterTree
         children.add(child);
     }
 
-    public boolean isSatisfiedBy(DecoratedKey key, Unfiltered unfiltered, Row staticRow)
+    /**
+     * @return true if this node of the tree or any of its children filter a non-static column
+     */
+    public boolean restrictsNonStaticRow()
     {
-        boolean result = localSatisfiedBy(key, unfiltered, staticRow);
+        for (ColumnMetadata column : expressions.columns())
+            if (!column.isStatic())
+                return true;
 
         for (FilterTree child : children)
-            result = op.apply(result, child.isSatisfiedBy(key, unfiltered, staticRow));
+            if (child.restrictsNonStaticRow())
+                return true;
+
+        return false;
+    }
+
+    public boolean isSatisfiedBy(DecoratedKey key, Row row, Row staticRow)
+    {
+        boolean result = localSatisfiedBy(key, row, staticRow);
+
+        for (FilterTree child : children)
+            result = baseOperator.apply(result, child.isSatisfiedBy(key, row, staticRow));
 
         return result;
     }
 
-    private boolean localSatisfiedBy(DecoratedKey key, Unfiltered unfiltered, Row staticRow)
+    private boolean localSatisfiedBy(DecoratedKey key, Row row, Row staticRow)
     {
-        if (unfiltered == null || !unfiltered.isRow())
+        if (row == null)
             return false;
 
         final long now = FBUtilities.nowInSeconds();
-        boolean result = op == BooleanOperator.AND;
+        // Downgrade AND to OR unless the coordinator indicates strict filtering is safe or all matches are repaired:
+        BooleanOperator localOperator = (isStrict || !context.hasUnrepairedMatches) ? baseOperator : BooleanOperator.OR;
+        boolean result = localOperator == BooleanOperator.AND;
 
-        Iterator<ColumnMetadata> columnIterator = expressions.keySet().iterator();
+        // If all matches on indexed columns are repaired, strict filtering is not allowed, and there are multiple
+        // unindexed column expressions, isolate the expressions on unindexed columns and union their results:
+        boolean isolateUnindexed = !context.hasUnrepairedMatches && !isStrict && expressions.hasMultipleUnindexedColumns();
+        boolean unindexedResult = false;
+
+        Iterator<ColumnMetadata> columnIterator = expressions.columns().iterator();
         while (columnIterator.hasNext())
         {
             ColumnMetadata column = columnIterator.next();
-            Row row = column.kind == Kind.STATIC ? staticRow : (Row) unfiltered;
+            Row localRow = column.kind == Kind.STATIC ? staticRow : row;
 
-            // If there is a column with multiple expressions that can mean an OR or (in the case of map
+            // If there is a column with multiple expressions that can mean an OR, or (in the case of map
             // collections) it can mean different map indexes.
-            List<Expression> filters = expressions.get(column);
+            List<Expression> filters = expressions.expressionsFor(column);
 
             // We do a reverse iteration over the filters because NOT_EQ operations will be at the end
             // of the filter list, and we want to check them first.
             ListIterator<Expression> filterIterator = filters.listIterator(filters.size());
-            while (filterIterator.hasPrevious())
+
+            if (isolateUnindexed && expressions.isUnindexed(column))
             {
-                Expression filter = filterIterator.previous();
+                // If we isolate unindexed column expressions, we're implicitly calculating the union of those 
+                // expressions. Once we've matched on any column, we can skip the rest, if any exist.
+                if (unindexedResult)
+                    continue;
 
-                if (TypeUtil.isNonFrozenCollection(column.type))
+                while (filterIterator.hasPrevious())
                 {
-                    Iterator<ByteBuffer> valueIterator = filter.context.getValuesOf(row, now);
-                    result = op.apply(result, collectionMatch(valueIterator, filter));
+                    Expression filter = filterIterator.previous();
+                    unindexedResult = applyFilter(key, now, BooleanOperator.OR, unindexedResult, localRow, filter);
                 }
-                else
+            }
+            else
+            {
+                while (filterIterator.hasPrevious())
                 {
-                    ByteBuffer value = filter.context.getValueOf(key, row, now);
-                    result = op.apply(result, singletonMatch(value, filter));
-                }
+                    Expression filter = filterIterator.previous();
+                    result = applyFilter(key, now, localOperator, result, localRow, filter);
 
-                // If the operation is an AND then exit early if we get a single false
-                if (op == BooleanOperator.AND && !result)
-                    return false;
+                    // If the operation is an AND then exit early if we get a single false
+                    if ((localOperator == BooleanOperator.AND) && !result)
+                        return false;
+
+                    // If the operation is an OR then exit early if we get a single true
+                    if (localOperator == BooleanOperator.OR && result)
+                        return true;
+                }
             }
         }
+
+        if (isolateUnindexed)
+            // If we had to isolate the unindexed column expressions, combine with the indexed column result. Note that
+            // the indexed result must be true at this point if it was evaluated with the AND operator:
+            return localOperator == BooleanOperator.AND ? unindexedResult : result || unindexedResult;
+
         return result;
+    }
+
+    private boolean applyFilter(DecoratedKey key, long now, BooleanOperator operator, boolean result, Row row, Expression expression)
+    {
+        if (expression.getIndexTermType().isNonFrozenCollection())
+        {
+            Iterator<ByteBuffer> valueIterator = expression.getIndexTermType().valuesOf(row, now);
+            return operator.apply(result, collectionMatch(valueIterator, expression));
+        }
+        else if (expression.getIndexTermType().isFrozenCollection() && expression.getIndexTermType().indexTargetType() != IndexTarget.Type.FULL)
+        {
+            Iterator<ByteBuffer> valueIterator = expression.getIndexTermType().valuesOfFrozenCollection(row, now);
+            boolean matchResult = collectionMatch(valueIterator, expression);
+            return operator.apply(result, matchResult);
+        }
+        else
+        {
+            ByteBuffer value = expression.getIndexTermType().valueOf(key, row, now);
+            return operator.apply(result, singletonMatch(value, expression));
+        }
     }
 
     private boolean singletonMatch(ByteBuffer value, Expression filter)
@@ -127,6 +188,7 @@ public class FilterTree
         while (valueIterator.hasNext())
         {
             ByteBuffer value = valueIterator.next();
+
             if (value == null)
                 continue;
 

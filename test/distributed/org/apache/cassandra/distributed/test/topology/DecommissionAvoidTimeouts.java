@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test.topology;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -32,12 +31,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
@@ -51,8 +51,6 @@ import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.Coordinators;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
-import org.apache.cassandra.distributed.util.byterewrite.StatusChangeListener;
-import org.apache.cassandra.distributed.util.byterewrite.StatusChangeListener.Hooks;
 import org.apache.cassandra.distributed.util.byterewrite.Undead;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -62,22 +60,26 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
 
 public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
 {
     public static final int DECOM_NODE = 6;
 
     @Test
-    public void test() throws IOException
+    public void test() throws Exception
     {
+        IInvokableInstance paused = null;
         try (Cluster cluster = Cluster.build(8)
                                       .withRacks(2, 4)
                                       .withInstanceInitializer(new BB())
-                                      .withConfig(c -> c.with(Feature.GOSSIP)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
                                                         .set("transfer_hints_on_decommission", false)
                                                         .set("severity_during_decommission", 10000D)
                                                         .set("dynamic_snitch_badness_threshold", 0))
@@ -90,7 +92,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 3, 'datacenter2': 3}");
             String table = KEYSPACE + ".tbl";
             cluster.schemaChange("CREATE TABLE " + table + " (pk blob PRIMARY KEY)");
-
+            cluster.forEach(i -> i.runOnInstance(() -> Undead.State.enabled = true));
             List<IInvokableInstance> dc1 = cluster.get(1, 2, 3, 4);
             List<IInvokableInstance> dc2 = cluster.get(5, 6, 7, 8);
             IInvokableInstance toDecom = dc2.get(1);
@@ -103,17 +105,16 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                 toDecom.coordinator().execute("INSERT INTO " + table + "(pk) VALUES (?)", ConsistencyLevel.EACH_QUORUM, key);
             }
 
+            paused = cluster.get(1);
+            Callable<?> pending = pauseBeforeCommit(paused, (e) -> e instanceof PrepareLeave.StartLeave);
             CompletableFuture<Void> nodetool = CompletableFuture.runAsync(() -> toDecom.nodetoolResult("decommission").asserts().success());
-
-            Hooks statusHooks = StatusChangeListener.hooks(DECOM_NODE);
-            statusHooks.leaving.awaitAndEnter();
-            // make sure all nodes see the severity change
             ClusterUtils.awaitGossipStateMatch(cluster, cluster.get(DECOM_NODE), ApplicationState.SEVERITY);
-            cluster.forEach(i -> i.runOnInstance(() -> ((DynamicEndpointSnitch) DatabaseDescriptor.getEndpointSnitch()).updateScores()));
+            pending.call();
+            unpauseCommits(paused);
+            paused = null;
 
-            statusHooks.leave.await();
+            cluster.forEach(i -> i.runOnInstance(() -> ((DynamicEndpointSnitch) DatabaseDescriptor.getNodeProximity()).updateScores()));
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).drop();
-            statusHooks.leave.enter();
 
             nodetool.join();
 
@@ -172,6 +173,12 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                 // ignore
             }
         }
+        finally
+        {
+            if (paused != null)
+                unpauseCommits(paused);
+
+        }
     }
 
     protected abstract String getQuery(String table);
@@ -192,16 +199,12 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                            .method(named("sortedByProximity")).intercept(MethodDelegation.to(BB.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
-
-            if (node != DECOM_NODE) return;
-            StatusChangeListener.install(cl, node, StatusChangeListener.Status.LEAVING, StatusChangeListener.Status.LEAVE);
         }
 
         @Override
         public void close() throws Exception
         {
             Undead.close();
-            StatusChangeListener.close();
         }
 
         public static  <C extends ReplicaCollection<? extends C>> C sortedByProximity(final InetAddressAndPort address, C replicas, @SuperCall Callable<C> real) throws Exception

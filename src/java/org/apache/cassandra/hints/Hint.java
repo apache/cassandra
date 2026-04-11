@@ -21,11 +21,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.primitives.Ints;
 
-import javax.annotation.Nullable;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -54,13 +55,13 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  *   compacted away while the hint was in storage.
  *
  *   We also look at the smallest current value of the gcgs param for each affected table when applying the hint, and use
- *   creation time + min(recorded gc gs, current gcgs + current gc grace) as the overall hint expiration time.
+ *   mutation creation time + min(recorded gc gs, current gcgs + current gc grace) as the overall hint expiration time.
  *   This allows now to safely reduce gc gs on tables without worrying that an applied old hint might resurrect any data.
  */
 public final class Hint
 {
     public static final Serializer serializer = new Serializer();
-    static final int maxHintTTL = CASSANDRA_MAX_HINT_TTL.getInt();
+    public static volatile int maxHintTTL = CASSANDRA_MAX_HINT_TTL.getInt();
 
     final Mutation mutation;
     final long creationTime;  // time of hint creation (in milliseconds)

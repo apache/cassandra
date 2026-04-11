@@ -19,7 +19,12 @@
 package org.apache.cassandra.distributed.test;
 
 import java.net.InetSocketAddress;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,46 +38,67 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadQuery;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.paxos.*;
+import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -97,6 +123,7 @@ public class PaxosRepairTest extends TestBaseImpl
     static
     {
         CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
+        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -117,7 +144,7 @@ public class PaxosRepairTest extends TestBaseImpl
         Set<InetAddressAndPort> allEndpoints = cluster.stream().map(i -> InetAddressAndPort.getByAddress(i.broadcastAddress())).collect(Collectors.toSet());
         cluster.stream().forEach(instance -> {
             instance.runOnInstance(() -> {
-                ImmutableSet<InetAddressAndPort> endpoints = Gossiper.instance.getEndpoints();
+                ImmutableSet<InetAddressAndPort> endpoints = ImmutableSet.copyOf(ClusterMetadata.current().directory.allJoinedEndpoints());
                 Assert.assertEquals(allEndpoints, endpoints);
                 for (InetAddressAndPort endpoint : endpoints)
                     Assert.assertTrue(FailureDetector.instance.isAlive(endpoint));
@@ -159,8 +186,9 @@ public class PaxosRepairTest extends TestBaseImpl
         options.put(RepairOption.FORCE_REPAIR_KEY, Boolean.toString(force));
         options.put(RepairOption.PREVIEW, PreviewKind.NONE.toString());
         options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(false));
+        options.put(RepairOption.REPAIR_DATA_KEY, Boolean.toString(false));
         options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(true));
-        options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(true));
+        options.put(RepairOption.REPAIR_ACCORD_KEY, Boolean.toString(false));
 
         cluster.get(1).runOnInstance(() -> {
             int cmd = StorageService.instance.repairAsync(keyspace, options);
@@ -266,16 +294,17 @@ public class PaxosRepairTest extends TestBaseImpl
         }
     }
 
-    @Ignore
     @Test
     public void topologyChangePaxosTest() throws Throwable
     {
         // TODO: fails with vnode enabled
-        try (Cluster cluster = Cluster.build(4).withConfig(WITH_NETWORK).withoutVNodes().createWithoutStarting())
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
+                                        .withConfig(WITH_NETWORK)
+                                        .withoutVNodes()
+                                        .start())
         {
-            for (int i=1; i<=3; i++)
-                cluster.get(i).startup();
-
             init(cluster);
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
@@ -295,7 +324,11 @@ public class PaxosRepairTest extends TestBaseImpl
             cluster.filters().reset();
 
             // node 4 starting should repair paxos and inform the other nodes of its gossip state
-            cluster.get(4).startup();
+            IInstanceConfig config = cluster.newInstanceConfig()
+                                            .set("auto_bootstrap", true)
+                                            .set(Constants.KEY_DTEST_FULL_STARTUP, true);
+            IInvokableInstance node4 = cluster.bootstrap(config);
+            node4.startup();
             Assert.assertFalse(hasUncommittedQuorum(cluster, KEYSPACE, TABLE));
         }
     }
@@ -340,7 +373,7 @@ public class PaxosRepairTest extends TestBaseImpl
             List<InetAddressAndPort> endpoints = cluster.stream().map(IInstance::broadcastAddress).map(InetAddressAndPort::getByAddress).collect(Collectors.toList());
             Future<?> cleanup = cluster.get(1).appliesOnInstance((List<? extends InetSocketAddress> es, ExecutorService exec)-> {
                 TableMetadata metadata = Keyspace.open(KEYSPACE).getMetadata().getTableOrViewNullable(TABLE);
-                return PaxosCleanup.cleanup(es.stream().map(InetAddressAndPort::getByAddress).collect(Collectors.toSet()), metadata, StorageService.instance.getLocalRanges(KEYSPACE), false, exec);
+                return PaxosCleanup.cleanup(SharedContext.Global.instance, es.stream().map(InetAddressAndPort::getByAddress).collect(Collectors.toSet()), metadata, StorageService.instance.getLocalRanges(KEYSPACE), false, exec);
             }).apply(endpoints, executor);
 
             Uninterruptibles.awaitUninterruptibly(haveFetchedLowBound);
@@ -404,7 +437,7 @@ public class PaxosRepairTest extends TestBaseImpl
             List<InetAddressAndPort> endpoints = cluster.stream().map(i -> InetAddressAndPort.getByAddress(i.broadcastAddress())).collect(Collectors.toList());
             Future<?> cleanup = cluster.get(1).appliesOnInstance((List<? extends InetSocketAddress> es, ExecutorService exec)-> {
                 TableMetadata metadata = Keyspace.open(KEYSPACE).getMetadata().getTableOrViewNullable(TABLE);
-                return PaxosCleanup.cleanup(es.stream().map(InetAddressAndPort::getByAddress).collect(Collectors.toSet()), metadata, StorageService.instance.getLocalRanges(KEYSPACE), false, exec);
+                return PaxosCleanup.cleanup(SharedContext.Global.instance, es.stream().map(InetAddressAndPort::getByAddress).collect(Collectors.toSet()), metadata, StorageService.instance.getLocalRanges(KEYSPACE), false, exec);
             }).apply(endpoints, executor);
 
             IMessageFilters.Filter dropAllTo1 = cluster.verbs(PAXOS2_PREPARE_REQ, PAXOS2_PROPOSE_REQ, PAXOS_COMMIT_REQ).from(2).to(1).outbound().drop();
@@ -483,7 +516,7 @@ public class PaxosRepairTest extends TestBaseImpl
             List<InetAddressAndPort> endpoints = cluster.stream().map(i -> InetAddressAndPort.getByAddress(i.broadcastAddress())).collect(Collectors.toList());
             Future<?> cleanup = cluster.get(1).appliesOnInstance((List<? extends InetSocketAddress> es, ExecutorService exec)-> {
                 TableMetadata metadata = Keyspace.open(KEYSPACE).getMetadata().getTableOrViewNullable(TABLE);
-                return PaxosCleanup.cleanup(es.stream().map(InetAddressAndPort::getByAddress).collect(Collectors.toSet()), metadata, StorageService.instance.getLocalRanges(KEYSPACE), false, exec);
+                return PaxosCleanup.cleanup(SharedContext.Global.instance, es.stream().map(InetAddressAndPort::getByAddress).collect(Collectors.toSet()), metadata, StorageService.instance.getLocalRanges(KEYSPACE), false, exec);
             }).apply(endpoints, executor);
 
             cleanup.get();
@@ -501,21 +534,22 @@ public class PaxosRepairTest extends TestBaseImpl
         }
     }
 
-    private static void setVersion(IInvokableInstance instance, InetSocketAddress peer, String version)
+    private static void setVersion(ICluster<IInvokableInstance> cluster, InetSocketAddress peer, String version)
     {
-        instance.runOnInstance(() -> {
-            Gossiper.runInGossipStageBlocking(() -> {
-                EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(InetAddressAndPort.getByAddress(peer.getAddress()));
-                VersionedValue value = version != null ? StorageService.instance.valueFactory.rack(version) : null;
-                epState.addApplicationState(ApplicationState.RELEASE_VERSION, value);
-            });
-        });
+        cluster.get(1).acceptsOnInstance((InetSocketAddress addr) -> {
+            ClusterMetadata cm = ClusterMetadata.current();
+            Directory directory = cm.directory.withNodeVersion(cm.directory.peerId(InetAddressAndPort.getByAddress(addr)),
+                                                               new NodeVersion(new CassandraVersion(version), NodeVersion.CURRENT_METADATA_VERSION));
+
+            ClusterMetadata nextMetadata = cm.transformer().with(directory).build().metadata;
+            ClusterMetadataService.instance().commit(new ForceSnapshot(nextMetadata));
+        }).accept(cluster.get(2).broadcastAddress());
     }
 
     private static void assertRepairFailsWithVersion(Cluster cluster, String version)
     {
-        for (int i = 1 ; i <= cluster.size() ; ++i)
-            setVersion(cluster.get(i), cluster.get(2).broadcastAddress(), version);
+        setVersion(cluster, cluster.get(2).broadcastAddress(), version);
+
         try
         {
             repair(cluster, KEYSPACE, TABLE);
@@ -529,8 +563,7 @@ public class PaxosRepairTest extends TestBaseImpl
 
     private static void assertRepairSucceedsWithVersion(Cluster cluster, String version)
     {
-        for (int i = 1 ; i <= cluster.size() ; ++i)
-            setVersion(cluster.get(i), cluster.get(2).broadcastAddress(), version);
+        setVersion(cluster, cluster.get(2).broadcastAddress(), version);
         repair(cluster, KEYSPACE, TABLE);
     }
 
@@ -592,7 +625,7 @@ public class PaxosRepairTest extends TestBaseImpl
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
         FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false, 0));
     }
 
     private static Map<Integer, PaxosRow> getPaxosRows()

@@ -27,12 +27,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
-import io.netty.util.concurrent.Promise; //checkstyle: permit this import
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
+import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
+import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -46,35 +53,35 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoop;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
-
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+import io.netty.util.concurrent.Promise; // checkstyle: permit this import
 import io.netty.util.concurrent.ScheduledFuture;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
-import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
-import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
-import org.apache.cassandra.utils.memory.BufferPools;
 
-import static java.util.concurrent.TimeUnit.*;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.OPTIONAL;
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
+import static org.apache.cassandra.net.ConnectionType.STREAMING;
+import static org.apache.cassandra.net.HandshakeProtocol.Accept;
+import static org.apache.cassandra.net.HandshakeProtocol.Initiate;
+import static org.apache.cassandra.net.HandshakeProtocol.TIMEOUT_MILLIS;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_FACTORY_CONTEXT_DESCRIPTION;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
-import static org.apache.cassandra.net.HandshakeProtocol.*;
-import static org.apache.cassandra.net.ConnectionType.STREAMING;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.incompatible;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.messagingSuccess;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.Result.streamingSuccess;
-import static org.apache.cassandra.net.SocketFactory.*;
+import static org.apache.cassandra.net.SocketFactory.WIRETRACE;
+import static org.apache.cassandra.net.SocketFactory.isCausedByConnectionReset;
+import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 
 /**
  * A {@link ChannelHandler} to execute the send-side of the internode handshake protocol.
@@ -138,8 +145,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
     private Future<Result<SuccessType>> initiate(EventLoop eventLoop)
     {
-        if (logger.isTraceEnabled())
-            logger.trace("creating outbound bootstrap to {}", settings);
+        logger.trace("creating outbound bootstrap to {}", settings);
 
         if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
         {
@@ -228,7 +234,8 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                if (logger.isTraceEnabled())
+                    logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
             }
             pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
@@ -241,14 +248,18 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         private SslContext getSslContext(SslFallbackConnectionType connectionType) throws IOException
         {
-            boolean requireClientAuth = false;
-            if (connectionType == SslFallbackConnectionType.MTLS || connectionType == SslFallbackConnectionType.SSL)
+            EncryptionOptions.ClientEncryptionOptions.ClientAuth requireClientAuth = NOT_REQUIRED;
+            if (connectionType == SslFallbackConnectionType.MTLS )
             {
-                requireClientAuth = true;
+                requireClientAuth = REQUIRED;
+            }
+            else if(connectionType == SslFallbackConnectionType.SSL)
+            {
+                requireClientAuth = OPTIONAL;
             }
             else if (connectionType == SslFallbackConnectionType.SERVER_CONFIG)
             {
-                requireClientAuth = settings.withEncryption();
+                requireClientAuth = settings.withEncryption() ? REQUIRED: NOT_REQUIRED;
             }
             return SSLFactory.getOrCreateSslContext(settings.encryption, requireClientAuth, ISslContextFactory.SocketType.CLIENT, SSL_FACTORY_CONTEXT_DESCRIPTION);
         }

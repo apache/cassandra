@@ -20,8 +20,8 @@ package org.apache.cassandra.db;
 
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.cql3.CQLTester;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

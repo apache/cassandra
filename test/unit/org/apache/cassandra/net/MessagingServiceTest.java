@@ -39,25 +39,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.codahale.metrics.Timer;
 import com.google.common.net.InetAddresses;
+
+import org.awaitility.Awaitility;
+import org.caffinitas.ohc.histo.EstimatedHistogram;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.awaitility.Awaitility;
-import org.caffinitas.ohc.histo.EstimatedHistogram;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.Assert.assertEquals;
@@ -113,8 +116,10 @@ public class MessagingServiceTest
     public static void beforeClass() throws UnknownHostException
     {
         DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
         CommitLog.instance.start();
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.0.0.1"));
+        ClusterMetadataTestHelper.register(FBUtilities.getBroadcastAddressAndPort(), "datacenter1", "rack1");
         originalAuthenticator = DatabaseDescriptor.getInternodeAuthenticator();
         originalServerEncryptionOptions = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
         originalListenAddress = InetAddressAndPort.getByAddressOverrideDefaults(DatabaseDescriptor.getListenAddress(), DatabaseDescriptor.getStoragePort());
@@ -254,8 +259,7 @@ public class MessagingServiceTest
     public void testFailedOutboundInternodeAuth() throws Exception
     {
         // Listen on serverside for connections
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-        .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none).build();
 
         DatabaseDescriptor.setInternodeAuthenticator(REJECT_OUTBOUND_AUTHENTICATOR);
         InetAddress listenAddress = FBUtilities.getJustLocalAddress();
@@ -290,8 +294,7 @@ public class MessagingServiceTest
     @Test
     public void testFailedInboundInternodeAuth() throws IOException, InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-            .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none).build();
 
         DatabaseDescriptor.setInternodeAuthenticator(ALLOW_NOTHING_AUTHENTICATOR);
         InetAddress listenAddress = FBUtilities.getJustLocalAddress();
@@ -345,56 +348,54 @@ public class MessagingServiceTest
     @Test
     public void listenPlainConnection() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none).build();
         listen(serverEncryptionOptions, false);
     }
 
     @Test
     public void listenPlainConnectionWithBroadcastAddr() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.none).build();
         listen(serverEncryptionOptions, true);
     }
 
     @Test
     public void listenRequiredSecureConnection() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withOptional(false)
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withLegacySslStoragePort(false);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
+                                                                       .withLegacySslStoragePort(false)
+                                                                       .withOptional(false)
+                                                                       .build();
         listen(serverEncryptionOptions, false);
     }
 
     @Test
     public void listenRequiredSecureConnectionWithBroadcastAddr() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withOptional(false)
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withLegacySslStoragePort(false);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
+                                                                       .withLegacySslStoragePort(false)
+                                                                       .withOptional(false)
+                                                                       .build();
         listen(serverEncryptionOptions, true);
     }
 
     @Test
     public void listenRequiredSecureConnectionWithLegacyPort() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withOptional(false)
-                                                          .withLegacySslStoragePort(true);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
+                                                                       .withLegacySslStoragePort(true)
+                                                                       .withOptional(false)
+                                                                       .build();
         listen(serverEncryptionOptions, false);
     }
 
     @Test
     public void listenRequiredSecureConnectionWithBroadcastAddrAndLegacyPort() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
-                                                          .withOptional(false)
-                                                          .withLegacySslStoragePort(true);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all)
+                                                                       .withLegacySslStoragePort(true)
+                                                                       .withOptional(false)
+                                                                       .build();
         listen(serverEncryptionOptions, true);
     }
 
@@ -403,8 +404,7 @@ public class MessagingServiceTest
     {
         for (int i = 0; i < 500; i++) // test used to be flaky, so run in a loop to make sure stable (see CASSANDRA-17033)
         {
-            ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                              .withOptional(true);
+            ServerEncryptionOptions serverEncryptionOptions = new Builder().withOptional(true).build();
             listen(serverEncryptionOptions, false);
         }
     }
@@ -412,8 +412,7 @@ public class MessagingServiceTest
     @Test
     public void listenOptionalSecureConnectionWithBroadcastAddr() throws InterruptedException
     {
-        ServerEncryptionOptions serverEncryptionOptions = new ServerEncryptionOptions()
-                                                          .withOptional(true);
+        ServerEncryptionOptions serverEncryptionOptions = new Builder().withOptional(true).build();
         listen(serverEncryptionOptions, true);
     }
 

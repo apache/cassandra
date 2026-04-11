@@ -23,12 +23,12 @@ import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -38,9 +38,10 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  */
 public class HintedHandoffMetrics
 {
+    public static final String TYPE_NAME = "HintsService";
     private static final Logger logger = LoggerFactory.getLogger(HintedHandoffMetrics.class);
 
-    private static final MetricNameFactory factory = new DefaultNameFactory("HintsService");
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     /** Total number of hints which are not stored, This is not a cache. */
     private final LoadingCache<InetAddressAndPort, DifferencingCounter> notStored = Caffeine.newBuilder()

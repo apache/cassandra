@@ -18,27 +18,45 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import org.junit.Before;
-import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.SyntaxError;
+import com.datastax.driver.core.exceptions.WriteTimeoutException;
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.serializers.BooleanSerializer;
 import org.apache.cassandra.serializers.Int32Serializer;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.service.consensus.TransactionalMode.test_unsafe;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -49,10 +67,111 @@ public class PreparedStatementsTest extends CQLTester
                                                     " WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };";
     private static final String dropKsStatement = "DROP KEYSPACE IF EXISTS " + KEYSPACE;
 
+    @BeforeClass
+    public static void setUpClass()
+    {
+        ServerTestUtils.daemonInitialization();
+        DatabaseDescriptor.setAccordTransactionsEnabled(true);
+        CQLTester.setUpClass();
+    }
+
     @Before
     public void setup()
     {
         requireNetwork();
+        for (int i=0; i<10; i++)
+            ClusterMetadataService.instance().log().waitForHighestConsecutive();
+    }
+
+    @Test
+    public void testUnqualifiedPreparedSelectOrModificationStatementsEmitWarning()
+    {
+        for (String query : new String[]
+                            {
+                            "SELECT id, v1, v2 FROM %s WHERE id = 1",
+                            "INSERT INTO %s (id, v1, v2) VALUES (1, 2, 3)",
+                            "UPDATE %s SET v1 = 2, v2 = 3 where id = 1"
+                            })
+        {
+            assertWarningsOnPreparedStatements(query, true, true, true);
+        }
+    }
+
+    @Test
+    public void testQualifiedPreparedSelectOrModificationStatementsDoNotEmitWarning()
+    {
+        for (String query : new String[]
+                            {
+                            "SELECT id, v1, v2 FROM %keyspace%.%s WHERE id = 1",
+                            "INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1, 2, 3)",
+                            "UPDATE %keyspace%.%s SET v1 = 2, v2 = 3 where id = 1"
+                            })
+        {
+            assertWarningsOnPreparedStatements(query, false, true, true);
+            assertWarningsOnPreparedStatements(query, false, true, false);
+        }
+    }
+
+    @Test
+    public void testSchemaTransformationPreparedStatementEmitsWaring()
+    {
+        assertWarningsOnPreparedStatements("ALTER TABLE %s ADD c3 int", true, false, true);
+        assertWarningsOnPreparedStatements("ALTER TABLE %keyspace%.%s ADD c3 int", true, false, false);
+    }
+
+    @Test
+    public void testBatchPreparedStatementsEmitWarnings()
+    {
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %s (id, v1, v2) VALUES (1,2,3) APPLY BATCH", true, true, true);
+
+        // this will evaluate a statement as unqualified because not all are qualified
+        assertWarningsOnPreparedStatements("BEGIN BATCH" +
+                                           "  INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3); " +
+                                           "  INSERT INTO %s (id, v1, v2) VALUES (3, 4, 5) " +
+                                           "APPLY BATCH;", true, true, true);
+
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3) APPLY BATCH;", false, true, true);
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3) APPLY BATCH;", false, true, false);
+    }
+
+    private void assertWarningsOnPreparedStatements(String query, boolean expectWarn, boolean forModificationOrSelectStatement, boolean useUse)
+    {
+        try
+        {
+            createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
+            createTable(currentKeyspace(),"CREATE TABLE %s (id int, v1 int, v2 int, primary key (id))");
+
+            ClientState clientState = ClientState.forInternalCalls();
+            if (useUse)
+                clientState.setKeyspace(currentKeyspace());
+
+            ClientWarn.instance.captureWarnings();
+
+            String maybeQueryWithKeyspace = query.replaceAll("%keyspace%", currentKeyspace());
+            String queryWithTable = maybeQueryWithKeyspace.replaceAll("%s", currentTable());
+
+            // two times is not a mistake, a warning is emitted just once
+            QueryProcessor.instance.prepare(queryWithTable, clientState);
+            QueryProcessor.instance.prepare(queryWithTable, clientState);
+
+            List<String> warnings = ClientWarn.instance.getWarnings();
+
+            if (expectWarn && forModificationOrSelectStatement)
+                assertTrue(warnings != null &&
+                           warnings.size() == 1 &&
+                           warnings.get(0).startsWith("`USE <keyspace>` with prepared statements is considered to be an anti-pattern"));
+            else if (expectWarn)
+                assertTrue(warnings != null &&
+                           warnings.size() == 1 &&
+                           warnings.get(0).startsWith("Prepared statements for other than modification and selection statements should be avoided,"));
+            else
+                assertNull(warnings);
+        }
+        finally
+        {
+            execute("DROP KEYSPACE " + currentKeyspace());
+            ClientWarn.instance.resetWarnings();
+        }
     }
 
     @Test
@@ -62,29 +181,38 @@ public class PreparedStatementsTest extends CQLTester
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
 
-        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (id int PRIMARY KEY, cid int, val text);";
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (id int PRIMARY KEY, cid int, val text) WITH transactional_mode='" + test_unsafe + "';";
         String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
         session.execute(createTableStatement);
 
-        PreparedStatement prepared = session.prepare("INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)");
-        PreparedStatement preparedBatch = session.prepare("BEGIN BATCH " +
-                                                          "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?);" +
-                                                          "APPLY BATCH;");
+        String insert = "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)";
+        PreparedStatement prepared = session.prepare(insert);
+        PreparedStatement preparedBatch = session.prepare(batch(insert));
+        PreparedStatement preparedTxn = session.prepare(txn(insert));
+        preparedTxn.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+
         session.execute(dropTableStatement);
         session.execute(createTableStatement);
+        updateTxnState();
+
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
+        session.execute(preparedTxn.bind(3, 3, "value3"));
 
+        session.execute(dropTableStatement); // since this is an accord table, need to drop the table before the keyspace
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
         session.execute(createTableStatement);
+        updateTxnState();
 
         // The driver will get a response about the prepared statement being invalid, causing it to transparently
         // re-prepare the statement.  We'll rely on the fact that we get no errors while executing this to show that
         // the statements have been invalidated.
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
+        session.execute(preparedTxn.bind(3, 3, "value3"));
+        session.execute(dropTableStatement); // since this is an accord table, need to drop the table before the keyspace
         session.execute(dropKsStatement);
     }
 
@@ -103,14 +231,18 @@ public class PreparedStatementsTest extends CQLTester
     private void testInvalidatePreparedStatementOnAlter(ProtocolVersion version, boolean supportsMetadataChange)
     {
         Session session = sessionNet(version);
-        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int);";
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int) WITH transactional_mode='" + test_unsafe + "';";
         String alterTableStatement = "ALTER TABLE " + KEYSPACE + ".qp_cleanup ADD d int;";
+        String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
         session.execute(createTableStatement);
+        updateTxnState();
 
-        PreparedStatement preparedSelect = session.prepare("SELECT * FROM " + KEYSPACE + ".qp_cleanup");
+        String select = "SELECT * FROM " + KEYSPACE + ".qp_cleanup";
+        PreparedStatement preparedSelect = session.prepare(select);
+        PreparedStatement preparedSelectTxn = session.prepare(txn(select + " WHERE a = ?"));
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c) VALUES (?, ?, ?);",
                         1, 2, 3);
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c) VALUES (?, ?, ?);",
@@ -119,8 +251,14 @@ public class PreparedStatementsTest extends CQLTester
         assertRowsNet(session.execute(preparedSelect.bind()),
                       row(1, 2, 3),
                       row(2, 3, 4));
+        assertRowsNet(session.execute(preparedSelectTxn.bind(1)),
+                      row(1, 2, 3));
+        assertRowsNet(session.execute(preparedSelectTxn.bind(2)),
+                      row(2, 3, 4));
 
         session.execute(alterTableStatement);
+        updateTxnState();
+
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c, d) VALUES (?, ?, ?, ?);",
                         3, 4, 5, 6);
 
@@ -134,17 +272,35 @@ public class PreparedStatementsTest extends CQLTester
                           row(2, 3, 4, null),
                           row(3, 4, 5, 6));
             assertEquals(rs.getColumnDefinitions().size(), 4);
+
+            for (int i = 1; i <= 3; i++)
+            {
+                rs = session.execute(preparedSelectTxn.bind(i));
+                assertRowsNet(version,
+                              rs,
+                              row(i, i + 1, i + 2, i == 3 ? 6 : null));
+                assertEquals(rs.getColumnDefinitions().size(), 4);
+            }
         }
         else
         {
             rs = session.execute(preparedSelect.bind());
-            assertRowsNet(rs,
+            assertRowsNet(version,
+                          rs,
                           row(1, 2, 3),
                           row(2, 3, 4),
                           row(3, 4, 5));
-            assertEquals(rs.getColumnDefinitions().size(), 3);
+            assertEquals(3, rs.getColumnDefinitions().size());
+            for (int i = 1; i <= 3; i++)
+            {
+                rs = session.execute(preparedSelectTxn.bind(i));
+                Assertions.assertThat(columnNames(rs))
+                          .containsExactlyInAnyOrder("a", "b", "c");
+                assertRowsNet(version, rs, row(i, i + 1, i + 2));
+            }
         }
 
+        session.execute(dropTableStatement);
         session.execute(dropKsStatement);
     }
 
@@ -163,60 +319,84 @@ public class PreparedStatementsTest extends CQLTester
     private void testInvalidatePreparedStatementOnAlterUnchangedMetadata(ProtocolVersion version)
     {
         Session session = sessionNet(version);
-        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int);";
+        String createTableStatement = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".qp_cleanup (a int PRIMARY KEY, b int, c int) WITH transactional_mode='" + test_unsafe + "';";
         String alterTableStatement = "ALTER TABLE " + KEYSPACE + ".qp_cleanup ADD d int;";
+        String dropTableStatement = "DROP TABLE IF EXISTS " + KEYSPACE + ".qp_cleanup;";
 
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
         session.execute(createTableStatement);
+        updateTxnState();
 
-        PreparedStatement preparedSelect = session.prepare("SELECT a, b, c FROM " + KEYSPACE + ".qp_cleanup");
+        String select = "SELECT a, b, c FROM " + KEYSPACE + ".qp_cleanup";
+        PreparedStatement preparedSelect = session.prepare(select);
+        PreparedStatement preparedSelectTxn = session.prepare(txn(select + " WHERE a = ?"));
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c) VALUES (?, ?, ?);",
                         1, 2, 3);
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c) VALUES (?, ?, ?);",
                         2, 3, 4);
 
         ResultSet rs = session.execute(preparedSelect.bind());
-
         assertRowsNet(rs,
                       row(1, 2, 3),
                       row(2, 3, 4));
         assertEquals(rs.getColumnDefinitions().size(), 3);
 
+        for (int i = 1; i <= 2; i++)
+        {
+            rs = session.execute(preparedSelectTxn.bind(i));
+            assertRowsNet(rs, row(i, i + 1, i + 2));
+            Assertions.assertThat(columnNames(rs)).containsExactlyInAnyOrder("a", "b", "c");
+        }
+
         session.execute(alterTableStatement);
+        updateTxnState();
+
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c, d) VALUES (?, ?, ?, ?);",
                         3, 4, 5, 6);
 
         rs = session.execute(preparedSelect.bind());
-        assertRowsNet(rs,
+        assertRowsNet(version, rs,
                       row(1, 2, 3),
                       row(2, 3, 4),
                       row(3, 4, 5));
         assertEquals(rs.getColumnDefinitions().size(), 3);
 
+        for (int i = 1; i <= 3; i++)
+        {
+            rs = session.execute(preparedSelectTxn.bind(i));
+            assertRowsNet(rs, row(i, i + 1, i + 2));
+            Assertions.assertThat(columnNames(rs)).containsExactlyInAnyOrder("a", "b", "c");
+        }
+
+        session.execute(dropTableStatement);
         session.execute(dropKsStatement);
     }
 
     @Test
-    public void testStatementRePreparationOnReconnect()
+    public void testStatementRePreparationOnReconnect() throws Throwable
     {
         Session session = sessionNet(ProtocolVersion.V5);
         session.execute("USE " + keyspace());
 
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
-
-        createTable("CREATE TABLE %s (id int PRIMARY KEY, cid int, val text);");
-
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, cid int, val text) WITH transactional_mode='" + test_unsafe + "';");
+        updateTxnState();
 
         String insertCQL = "INSERT INTO " + currentTable() + " (id, cid, val) VALUES (?, ?, ?)";
         String selectCQL = "Select * from " + currentTable() + " where id = ?";
 
         PreparedStatement preparedInsert = session.prepare(insertCQL);
         PreparedStatement preparedSelect = session.prepare(selectCQL);
+        PreparedStatement preparedTxn = session.prepare(txn(selectCQL, insertCQL));
+        preparedTxn.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
 
         session.execute(preparedInsert.bind(1, 1, "value"));
         assertEquals(1, session.execute(preparedSelect.bind(1)).all().size());
+        // txn will return state before mutations are applied, so null result
+        assertRowsNet(ProtocolVersion.V5,
+                      session.execute(preparedTxn.bind(2, 2, 2, "value2")));
 
         try (Cluster newCluster = Cluster.builder()
                                  .addContactPoints(nativeAddr)
@@ -231,15 +411,19 @@ public class PreparedStatementsTest extends CQLTester
                 newSession.execute("USE " + keyspace());
                 preparedInsert = newSession.prepare(insertCQL);
                 preparedSelect = newSession.prepare(selectCQL);
-                newSession.execute(preparedInsert.bind(1, 1, "value"));
 
+                newSession.execute(preparedInsert.bind(1, 1, "value"));
                 assertEquals(1, newSession.execute(preparedSelect.bind(1)).all().size());
+
+                assertRowsNet(ProtocolVersion.V5,
+                              session.execute(preparedTxn.bind(2, 2, 2, "value2")),
+                              row(2, 2, "value2"));
             }
         }
     }
 
     @Test
-    public void prepareAndExecuteWithCustomExpressions() throws Throwable
+    public void prepareAndExecuteWithCustomExpressions()
     {
         Session session = sessionNet(ProtocolVersion.V5);
 
@@ -248,29 +432,29 @@ public class PreparedStatementsTest extends CQLTester
         String table = "custom_expr_test";
         String index = "custom_index";
 
-        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int PRIMARY KEY, cid int, val text);",
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int PRIMARY KEY, cid int, val text) WITH transactional_mode='" + test_unsafe + "';",
                                       KEYSPACE, table));
         session.execute(String.format("CREATE CUSTOM INDEX %s ON %s.%s(val) USING '%s'",
                                       index, KEYSPACE, table, StubIndex.class.getName()));
+        updateTxnState();
+
         session.execute(String.format("INSERT INTO %s.%s(id, cid, val) VALUES (0, 0, 'test')", KEYSPACE, table));
 
-        PreparedStatement prepared1 = session.prepare(String.format("SELECT * FROM %s.%s WHERE expr(%s, 'foo')",
-                                                                    KEYSPACE, table, index));
-        assertEquals(1, session.execute(prepared1.bind()).all().size());
+        String select = String.format("SELECT * FROM %s.%s WHERE expr(%s, 'foo')", KEYSPACE, table, index);
+        assertEquals(1, session.execute(session.prepare(select).bind()).all().size());
+        assertEquals(1, session.execute(session.prepare(txn(select + " AND id = ?")).bind(0)).all().size());
 
-        PreparedStatement prepared2 = session.prepare(String.format("SELECT * FROM %s.%s WHERE expr(%s, ?)",
-                                                                    KEYSPACE, table, index));
-        assertEquals(1, session.execute(prepared2.bind("foo bar baz")).all().size());
+        String select2 = String.format("SELECT * FROM %s.%s WHERE expr(%s, ?)", KEYSPACE, table, index);
+        assertEquals(1, session.execute(session.prepare(select2).bind("foo bar baz")).all().size());
+        assertEquals(1, session.execute(session.prepare(txn(select2 + " AND id = ?")).bind("foo bar baz", 0)).all().size());
 
-        try
-        {
-            session.prepare(String.format("SELECT * FROM %s.%s WHERE expr(?, 'foo bar baz')", KEYSPACE, table));
-            fail("Expected syntax exception, but none was thrown");
-        }
-        catch(SyntaxError e)
-        {
-            assertEquals("Bind variables cannot be used for index names", e.getMessage());
-        }
+        String badSelect = String.format("SELECT * FROM %s.%s WHERE expr(?, 'foo bar baz')", KEYSPACE, table);
+        Assertions.assertThatThrownBy(() -> session.prepare(badSelect))
+                  .isInstanceOf(SyntaxError.class)
+                  .hasMessage("Bind variables cannot be used for index names");
+        Assertions.assertThatThrownBy(() -> session.prepare(txn(badSelect + " AND id = ?")))
+                  .isInstanceOf(SyntaxError.class)
+                  .hasMessage("Bind variables cannot be used for index names");
     }
 
     @Test
@@ -580,5 +764,129 @@ public class PreparedStatementsTest extends CQLTester
         assertRowsNet(rs,
                       row(false, 1, 10, 20, null));
         assertEquals(rs.getColumnDefinitions().size(), 5);
+    }
+
+    @Test
+    public void testPrepareWithAccordV4()
+    {
+        testPrepareWithAccord(ProtocolVersion.V4);
+    }
+
+    @Test
+    public void testPrepareWithAccordV5()
+    {
+        Assume.assumeTrue("Protocol v5 is CURRENT", ProtocolVersion.CURRENT != ProtocolVersion.V5);
+        testPrepareWithAccord(ProtocolVersion.V5);
+    }
+
+    @Test
+    public void testPrepareWithAccordCurrent()
+    {
+        testPrepareWithAccord(ProtocolVersion.CURRENT);
+    }
+
+    private void testPrepareWithAccord(ProtocolVersion version)
+    {
+        int maxAttempts = 3;
+        Session session = sessionNet(version);
+        session.execute("USE " + keyspace());
+        createTable("CREATE TABLE %s (pk int, v1 int, v2 int, PRIMARY KEY (pk)) WITH transactional_mode='full'");
+        updateTxnState();
+
+        PreparedStatement writeOnly = session.prepare(txn(
+        "INSERT INTO " + currentTable() + " (pk, v1, v2) VALUES (?, ?, ?)"
+        ));
+        writeOnly.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+        PreparedStatement returnSelect = session.prepare(txn(
+        "SELECT * FROM " + currentTable() + " WHERE pk=?",
+        "UPDATE " + currentTable() + " SET v1 += 1, v2 += 2 WHERE pk = ?"
+        ));
+        returnSelect.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+        PreparedStatement returnRef = session.prepare(txn(
+        "LET a = (SELECT * FROM " + currentTable() + " WHERE pk=?)",
+        "SELECT a.pk, a.v1, a.v2",
+        "UPDATE " + currentTable() + " SET v1 += 1, v2 += 2 WHERE pk = ?"
+        ));
+        returnRef.setConsistencyLevel(com.datastax.driver.core.ConsistencyLevel.QUORUM);
+        // populate every row
+        int numPartitions = 5;
+        int[][] model = new int[numPartitions][];
+        for (int writePk = 0; writePk < numPartitions; writePk++)
+        {
+            model[writePk] = new int[] {0, 0};
+            assertRowsNet(version, session.execute(writeOnly.bind(writePk, 0, 0)));
+        }
+
+        for (int writePk = 0; writePk < numPartitions; writePk++)
+        {
+            for (int readPk = 0; readPk < numPartitions; readPk++)
+            {
+                int[] expected = model[readPk];
+                int[] mutated = model[writePk];
+                for (boolean select : Arrays.asList(true, false))
+                {
+                    for (int retries = 0; retries < maxAttempts; retries++)
+                    {
+                        try
+                        {
+                            ResultSet rs = session.execute(select ? returnSelect.bind(readPk, writePk)
+                                                                  : returnRef.bind(readPk, writePk));
+                            assertRowsNet(version, rs, row(readPk, expected[0], expected[1]));
+                            break;
+                        }
+                        catch (WriteTimeoutException e)
+                        {
+                            logger.warn("Write timeout seen", e);
+                            if (retries >= maxAttempts - 1) throw e;
+                            Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
+                        }
+                        finally
+                        {
+                            // update to account for counter bumps
+                            mutated[0]++;
+                            mutated[1] = mutated[1] + 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static String txn(String... stmts)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN TRANSACTION\n");
+        for (String stmt : stmts)
+        {
+            sb.append("  ").append(stmt);
+            if (!stmt.endsWith(";")) sb.append(';');
+            sb.append('\n');
+        }
+        sb.append("COMMIT TRANSACTION");
+        return sb.toString();
+    }
+
+    private static String batch(String... stmts)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN BATCH\n");
+        for (String stmt : stmts)
+        {
+            sb.append("  ").append(stmt);
+            if (!stmt.endsWith(";")) sb.append(';');
+            sb.append('\n');
+        }
+        sb.append("APPLY BATCH");
+        return sb.toString();
+    }
+
+    private static List<String> columnNames(ResultSet rs)
+    {
+        return rs.getColumnDefinitions().asList().stream().map(d -> d.getName()).collect(Collectors.toList());
+    }
+
+    private static void updateTxnState()
+    {
+        AccordService.instance().setCacheSize(0);
     }
 }

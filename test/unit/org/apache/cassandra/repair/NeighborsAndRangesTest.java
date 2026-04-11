@@ -24,6 +24,7 @@ import java.util.Set;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -40,9 +41,9 @@ public class NeighborsAndRangesTest extends AbstractRepairTest
     public void filterCommonIncrementalRangesNotForced()
     {
         CommonRange cr = new CommonRange(PARTICIPANTS, Collections.emptySet(), ALL_RANGES);
-        NeighborsAndRanges nr = new NeighborsAndRanges(false, PARTICIPANTS, Collections.singletonList(cr));
+        NeighborsAndRanges nr = new NeighborsAndRanges(false, false, PARTICIPANTS, Collections.singletonList(cr));
         List<CommonRange> expected = Lists.newArrayList(cr);
-        List<CommonRange> actual = nr.filterCommonRanges(null, null);
+        List<CommonRange> actual = nr.filterCommonRanges(null, null).commonRanges;
 
         Assert.assertEquals(expected, actual);
     }
@@ -59,8 +60,8 @@ public class NeighborsAndRangesTest extends AbstractRepairTest
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE3), true),
                                                         new CommonRange(Sets.newHashSet(PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), Sets.newHashSet(RANGE2), false));
 
-        NeighborsAndRanges nr = new NeighborsAndRanges(true, liveEndpoints, initial);
-        List<CommonRange> actual = nr.filterCommonRanges(null, null);
+        NeighborsAndRanges nr = new NeighborsAndRanges(true, false, liveEndpoints, initial);
+        List<CommonRange> actual = nr.filterCommonRanges(null, null).commonRanges;
 
         Assert.assertEquals(expected, actual);
     }

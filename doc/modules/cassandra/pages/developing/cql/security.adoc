@@ -167,11 +167,11 @@ used and the role does not exist the statement is a no-op.
 DROP ROLE intentionally does not terminate any open user sessions.
 Currently connected sessions will remain connected and will retain the
 ability to perform any database actions which do not require
-xref:cassandra:developing/cql/security.adoc#authorization[authorization].
+xref:cassandra:managing/operating/authorization/security.adoc#authorization[authorization].
 However, if authorization is enabled, xref:cassandra:developing/cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
-subject to the xref:cassandra:developing/cql/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file.
+subject to the xref:cassandra:managing/operating/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file.
 Should a dropped role be subsequently recreated and have new xref:security.adoc#grant-permission-statement[permissions] or
-xref:security.adoc#grant-role-statement[roles]` granted to it, any client sessions still
+xref:security.adoc#grant-role-statement[roles] granted to it, any client sessions still
 connected will acquire the newly granted permissions and roles.
 ====
 
@@ -261,6 +261,18 @@ transitively acquired ones:
 include::cassandra:example$CQL/list_roles_nonrecursive.cql[]
 ----
 
+[[list-superusers-statement]]
+== LIST SUPERUSERS
+
+All the known roles (including transitively acquired) with superuser privilege can be listed using the `LIST SUPERUSERS` statement:
+
+[source, bnf]
+----
+include::cassandra:example$BNF/list_superusers_statement.bnf[]
+----
+
+This command requires `DESCRIBE` permission on all roles of the database.
+
 == Users
 
 Prior to the introduction of roles in Cassandra 2.2, authentication and
@@ -332,8 +344,61 @@ Existing users can be listed using the `LIST USERS` statement:
 include::cassandra:example$BNF/list_users_statement.bnf[]
 ----
 
-Note that this statement is equivalent to xref:security.adoc#list-roles-statement[`LIST ROLES], but only roles with the `LOGIN` privilege are included in the output.
+Note that this statement is equivalent to xref:security.adoc#list-roles-statement[LIST ROLES], but only roles with the `LOGIN` privilege are included in the output.
 
+[[databaseIdentity]]
+=== Database Identities
+
+[[AddIdentityStmt]]
+==== ADD IDENTITY
+
+_Syntax:_
+
+[source,bnf]
+::= ADD IDENTITY [ IF NOT EXISTS ] id_name TO ROLE role_name
+
+_Sample:_
+
+[source,sql]
+ADD IDENTITY 'id1' TO ROLE 'role1';
+
+Only a user with privileges to add roles can add identities.
+
+Role names & Identity names should be quoted if they contain non-alphanumeric characters.
+
+[[addIdentityConditional]]
+===== Adding an identity conditionally
+
+Attempting to add an existing identity results in an invalid query
+condition unless the `IF NOT EXISTS` option is used. If the option is
+used and the identity exists, the statement is a no-op.
+
+[source,sql]
+ADD IDENTITY [ IF NOT EXISTS ] 'id1' TO ROLE 'role1';
+
+[[dropIdentityStmt]]
+==== DROP IDENTITY
+
+_Syntax:_
+
+[source,bnf]
+::= DROP IDENTITY [ IF EXISTS ]
+
+_Sample:_
+
+[source,sql]
+----
+DROP IDENTITY 'testIdentity';
+DROP IDENTITY IF EXISTS 'testIdentity';
+----
+
+Only a user with privileges to drop roles can remove identities
+
+Attempting to drop an identity which does not exist results in an invalid
+query condition unless the `IF EXISTS` option is used. If the option is
+used and the identity does not exist the statement is a no-op.
+
+[[dataControl]]
 == Data Control
 
 [[cql-permissions]]
@@ -569,6 +634,42 @@ include::cassandra:example$CQL/grant_describe.cql[]
 This grants any user with the `role_admin` role permission to view any
 and all roles in the system with a `LIST ROLES` statement.
 
+==== GRANT PERMISSION FOR ALL TABLES IN A KEYSPACE
+
+Granting permission to all tables and user types in a keyspace uses 
+`GRANT <permission-name>` statement:
+
+[source,bnf]
+----
+include::example$BNF/grant_permission_all_tables_statement.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/grant_drop_all_tables.cql[]
+----
+
+This command grants any user with the `user_name` role permission to execute
+`DROP` statements on all the tables across the keyspace `keyspace_name`
+
+[source,cql]
+----
+include::example$CQL/grant_alter_all_tables.cql[]
+----
+
+This command grants any user with the `user_name` role permission to execute
+`ALTER` statements on all the tables across the keyspace `keyspace_name`
+
+[source,cql]
+----
+include::example$CQL/grant_modify_all_tables.cql[]
+----
+
+This command grants any user with the `user_name` role permission to execute
+`MODIFY` statements on all the tables across the keyspace `keyspace_name`
+
 ==== GRANT ALL
 
 When the `GRANT ALL` form is used, the appropriate set of permissions is
@@ -648,5 +749,5 @@ which were directly granted to `bob` or one of `bob`'s roles:
 include::cassandra:example$CQL/list_select_perm.cql[]
 ----
 
-Show any permissions granted to `carlos` or any of `carlos`'s roles,
+Show any permissions granted to `carlos` or any roles assigned to `carlos`,
 limited to `SELECT` permissions on any resource.

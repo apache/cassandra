@@ -19,55 +19,107 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+
+import org.antlr.runtime.RecognitionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.WhereClause;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.FunctionResolver;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.RowIterators;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
 
 import static java.lang.String.format;
-
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_CORRUPTED_SCHEMA_TABLES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.schema.SchemaKeyspaceTables.*;
+import static org.apache.cassandra.schema.ColumnMetadata.NO_UNIQUE_ID;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.AGGREGATES;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.ALL;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.COLUMNS;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.COLUMN_MASKS;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.DROPPED_COLUMNS;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.FUNCTIONS;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.INDEXES;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.KEYSPACES;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.TABLES;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.TRIGGERS;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.TYPES;
+import static org.apache.cassandra.schema.SchemaKeyspaceTables.VIEWS;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 
 /**
  * system_schema.* tables and methods for manipulating them.
  *
  * Please notice this class is _not_ thread safe and all methods which reads or updates the data in schema keyspace
- * should be accessed only from the implementation of {@link SchemaUpdateHandler} in synchronized blocks.
+ * should be accessed only from the implementation of {SchemaUpdateHandler} in synchronized blocks.
  */
 @NotThreadSafe
 public final class SchemaKeyspace
@@ -94,6 +146,7 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "durable_writes boolean,"
               + "replication frozen<map<text, text>>,"
+              + "fast_path frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name)))");
 
     private static final TableMetadata Tables =
@@ -125,6 +178,8 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "fast_path frozen<map<text, text>>,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), table_name))");
 
     private static final TableMetadata Columns =
@@ -209,6 +264,7 @@ public final class SchemaKeyspace
               + "additional_write_policy text,"
               + "cdc boolean,"
               + "read_repair text,"
+              + "auto_repair frozen<map<text, text>>,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
     private static final TableMetadata Indexes =
@@ -287,7 +343,7 @@ public final class SchemaKeyspace
         return KeyspaceMetadata.create(SchemaConstants.SCHEMA_KEYSPACE_NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
 
-    static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
+    public static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
     {
         Map<String, Mutation> mutations = new HashMap<>();
 
@@ -340,7 +396,7 @@ public final class SchemaKeyspace
         for (String schemaTable : ALL)
         {
             String query = String.format("DELETE FROM %s.%s USING TIMESTAMP ? WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, schemaTable);
-            for (String systemKeyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
+            for (String systemKeyspace : Schema.instance.localKeyspaces().names())
                 executeOnceInternal(query, timestamp, systemKeyspace);
         }
 
@@ -364,6 +420,8 @@ public final class SchemaKeyspace
     /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
+     *
+     * Only used when initializing the CMS
      */
     public static UUID calculateSchemaDigest()
     {
@@ -485,7 +543,9 @@ public final class SchemaKeyspace
         builder.update(Keyspaces)
                .row()
                .add(KeyspaceParams.Option.DURABLE_WRITES.toString(), params.durableWrites)
-               .add(KeyspaceParams.Option.REPLICATION.toString(), params.replication.asMap());
+               .add(KeyspaceParams.Option.REPLICATION.toString(),
+                    (params.replication.isMeta() ? params.replication.asNonMeta() : params.replication).asMap())
+               .add(KeyspaceParams.Option.FAST_PATH.toString(), params.fastPath.asMap());
 
         return builder;
     }
@@ -545,7 +605,7 @@ public final class SchemaKeyspace
                                               .add("id", table.id.asUUID())
                                               .add("flags", TableMetadata.Flag.toStringSet(table.flags));
 
-        addTableParamsToRowBuilder(table.params, rowBuilder);
+        addTableParamsToRowBuilder(table.params, rowBuilder, false);
 
         if (withColumnsAndTriggers)
         {
@@ -563,7 +623,7 @@ public final class SchemaKeyspace
         }
     }
 
-    private static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder)
+    public static void addTableParamsToRowBuilder(TableParams params, Row.SimpleBuilder builder, boolean forView)
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
@@ -602,6 +662,17 @@ public final class SchemaKeyspace
         // incremental_backups is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
         if (!params.incrementalBackups)
             builder.add("incremental_backups", false);
+
+        if (DatabaseDescriptor.getAccordTransactionsEnabled() && !forView)
+            builder.add("fast_path", params.fastPath.asMap());
+
+        // As above, only add the auto_repair column if the scheduler is enabled
+        // to avoid RTE in pre-5.1 versioned node during upgrades
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.add("auto_repair", params.autoRepair.asMap());
+        }
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -718,9 +789,9 @@ public final class SchemaKeyspace
         builder.update(Columns)
                .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
-               .add("kind", column.kind.toString().toLowerCase())
+               .add("kind", toLowerCaseLocalized(column.kind.toString()))
                .add("position", column.position())
-               .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
+               .add("clustering_order", toLowerCaseLocalized(column.clusteringOrder().toString()))
                .add("type", type.asCQL3Type().toString());
 
         ColumnMask mask = column.getMask();
@@ -782,7 +853,7 @@ public final class SchemaKeyspace
                .row(table.name, column.column.name.toString())
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
                .add("type", column.column.type.asCQL3Type().toString())
-               .add("kind", column.column.kind.toString().toLowerCase());
+               .add("kind", toLowerCaseLocalized(column.column.kind.toString()));
     }
 
     private static void dropDroppedColumnFromSchemaMutation(TableMetadata table, DroppedColumn column, Mutation.SimpleBuilder builder)
@@ -814,7 +885,7 @@ public final class SchemaKeyspace
                                               .add("where_clause", view.whereClause.toCQLString())
                                               .add("id", table.id.asUUID());
 
-        addTableParamsToRowBuilder(table.params, rowBuilder);
+        addTableParamsToRowBuilder(table.params, rowBuilder, true);
 
         if (includeColumns)
         {
@@ -885,7 +956,7 @@ public final class SchemaKeyspace
                .add("argument_names", function.argNames().stream().map((c) -> bbToString(c.bytes)).collect(toList()));
     }
 
-    private static String bbToString(ByteBuffer bb)
+    public static String bbToString(ByteBuffer bb)
     {
         try
         {
@@ -933,14 +1004,14 @@ public final class SchemaKeyspace
     {
         String query = format("SELECT keyspace_name FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
 
-        Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
+        Keyspaces keyspaces = org.apache.cassandra.schema.Keyspaces.NONE;
         for (UntypedResultSet.Row row : query(query))
         {
             String keyspaceName = row.getString("keyspace_name");
             if (!excludedKeyspaceNames.contains(keyspaceName))
-                keyspaces.add(fetchKeyspace(keyspaceName));
+                keyspaces = keyspaces.with(fetchKeyspace(keyspaceName));
         }
-        return keyspaces.build();
+        return keyspaces;
     }
 
     private static KeyspaceMetadata fetchKeyspace(String keyspaceName)
@@ -960,7 +1031,13 @@ public final class SchemaKeyspace
         UntypedResultSet.Row row = query(query, keyspaceName).one();
         boolean durableWrites = row.getBoolean(KeyspaceParams.Option.DURABLE_WRITES.toString());
         Map<String, String> replication = row.getFrozenTextMap(KeyspaceParams.Option.REPLICATION.toString());
-        return KeyspaceParams.create(durableWrites, replication);
+        Map<String, String> fastPath = row.getFrozenTextMap(KeyspaceParams.Option.FAST_PATH.toString());
+        KeyspaceParams params = KeyspaceParams.create(durableWrites, replication, fastPath);
+
+        if (keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+            params = new KeyspaceParams(params.durableWrites, params.replication.asMeta(), FastPathStrategy.simple());
+
+        return params;
     }
 
     private static Types fetchTypes(String keyspaceName)
@@ -1060,7 +1137,8 @@ public final class SchemaKeyspace
                                                                         SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
                                                                         SpeculativeRetryPolicy.fromString("99PERCENTILE"))
                                                  .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                                                 .readRepair(getReadRepairStrategy(row));
+                                                 .readRepair(getReadRepairStrategy(row))
+                                                 .fastPath(getFastPathStrategy(row));
 
         // allow_auto_snapshot column was introduced in 4.2
         if (row.has("allow_auto_snapshot"))
@@ -1069,6 +1147,12 @@ public final class SchemaKeyspace
         // incremental_backups column was introduced in 4.2
         if (row.has("incremental_backups"))
             builder.incrementalBackups(row.getBoolean("incremental_backups"));
+
+        // auto_repair column was introduced in 5.1
+        if (row.has("auto_repair"))
+        {
+            builder.automatedRepair(AutoRepairParams.fromMap(row.getFrozenTextMap("auto_repair")));
+        }
 
         return builder.build();
     }
@@ -1095,10 +1179,10 @@ public final class SchemaKeyspace
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
 
-        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
+        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")));
 
         int position = row.getInt("position");
-        ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
+        ClusteringOrder order = ClusteringOrder.valueOf(toUpperCaseLocalized(row.getString("clustering_order")));
 
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
@@ -1152,7 +1236,7 @@ public final class SchemaKeyspace
             mask = new ColumnMask((ScalarFunction) function, values);
         }
 
-        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
+        return new ColumnMetadata(keyspace, table, name, type, NO_UNIQUE_ID, position, kind, mask);
     }
 
     private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)
@@ -1179,12 +1263,12 @@ public final class SchemaKeyspace
          */
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), org.apache.cassandra.schema.Types.none());
         ColumnMetadata.Kind kind = row.has("kind")
-                                 ? ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase())
+                                 ? ColumnMetadata.Kind.valueOf(toUpperCaseLocalized(row.getString("kind")))
                                  : ColumnMetadata.Kind.REGULAR;
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;
 
-        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind, null);
+        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_UNIQUE_ID, ColumnMetadata.NO_POSITION, kind, null);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
         return new DroppedColumn(column, droppedTime);
     }
@@ -1368,7 +1452,16 @@ public final class SchemaKeyspace
 
         FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? CQLTypeParser.parse(ksName, row.getString("state_type"), types) : null;
-        ByteBuffer initcond = row.has("initcond") ? Terms.asBytes(ksName, row.getString("initcond"), stateType) : null;
+        ByteBuffer initcond;
+        if (row.has("initcond"))
+        {
+            String term = row.getString("initcond");
+            initcond = Term.asBytes(ksName, term, stateType);
+        }
+        else
+        {
+            initcond = null;
+        }
 
         return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
     }
@@ -1393,7 +1486,7 @@ public final class SchemaKeyspace
                         .collect(toSet());
     }
 
-    static void applyChanges(Collection<Mutation> mutations)
+    public static void applyChanges(Collection<Mutation> mutations)
     {
         mutations.forEach(Mutation::apply);
         if (SchemaKeyspace.FLUSH_SCHEMA_TABLES)
@@ -1408,10 +1501,10 @@ public final class SchemaKeyspace
          */
         String query = format("SELECT keyspace_name FROM %s.%s WHERE keyspace_name IN ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
 
-        Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
+        Keyspaces keyspaces = org.apache.cassandra.schema.Keyspaces.NONE;
         for (UntypedResultSet.Row row : query(query, new ArrayList<>(toFetch)))
-            keyspaces.add(fetchKeyspace(row.getString("keyspace_name")));
-        return keyspaces.build();
+            keyspaces = keyspaces.with(fetchKeyspace(row.getString("keyspace_name")));
+        return keyspaces;
     }
 
     @VisibleForTesting
@@ -1428,5 +1521,12 @@ public final class SchemaKeyspace
         return row.has("read_repair")
                ? ReadRepairStrategy.fromString(row.getString("read_repair"))
                : ReadRepairStrategy.BLOCKING;
+    }
+
+    private static FastPathStrategy getFastPathStrategy(UntypedResultSet.Row row)
+    {
+        return row.has("fast_path")
+               ? FastPathStrategy.fromMap(row.getFrozenTextMap("fast_path"))
+               : FastPathStrategy.inheritKeyspace();
     }
 }

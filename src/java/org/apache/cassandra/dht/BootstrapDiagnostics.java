@@ -19,12 +19,13 @@
 package org.apache.cassandra.dht;
 
 import java.util.Collection;
+
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.dht.BootstrapEvent.BootstrapEventType;
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * Utility methods for bootstrap related activities.
@@ -50,38 +51,38 @@ final class BootstrapDiagnostics
                                                ImmutableList.copyOf(initialTokens)));
     }
 
-    static void useRandomTokens(InetAddressAndPort address, TokenMetadata metadata, int numTokens, Collection<Token> tokens)
+    static void useRandomTokens(InetAddressAndPort address, ClusterMetadata metadata, int numTokens, Collection<Token> tokens)
     {
         if (isEnabled(BootstrapEventType.BOOTSTRAP_USING_RANDOM_TOKENS))
             service.publish(new BootstrapEvent(BootstrapEventType.BOOTSTRAP_USING_RANDOM_TOKENS,
                                                address,
-                                               metadata.cloneOnlyTokenMap(),
+                                               metadata,
                                                null,
                                                null,
                                                numTokens,
                                                ImmutableList.copyOf(tokens)));
     }
 
-    static void tokensAllocated(InetAddressAndPort address, TokenMetadata metadata,
+    static void tokensAllocated(InetAddressAndPort address, ClusterMetadata metadata,
                                 String allocationKeyspace, int numTokens, Collection<Token> tokens)
     {
         if (isEnabled(BootstrapEventType.TOKENS_ALLOCATED))
             service.publish(new BootstrapEvent(BootstrapEventType.TOKENS_ALLOCATED,
                                                address,
-                                               metadata.cloneOnlyTokenMap(),
+                                               metadata,
                                                allocationKeyspace,
                                                null,
                                                numTokens,
                                                ImmutableList.copyOf(tokens)));
     }
 
-    static void tokensAllocated(InetAddressAndPort address, TokenMetadata metadata,
+    static void tokensAllocated(InetAddressAndPort address, ClusterMetadata metadata,
                                 int rf, int numTokens, Collection<Token> tokens)
     {
         if (isEnabled(BootstrapEventType.TOKENS_ALLOCATED))
             service.publish(new BootstrapEvent(BootstrapEventType.TOKENS_ALLOCATED,
                                                address,
-                                               metadata.cloneOnlyTokenMap(),
+                                               metadata,
                                                null,
                                                rf,
                                                numTokens,

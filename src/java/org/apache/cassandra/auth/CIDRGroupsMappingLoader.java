@@ -58,7 +58,7 @@ public class CIDRGroupsMappingLoader
         UntypedResultSet rows = cidrGroupsMappingManager.getCidrGroupsTableEntries();
         for (UntypedResultSet.Row row : rows)
         {
-            String cidrGroupName = row.getString(AuthKeyspace.CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME);
+            String cidrGroupName = row.getString("cidr_group");
             Set<Pair<InetAddress, Short>> cidrs = cidrGroupsMappingManager.retrieveCidrsFromRow(row);
 
             for (Pair<InetAddress, Short> cidr : cidrs)

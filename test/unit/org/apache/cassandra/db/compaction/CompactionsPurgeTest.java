@@ -18,22 +18,34 @@
 */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
+
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CachingParams;
@@ -41,9 +53,12 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.*;
 import static org.apache.cassandra.Util.dk;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class CompactionsPurgeTest
 {
     private static final String KEYSPACE1 = "CompactionsPurgeTest1";
@@ -54,6 +69,40 @@ public class CompactionsPurgeTest
     private static final String CF_CACHED = "CachedCF";
     private static final String KEYSPACE_CQL = "cql_keyspace";
     private static final String CF_CQL = "table1";
+
+    @Parameterized.Parameter(0)
+    public DiskAccessMode compactionReadDiskAccessMode;
+
+    @Parameterized.Parameter(1)
+    public boolean cursorCompactionEnabled;
+
+    @Parameterized.Parameters(name = "diskAccessMode={0},cursor={1}")
+    public static Collection<Object[]> params()
+    {
+        return Arrays.asList(new Object[]{ DiskAccessMode.standard, true },
+                             new Object[]{ DiskAccessMode.standard, false },
+                             new Object[]{ DiskAccessMode.direct, true },
+                             new Object[]{ DiskAccessMode.direct, false });
+    }
+
+    private DiskAccessMode originalDiskAccessMode;
+    private boolean originalCursorCompactionEnabled;
+
+    @Before
+    public void setCompactionParams()
+    {
+        originalDiskAccessMode = DatabaseDescriptor.getCompactionReadDiskAccessMode();
+        originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
+        DatabaseDescriptor.setCompactionReadDiskAccessMode(compactionReadDiskAccessMode);
+        DatabaseDescriptor.setCursorCompactionEnabled(cursorCompactionEnabled);
+    }
+
+    @After
+    public void restoreCompactionParams()
+    {
+        DatabaseDescriptor.setCompactionReadDiskAccessMode(originalDiskAccessMode);
+        DatabaseDescriptor.setCursorCompactionEnabled(originalCursorCompactionEnabled);
+    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -120,7 +169,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact and test that all columns but the resurrected one is completely gone
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
         cfs.invalidateCachedPartition(dk(key));
 
         ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
@@ -156,7 +205,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact - tombstones should be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -200,7 +249,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact - tombstones should be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -242,7 +291,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // major compact - tombstones should be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Long.MAX_VALUE, false, 0));
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -519,7 +568,7 @@ public class CompactionsPurgeTest
         assertEquals(0, result.size());
 
         // compact the two sstables with a gcBefore that does *not* allow the row tombstone to be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) - 10000, false, 0));
 
         // the data should be gone, but the tombstone should still exist
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -539,7 +588,7 @@ public class CompactionsPurgeTest
         Util.flush(cfs);
 
         // compact the two sstables with a gcBefore that *does* allow the row tombstone to be purged
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false));
+        FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false, 0));
 
         // both the data and the tombstone should be gone this time
         assertEquals(0, cfs.getLiveSSTables().size());

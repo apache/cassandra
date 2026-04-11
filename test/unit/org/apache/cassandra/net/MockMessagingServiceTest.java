@@ -23,16 +23,16 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.apache.cassandra.net.MockMessagingService.all;
 import static org.apache.cassandra.net.MockMessagingService.to;
 import static org.apache.cassandra.net.MockMessagingService.verb;
+import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
@@ -41,7 +41,7 @@ public class MockMessagingServiceTest
     @BeforeClass
     public static void initCluster() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
+        ServerTestUtils.prepareServerNoRegister();
         StorageService.instance.initServer();
     }
 
@@ -56,28 +56,30 @@ public class MockMessagingServiceTest
     {
         // echo message that we like to mock as incoming response for outgoing echo message
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, NoPayload.noPayload);
-        MockMessagingSpy spy = MockMessagingService
+        try(MockMessagingSpy spy = MockMessagingService
                 .when(
                         all(
                                 to(FBUtilities.getBroadcastAddressAndPort()),
                                 verb(ECHO_REQ)
                         )
                 )
-                .respond(echoMessage);
-
-        Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
-        MessagingService.instance().sendWithCallback(echoMessageOut, FBUtilities.getBroadcastAddressAndPort(), msg ->
+                .respond(echoMessage))
         {
-            assertEquals(ECHO_REQ, msg.verb());
-            assertEquals(echoMessage.payload, msg.payload);
-        });
 
-        // we must have intercepted the outgoing message at this point
-        Message<?> msg = spy.captureMessageOut().get();
-        assertEquals(1, spy.messagesIntercepted());
-        assertSame(echoMessage.payload, msg.payload);
+            Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
+            MessagingService.instance().sendWithCallback(echoMessageOut, FBUtilities.getBroadcastAddressAndPort(), msg ->
+            {
+                assertEquals(ECHO_REQ, msg.verb());
+                assertEquals(echoMessage.payload, msg.payload);
+            });
 
-        // and return a mocked response
-        Util.spinAssertEquals(1, spy::mockedMessageResponses, 60);
+            // we must have intercepted the outgoing message at this point
+            Message<?> msg = spy.captureMessageOut().get();
+            assertEquals(1, spy.messagesIntercepted());
+            assertSame(echoMessage.payload, msg.payload);
+
+            // and return a mocked response
+            Util.spinAssertEquals(1, spy::mockedMessageResponses, 60);
+        }
     }
 }

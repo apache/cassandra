@@ -33,6 +33,13 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 
 import static org.junit.Assert.assertEquals;
 
+/**
+ * Tests for nodetool commands, including capturing console output and verifying exit codes.
+ *
+ * @see org.apache.cassandra.tools.nodetool.Flush
+ * @see org.apache.cassandra.tools.nodetool.Info
+ * @see org.apache.cassandra.tools.nodetool.SetCacheCapacity
+ */
 public class NodeToolTest extends TestBaseImpl
 {
     private static Cluster CLUSTER;

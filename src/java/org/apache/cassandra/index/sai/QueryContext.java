@@ -18,18 +18,22 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.exceptions.QueryCancelledException;
+import org.apache.cassandra.index.sai.plan.FilterTree;
+import org.apache.cassandra.index.sai.plan.QueryController;
 import org.apache.cassandra.utils.Clock;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_TEST_DISABLE_TIMEOUT;
 
 /**
  * Tracks state relevant to the execution of a single query, including metrics and timeout monitoring.
- *
+ * <p>
  * Fields here are non-volatile, as they are accessed from a single thread.
  */
 @NotThreadSafe
@@ -58,6 +62,15 @@ public class QueryContext
 
     public boolean queryTimedOut = false;
 
+    /**
+     * {@code true} if the local query for this context has matches from Memtable-attached indexes or indexes on
+     * unrepaired SSTables, and {@code false} otherwise. When this is {@code false}, {@link FilterTree} can ignore the
+     * coordinator suggestion to downgrade to non-strict filtering, potentially reducing the number of false positives.
+     *
+     * @see QueryController#getIndexQueryResults(Collection)
+     * */
+    public boolean hasUnrepairedMatches = false;
+
     public QueryContext(ReadCommand readCommand, long executionQuotaMs)
     {
         this.readCommand = readCommand;
@@ -77,5 +90,10 @@ public class QueryContext
             queryTimedOut = true;
             throw new QueryCancelledException(readCommand);
         }
+    }
+
+    public int limit()
+    {
+        return readCommand.limits().count();
     }
 }

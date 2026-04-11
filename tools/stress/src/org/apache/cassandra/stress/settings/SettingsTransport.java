@@ -44,31 +44,34 @@ public class SettingsTransport implements Serializable
         this.credentials = credentials;
     }
 
-    public EncryptionOptions getEncryptionOptions()
+    public EncryptionOptions.ClientEncryptionOptions getEncryptionOptions()
     {
-        EncryptionOptions encOptions = new EncryptionOptions().applyConfig();
+        EncryptionOptions.ClientEncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions().applyConfig();
         if (options.trustStore.present())
         {
-            encOptions = encOptions
-                         .withEnabled(true)
-                         .withTrustStore(options.trustStore.value())
-                         .withTrustStorePassword(options.trustStorePw.setByUser() ? options.trustStorePw.value() : credentials.transportTruststorePassword)
-                         .withAlgorithm(options.alg.value())
-                         .withProtocol(options.protocol.value())
-                         .withCipherSuites(options.ciphers.value().split(","));
+            EncryptionOptions.Builder<EncryptionOptions.ClientEncryptionOptions> encOptionsBuilder = new EncryptionOptions.ClientEncryptionOptions.Builder(encOptions)
+                                        .withEnabled(true)
+                                        .withTrustStore(options.trustStore.value())
+                                        .withTrustStorePassword(options.trustStorePw.setByUser() ? options.trustStorePw.value() : credentials.transportTruststorePassword)
+                                        .withAlgorithm(options.alg.value())
+                                        .withProtocol(options.protocol.value());
+
+            if (options.ciphers.value() != null)
+                encOptionsBuilder.withCipherSuites(options.ciphers.value().split(","));
+
             if (options.keyStore.present())
             {
-                encOptions = encOptions
-                             .withKeyStore(options.keyStore.value())
-                             .withKeyStorePassword(options.keyStorePw.setByUser() ? options.keyStorePw.value() : credentials.transportKeystorePassword);
+                encOptionsBuilder.withKeyStore(options.keyStore.value())
+                                 .withKeyStorePassword(options.keyStorePw.setByUser() ? options.keyStorePw.value() : credentials.transportKeystorePassword);
             }
             else
             {
                 // mandatory for SSLFactory.createSSLContext(), see CASSANDRA-9325
-                encOptions = encOptions
-                             .withKeyStore(encOptions.truststore)
-                             .withKeyStorePassword(encOptions.truststore_password != null ? encOptions.truststore_password : credentials.transportTruststorePassword);
+                encOptionsBuilder.withKeyStore(encOptions.truststore)
+                                 .withKeyStorePassword(encOptions.truststore_password != null ? encOptions.truststore_password : credentials.transportTruststorePassword);
             }
+
+            encOptions = encOptionsBuilder.build();
         }
         return encOptions;
     }
@@ -87,8 +90,9 @@ public class SettingsTransport implements Serializable
                                                                 TRANSPORT_KEYSTORE_PASSWORD_PROPERTY_KEY), false);
         final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connection protocol to use", false);
         final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", null, "SSL: algorithm", false);
+        // Null is to auto-negotiate
         final OptionSimple ciphers = new OptionSimple("ssl-ciphers=", ".*",
-                                                      "TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA",
+                                                      null,
                                                       "SSL: comma delimited list of encryption suites to use", false);
 
         @Override

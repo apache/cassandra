@@ -20,12 +20,6 @@ package org.apache.cassandra.test.microbench;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.OverrideConfigurationLoader;
-import org.apache.cassandra.diag.DiagnosticEvent;
-import org.apache.cassandra.diag.DiagnosticEventPersistence;
-import org.apache.cassandra.diag.DiagnosticEventService;
-import org.apache.cassandra.test.microbench.DiagnosticEventServiceBench.DummyEvent;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -37,6 +31,13 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.OverrideConfigurationLoader;
+import org.apache.cassandra.diag.DiagnosticEvent;
+import org.apache.cassandra.diag.DiagnosticEventPersistence;
+import org.apache.cassandra.diag.DiagnosticEventService;
+import org.apache.cassandra.test.microbench.DiagnosticEventServiceBench.DummyEvent;
 
 @BenchmarkMode(Mode.All)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)

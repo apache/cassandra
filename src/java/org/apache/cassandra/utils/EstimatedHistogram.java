@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.DoubleToLongFunction;
 
 import com.google.common.base.Objects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,6 +87,19 @@ public class EstimatedHistogram implements DoubleToLongFunction
         assert bucketData.length == offsets.length +1;
         bucketOffsets = offsets;
         buckets = new AtomicLongArray(bucketData);
+    }
+
+    public static long[] newOffsetsWithScale(long maxScale, boolean considerZeroes)
+    {
+        int i = 2;
+        long next = 1;
+        while (true)
+        {
+            next = Math.max(next + 1, Math.round(next * 1.2));
+            if (next >= maxScale)
+                return newOffsets(i, considerZeroes);
+            ++i;
+        }
     }
 
     public static long[] newOffsets(int size, boolean considerZeroes)
@@ -256,6 +270,8 @@ public class EstimatedHistogram implements DoubleToLongFunction
             sum += bCount * bucketOffsets[i];
         }
 
+        if (elements == 0)
+            return 0.0D;
         return (double) sum / elements;
     }
 
@@ -441,5 +457,11 @@ public class EstimatedHistogram implements DoubleToLongFunction
             }
             return size;
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.valueOf(mean());
     }
 }

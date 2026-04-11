@@ -23,7 +23,6 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -31,15 +30,20 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.compress.*;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.compress.IDictionaryCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.NoopCompressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.compress.ZstdCompressor;
+import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -48,10 +52,6 @@ import static java.lang.String.format;
 
 public final class CompressionParams
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
-
-    private static volatile boolean hasLoggedCrcCheckChanceWarning;
-
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
@@ -78,19 +78,11 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
 
-    private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
-                                                           "You should specify it as a top-level table option instead";
-
-    @Deprecated public static final String CRC_CHECK_CHANCE = "crc_check_chance";
-
     private final ICompressor sstableCompressor;
     private final int chunkLength;
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
-
-    // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
-    private volatile double crcCheckChance = 1.0;
 
     public static CompressionParams fromMap(Map<String, String> opts)
     {
@@ -176,15 +168,31 @@ public final class CompressionParams
         return new CompressionParams(LZ4Compressor.create(Collections.emptyMap()), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), Collections.emptyMap());
     }
 
+    @VisibleForTesting
     public static CompressionParams zstd()
     {
-        return zstd(DEFAULT_CHUNK_LENGTH);
+        return zstd(DEFAULT_CHUNK_LENGTH, false);
     }
 
+    @VisibleForTesting
     public static CompressionParams zstd(Integer chunkLength)
     {
-        ZstdCompressor compressor = ZstdCompressor.create(Collections.emptyMap());
-        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
+        return zstd(chunkLength, false);
+    }
+
+    @VisibleForTesting
+    public static CompressionParams zstd(Integer chunkLength, boolean useDictionary)
+    {
+        return zstd(chunkLength, useDictionary, Collections.emptyMap());
+    }
+
+    @VisibleForTesting
+    public static CompressionParams zstd(Integer chunkLength, boolean useDictionary, Map<String, String> options)
+    {
+        ICompressor compressor = useDictionary
+                                 ? ZstdDictionaryCompressor.create(options)
+                                 : ZstdCompressor.create(options);
+        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, options);
     }
 
     @VisibleForTesting
@@ -240,6 +248,31 @@ public final class CompressionParams
     }
 
     /**
+     * Checks if dictionary compression is enabled for this configuration.
+     * Dictionary compression is enabled when both compression is enabled and
+     * the compressor supports dictionary-based compression.
+     *
+     * @return {@code true} if dictionary compression is enabled, {@code false} otherwise.
+     */
+    public boolean isDictionaryCompressionEnabled()
+    {
+        return isEnabled() && sstableCompressor instanceof IDictionaryCompressor;
+    }
+
+    /**
+     * @return kind of compression dictionary the compressor accepts, or null if none
+     */
+    public CompressionDictionary.Kind getCompressionDictionaryKind()
+    {
+        if (isDictionaryCompressionEnabled())
+        {
+            return ((IDictionaryCompressor<?>) sstableCompressor).acceptableDictionaryKind();
+        }
+
+        return null;
+    }
+
+    /**
      * Returns the SSTable compressor.
      * @return the SSTable compressor or {@code null} if compression is disabled.
      */
@@ -286,16 +319,6 @@ public final class CompressionParams
             if (!compressionOptions.isEmpty())
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
-        }
-
-        if (compressionOptions.containsKey(CRC_CHECK_CHANCE))
-        {
-            if (!hasLoggedCrcCheckChanceWarning)
-            {
-                logger.warn(CRC_CHECK_CHANCE_WARNING);
-                hasLoggedCrcCheckChanceWarning = true;
-            }
-            compressionOptions.remove(CRC_CHECK_CHANCE);
         }
 
         try
@@ -497,23 +520,6 @@ public final class CompressionParams
     public String chunkLengthInKB()
     {
         return String.valueOf(chunkLength() / 1024);
-    }
-
-    public void setCrcCheckChance(double crcCheckChance)
-    {
-        this.crcCheckChance = crcCheckChance;
-    }
-
-    public double getCrcCheckChance()
-    {
-        return crcCheckChance;
-    }
-
-    public boolean shouldCheckCrc()
-    {
-        double checkChance = getCrcCheckChance();
-        return checkChance >= 1d ||
-               (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override

@@ -28,6 +28,7 @@ import com.google.common.primitives.Ints;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Represents an amount of data storage. Wrapper class for Cassandra configuration parameters, providing to the
@@ -99,7 +100,7 @@ public abstract class DataStorageSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException("Invalid data storage: " + value + ". It shouldn't be more than " +
-                                               (max - 1) + " in " + minUnit.name().toLowerCase());
+                                               (max - 1) + " in " + toLowerCaseLocalized(minUnit.name()));
     }
 
     private static void validateQuantity(long quantity, DataStorageUnit sourceUnit, DataStorageUnit minUnit, long max)
@@ -109,8 +110,8 @@ public abstract class DataStorageSpec
 
         if (minUnit.convert(quantity, sourceUnit) >= max)
             throw new IllegalArgumentException(String.format("Invalid data storage: %d %s. It shouldn't be more than %d in %s",
-                                                             quantity, sourceUnit.name().toLowerCase(),
-                                                             max - 1, minUnit.name().toLowerCase()));
+                                                             quantity, toLowerCaseLocalized(sourceUnit.name()),
+                                                             max - 1, toLowerCaseLocalized(minUnit.name())));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
@@ -479,25 +480,21 @@ public abstract class DataStorageSpec
     {
         BYTES("B")
         {
-            public long toBytes(long d)
-            {
-                return d;
-            }
+            public long toBytes(long d) { return d; }
 
-            public long toKibibytes(long d)
-            {
-                return (d / 1024L);
-            }
+            public long toKibibytes(long d) { return (d / 1024L); }
 
-            public long toMebibytes(long d)
-            {
-                return (d / (1024L * 1024));
-            }
+            public long toMebibytes(long d) { return (d / (1024L * 1024)); }
 
-            public long toGibibytes(long d)
-            {
-                return (d / (1024L * 1024 * 1024));
-            }
+            public long toGibibytes(long d)  { return (d / (1024L * 1024 * 1024)); }
+
+            public double toBytesDouble(long d) { return (double) d; }
+
+            public double toKibibytesDouble(long d) { return d / 1024.0; }
+
+            public double toMebibytesDouble(long d) { return d / (1024.0 * 1024); }
+
+            public double toGibibytesDouble(long d) { return d / (1024.0 * 1024 * 1024); }
 
             public long convert(long source, DataStorageUnit sourceUnit)
             {
@@ -526,6 +523,14 @@ public abstract class DataStorageSpec
                 return (d / (1024L * 1024));
             }
 
+            public double toBytesDouble(long d) { return (double) toBytes(d); }
+
+            public double toKibibytesDouble(long d) { return (double) d; }
+
+            public double toMebibytesDouble(long d) { return d / 1024.0; }
+
+            public double toGibibytesDouble(long d) { return d / (1024.0 * 1024); }
+
             public long convert(long source, DataStorageUnit sourceUnit)
             {
                 return sourceUnit.toKibibytes(source);
@@ -543,15 +548,20 @@ public abstract class DataStorageSpec
                 return x(d, 1024L, (MAX / 1024L));
             }
 
-            public long toMebibytes(long d)
-            {
-                return d;
-            }
+            public long toMebibytes(long d) { return d; }
 
             public long toGibibytes(long d)
             {
                 return (d / 1024L);
             }
+
+            public double toBytesDouble(long d) { return (double) toBytes(d); }
+
+            public double toKibibytesDouble(long d) { return (double) toKibibytes(d); }
+
+            public double toMebibytesDouble(long d) { return (double) d; }
+
+            public double toGibibytesDouble(long d) { return d / 1024.0; }
 
             public long convert(long source, DataStorageUnit sourceUnit)
             {
@@ -575,10 +585,15 @@ public abstract class DataStorageSpec
                 return x(d, 1024L, (MAX / 1024L));
             }
 
-            public long toGibibytes(long d)
-            {
-                return d;
-            }
+            public long toGibibytes(long d) { return d; }
+
+            public double toBytesDouble(long d) { return (double) toBytes(d); }
+
+            public double toKibibytesDouble(long d) { return (double) toKibibytes(d); }
+
+            public double toMebibytesDouble(long d) { return (double) toMebibytes(d); }
+
+            public double toGibibytesDouble(long d) { return (double) d; }
 
             public long convert(long source, DataStorageUnit sourceUnit)
             {
@@ -627,7 +642,17 @@ public abstract class DataStorageSpec
             this.symbol = symbol;
         }
 
+        public String getSymbol()
+        {
+            return symbol;
+        }
+
         public long toBytes(long d)
+        {
+            throw new AbstractMethodError();
+        }
+
+        public double toBytesDouble(long d)
         {
             throw new AbstractMethodError();
         }
@@ -637,12 +662,27 @@ public abstract class DataStorageSpec
             throw new AbstractMethodError();
         }
 
+        public double toKibibytesDouble(long d)
+        {
+            throw new AbstractMethodError();
+        }
+
         public long toMebibytes(long d)
         {
             throw new AbstractMethodError();
         }
 
+        public double toMebibytesDouble(long d)
+        {
+            throw new AbstractMethodError();
+        }
+
         public long toGibibytes(long d)
+        {
+            throw new AbstractMethodError();
+        }
+
+        public double toGibibytesDouble(long d)
         {
             throw new AbstractMethodError();
         }

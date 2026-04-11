@@ -36,8 +36,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static org.junit.Assert.assertTrue;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.junit.Assert.assertTrue;
 
 // TODO: we don't currently test SAFE functionality at all!
 // TODO: should also test markBlocking and SyncOrdered

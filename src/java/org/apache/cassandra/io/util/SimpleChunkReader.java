@@ -55,7 +55,7 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     }
 
     @Override
-    public Rebufferer instantiateRebufferer()
+    public Rebufferer instantiateRebufferer(boolean forScan)
     {
         if (Integer.bitCount(bufferSize) == 1)
             return new BufferManagingRebufferer.Aligned(this);

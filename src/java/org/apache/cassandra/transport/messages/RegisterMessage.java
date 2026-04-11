@@ -20,10 +20,18 @@ package org.apache.cassandra.transport.messages;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.netty.buffer.ByteBuf;
-
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Connection;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.ServerConnection;
+
+import io.netty.buffer.ByteBuf;
 
 public class RegisterMessage extends Message.Request
 {
@@ -63,7 +71,7 @@ public class RegisterMessage extends Message.Request
     }
 
     @Override
-    protected Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
         assert connection instanceof ServerConnection;
         Connection.Tracker tracker = connection.getTracker();

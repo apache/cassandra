@@ -66,7 +66,6 @@ public interface WithResources
     }
     static WithResources none() { return None.INSTANCE; }
 
-    @SuppressWarnings("resource")
     public static WithResources and(WithResources first, WithResources second)
     {
         if (second.isNoOp()) return first;

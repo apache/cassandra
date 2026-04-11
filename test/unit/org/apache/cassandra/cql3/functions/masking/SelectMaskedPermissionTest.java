@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
+import org.awaitility.core.ThrowingRunnable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -25,7 +26,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.awaitility.core.ThrowingRunnable;
 
 import static java.lang.String.format;
 
@@ -45,7 +45,6 @@ public class SelectMaskedPermissionTest extends CQLTester
         DatabaseDescriptor.setDynamicDataMaskingEnabled(true);
         DatabaseDescriptor.setPermissionsValidity(0);
         DatabaseDescriptor.setRolesValidity(0);
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

@@ -53,4 +53,4 @@ SAI outperforms any other indexing method available for {product}.
 SAI provides more functionality than secondary indexing (2i), using a fraction of the disk space, and reducing the total cost of ownership (TCO) for disk, infrastructure, and operations.
 For read path performance, SAI performs at least as well as the other indexing methods for throughput and latency.
 
-include::_sai-read-write-paths.adoc[leveloffset=+1]
+include::sai-read-write-paths.adoc[leveloffset=+1]

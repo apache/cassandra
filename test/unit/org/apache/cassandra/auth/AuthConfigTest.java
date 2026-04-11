@@ -30,6 +30,7 @@ import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -52,8 +53,10 @@ public class AuthConfigTest
         Config config = load("cassandra-mtls.yaml");
         config.internode_authenticator.class_name = "org.apache.cassandra.auth.MutualTlsInternodeAuthenticator";
         config.internode_authenticator.parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
-        config.server_encryption_options = config.server_encryption_options.withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
-                                                                           .withOutboundKeystorePassword("cassandra");
+        config.server_encryption_options = new Builder(config.server_encryption_options)
+                                           .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
+                                           .withOutboundKeystorePassword("cassandra")
+                                           .build();
         DatabaseDescriptor.setConfig(config);
         MutualTlsInternodeAuthenticator authenticator = ParameterizedClass.newInstance(config.internode_authenticator,
                                                                                        Arrays.asList("", "org.apache.cassandra.auth."));

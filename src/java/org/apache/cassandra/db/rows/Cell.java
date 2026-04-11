@@ -120,6 +120,11 @@ public abstract class Cell<V> extends ColumnData
         return accessor().toBuffer(value());
     }
 
+    public byte[] valueAsArray()
+    {
+        return accessor().toArray(value());
+    }
+
     /**
      * The cell timestamp.
      * <p>
@@ -172,6 +177,11 @@ public abstract class Cell<V> extends ColumnData
      */
     public abstract boolean isLive(long nowInSec);
 
+    public final boolean isLive(long nowInSec, long localDeletionTime, int ttl)
+    {
+        return localDeletionTime == NO_DELETION_TIME || ttl != NO_TTL && nowInSec < localDeletionTime;
+    }
+
     /**
      * For cells belonging to complex types (non-frozen collection and UDT), the
      * path to the cell.
@@ -183,6 +193,8 @@ public abstract class Cell<V> extends ColumnData
     public abstract Cell<?> withUpdatedColumn(ColumnMetadata newColumn);
 
     public abstract Cell<?> withUpdatedValue(ByteBuffer newValue);
+
+    public abstract Cell<?> withUpdatedTimestamp(long newTimestamp);
 
     public abstract Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, long newLocalDeletionTime);
 
@@ -197,6 +209,11 @@ public abstract class Cell<V> extends ColumnData
     public final Cell<?> clone(Cloner cloner)
     {
         return cloner.clone(this);
+    }
+
+    public int estimateCloneSize(Cloner cloner)
+    {
+        return cloner.estimateCloneSize(this);
     }
 
     public abstract Cell<?> clone(ByteBufferCloner cloner);
@@ -246,7 +263,7 @@ public abstract class Cell<V> extends ColumnData
      * where not all field are always present (in fact, only the [ flags ] are guaranteed to be present). The fields have the following
      * meaning:
      *   - [ flags ] is the cell flags. It is a byte for which each bit represents a flag whose meaning is explained below (*_MASK constants)
-     *   - [ timestamp ] is the cell timestamp. Present unless the cell has the USE_TIMESTAMP_MASK.
+     *   - [ timestamp ] is the cell timestamp. Present unless the cell has the USE_ROW_TIMESTAMP_MASK.
      *   - [ deletion time]: the local deletion time for the cell. Present if either the cell is deleted (IS_DELETED_MASK)
      *       or it is expiring (IS_EXPIRING_MASK) but doesn't have the USE_ROW_TTL_MASK.
      *   - [ ttl ]: the ttl for the cell. Present if the row is expiring (IS_EXPIRING_MASK) but doesn't have the
@@ -257,22 +274,75 @@ public abstract class Cell<V> extends ColumnData
      *   - [ value ]: the cell value, unless it has the HAS_EMPTY_VALUE_MASK.
      *   - [ path ]: the cell path if the column this is a cell of is complex.
      */
-    static class Serializer
+    public static class Serializer
     {
-        private final static int IS_DELETED_MASK             = 0x01; // Whether the cell is a tombstone or not.
-        private final static int IS_EXPIRING_MASK            = 0x02; // Whether the cell is expiring.
-        private final static int HAS_EMPTY_VALUE_MASK        = 0x04; // Wether the cell has an empty value. This will be the case for tombstone in particular.
-        private final static int USE_ROW_TIMESTAMP_MASK      = 0x08; // Wether the cell has the same timestamp than the row this is a cell of.
-        private final static int USE_ROW_TTL_MASK            = 0x10; // Wether the cell has the same ttl than the row this is a cell of.
+        public final static int IS_DELETED_MASK             = 0x01; // Whether the cell is a tombstone or not.
+        public final static int IS_EXPIRING_MASK            = 0x02; // Whether the cell is expiring.
+        public final static int HAS_EMPTY_VALUE_MASK        = 0x04; // Wether the cell has an empty value. This will be the case for tombstone in particular.
+        public final static int USE_ROW_TIMESTAMP_MASK      = 0x08; // Wether the cell has the same timestamp than the row this is a cell of.
+        public final static int USE_ROW_TTL_MASK            = 0x10; // Wether the cell has the same ttl than the row this is a cell of.
 
         public <T> void serialize(Cell<T> cell, ColumnMetadata column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
         {
             assert cell != null;
-            boolean hasValue = cell.valueSize() > 0;
-            boolean isDeleted = cell.isTombstone();
-            boolean isExpiring = cell.isExpiring();
-            boolean useRowTimestamp = !rowLiveness.isEmpty() && cell.timestamp() == rowLiveness.timestamp();
-            boolean useRowTTL = isExpiring && rowLiveness.isExpiring() && cell.ttl() == rowLiveness.ttl() && cell.localDeletionTime() == rowLiveness.localExpirationTime();
+            int valueSize;
+            boolean hasValue;
+            boolean isDeleted;
+            boolean isExpiring;
+            long cellTimestamp;
+            long localDeletionTime;
+            int ttl;
+            T value;
+            ValueAccessor<T> accessor;
+            // To avoid megamorphic calls we split call sites.
+            // We have ArrayCell, BufferCell and NativeCell and all of them can be used here in different scenarios.
+            // The type check is executed once per 8 Cell method calls, so it amortized.
+            // While this is a micro-optimization, given that it is invoked per cell,
+            // the invocation frequency is extremely large and the overhead is noticeable.
+            Class<?> cellClass = cell.getClass();
+            if (cellClass == NativeCell.class)
+            {
+                valueSize = cell.valueSize();
+                hasValue = valueSize > 0;
+                isDeleted = cell.isTombstone();
+                isExpiring = cell.isExpiring();
+                cellTimestamp = cell.timestamp();
+                localDeletionTime = cell.localDeletionTime();
+                ttl = cell.ttl();
+                value = cell.value();
+                accessor = cell.accessor();
+            }
+            else if (cellClass == ArrayCell.class)
+            {
+                valueSize = cell.valueSize();
+                hasValue = valueSize > 0;
+                isDeleted = cell.isTombstone();
+                isExpiring = cell.isExpiring();
+                cellTimestamp = cell.timestamp();
+                localDeletionTime = cell.localDeletionTime();
+                ttl = cell.ttl();
+                value = cell.value();
+                accessor = cell.accessor();
+            }
+            else
+            {
+                valueSize = cell.valueSize();
+                hasValue = valueSize > 0;
+                isDeleted = cell.isTombstone();
+                isExpiring = cell.isExpiring();
+                cellTimestamp = cell.timestamp();
+                localDeletionTime = cell.localDeletionTime();
+                ttl = cell.ttl();
+                value = cell.value();
+                accessor = cell.accessor();
+            }
+
+
+            boolean useRowTimestamp = !rowLiveness.isEmpty() && cellTimestamp == rowLiveness.timestamp();
+            boolean useRowTTL = isExpiring
+                                && rowLiveness.isExpiring()
+                                && ttl == rowLiveness.ttl()
+                                && localDeletionTime == rowLiveness.localExpirationTime();
             int flags = 0;
             if (!hasValue)
                 flags |= HAS_EMPTY_VALUE_MASK;
@@ -290,28 +360,28 @@ public abstract class Cell<V> extends ColumnData
             out.writeByte((byte)flags);
 
             if (!useRowTimestamp)
-                header.writeTimestamp(cell.timestamp(), out);
+                header.writeTimestamp(cellTimestamp, out);
 
             if ((isDeleted || isExpiring) && !useRowTTL)
-                header.writeLocalDeletionTime(cell.localDeletionTime(), out);
+                header.writeLocalDeletionTime(localDeletionTime, out);
             if (isExpiring && !useRowTTL)
-                header.writeTTL(cell.ttl(), out);
+                header.writeTTL(ttl, out);
 
             if (column.isComplex())
                 column.cellPathSerializer().serialize(cell.path(), out);
 
             if (hasValue)
-                header.getType(column).writeValue(cell.value(), cell.accessor(), out);
+                header.getType(column).writeValue(value, accessor, out);
         }
 
         public <V> Cell<V> deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnMetadata column, SerializationHeader header, DeserializationHelper helper, ValueAccessor<V> accessor) throws IOException
         {
             int flags = in.readUnsignedByte();
-            boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;
-            boolean isDeleted = (flags & IS_DELETED_MASK) != 0;
-            boolean isExpiring = (flags & IS_EXPIRING_MASK) != 0;
-            boolean useRowTimestamp = (flags & USE_ROW_TIMESTAMP_MASK) != 0;
-            boolean useRowTTL = (flags & USE_ROW_TTL_MASK) != 0;
+            boolean hasValue = hasValue(flags);
+            boolean isDeleted = isDeleted(flags);
+            boolean isExpiring = isExpiring(flags);
+            boolean useRowTimestamp = useRowTimestamp(flags);
+            boolean useRowTTL = useRowTTL(flags);
 
             long timestamp = useRowTimestamp ? rowLiveness.timestamp() : header.readTimestamp(in);
 
@@ -378,11 +448,11 @@ public abstract class Cell<V> extends ColumnData
         public boolean skip(DataInputPlus in, ColumnMetadata column, SerializationHeader header) throws IOException
         {
             int flags = in.readUnsignedByte();
-            boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;
-            boolean isDeleted = (flags & IS_DELETED_MASK) != 0;
-            boolean isExpiring = (flags & IS_EXPIRING_MASK) != 0;
-            boolean useRowTimestamp = (flags & USE_ROW_TIMESTAMP_MASK) != 0;
-            boolean useRowTTL = (flags & USE_ROW_TTL_MASK) != 0;
+            boolean hasValue = hasValue(flags);
+            boolean isDeleted = isDeleted(flags);
+            boolean isExpiring = isExpiring(flags);
+            boolean useRowTimestamp = useRowTimestamp(flags);
+            boolean useRowTTL = useRowTTL(flags);
 
             if (!useRowTimestamp)
                 header.skipTimestamp(in);
@@ -400,6 +470,31 @@ public abstract class Cell<V> extends ColumnData
                 header.getType(column).skipValue(in);
 
             return true;
+        }
+
+        public static boolean useRowTTL(int cellFlags)
+        {
+            return (cellFlags & USE_ROW_TTL_MASK) != 0;
+        }
+
+        public static boolean useRowTimestamp(int cellFlags)
+        {
+            return (cellFlags & USE_ROW_TIMESTAMP_MASK) != 0;
+        }
+
+        public static boolean isExpiring(int cellFlags)
+        {
+            return (cellFlags & IS_EXPIRING_MASK) != 0;
+        }
+
+        public static boolean isDeleted(int cellFlags)
+        {
+            return (cellFlags & IS_DELETED_MASK) != 0;
+        }
+
+        public static boolean hasValue(int cellFlags)
+        {
+            return (cellFlags & HAS_EMPTY_VALUE_MASK) == 0;
         }
     }
 }

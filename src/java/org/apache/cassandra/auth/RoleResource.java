@@ -21,6 +21,7 @@ import java.util.Set;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -54,6 +55,8 @@ public class RoleResource implements IResource, Comparable<RoleResource>
 
     private static final String ROOT_NAME = "roles";
     private static final RoleResource ROOT_RESOURCE = new RoleResource();
+    // synthetic role for saying that a role is going to be generated
+    public static final RoleResource GENERATED_ROLE = new RoleResource("generated");
 
     private final Level level;
     private final String name;

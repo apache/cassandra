@@ -21,11 +21,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import org.mindrot.jbcrypt.BCrypt;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.utils.FBUtilities;
-import org.mindrot.jbcrypt.BCrypt;
 
 public class RoleOptions
 {
@@ -87,6 +88,16 @@ public class RoleOptions
     public Optional<String> getPassword()
     {
         return Optional.ofNullable((String)options.get(IRoleManager.Option.PASSWORD));
+    }
+
+    public boolean isGeneratedPassword()
+    {
+        return (Boolean) options.getOrDefault(IRoleManager.Option.GENERATED_PASSWORD, Boolean.FALSE);
+    }
+
+    public boolean isGeneratedName()
+    {
+        return (Boolean) options.getOrDefault(IRoleManager.Option.GENERATED_NAME, Boolean.FALSE);
     }
 
     /**
@@ -163,6 +174,14 @@ public class RoleOptions
                     {
                         throw new InvalidRequestException("Invalid hashed password value. Please use jBcrypt.");
                     }
+                    break;
+                case GENERATED_PASSWORD:
+                    if (options.containsKey(IRoleManager.Option.PASSWORD))
+                        throw new InvalidRequestException(String.format("Properties '%s' and '%s' are mutually exclusive",
+                                                                        IRoleManager.Option.PASSWORD, IRoleManager.Option.GENERATED_PASSWORD));
+                    if (options.containsKey(IRoleManager.Option.HASHED_PASSWORD))
+                        throw new InvalidRequestException(String.format("Properties '%s' and '%s' are mutually exclusive",
+                                                                        IRoleManager.Option.HASHED_PASSWORD, IRoleManager.Option.GENERATED_PASSWORD));
                     break;
                 case OPTIONS:
                     if (!(option.getValue() instanceof Map))

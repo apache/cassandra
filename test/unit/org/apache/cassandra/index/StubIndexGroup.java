@@ -22,13 +22,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
@@ -68,6 +69,12 @@ public class StubIndexGroup implements Index.Group
     }
 
     @Override
+    public boolean isSingleton()
+    {
+        return false;
+    }
+
+    @Override
     public Index.Indexer indexerFor(Predicate<Index> indexSelector,
                                     DecoratedKey key,
                                     RegularAndStaticColumns columns,
@@ -87,7 +94,7 @@ public class StubIndexGroup implements Index.Group
     }
 
     @Override
-    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
+    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn, TableMetadata tableMetadata)
     {
         return null;
     }

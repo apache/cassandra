@@ -26,12 +26,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import org.junit.Assert;
-
-import io.netty.util.concurrent.Promise;
 import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import net.openhft.chronicle.core.util.ThrowingConsumer;
 import net.openhft.chronicle.core.util.ThrowingFunction;
+
+import org.junit.Assert;
+
+import io.netty.util.concurrent.Promise;
 
 public abstract class AbstractTestPromise
 {
@@ -50,7 +51,7 @@ public abstract class AbstractTestPromise
                 }
                 catch (Throwable t)
                 {
-                    throw new AssertionError("" + i, t);
+                    throw new AssertionError(i + ": " + waitingOn.get(i), t);
                 }
             }
         }

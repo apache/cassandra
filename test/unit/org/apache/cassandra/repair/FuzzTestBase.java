@@ -22,8 +22,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -43,22 +44,27 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import org.apache.cassandra.config.UnitConfigOverride;
-import org.junit.Before;
+import com.google.common.collect.Sets;
+
+import org.agrona.collections.LongHashSet;
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
+import org.quicktheories.impl.JavaRandom;
 
 import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.agrona.collections.LongHashSet;
+
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -69,10 +75,13 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.UnitConfigOverride;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.ICompactionManager;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -80,7 +89,7 @@ import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.HeartBeatState;
@@ -90,22 +99,25 @@ import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.SimulatedMessageDelivery;
+import org.apache.cassandra.net.SimulatedMessageDelivery.SimulatedMessageReceiver;
+import org.apache.cassandra.repair.RepairGenerators.PreviewType;
+import org.apache.cassandra.repair.RepairGenerators.RepairType;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.JobState;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -117,12 +129,22 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupHistory;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
+import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
+import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataInputPlus;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -133,24 +155,24 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.progress.ProgressEventType;
-import org.assertj.core.api.Assertions;
-import org.mockito.Mockito;
-import org.quicktheories.impl.JavaRandom;
 
+import picocli.CommandLine;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 public abstract class FuzzTestBase extends CQLTester.InMemory
 {
     private static final int MISMATCH_NUM_PARTITIONS = 1;
-    private static final Gen<String> IDENTIFIER_GEN = fromQT(Generators.IDENTIFIER_GEN);
-    private static final Gen<String> KEYSPACE_NAME_GEN = fromQT(CassandraGenerators.KEYSPACE_NAME_GEN);
-    private static final Gen<TableId> TABLE_ID_GEN = fromQT(CassandraGenerators.TABLE_ID_GEN);
-    private static final Gen<InetAddressAndPort> ADDRESS_W_PORT = fromQT(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN);
+    private static final Gen<String> IDENTIFIER_GEN = Generators.toGen(Generators.IDENTIFIER_GEN);
+    private static final Gen<String> KEYSPACE_NAME_GEN = Generators.toGen(CassandraGenerators.KEYSPACE_NAME_GEN);
+    private static final Gen<TableId> TABLE_ID_GEN = Generators.toGen(CassandraGenerators.TABLE_ID_GEN);
+    private static final Gen<InetAddressAndPort> ADDRESS_W_PORT = Generators.toGen(CassandraGenerators.INET_ADDRESS_AND_PORT_GEN);
 
     private static boolean SETUP_SCHEMA = false;
     static String KEYSPACE;
@@ -160,6 +182,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     public static void setUpClass()
     {
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
+        ACCORD_REPAIR_RANGE_STEP_UPDATE_INTERVAL.setInt(1);
         CLOCK_GLOBAL.setString(ClockAccess.class.getName());
         // when running in CI an external actor will replace the test configs based off the test type (such as trie, cdc, etc.), this could then have failing tests
         // that do not repo with the same seed!  To fix that, go to UnitConfigOverride and update the config type to match the one that failed in CI, this should then
@@ -167,8 +190,18 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         UnitConfigOverride.maybeOverrideConfig();
 
         DatabaseDescriptor.daemonInitialization();
+
+        // in-memory fs (jimfs) we use for testing purposes does not handle direct mode well,
+        // it is evalauted to direct only in case we are running -latest test profile where
+        // commitlog_disk_access_mode is set to auto which would evaluate it to "direct" which fails,
+        // other test profiles (normal or compression) would run with in-memory fs just fine,
+        // it is just "direct" which can not be run with in-memory fs, in that case,
+        // we set it forcibly to mmap to bypass that
+        // please keep in mind this is a static field, impacting every test running in the same jvm
+        if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.mmap);
+
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance); // TOOD (coverage): random select
-        DatabaseDescriptor.setLocalDataCenter("test");
         StreamingChannel.Factory.Global.unsafeSet(new StreamingChannel.Factory()
         {
             private final AtomicInteger counter = new AtomicInteger();
@@ -217,16 +250,16 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             @Override
-            public Thread startThread(String name, Runnable runnable, InfiniteLoopExecutor.Daemon daemon)
+            public Thread startThread(String name, Runnable runnable, SystemThreadTag systemTag, SimulatorThreadTag simulatorTag)
             {
                 if (shouldMock()) return new Thread();
-                return delegate.startThread(name, runnable, daemon);
+                return delegate.startThread(name, runnable, systemTag, simulatorTag);
             }
 
             @Override
-            public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, InfiniteLoopExecutor.Daemon daemon, InfiniteLoopExecutor.Interrupts interrupts)
+            public Interruptible infiniteLoop(String name, Interruptible.Task task, InfiniteLoopExecutor.SimulatorSafe simulatorSafe, SystemThreadTag systemTag, InfiniteLoopExecutor.Interrupts interrupts)
             {
-                return delegate.infiniteLoop(name, task, simulatorSafe, daemon, interrupts);
+                return delegate.infiniteLoop(name, task, simulatorSafe, systemTag, interrupts);
             }
 
             @Override
@@ -261,24 +294,31 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         // so don't want to deal with unlucky histories...
         DatabaseDescriptor.setRepairRpcTimeout(TimeUnit.DAYS.toMillis(1));
 
+        // make sure accord is enabled as accord has custom repair steps
+        DatabaseDescriptor.setAccordTransactionsEnabled(true);
 
         InMemory.setUpClass();
+
+        MessagingService.instance().listen();
     }
 
-    @Before
-    public void setupSchema()
+    public static void setupSchema()
     {
-        if (SETUP_SCHEMA) return;
-        SETUP_SCHEMA = true;
         // StorageService can not be mocked out, nor can ColumnFamilyStores, so make sure that the keyspace is a "local" keyspace to avoid replication as the peers don't actually exist for replication
         schemaChange(String.format("CREATE KEYSPACE %s WITH REPLICATION = {'class': '%s'}", SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, HackStrat.class.getName()));
         for (TableMetadata table : SystemDistributedKeyspace.metadata().tables)
-            schemaChange(table.toCqlString(false, false));
+            schemaChange(table.toCqlString(true, false, false));
 
         createSchema();
     }
 
-    private void createSchema()
+    protected void cleanupRepairTables()
+    {
+        for (String table : Arrays.asList(SystemKeyspace.REPAIRS))
+            execute(String.format("TRUNCATE %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, table));
+    }
+
+    private static void createSchema()
     {
         // The main reason to use random here with a fixed seed is just to have a set of tables that are not hard coded.
         // The tables will have diversity to them that most likely doesn't matter to repair (hence why the tables are shared), but
@@ -295,17 +335,17 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             TableId id = ids.get(i);
             TableMetadata tableMetadata = new CassandraGenerators.TableMetadataBuilder().withKeyspaceName(ks).withTableName(name).withTableId(id).withTableKinds(TableMetadata.Kind.REGULAR)
                                                                                         // shouldn't matter, just wanted to avoid UDT as that needs more setup
-                                                                                        .withDefaultTypeGen(AbstractTypeGenerators.builder().withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).withoutPrimitive(EmptyType.instance).build()).build().generate(qt);
+                                                                                        .withDefaultTypeGen(AbstractTypeGenerators.builder().withTypeKinds(AbstractTypeGenerators.TypeKind.PRIMITIVE).withoutPrimitive(EmptyType.instance)).build().generate(qt);
             tableBuilder.add(tableMetadata);
         }
         KeyspaceParams params = KeyspaceParams.simple(3);
         KeyspaceMetadata metadata = KeyspaceMetadata.create(ks, params, tableBuilder.build());
 
         // create
-        schemaChange(metadata.toCqlString(false, false));
+        schemaChange(metadata.toCqlString(true, false, false));
         KEYSPACE = ks;
         for (TableMetadata table : metadata.tables)
-            schemaChange(table.toCqlString(false, false));
+            schemaChange(table.toCqlString(true, false, false));
         TABLES = tableNames;
     }
 
@@ -319,25 +359,22 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             @Override
             public Set<Faults> apply(Cluster.Node node, Message<?> message)
             {
+                if (RepairMessage.ALLOWS_RETRY.contains(message.verb()))
+                {
+                    allowDrop.add(message.id());
+                    return Faults.DROPPED;
+                }
                 switch (message.verb())
                 {
-                    case PREPARE_MSG:
-                    case VALIDATION_REQ:
-                    case VALIDATION_RSP:
-                    case SYNC_REQ:
-                    case SYNC_RSP:
-                    case SNAPSHOT_MSG:
-                    case CLEANUP_MSG:
-                        allowDrop.add(message.id());
-                        return Faults.DROPPED;
                     // these messages are not resilent to ephemeral issues
-                    case PREPARE_CONSISTENT_REQ:
-                    case PREPARE_CONSISTENT_RSP:
-                    case FINALIZE_PROPOSE_MSG:
-                    case FINALIZE_PROMISE_MSG:
-                    case FINALIZE_COMMIT_MSG:
-                    case FAILED_SESSION_MSG:
-
+                    case STATUS_REQ:
+                    case STATUS_RSP:
+                    // paxos repair does not support faults and will cause a TIMEOUT error, failing the repair
+                    case PAXOS2_CLEANUP_COMPLETE_REQ:
+                    case PAXOS2_CLEANUP_REQ:
+                    case PAXOS2_CLEANUP_RSP2:
+                    case PAXOS2_CLEANUP_START_PREPARE_REQ:
+                    case PAXOS2_CLEANUP_FINISH_PREPARE_REQ:
                         noFaults.add(message.id());
                         return Faults.NONE;
                     default:
@@ -355,12 +392,15 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     static void runAndAssertSuccess(Cluster cluster, int example, boolean shouldSync, RepairCoordinator repair)
     {
         cluster.processAll();
-        assertSuccess(example, shouldSync, repair);
+        assertSuccess(cluster, example, shouldSync, repair);
     }
 
-    static void assertSuccess(int example, boolean shouldSync, RepairCoordinator repair)
+    static void assertSuccess(Cluster cluster, int example, boolean shouldSync, RepairCoordinator repair)
     {
-        Assertions.assertThat(repair.state.getResult()).describedAs("Unexpected state: %s -> %s; example %d", repair.state, repair.state.getResult(), example).isEqualTo(Completable.Result.success(repairSuccessMessage(repair)));
+        Completable.Result result = repair.state.getResult();
+        Assertions.assertThat(result)
+                  .describedAs("Expected repair to have completed with success, but is still running... %s; example %d", repair.state, example).isNotNull()
+                  .describedAs("Unexpected state: %s -> %s; example %d", repair.state, result, example).isEqualTo(Completable.Result.success(repairSuccessMessage(repair)));
         Assertions.assertThat(repair.state.getStateTimesMillis().keySet()).isEqualTo(EnumSet.allOf(CoordinatorState.State.class));
         Assertions.assertThat(repair.state.getSessions()).isNotEmpty();
         boolean shouldSnapshot = repair.state.options.getParallelism() != RepairParallelism.PARALLEL
@@ -385,6 +425,26 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 Assertions.assertThat(actual).isEqualTo(expected);
             }
         }
+
+        assertParticipateResult(cluster, repair, Completable.Result.Kind.SUCCESS);
+    }
+
+    protected static void assertParticipateResult(Cluster cluster, RepairCoordinator repair, Completable.Result.Kind kind)
+    {
+        for (InetAddressAndPort participate : Sets.union(Collections.singleton(repair.ctx.broadcastAddressAndPort()), repair.state.getNeighborsAndRanges().participants))
+        {
+            assertParticipateResult(cluster, participate, repair.state.id, kind);
+        }
+    }
+
+    protected static void assertParticipateResult(Cluster cluster, InetAddressAndPort participate, TimeUUID id, Completable.Result.Kind kind)
+    {
+        Cluster.Node node = cluster.nodes.get(participate);
+        ParticipateState state = node.repair().participate(id);
+        Assertions.assertThat(state).describedAs("Node %s is missing ParticipateState", node).isNotNull();
+        Completable.Result particpateResult = state.getResult();
+        Assertions.assertThat(particpateResult).describedAs("Node %s has the ParticipateState as still pending", node).isNotNull();
+        Assertions.assertThat(particpateResult.kind).isEqualTo(kind);
     }
 
     static String repairSuccessMessage(RepairCoordinator repair)
@@ -414,13 +474,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     {
         if (repair.state.isComplete())
             throw new IllegalStateException("Repair is completed! " + repair.state.getResult());
-        List<InetAddressAndPort> participaents = new ArrayList<>(repair.state.getNeighborsAndRanges().participants.size() + 1);
-        if (rs.nextBoolean()) participaents.add(coordinator.broadcastAddressAndPort());
-        participaents.addAll(repair.state.getNeighborsAndRanges().participants);
-        participaents.sort(Comparator.naturalOrder());
+        List<InetAddressAndPort> participants = new ArrayList<>(repair.state.getNeighborsAndRanges().participants.size() + 1);
+        if (rs.nextBoolean()) participants.add(coordinator.broadcastAddressAndPort());
+        participants.addAll(repair.state.getNeighborsAndRanges().participants);
+        participants.sort(Comparator.naturalOrder());
 
-        InetAddressAndPort selected = rs.pick(participaents);
-        return selected;
+        return participants.get(rs.nextInt(participants.size()));
     }
 
     static void addMismatch(RandomSource rs, ColumnFamilyStore cfs, Validator validator)
@@ -438,7 +497,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         Set<Token> allTokens = new HashSet<>();
         for (Range<Token> range : validator.desc.ranges)
         {
-            Gen<Token> gen = fromQT(CassandraGenerators.tokensInRange(range));
+            Gen<Token> gen = Generators.toGen(CassandraGenerators.tokensInRange(range));
             Set<Token> tokens = new LinkedHashSet<>();
             for (int i = 0, size = rs.nextInt(1, 10); i < size; i++)
             {
@@ -482,12 +541,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         }
     }
 
-    private enum RepairType
-    {FULL, IR}
-
-    private enum PreviewType
-    {NONE, REPAIRED, UNREPAIRED}
-
     static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, List<String> tableNames)
     {
         return repairOption(rs, coordinator, ks, Gens.lists(Gens.pick(tableNames)).ofSizeBetween(1, tableNames.size()), Gens.enums().all(RepairType.class), Gens.enums().all(PreviewType.class), Gens.enums().all(RepairParallelism.class));
@@ -505,53 +558,17 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     private static RepairOption repairOption(RandomSource rs, Cluster.Node coordinator, String ks, Gen<List<String>> tablesGen, Gen<RepairType> repairTypeGen, Gen<PreviewType> previewTypeGen, Gen<RepairParallelism> repairParallelismGen)
     {
-        List<String> args = new ArrayList<>();
-        args.add(ks);
-        args.addAll(tablesGen.next(rs));
-        args.add("-pr");
-        RepairType type = repairTypeGen.next(rs);
-        switch (type)
-        {
-            case IR:
-                // default
-                break;
-            case FULL:
-                args.add("--full");
-                break;
-            default:
-                throw new AssertionError("Unsupported repair type: " + type);
-        }
-        PreviewType previewType = previewTypeGen.next(rs);
-        switch (previewType)
-        {
-            case NONE:
-                break;
-            case REPAIRED:
-                args.add("--validate");
-                break;
-            case UNREPAIRED:
-                args.add("--preview");
-                break;
-            default:
-                throw new AssertionError("Unsupported preview type: " + previewType);
-        }
-        RepairParallelism parallelism = repairParallelismGen.next(rs);
-        switch (parallelism)
-        {
-            case SEQUENTIAL:
-                args.add("--sequential");
-                break;
-            case PARALLEL:
-                // default
-                break;
-            case DATACENTER_AWARE:
-                args.add("--dc-parallel");
-                break;
-            default:
-                throw new AssertionError("Unknown parallelism: " + parallelism);
-        }
-        if (rs.nextBoolean()) args.add("--optimise-streams");
-        RepairOption options = RepairOption.parse(Repair.parseOptionMap(() -> "test", args), DatabaseDescriptor.getPartitioner());
+        Repair repair = new Repair();
+        List<String> args = new RepairGenerators.Builder(tablesGen.map(l -> ImmutableList.<String>builderWithExpectedSize(l.size() + 1).add(ks).addAll(l).build()))
+                                .withType(repairTypeGen)
+                                .withPreviewType(previewTypeGen)
+                                .withParallelism(repairParallelismGen)
+                                .withRanges(i -> RepairGenerators.PRIMARY_RANGE)
+                                .build()
+                                .next(rs);
+        new CommandLine(repair).parseArgs(args.toArray(new String[0]));
+        RepairOption options = RepairOption.parse(repair.createOptions(() -> "test", repair.tables), DatabaseDescriptor.getPartitioner());
+
         if (options.getRanges().isEmpty())
         {
             if (options.isPrimaryRange())
@@ -624,7 +641,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
         final Map<InetAddressAndPort, Node> nodes;
         private final IFailureDetector failureDetector = Mockito.mock(IFailureDetector.class);
-        private final IEndpointSnitch snitch = Mockito.mock(IEndpointSnitch.class);
+        private final Locator locator = Mockito.mock(Locator.class);
         private final SimulatedExecutorFactory globalExecutor;
         final ScheduledExecutorPlus unorderedScheduled;
         final ExecutorPlus orderedExecutor;
@@ -634,27 +651,35 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         private final List<MessageListener> listeners = new ArrayList<>();
         private final RandomSource rs;
         private BiFunction<Node, Message<?>, Set<Faults>> allowedMessageFaults = (a, b) -> Collections.emptySet();
-
-        private final Map<Connection, LongSupplier> networkLatencies = new HashMap<>();
         private final Map<Connection, Supplier<Boolean>> networkDrops = new HashMap<>();
 
         Cluster(RandomSource rs)
         {
             ClockAccess.includeThreadAsOwner();
             this.rs = rs;
-            globalExecutor = new SimulatedExecutorFactory(rs, fromQT(Generators.TIMESTAMP_GEN.map(Timestamp::getTime)).mapToLong(TimeUnit.MILLISECONDS::toNanos).next(rs));
+            globalExecutor = new SimulatedExecutorFactory(rs);
             orderedExecutor = globalExecutor.configureSequential("ignore").build();
             unorderedScheduled = globalExecutor.scheduled("ignored");
 
+
+
             // We run tests in an isolated JVM per class, so not cleaing up is safe... but if that assumption ever changes, will need to cleanup
             Stage.ANTI_ENTROPY.unsafeSetExecutor(orderedExecutor);
+            Stage.MISC.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
+            Thread expectedThread = Thread.currentThread();
+            NoSpamLogger.unsafeSetClock(() -> {
+                if (Thread.currentThread() != expectedThread)
+                    throw new AssertionError("NoSpamLogger.Clock accessed outside of fuzzing...");
+                return globalExecutor.nanoTime();
+            });
+
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
             Map<InetAddressAndPort, Node> nodes = Maps.newHashMapWithExpectedSize(numNodes);
-            Gen<Token> tokenGen = fromQT(CassandraGenerators.token(DatabaseDescriptor.getPartitioner()));
-            Gen<UUID> hostIdGen = fromQT(Generators.UUID_RANDOM_GEN);
+            Gen<Token> tokenGen = Generators.toGen(CassandraGenerators.token(DatabaseDescriptor.getPartitioner()));
+            Gen<UUID> hostIdGen = Generators.toGen(Generators.UUID_RANDOM_GEN);
             Set<Token> tokens = new HashSet<>();
             Set<UUID> hostIds = new HashSet<>();
             for (int i = 0; i < numNodes; i++)
@@ -672,8 +697,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
                 String dc = rs.pick(dcs);
                 String rack = "rack";
-                Mockito.when(snitch.getDatacenter(Mockito.eq(addressAndPort))).thenReturn(dc);
-                Mockito.when(snitch.getRack(Mockito.eq(addressAndPort))).thenReturn(rack);
+                Location location = new Location(dc, rack);
+                Mockito.when(locator.location(Mockito.eq(addressAndPort))).thenReturn(location);
 
                 VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
                 EndpointState state = new EndpointState(new HeartBeatState(42, 42));
@@ -691,15 +716,18 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 nodes.put(addressAndPort, node);
             }
             this.nodes = nodes;
-
-            TokenMetadata tm = StorageService.instance.getTokenMetadata();
-            tm.clearUnsafe();
+            ServerTestUtils.recreateCMS();
+            assert ClusterMetadata.current().directory.isEmpty() : ClusterMetadata.current().directory;
             for (Node inst : nodes.values())
             {
-                tm.updateHostId(inst.hostId(), inst.broadcastAddressAndPort());
-                for (Token token : inst.tokens())
-                    tm.updateNormalToken(token, inst.broadcastAddressAndPort());
+                ClusterMetadataTestHelper.register(inst.broadcastAddressAndPort());
+                ClusterMetadataTestHelper.join(inst.broadcastAddressAndPort(), inst.tokens());
             }
+            List<InetAddressAndPort> addresses = new ArrayList<>(nodes.keySet());
+            addresses.sort(Comparator.naturalOrder());
+            AccordService.unsafeSetNoop();
+
+            setupSchema();
         }
 
         public Closeable addListener(MessageListener listener)
@@ -743,168 +771,43 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
         }
 
-        private static class CallbackContext
+        private SimulatedMessageDelivery.Action action(InetAddressAndPort self, Message<?> msg, InetAddressAndPort to)
         {
-            final RequestCallback callback;
-
-            private CallbackContext(RequestCallback callback)
-            {
-                this.callback = Objects.requireNonNull(callback);
-            }
-
-            public void onResponse(Message msg)
-            {
-                callback.onResponse(msg);
-            }
-
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                if (callback.invokeOnFailure()) callback.onFailure(from, failureReason);
-            }
+            boolean toSelf = self.equals(to);
+            Node node = nodes.get(to);
+            Set<Faults> allowedFaults = allowedMessageFaults.apply(node, msg);
+            if (allowedFaults.contains(Faults.DROP) && !toSelf && networkDrops(self, to)) return SimulatedMessageDelivery.Action.DROP_PARTITIONED;
+            return SimulatedMessageDelivery.Action.DELIVER;
         }
 
-        private class Messaging implements MessageDelivery
+        private boolean networkDrops(InetAddressAndPort self, InetAddressAndPort to)
         {
-            final InetAddressAndPort broadcastAddressAndPort;
-            final Long2ObjectHashMap<CallbackContext> callbacks = new Long2ObjectHashMap<>();
+            return networkDrops.computeIfAbsent(new Connection(self, to), ignore -> Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
+        }
 
+        private class Messaging extends SimulatedMessageDelivery
+        {
             private Messaging(InetAddressAndPort broadcastAddressAndPort)
             {
-                this.broadcastAddressAndPort = broadcastAddressAndPort;
-            }
-
-            @Override
-            public <REQ> void send(Message<REQ> message, InetAddressAndPort to)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, null);
-            }
-
-            @Override
-            public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, cb);
-            }
-
-            @Override
-            public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, cb);
-            }
-
-            private <REQ, RSP> void maybeEnqueue(Message<REQ> message, InetAddressAndPort to, @Nullable RequestCallback<RSP> callback)
-            {
-                CallbackContext cb;
-                if (callback != null)
-                {
-                    cb = new CallbackContext(callback);
-                    callbacks.put(message.id(), cb);
-                }
-                else
-                {
-                    cb = null;
-                }
-                boolean toSelf = this.broadcastAddressAndPort.equals(to);
-                Node node = nodes.get(to);
-                Set<Faults> allowedFaults = allowedMessageFaults.apply(node, message);
-                if (allowedFaults.isEmpty())
-                {
-                    // enqueue so stack overflow doesn't happen with the inlining
-                    unorderedScheduled.submit(() -> node.handle(message));
-                }
-                else
-                {
-                    Runnable enqueue = () -> {
-                        if (!allowedFaults.contains(Faults.DELAY))
-                        {
-                            unorderedScheduled.submit(() -> node.handle(message));
-                        }
-                        else
-                        {
-                            if (toSelf) unorderedScheduled.submit(() -> node.handle(message));
-                            else
-                                unorderedScheduled.schedule(() -> node.handle(message), networkJitterNanos(to), TimeUnit.NANOSECONDS);
-                        }
-                    };
-
-                    if (!allowedFaults.contains(Faults.DROP)) enqueue.run();
-                    else
-                    {
-                        if (!toSelf && networkDrops(to))
-                        {
-//                            logger.warn("Dropped message {}", message);
-                            // drop
-                        }
-                        else
-                        {
-                            enqueue.run();
-                        }
-                    }
-
-                    if (cb != null)
-                    {
-                        unorderedScheduled.schedule(() -> {
-                            CallbackContext ctx = callbacks.remove(message.id());
-                            if (ctx != null)
-                            {
-                                assert ctx == cb;
-                                ctx.onFailure(to, RequestFailureReason.TIMEOUT);
-                            }
-                        }, message.verb().expiresAfterNanos(), TimeUnit.NANOSECONDS);
-                    }
-                }
-            }
-
-            private long networkJitterNanos(InetAddressAndPort to)
-            {
-                return networkLatencies.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> {
-                    long min = TimeUnit.MICROSECONDS.toNanos(500);
-                    long maxSmall = TimeUnit.MILLISECONDS.toNanos(5);
-                    long max = TimeUnit.SECONDS.toNanos(5);
-                    LongSupplier small = () -> rs.nextLong(min, maxSmall);
-                    LongSupplier large = () -> rs.nextLong(maxSmall, max);
-                    return Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
-                }).getAsLong();
-            }
-
-            private boolean networkDrops(InetAddressAndPort to)
-            {
-                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
-            }
-
-            @Override
-            public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to)
-            {
-                AsyncPromise<Message<RSP>> promise = new AsyncPromise<>();
-                sendWithCallback(message, to, new RequestCallback<RSP>()
-                {
-                    @Override
-                    public void onResponse(Message<RSP> msg)
-                    {
-                        promise.trySuccess(msg);
-                    }
-
-                    @Override
-                    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-                    {
-                        promise.tryFailure(new MessagingService.FailureResponseException(from, failureReason));
-                    }
-
-                    @Override
-                    public boolean invokeOnFailure()
-                    {
-                        return true;
-                    }
-                });
-                return promise;
-            }
-
-            @Override
-            public <V> void respond(V response, Message<?> message)
-            {
-                send(message.responseWith(response), message.respondTo());
+                super(broadcastAddressAndPort,
+                      Cluster.this::action,
+                      new NetworkDelaySupplier()
+                      {
+                          private final NetworkDelaySupplier delegate = SimulatedMessageDelivery.randomDelay(rs);
+                          @Nullable
+                          @Override
+                          public Duration jitter(Message<?> msg, InetAddressAndPort to)
+                          {
+                              Set<Faults> allowedFaults = allowedMessageFaults.apply(nodes.get(to), msg);
+                              if (!allowedFaults.contains(Faults.DELAY) || broadcastAddressAndPort.equals(to))
+                                  return null;
+                              return delegate.jitter(msg, to);
+                          }
+                      },
+                      (to, msg) -> unorderedScheduled.submit(() -> nodes.get(to).handle(msg)),
+                      (action, to, msg) -> logger.warn("{} message {}", action, msg),
+                      unorderedScheduled::schedule,
+                      failures::add);
             }
         }
 
@@ -930,6 +833,21 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             {
                 return endpoints.get(ep);
             }
+
+            @Override
+            public void notifyFailureDetector(Map<InetAddressAndPort, EndpointState> remoteEpStateMap)
+            {
+
+            }
+
+            @Override
+            public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
+            {
+                // If we were testing paxos this would be wrong...
+                // CASSANDRA-18917 added support for simulating Gossip, but gossip issues were found so couldn't merge that patch...
+                // For the paxos repair, since we don't care about paxos messages, this is ok to no-op for now, but if paxos cleanup
+                // ever was to be tested this logic would need to be implemented
+            }
         }
 
         class Node implements SharedContext
@@ -939,10 +857,11 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             final InetAddressAndPort addressAndPort;
             final Collection<Token> tokens;
             final ActiveRepairService activeRepairService;
-            final IVerbHandler verbHandler;
+            final SimulatedMessageReceiver receiver;
             final Messaging messaging;
             final IValidationManager validationManager;
             private FailingBiConsumer<ColumnFamilyStore, Validator> doValidation = DEFAULT_VALIDATION;
+            final PaxosRepairState paxosRepairState;
             private final StreamExecutor defaultStreamExecutor = plan -> {
                 long delayNanos = rs.nextLong(TimeUnit.SECONDS.toNanos(5), TimeUnit.MINUTES.toNanos(10));
                 unorderedScheduled.schedule(() -> {
@@ -961,6 +880,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 this.tokens = tokens;
                 this.messaging = messaging;
                 this.activeRepairService = new ActiveRepairService(this);
+                this.paxosRepairState = new PaxosRepairState(this);
                 this.validationManager = (cfs, validator) -> unorderedScheduled.submit(() -> {
                     try
                     {
@@ -971,7 +891,39 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         validator.fail(e);
                     }
                 });
-                this.verbHandler = new RepairMessageVerbHandler(this);
+                this.receiver = messaging.receiver(new IVerbHandler<>()
+                {
+                    private final RepairMessageVerbHandler repairVerbHandler = new RepairMessageVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosStartPrepareCleanup.Request> paxosStartPrepareCleanup = PaxosStartPrepareCleanup.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupRequest> paxosCleanupRequestIVerbHandler = PaxosCleanupRequest.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupHistory> paxosFinishPrepareCleanup = PaxosFinishPrepareCleanup.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupResponse> paxosCleanupResponse = PaxosCleanupResponse.createVerbHandler(Node.this);
+                    private final IVerbHandler<PaxosCleanupComplete.Request> paxosCleanupComplete = PaxosCleanupComplete.createVerbHandler(Node.this);
+                    @Override
+                    public void doVerb(Message message) throws IOException
+                    {
+                        switch (message.verb())
+                        {
+                            case PAXOS2_CLEANUP_START_PREPARE_REQ:
+                                paxosStartPrepareCleanup.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_REQ:
+                                paxosCleanupRequestIVerbHandler.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_FINISH_PREPARE_REQ:
+                                paxosFinishPrepareCleanup.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_RSP2:
+                                paxosCleanupResponse.doVerb(message);
+                                break;
+                            case PAXOS2_CLEANUP_COMPLETE_REQ:
+                                paxosCleanupComplete.doVerb(message);
+                                break;
+                            default:
+                                repairVerbHandler.doVerb(message);
+                        }
+                    }
+                });
 
                 activeRepairService.start();
             }
@@ -1011,36 +963,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 }
                 for (MessageListener l : listeners)
                     l.preHandle(this, msg);
-                if (msg.verb().isResponse())
-                {
-                    // handle callbacks
-                    if (messaging.callbacks.containsKey(msg.id()))
-                    {
-                        CallbackContext callback = messaging.callbacks.remove(msg.id());
-                        if (callback == null) return;
-                        try
-                        {
-                            if (msg.isFailureResponse())
-                                callback.onFailure(msg.from(), (RequestFailureReason) msg.payload);
-                            else callback.onResponse(msg);
-                        }
-                        catch (Throwable t)
-                        {
-                            failures.add(t);
-                        }
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        verbHandler.doVerb(msg);
-                    }
-                    catch (Throwable e)
-                    {
-                        failures.add(e);
-                    }
-                }
+                receiver.recieve(msg);
             }
 
             public UUID hostId()
@@ -1065,9 +988,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             @Override
-            public IEndpointSnitch snitch()
+            public Locator locator()
             {
-                return snitch;
+                return locator;
             }
 
             @Override
@@ -1088,6 +1011,18 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             public ScheduledExecutorPlus optionalTasks()
+            {
+                return unorderedScheduled;
+            }
+
+            @Override
+            public ScheduledExecutorPlus nonPeriodicTasks()
+            {
+                return unorderedScheduled;
+            }
+
+            @Override
+            public ScheduledExecutorPlus scheduledTasks()
             {
                 return unorderedScheduled;
             }
@@ -1176,13 +1111,33 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             {
                 return streamExecutor;
             }
+
+            @Override
+            public PaxosRepairState paxosRepairState()
+            {
+                return paxosRepairState;
+            }
+
+            @Override
+            public Supplier<TimeUUID> timeUUID()
+            {
+                return Generators.toGen(Generators.timeUUID()).asSupplier(rs);
+            }
+
+            public String toString()
+            {
+                return "Node{" +
+                       "hostId=" + hostId +
+                       ", addressAndPort=" + addressAndPort.getAddress().getHostAddress() + ":" + addressAndPort.getPort() +
+                       '}';
+            }
         }
 
         private Message serde(Message msg)
         {
             try (DataOutputBuffer b = DataOutputBuffer.scratchBuffer.get())
             {
-                int messagingVersion = MessagingService.Version.CURRENT.value;
+                int messagingVersion = MessagingService.current_version;
                 Message.serializer.serialize(msg, b, messagingVersion);
                 DataInputBuffer in = new DataInputBuffer(b.unsafeGetBufferAndFlip(), false);
                 return Message.serializer.deserialize(in, msg.from(), messagingVersion);
@@ -1195,19 +1150,11 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         }
     }
 
-    private static <T> Gen<T> fromQT(org.quicktheories.core.Gen<T> qt)
-    {
-        return rs -> {
-            JavaRandom r = new JavaRandom(rs.asJdkRandom());
-            return qt.generate(r);
-        };
-    }
-
     public static class HackStrat extends LocalStrategy
     {
-        public HackStrat(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+        public HackStrat(String keyspaceName, Map<String, String> configOptions)
         {
-            super(keyspaceName, tokenMetadata, snitch, configOptions);
+            super(keyspaceName, configOptions);
         }
     }
 
@@ -1263,8 +1210,22 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         next = it.next();
                     }
                     if (FuzzTestBase.class.getName().equals(next.getClassName())) return Access.MAIN_THREAD_ONLY;
-                    if (next.getClassName().startsWith("org.apache.cassandra.db.") || next.getClassName().startsWith("org.apache.cassandra.gms.") || next.getClassName().startsWith("org.apache.cassandra.cql3.") || next.getClassName().startsWith("org.apache.cassandra.metrics.") || next.getClassName().startsWith("org.apache.cassandra.utils.concurrent.")
+
+                    // this is non-deterministic... but since the scope of the work is testing repair and not paxos... this is unblocked for now...
+                    if (("org.apache.cassandra.service.paxos.Paxos".equals(next.getClassName()) && "newBallot".equals(next.getMethodName()))
+                        || ("org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker".equals(next.getClassName()) && "updateLowBound".equals(next.getMethodName())))
+                        return Access.MAIN_THREAD_ONLY;
+                    if (next.getClassName().startsWith("org.apache.cassandra.accord.")
+                        || next.getClassName().startsWith("org.apache.cassandra.journal.")
+                        || next.getClassName().startsWith("org.apache.cassandra.service.accord.")
+                        || next.getClassName().startsWith("org.apache.cassandra.db.")
+                        || next.getClassName().startsWith("org.apache.cassandra.gms.")
+                        || next.getClassName().startsWith("org.apache.cassandra.cql3.")
+                        || next.getClassName().startsWith("org.apache.cassandra.metrics.")
+                        || next.getClassName().startsWith("org.apache.cassandra.utils.concurrent.")
+                        || next.getClassName().startsWith("org.apache.cassandra.tcm")
                         || next.getClassName().startsWith("org.apache.cassandra.utils.TimeUUID") // this would be good to solve
+                        || next.getClassName().startsWith("org.apache.cassandra.schema")
                         || next.getClassName().startsWith(PendingAntiCompaction.class.getName()))
                         return Access.IGNORE;
                     if (next.getClassName().startsWith("org.apache.cassandra.repair") || ActiveRepairService.class.getName().startsWith(next.getClassName()))

@@ -17,15 +17,18 @@
  */
 package org.apache.cassandra.serializers;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public class UTF8Serializer extends AbstractTextSerializer
 {
     public static final UTF8Serializer instance = new UTF8Serializer();
 
-    private UTF8Serializer()
+    protected UTF8Serializer()
     {
         super(StandardCharsets.UTF_8);
     }
@@ -57,8 +60,53 @@ public class UTF8Serializer extends AbstractTextSerializer
             if (value == null)
                 return false;
 
-            int b = 0;
-            int offset = 0;
+            // perf optimizations:
+            // 1) avoid bimorphic/megamorphic calls via ValueAccessor
+            // 2) use a simplified logic to handle ASCII prefixed String scenario faster
+            if (accessor == ByteArrayAccessor.instance)
+            {
+                byte[] valueAsArray = accessor.toArray(value);
+                return validateByteArray(valueAsArray, 0, valueAsArray.length, value, accessor);
+            }
+
+            if (accessor == ByteBufferAccessor.instance)
+            {
+                ByteBuffer valueAsBuffer = accessor.toBuffer(value);
+                if (valueAsBuffer.hasArray())
+                {
+                    byte[] valueAsArray = valueAsBuffer.array();
+                    int start = valueAsBuffer.position();
+                    int end = start + valueAsBuffer.remaining();
+                    return validateByteArray(valueAsArray, start, end, value, accessor);
+                }
+            }
+
+            int end = accessor.size(value);
+            for (int i = 0; i < end; i++)
+            {
+                if (accessor.getByte(value, i) < 0)
+                {
+                    return validateSlowPath(value, accessor, i);
+                }
+            }
+            return true;
+        }
+
+        private static <V> boolean validateByteArray(byte[] valueAsArray, int start, int end,
+                                                     V value, ValueAccessor<V> accessor)
+        {
+            assert start >= 0 && end <= valueAsArray.length;
+            for (int i = start; i < end; i++)
+            {
+                if (valueAsArray[i] < 0)
+                    return validateSlowPath(value, accessor, i - start);
+            }
+            return true;
+        }
+
+        private static <V> boolean validateSlowPath(V value, ValueAccessor<V> accessor, int offset)
+        {
+            int b;
             State state = State.START;
             while (!accessor.isEmptyFromOffset(value, offset))
             {

@@ -19,26 +19,68 @@
 package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class Expression
+/**
+ * An {@link Expression} is an internal representation of an index query operation. They are built from
+ * CQL {@link Operator} and {@link ByteBuffer} value pairs for a single column.
+ * <p>
+ * Each {@link Expression} consists of an {@link IndexOperator} and optional lower and upper {@link Bound}s.
+ * <p>
+ * The {@link IndexedExpression} has a backing {@link StorageAttachedIndex} for the index query but order to support
+ * CQL expressions on columns that do not have indexes or use operators that are not supported by the index there is
+ * an {@link UnindexedExpression} that does not provide a {@link StorageAttachedIndex} and can only be used for
+ * post-filtering
+ */
+public abstract class Expression
 {
-    private static final Logger logger = LoggerFactory.getLogger(Expression.class);
+    Logger logger = LoggerFactory.getLogger(Expression.class);
+
+    private final IndexTermType indexTermType;
+    protected IndexOperator operator;
+
+    public Bound lower, upper;
+    // The upperInclusive and lowerInclusive flags are maintained separately to the inclusive flags
+    // in the upper and lower bounds because the upper and lower bounds have their inclusivity relaxed
+    // if the datatype being filtered is rounded in the index. These flags are used in the post-filtering
+    // process to remove values equal to the bounds.
+    public boolean upperInclusive, lowerInclusive;
+
+    Expression(IndexTermType indexTermType)
+    {
+        this.indexTermType = indexTermType;
+    }
+
+    public static Expression create(StorageAttachedIndex index)
+    {
+        return new IndexedExpression(index);
+    }
+
+    public static Expression create(IndexTermType indexTermType)
+    {
+        return new UnindexedExpression(indexTermType);
+    }
+
+    public static boolean supportsOperator(Operator operator)
+    {
+        return IndexOperator.valueOf(operator) != null;
+    }
 
     public enum IndexOperator
     {
-        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE;
+        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN, IN, LIKE_PREFIX, LIKE_SUFFIX, LIKE_MATCHES, LIKE_CONTAINS;
 
         public static IndexOperator valueOf(Operator operator)
         {
@@ -57,7 +99,23 @@ public class Expression
                 case GT:
                 case LTE:
                 case GTE:
+                case BETWEEN:
                     return RANGE;
+
+                case ANN:
+                    return ANN;
+
+                case IN:
+                    return IN;
+                case LIKE_PREFIX:
+                    return LIKE_PREFIX;
+                case LIKE_SUFFIX:
+                    return LIKE_SUFFIX;
+                case LIKE_CONTAINS:
+                    return LIKE_CONTAINS;
+                case LIKE_MATCHES:
+                    return LIKE_MATCHES;
+
 
                 default:
                     return null;
@@ -66,35 +124,46 @@ public class Expression
 
         public boolean isEquality()
         {
-            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE;
+            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE || this == IN || isLikeVariant();
         }
 
         public boolean isEqualityOrRange()
         {
             return isEquality() || this == RANGE;
         }
+
+        public boolean isLikeVariant()
+        {
+            return this == LIKE_SUFFIX || this == LIKE_PREFIX || this == LIKE_CONTAINS || this == LIKE_MATCHES;
+        }
     }
 
-    public final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
+    public abstract boolean isNotIndexed();
 
-    public final IndexContext context;
-    public final AbstractType<?> validator;
+    public abstract StorageAttachedIndex getIndex();
 
-    @VisibleForTesting
-    protected IndexOperator operator;
+    abstract boolean hasAnalyzer();
 
-    public Bound lower, upper;
-    // The upperInclusive and lowerInclusive flags are maintained separately to the inclusive flags
-    // in the upper and lower bounds because the upper and lower bounds have their inclusivity relaxed
-    // if the datatype being filtered is rounded in the index. These flags are used in the post-filtering
-    // process to remove values equal to the bounds.
-    public boolean upperInclusive, lowerInclusive;
+    abstract AbstractAnalyzer getAnalyzer();
 
-    public Expression(IndexContext indexContext)
+    public IndexOperator getIndexOperator()
     {
-        this.context = indexContext;
-        this.analyzerFactory = indexContext.getAnalyzerFactory();
-        this.validator = indexContext.getValidator();
+        return operator;
+    }
+
+    public IndexTermType getIndexTermType()
+    {
+        return indexTermType;
+    }
+
+    public Bound lower()
+    {
+        return lower;
+    }
+
+    public Bound upper()
+    {
+        return upper;
     }
 
     /**
@@ -112,19 +181,24 @@ public class Expression
         // range search is always inclusive, otherwise we run the risk of
         // missing values that are within the exclusive range but are rejected
         // because their rounded value is the same as the value being queried.
-        lowerInclusive = upperInclusive = TypeUtil.supportsRounding(validator);
+        lowerInclusive = upperInclusive = indexTermType.supportsRounding();
         switch (op)
         {
             case EQ:
             case CONTAINS:
             case CONTAINS_KEY:
-                lower = new Bound(value, validator, true);
+            case LIKE_PREFIX:
+            case LIKE_SUFFIX:
+            case LIKE_MATCHES:
+            case LIKE_CONTAINS:
+            case IN:
+                lower = new Bound(value, indexTermType, true);
                 upper = lower;
                 operator = IndexOperator.valueOf(op);
                 break;
 
             case LTE:
-                if (context.getDefinition().isReversedType())
+                if (indexTermType.isReversed())
                 {
                     this.lowerInclusive = true;
                     lowerInclusive = true;
@@ -136,14 +210,14 @@ public class Expression
                 }
             case LT:
                 operator = IndexOperator.RANGE;
-                if (context.getDefinition().isReversedType())
-                    lower = new Bound(value, validator, lowerInclusive);
+                if (indexTermType.isReversed())
+                    lower = new Bound(value, indexTermType, lowerInclusive);
                 else
-                    upper = new Bound(value, validator, upperInclusive);
+                    upper = new Bound(value, indexTermType, upperInclusive);
                 break;
 
             case GTE:
-                if (context.getDefinition().isReversedType())
+                if (indexTermType.isReversed())
                 {
                     this.upperInclusive = true;
                     upperInclusive = true;
@@ -155,14 +229,39 @@ public class Expression
                 }
             case GT:
                 operator = IndexOperator.RANGE;
-                if (context.getDefinition().isReversedType())
-                    upper = new Bound(value, validator, upperInclusive);
+                if (indexTermType.isReversed())
+                    upper = new Bound(value, indexTermType, upperInclusive);
                 else
-                    lower = new Bound(value, validator, lowerInclusive);
+                    lower = new Bound(value, indexTermType, lowerInclusive);
                 break;
-        }
 
-        assert operator != null;
+            case BETWEEN:
+                ListType<?> type = ListType.getInstance(indexTermType.columnMetadata().type, false);
+                List<? extends ByteBuffer> buffers = type.unpack(value);
+
+                operator = IndexOperator.RANGE;
+                this.upperInclusive = true;
+                this.lowerInclusive = true;
+
+                Value first = new Value(buffers.get(0), indexTermType);
+                Value second = new Value(buffers.get(1), indexTermType);
+
+                // SAI enforces a non-arbitrary ordering between IPv4 and IPv6 addresses, so correction may still be necessary.
+                boolean outOfOrder = indexTermType.compare(first.encoded, second.encoded) > 0;
+                lower = new Bound(outOfOrder ? second : first, true);
+                upper = new Bound(outOfOrder ? first : second, true);
+
+                break;
+
+            case ANN:
+                operator = IndexOperator.ANN;
+                lower = new Bound(value, indexTermType, true);
+                upper = lower;
+                break;
+
+            default:
+                throw new IllegalArgumentException("Index does not support the " + op + " operator");
+        }
 
         return this;
     }
@@ -172,27 +271,35 @@ public class Expression
      */
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
-        if (!TypeUtil.isValid(columnValue, validator))
+        // If the expression represents an ANN ordering then we return true because the actual result
+        // is approximate and will rarely / never match the expression value
+        if (indexTermType.isVector())
+            return true;
+
+        if (!indexTermType.isValid(columnValue))
         {
-            logger.error(context.logMessage("Value is not valid for indexed column {} with {}"), context.getColumnName(), validator);
+            logger.error("Value is not valid for indexed column {} with {}", indexTermType.columnName(), indexTermType.indexType());
             return false;
         }
 
-        Value value = new Value(columnValue, validator);
+        Value value = new Value(columnValue, indexTermType);
 
         if (lower != null)
         {
             // suffix check
-            if (TypeUtil.isLiteral(validator))
+            if (indexTermType.isLiteral())
                 return validateStringValue(value.raw, lower.value.raw);
             else
             {
                 // range or (not-)equals - (mainly) for numeric values
-                int cmp = TypeUtil.comparePostFilter(lower.value, value, validator);
+                int cmp = indexTermType.comparePostFilter(lower.value, value);
 
                 // in case of EQ lower == upper
                 if (operator == IndexOperator.EQ || operator == IndexOperator.CONTAINS_KEY || operator == IndexOperator.CONTAINS_VALUE)
                     return cmp == 0;
+
+                if (operator == IndexOperator.IN)
+                    return termMatches(value.raw, lower.value.raw);
 
                 if (cmp > 0 || (cmp == 0 && !lowerInclusive))
                     return false;
@@ -202,12 +309,12 @@ public class Expression
         if (upper != null && lower != upper)
         {
             // string (prefix or suffix) check
-            if (TypeUtil.isLiteral(validator))
+            if (indexTermType.isLiteral())
                 return validateStringValue(value.raw, upper.value.raw);
             else
             {
                 // range - mainly for numeric values
-                int cmp = TypeUtil.comparePostFilter(upper.value, value, validator);
+                int cmp = indexTermType.comparePostFilter(upper.value, value);
                 return (cmp > 0 || (cmp == 0 && upperInclusive));
             }
         }
@@ -217,41 +324,76 @@ public class Expression
 
     private boolean validateStringValue(ByteBuffer columnValue, ByteBuffer requestedValue)
     {
-        AbstractAnalyzer analyzer = analyzerFactory.create();
-        analyzer.reset(columnValue.duplicate());
-        try
+        if (hasAnalyzer())
         {
-            while (analyzer.hasNext())
+            AbstractAnalyzer analyzer = getAnalyzer();
+            analyzer.reset(columnValue.duplicate());
+            try
             {
-                final ByteBuffer term = analyzer.next();
-
-                boolean isMatch = false;
-                switch (operator)
+                while (analyzer.hasNext())
                 {
-                    case EQ:
-                    case CONTAINS_KEY:
-                    case CONTAINS_VALUE:
-                        isMatch = validator.compare(term, requestedValue) == 0;
-                        break;
-                    case RANGE:
-                        isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);
-                        break;
+                    if (termMatches(analyzer.next(), requestedValue))
+                        return true;
                 }
-
-                if (isMatch)
-                    return true;
+                return false;
             }
-            return false;
+            finally
+            {
+                analyzer.end();
+            }
         }
-        finally
+        else
         {
-            analyzer.end();
+            return termMatches(columnValue, requestedValue);
         }
     }
 
-    public IndexOperator getOp()
+    private boolean termMatches(ByteBuffer term, ByteBuffer requestedValue)
     {
-        return operator;
+        boolean isMatch = false;
+        switch (operator)
+        {
+            case EQ:
+            case CONTAINS_KEY:
+            case CONTAINS_VALUE:
+                isMatch = indexTermType.compare(term, requestedValue) == 0;
+                break;
+            case RANGE:
+                isMatch = isLowerSatisfiedBy(term) && isUpperSatisfiedBy(term);
+                break;
+            case IN:
+                ListType<?> type = ListType.getInstance(indexTermType.columnMetadata().type, true);
+                List<? extends ByteBuffer> buffers = type.unpack(requestedValue);
+                for (ByteBuffer value : buffers)
+                {
+                    if (indexTermType.compare(term, value) == 0)
+                    {
+                        return true;
+                    }
+                }
+                break;
+            case LIKE_PREFIX:   
+                {
+                    isMatch = ByteBufferUtil.startsWith(term, requestedValue);
+                    break;
+                }
+            case LIKE_SUFFIX:
+                {
+                    isMatch = ByteBufferUtil.endsWith(term, requestedValue);
+                    break;
+                }
+            case LIKE_CONTAINS:
+                {
+                    isMatch = ByteBufferUtil.contains(term, requestedValue);
+                    break;
+                }
+            case LIKE_MATCHES:
+                {
+                    isMatch = term.equals(requestedValue);
+                    break;
+                }
+        }
+        return isMatch;
     }
 
     private boolean hasLower()
@@ -269,7 +411,7 @@ public class Expression
         if (!hasLower())
             return true;
 
-        int cmp = validator.compare(value, lower.value.raw);
+        int cmp = indexTermType.indexType().compare(value, lower.value.raw);
         return cmp > 0 || cmp == 0 && lower.inclusive;
     }
 
@@ -278,7 +420,7 @@ public class Expression
         if (!hasUpper())
             return true;
 
-        int cmp = validator.compare(value, upper.value.raw);
+        int cmp = indexTermType.indexType().compare(value, upper.value.raw);
         return cmp < 0 || cmp == 0 && upper.inclusive;
     }
 
@@ -286,20 +428,19 @@ public class Expression
     public String toString()
     {
         return String.format("Expression{name: %s, op: %s, lower: (%s, %s), upper: (%s, %s)}",
-                             context.getColumnName(),
+                             indexTermType.columnName(),
                              operator,
-                             lower == null ? "null" : validator.getString(lower.value.raw),
+                             lower == null ? "null" : indexTermType.asString(lower.value.raw),
                              lower != null && lower.inclusive,
-                             upper == null ? "null" : validator.getString(upper.value.raw),
+                             upper == null ? "null" : indexTermType.asString(upper.value.raw),
                              upper != null && upper.inclusive);
     }
 
     @Override
     public int hashCode()
     {
-        return new HashCodeBuilder().append(context.getColumnName())
+        return new HashCodeBuilder().append(indexTermType)
                                     .append(operator)
-                                    .append(validator)
                                     .append(lower).append(upper).build();
     }
 
@@ -314,11 +455,77 @@ public class Expression
 
         Expression o = (Expression) other;
 
-        return Objects.equals(context.getColumnName(), o.context.getColumnName())
-               && validator.equals(o.validator)
+        return Objects.equals(indexTermType, o.indexTermType)
                && operator == o.operator
                && Objects.equals(lower, o.lower)
                && Objects.equals(upper, o.upper);
+    }
+
+    public static class IndexedExpression extends Expression
+    {
+        private final StorageAttachedIndex index;
+
+        public IndexedExpression(StorageAttachedIndex index)
+        {
+            super(index.termType());
+            this.index = index;
+        }
+
+        @Override
+        public boolean isNotIndexed()
+        {
+            return false;
+        }
+
+        @Override
+        public StorageAttachedIndex getIndex()
+        {
+            return index;
+        }
+
+        @Override
+        boolean hasAnalyzer()
+        {
+            return index.hasAnalyzer();
+        }
+
+        @Override
+        AbstractAnalyzer getAnalyzer()
+        {
+            return index.analyzer();
+        }
+    }
+
+    public static class UnindexedExpression extends Expression
+    {
+        private UnindexedExpression(IndexTermType indexTermType)
+        {
+            super(indexTermType);
+        }
+
+        @Override
+        public boolean isNotIndexed()
+        {
+            return true;
+        }
+
+        @Override
+        public StorageAttachedIndex getIndex()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        boolean hasAnalyzer()
+        {
+            return false;
+        }
+
+        @Override
+        AbstractAnalyzer getAnalyzer()
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**
@@ -329,10 +536,10 @@ public class Expression
         public final ByteBuffer raw;
         public final ByteBuffer encoded;
 
-        public Value(ByteBuffer value, AbstractType<?> type)
+        public Value(ByteBuffer value, IndexTermType indexTermType)
         {
             this.raw = value;
-            this.encoded = TypeUtil.asIndexBytes(value, type);
+            this.encoded = indexTermType.asIndexBytes(value);
         }
 
         @Override
@@ -360,10 +567,15 @@ public class Expression
         public final Value value;
         public final boolean inclusive;
 
-        public Bound(ByteBuffer value, AbstractType<?> type, boolean inclusive)
+        public Bound(Value value, boolean inclusive)
         {
-            this.value = new Value(value, type);
+            this.value = value;
             this.inclusive = inclusive;
+        }
+
+        public Bound(ByteBuffer value, IndexTermType indexTermType, boolean inclusive)
+        {
+            this(new Value(value, indexTermType), inclusive);
         }
 
         @Override

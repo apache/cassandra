@@ -46,11 +46,11 @@ public class SegmentTest
     @BeforeClass
     public static void init()
     {
-        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.toolInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         partitioner = DatabaseDescriptor.getPartitioner();
         min = partitioner.getMinimumToken();
-        max = partitioner.getMaximumToken();
+        max = partitioner.getMaximumTokenForSplitting();
         tokens = IntStream.rangeClosed(0, 10).boxed().map(i -> partitioner.getRandomToken())
                           .distinct().sorted().collect(Collectors.toList());
     }

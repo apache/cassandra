@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.Arrays;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,15 +28,15 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.transport.Server;
-import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class NativeTransportServiceTest
 {
-    static EncryptionOptions defaultOptions;
+    static EncryptionOptions.ClientEncryptionOptions defaultOptions;
 
     @BeforeClass
     public static void setupDD()
@@ -51,8 +48,7 @@ public class NativeTransportServiceTest
     @After
     public void resetConfig()
     {
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(update -> new EncryptionOptions(defaultOptions).applyConfig());
-        DatabaseDescriptor.setNativeTransportPortSSL(null);
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(update -> new EncryptionOptions.ClientEncryptionOptions.Builder(defaultOptions).build());
     }
 
     @Test
@@ -120,8 +116,8 @@ public class NativeTransportServiceTest
         // default plain settings: client encryption disabled and default native transport port 
         withService((NativeTransportService service) ->
                     {
-                        assertEquals(1, service.getServers().size());
-                        Server server = service.getServers().iterator().next();
+                        Server server = service.getServer();
+                        assertNotNull(server);
                         assertEquals(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED, server.tlsEncryptionPolicy);
                         assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
                     });
@@ -131,14 +127,17 @@ public class NativeTransportServiceTest
     public void testSSLOnly()
     {
         // default ssl settings: client encryption enabled and default native transport port used for ssl only
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true)
-                                                                                   .withOptional(false));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options ->
+                                                                 new EncryptionOptions.ClientEncryptionOptions.Builder(options)
+                                                                 .withEnabled(true)
+                                                                 .withOptional(false)
+                                                                 .build());
 
         withService((NativeTransportService service) ->
                     {
                         service.initialize();
-                        assertEquals(1, service.getServers().size());
-                        Server server = service.getServers().iterator().next();
+                        Server server = service.getServer();
+                        assertNotNull(server);
                         assertEquals(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED, server.tlsEncryptionPolicy);
                         assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
                     }, false, 1);
@@ -148,101 +147,19 @@ public class NativeTransportServiceTest
     public void testSSLOptional()
     {
         // default ssl settings: client encryption enabled and default native transport port used for optional ssl
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(true)
-                                                                                   .withOptional(true));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options ->
+                                                                 new EncryptionOptions.ClientEncryptionOptions.Builder(options)
+                                                                 .withEnabled(true)
+                                                                 .withOptional(true)
+                                                                 .build());
 
         withService((NativeTransportService service) ->
                     {
                         service.initialize();
-                        assertEquals(1, service.getServers().size());
-                        Server server = service.getServers().iterator().next();
+                        Server server = service.getServer();
+                        assertNotNull(server);
                         assertEquals(EncryptionOptions.TlsEncryptionPolicy.OPTIONAL, server.tlsEncryptionPolicy);
                         assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
-                    }, false, 1);
-    }
-
-    @Test
-    public void testSSLPortWithOptionalEncryption()
-    {
-        // ssl+non-ssl settings: client encryption enabled and additional ssl port specified
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(
-            options -> options.withEnabled(true)
-                              .withOptional(true)
-                              .withKeyStore("test/conf/cassandra_ssl_test.keystore"));
-        DatabaseDescriptor.setNativeTransportPortSSL(8432);
-
-        withService((NativeTransportService service) ->
-                    {
-                        service.initialize();
-                        assertEquals(2, service.getServers().size());
-                        assertEquals(
-                                    Sets.newHashSet(Arrays.asList(
-                                                                 Pair.create(EncryptionOptions.TlsEncryptionPolicy.OPTIONAL,
-                                                                             DatabaseDescriptor.getNativeTransportPortSSL()),
-                                                                 Pair.create(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED,
-                                                                             DatabaseDescriptor.getNativeTransportPort())
-                                                    )
-                                    ),
-                                    service.getServers().stream().map((Server s) ->
-                                                                      Pair.create(s.tlsEncryptionPolicy,
-                                                                                  s.socket.getPort())).collect(Collectors.toSet())
-                        );
-                    }, false, 1);
-    }
-
-    @Test(expected=java.lang.IllegalStateException.class)
-    public void testSSLPortWithDisabledEncryption()
-    {
-        // ssl+non-ssl settings: client encryption disabled and additional ssl port specified
-        // should get an illegal state exception
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(
-        options -> options.withEnabled(false));
-        DatabaseDescriptor.setNativeTransportPortSSL(8432);
-
-        withService((NativeTransportService service) ->
-                    {
-                        service.initialize();
-                        assertEquals(1, service.getServers().size());
-                        assertEquals(
-                        Sets.newHashSet(Arrays.asList(
-                        Pair.create(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED,
-                                    DatabaseDescriptor.getNativeTransportPort())
-                                        )
-                        ),
-                        service.getServers().stream().map((Server s) ->
-                                                          Pair.create(s.tlsEncryptionPolicy,
-                                                                      s.socket.getPort())).collect(Collectors.toSet())
-                        );
-                    }, false, 1);
-    }
-
-    @Test
-    public void testSSLPortWithEnabledSSL()
-    {
-        // ssl+non-ssl settings: client encryption enabled and additional ssl port specified
-        // encryption is enabled and not optional, so listen on both ports requiring encryption
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(
-        options -> options.withEnabled(true)
-                          .withOptional(false)
-                          .withKeyStore("test/conf/cassandra_ssl_test.keystore"));
-        DatabaseDescriptor.setNativeTransportPortSSL(8432);
-
-        withService((NativeTransportService service) ->
-                    {
-                        service.initialize();
-                        assertEquals(2, service.getServers().size());
-                        assertEquals(
-                        Sets.newHashSet(Arrays.asList(
-                        Pair.create(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED,
-                                    DatabaseDescriptor.getNativeTransportPortSSL()),
-                        Pair.create(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED,
-                                    DatabaseDescriptor.getNativeTransportPort())
-                                        )
-                        ),
-                        service.getServers().stream().map((Server s) ->
-                                                          Pair.create(s.tlsEncryptionPolicy,
-                                                                      s.socket.getPort())).collect(Collectors.toSet())
-                        );
                     }, false, 1);
     }
 

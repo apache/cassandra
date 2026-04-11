@@ -18,112 +18,155 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.Iterables;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.auth.AuthTestUtils;
-import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner;
 
-import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
-import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class VerifyTest extends CQLTester
 {
+
     @BeforeClass
-    public static void setup() throws Exception
+    public static void setup() throws Throwable
     {
-        SchemaLoader.prepareServer();
-        AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
-        SchemaLoader.setupAuth(roleManager,
-                               new AuthTestUtils.LocalPasswordAuthenticator(),
-                               new AuthTestUtils.LocalCassandraAuthorizer(),
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
-                               new AuthTestUtils.LocalCassandraCIDRAuthorizer());
-
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
-
+        requireNetwork();
         startJMXServer();
     }
 
-    /**
-     * We calcify the help file as last seen as a "trigger" to notify a developer that, upon addition of a new flag or
-     * functionality to this tool option, they will need to update help output and/or documentation as necessary.
-     */
     @Test
-    public void testMaybeChangeDocs()
+    public void testVerifyDefault()
     {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "verify");
-        tool.assertOnCleanExit();
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY(pk,ck))");
+        createIndex("CREATE INDEX idx1 ON %s(a) USING 'sai'");
 
-        String help =
-        "NAME\n" +
-        "        nodetool verify - Verify (check data checksum for) one or more tables\n" +
-        "\n" +
-        "SYNOPSIS\n" +
-        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-        "                [(-u <username> | --username <username>)] verify\n" +
-        "                [(-c | --check-version)] [(-d | --dfp)] [(-e | --extended-verify)]\n" +
-        "                [(-f | --force)] [(-q | --quick)] [(-r | --rsc)] [(-t | --check-tokens)]\n" +
-        "                [--] [<keyspace> <tables>...]\n" +
-        "\n" +
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", i, i * 2, i * 3, i * 4);
+        }
 
-        "OPTIONS\n" +
-        "        -c, --check-version\n" +
-        "            Also check that all sstables are the latest version\n" +
-        "\n" +
-        "        -d, --dfp\n" +
-        "            Invoke the disk failure policy if a corrupt sstable is found\n" +
-        "\n" +
-        "        -e, --extended-verify\n" +
-        "            Verify each cell data, beyond simply checking sstable checksums\n" +
-        "\n" +
-        "        -f, --force\n" +
-        "            Override disabling of verify tool - see CASSANDRA-9947 for caveats\n" +
-        "\n" +
-        "        -h <host>, --host <host>\n" +
-        "            Node hostname or ip address\n" +
-        "\n" +
-        "        -p <port>, --port <port>\n" +
-        "            Remote jmx agent port number\n" +
-        "\n" +
-        "        -pp, --print-port\n" +
-        "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-        "\n" +
-        "        -pw <password>, --password <password>\n" +
-        "            Remote jmx agent password\n" +
-        "\n" +
-        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-        "            Path to the JMX password file\n" +
-        "\n" +
-        "        -q, --quick\n" +
-        "            Do a quick check - avoid reading all data to verify checksums\n" +
-        "\n" +
-        "        -r, --rsc\n" +
-        "            Mutate the repair status on corrupt sstables\n" +
-        "\n" +
-        "        -t, --check-tokens\n" +
-        "            Verify that all tokens in sstables are owned by this node\n" +
-        "\n" +
-        "        -u <username>, --username <username>\n" +
-        "            Remote jmx agent username\n" +
-        "\n" +
-        "        --\n" +
-        "            This option can be used to separate command-line options from the\n" +
-        "            list of argument, (useful when arguments might be mistaken for\n" +
-        "            command-line options\n" +
-        "\n" +
-        "        [<keyspace> <tables>...]\n" +
-        "            The keyspace followed by one or many tables\n" +
-        "\n\n";
+        flush(keyspace());
 
-        assertThat(tool.getStdout()).isEqualTo(help);
+        invokeNodetool("verify", "--force", keyspace(), currentTable()).assertOnCleanExit();
+    }
+
+    @Test
+    public void testVerifySaiOnly()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX idx1 ON %s(a) USING 'sai'");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", i, i * 2, i * 3, i * 4);
+        }
+        flush(keyspace());
+
+        // SAI-only mode: verify only SAI components
+        invokeNodetool("verify", "--force", "--sai-only", keyspace(), currentTable()).assertOnCleanExit();
+    }
+
+    @Test
+    public void testVerifyIncludeSai()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX idx1 ON %s(a) USING 'sai'");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", i, i * 2, i * 3, i * 4);
+        }
+        flush(keyspace());
+
+        // Include-sai mode: verify both data files and SAI components
+        invokeNodetool("verify", "--force", "--include-sai", keyspace(), currentTable()).assertOnCleanExit();
+    }
+
+    @Test
+    public void testVerifySaiOnlyWithoutSaiIndex()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        // No SAI index created
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", i, i * 2, i * 3, i * 4);
+        }
+        flush(keyspace());
+
+        // SAI-only mode on table without SAI should succeed (skipped)
+        invokeNodetool("verify", "--force", "--sai-only", keyspace(), currentTable()).assertOnCleanExit();
+    }
+
+    @Test
+    public void testVerifyConflictingFlags()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+
+        // Both --sai-only and --include-sai should fail
+        ToolRunner.ToolResult result = invokeNodetool("verify", "--force", "--sai-only", "--include-sai", keyspace(), currentTable());
+        result.asserts().failure();
+        result.getStdout().contains("Cannot specify both --sai-only and --include-sai");
+    }
+
+    @Test
+    public void testVerifySaiWithCorruption ()
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX idx1 ON %s(a) USING 'sai'");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", i, i * 2, i * 3, i * 4);
+        }
+        flush(keyspace());
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
+        assertNotNull("SAI group should exist", group);
+
+        SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
+        Set<Component> saiComponents = StorageAttachedIndexGroup.getLiveComponents(sstable,
+                                                                                   group.getIndexes().stream().map(i -> (StorageAttachedIndex)i).collect(Collectors.toSet()));
+
+        assertFalse("SAI components should exist", saiComponents.isEmpty());
+
+        Component componentToCorrupt = saiComponents.iterator().next();
+        File saiFile = sstable.descriptor.fileFor(componentToCorrupt);
+
+
+        assertTrue("SAI file should exist", saiFile.exists());
+
+
+        try (FileChannel channel = saiFile.newReadWriteChannel())
+        {
+            channel.truncate(10);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        invokeNodetool("verify", "--force", keyspace(), currentTable()).asserts().success();
+        invokeNodetool("verify", "--force", "--sai-only", keyspace(), currentTable()).asserts().failure().errorContains("file truncated");
+        invokeNodetool("verify", "--force", "--include-sai", keyspace(), currentTable()).asserts().failure().errorContains("file truncated");
     }
 }

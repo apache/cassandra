@@ -18,15 +18,17 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
+
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.InboundMessageHandlers;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
+import org.apache.cassandra.net.InboundMessageHandlers;
 
 /**
  * Metrics for internode connections.
  */
 public class InternodeInboundMetrics
 {
+    public static final String TYPE_NAME = "InternodeInbound";
     private final MetricName corruptFramesRecovered;
     private final MetricName corruptFramesUnrecovered;
     private final MetricName errorBytes;
@@ -50,7 +52,7 @@ public class InternodeInboundMetrics
     public InternodeInboundMetrics(InetAddressAndPort peer, InboundMessageHandlers handlers)
     {
         // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
-        MetricNameFactory factory = new DefaultNameFactory("InboundConnection", peer.getHostAddressAndPortForJMX());
+        MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME, peer.getHostAddressAndPortForJMX());
 
         register(corruptFramesRecovered = factory.createMetricName("CorruptFramesRecovered"), handlers::corruptFramesRecovered);
         register(corruptFramesUnrecovered = factory.createMetricName("CorruptFramesUnrecovered"), handlers::corruptFramesUnrecovered);

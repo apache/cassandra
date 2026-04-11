@@ -24,29 +24,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import static java.lang.String.format;
 
 @Command(name = "compactionstats", description = "Print statistics on compactions")
-public class CompactionStats extends NodeToolCmd
+public class CompactionStats extends AbstractCommand
 {
-    @Option(title = "human_readable",
-            name = {"-H", "--human-readable"},
+    @Option(paramLabel = "human_readable",
+            names = { "-H", "--human-readable" },
             description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
-    @Option(title = "vtable_output",
-            name = {"-V", "--vtable"},
+    @Option(paramLabel = "vtable_output",
+            names = { "-V", "--vtable" },
             description = "Display fields matching vtable output")
     private boolean vtableOutput = false;
 
@@ -111,6 +110,10 @@ public class CompactionStats extends NodeToolCmd
 
         double configured = probe.getStorageService().getCompactionThroughtputMibPerSecAsDouble();
         tableBuilder.add("compaction throughput (MiB/s)", configured == 0 ? "throttling disabled (0)" : Double.toString(configured));
+        Map<String, String> currentCompactionThroughputMetricsMap = probe.getCurrentCompactionThroughputMiBPerSec();
+        tableBuilder.add("current compaction throughput (1 minute)", currentCompactionThroughputMetricsMap.get("1minute") + " MiB/s");
+        tableBuilder.add("current compaction throughput (5 minute)", currentCompactionThroughputMetricsMap.get("5minute") + " MiB/s");
+        tableBuilder.add("current compaction throughput (15 minute)", currentCompactionThroughputMetricsMap.get("15minute") + " MiB/s");
     }
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, long compactionThroughputInBytes, boolean humanReadable, PrintStream out, TableBuilder table)

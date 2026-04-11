@@ -1,6 +1,6 @@
 = Repair
 
-Cassandra is designed to remain available if one of it's nodes is down
+Cassandra is designed to remain available if one of its nodes is down
 or unreachable. However, when a node is down or unreachable, it needs to
 eventually discover the writes it missed. Hints attempt to inform a node
 of missed writes, but are a best effort, and aren't guaranteed to inform
@@ -29,10 +29,21 @@ for syncing up missed writes, but it doesn't protect against things like
 disk corruption, data loss by operator error, or bugs in Cassandra. For
 this reason, full repairs should still be run occasionally.
 
-== Usage and Best Practices
+== Automated Repair Scheduling
 
-Since repair can result in a lot of disk and network io, it's not run
-automatically by Cassandra. It is run by the operator via nodetool.
+Since repair can result in a lot of disk and network io, it has
+traditionally not been run automatically by Cassandra.
+
+In the latest version of Cassandra, a new feature called
+xref:managing/operating/auto_repair.adoc[auto repair] was introduced to
+allow Cassandra to submit and manage repairs automatically on a schedule.
+
+The introduction of this feature does not interfere with existing repair
+functionality enabled via nodetool.
+
+== Submitting Repairs Using Nodetool
+
+Repairs can also be run by the operator via nodetool.
 
 Incremental repair is the default and is run with the following command:
 
@@ -62,13 +73,10 @@ Or even on specific tables:
 nodetool repair [options] <keyspace_name> <table1> <table2>
 ----
 
-The repair command only repairs token ranges on the node being repaired,
-it doesn't repair the whole cluster. By default, repair will operate on
-all token ranges replicated by the node you're running repair on, which
-will cause duplicate work if you run it on every node. The `-pr` flag
-will only repair the "primary" ranges on a node, so you can repair your
-entire cluster by running `nodetool repair -pr` on each node in a single
-datacenter.
+
+The repair command repairs token ranges only on the node being repaired; it does not repair the whole cluster.
+By default, repair operates on all token ranges replicated by the node on which repair is run, causing duplicate work when running it on every node. Avoid duplicate work by using the `-pr` flag to repair only the "primary" ranges on a node. 
+Do a full cluster repair by running the `nodetool repair -pr` command on each node in each datacenter in the cluster, until all of the nodes and datacenters are repaired. 
 
 The specific frequency of repair that's right for your cluster, of
 course, depends on several factors. However, if you're just starting out
@@ -96,7 +104,7 @@ providing enough slack to allow for delays.
   default, incremental repairs are estimated, add the `--full` flag to
   estimate a full repair.
 `-vd, --validate`::
-  Verifies that the repaired data is the same across all nodes. Similiar
+  Verifies that the repaired data is the same across all nodes. Similar
   to `--preview`, this builds and compares merkle trees of repaired
   data, but doesn't do any streaming. This is useful for
   troubleshooting. If this shows that the repaired data is out of sync,

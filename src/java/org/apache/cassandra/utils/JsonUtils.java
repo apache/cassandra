@@ -21,33 +21,47 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.util.BufferRecyclers;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.datatype.jsr310.ser.InstantSerializer;
+
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.serializers.MarshalException;
 
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class JsonUtils
 {
     public static final ObjectMapper JSON_OBJECT_MAPPER = new ObjectMapper(new JsonFactory()); // checkstyle: permit this instantiation
     public static final ObjectWriter JSON_OBJECT_PRETTY_WRITER;
 
+    private static class GlobalInstantSerializer extends InstantSerializer
+    {
+        private GlobalInstantSerializer()
+        {
+            super(InstantSerializer.INSTANCE,
+                  false,
+                  false,
+                  DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC));
+        }
+    }
+
     static
     {
-        JSON_OBJECT_MAPPER.registerModule(new JavaTimeModule());
-        JSON_OBJECT_MAPPER.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        JSON_OBJECT_MAPPER.registerModule(new JavaTimeModule().addSerializer(Instant.class, new GlobalInstantSerializer()));
         JSON_OBJECT_PRETTY_WRITER = JSON_OBJECT_MAPPER.writerWithDefaultPrettyPrinter();
     }
 
@@ -180,12 +194,49 @@ public final class JsonUtils
         }
     }
 
+    public static void serializeToJsonFileAtomic(Object object, File outputFile) throws IOException
+    {
+        // Try to write then perform atomic move so that file can't be corrupted
+        // by process crash in the middle of the writing.
+        File tempFile = new File(outputFile.path() + ".tmp");
+        try
+        {
+            // Serialize to bytes first so we can flush and fsync before close.
+            // Jackson's writeValue(OutputStream, ...) auto-closes the stream,
+            // which would prevent us from calling sync() afterwards.
+            byte[] data = JSON_OBJECT_PRETTY_WRITER.writeValueAsBytes(object);
+            try (FileOutputStreamPlus out = tempFile.newOutputStream(OVERWRITE))
+            {
+                out.write(data);
+                // Force data to disk before rename to ensure durability.
+                // Without this, a crash after rename but before OS flushes to disk
+                // can leave the file with zero-filled or corrupted blocks.
+                out.sync();
+            }
+            tempFile.move(outputFile);
+            // Fsync the parent directory to ensure the rename is durable.
+            // Without this, a crash after rename can revert to the old directory entry.
+            // See: https://transactional.blog/how-to-learn/disk-io
+            SyncUtil.trySyncDir(outputFile.parent());
+        }
+        catch (IOException ex)
+        {
+            tempFile.deleteIfExists();
+            throw ex;
+        }
+    }
+
     public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
     {
         try (FileInputStreamPlus in = file.newInputStream())
         {
             return JSON_OBJECT_MAPPER.readValue((InputStream) in, tClass);
         }
+    }
+
+    public static <T> T deserializeFromJsonBytes(Class<T> tClass, byte[] bytes) throws IOException
+    {
+        return JSON_OBJECT_MAPPER.readValue(bytes, tClass);
     }
 
     /**
@@ -203,7 +254,7 @@ public final class JsonUtils
             }
 
             // otherwise, lowercase it if needed
-            String lowered = mapKey.toLowerCase(Locale.US);
+            String lowered = toLowerCaseLocalized(mapKey);
             if (!mapKey.equals(lowered))
                 valueMap.put(lowered, valueMap.remove(mapKey));
         }

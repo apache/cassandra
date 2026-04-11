@@ -59,8 +59,11 @@ public class RangeDenormalizer
                     incoming.put(r, entry.getValue().copy(r));
             }
         }
-        logger.trace("denormalized {} to {}", range, newInput);
-        logger.trace("denormalized incoming to {}", incoming);
+        if (logger.isTraceEnabled())
+        {
+            logger.trace("denormalized {} to {}", range, newInput);
+            logger.trace("denormalized incoming to {}", incoming);
+        }
         return newInput;
     }
 

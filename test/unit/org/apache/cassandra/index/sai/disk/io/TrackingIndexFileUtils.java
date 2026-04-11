@@ -25,9 +25,10 @@ import java.util.Map;
 
 import com.google.common.base.Throwables;
 
+import org.apache.lucene.store.IndexInput;
+
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriterOption;
-import org.apache.lucene.store.IndexInput;
 
 import static org.junit.Assert.assertNotNull;
 

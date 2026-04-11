@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 import java.util.Locale;
 
 import org.junit.Test;
-
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
@@ -28,8 +27,10 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.GIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.quicktheories.QuickTheory.qt;
 
 public class DataStorageSpecTest
@@ -242,7 +243,7 @@ public class DataStorageSpecTest
     {
         qt().forAll(gen()).check(there -> {
             DataStorageSpec.LongBytesBound back = new DataStorageSpec.LongBytesBound(there.toString());
-            DataStorageSpec.LongBytesBound BACK = new DataStorageSpec.LongBytesBound(there.toString().toUpperCase(Locale.ROOT).replace("I", "i"));
+            DataStorageSpec.LongBytesBound BACK = new DataStorageSpec.LongBytesBound(toUpperCaseLocalized(there.toString(), Locale.ROOT).replace("I", "i"));
             return there.equals(back) && there.equals(BACK);
         });
     }

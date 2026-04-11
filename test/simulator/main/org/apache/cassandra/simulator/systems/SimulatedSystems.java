@@ -20,9 +20,11 @@ package org.apache.cassandra.simulator.systems;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.Action.Modifiers;
 import org.apache.cassandra.simulator.Debug;
@@ -44,21 +46,22 @@ public class SimulatedSystems
     public final SimulatedFailureDetector failureDetector;
     public final SimulatedSnitch snitch;
     public final FutureActionScheduler futureScheduler;
+    public final Map<Verb, FutureActionScheduler> perVerbFutureSchedulers;
     public final Debug debug;
     public final Failures failures;
     private final List<TopologyListener> topologyListeners; // TODO (cleanup): this is a mutable set of listeners but shared between instances
 
     public SimulatedSystems(SimulatedSystems copy)
     {
-        this(copy.random, copy.time, copy.delivery, copy.execution, copy.ballots, copy.failureDetector, copy.snitch, copy.futureScheduler, copy.debug, copy.failures, copy.topologyListeners);
+        this(copy.random, copy.time, copy.delivery, copy.execution, copy.ballots, copy.failureDetector, copy.snitch, copy.futureScheduler, copy.perVerbFutureSchedulers, copy.debug, copy.failures, copy.topologyListeners);
     }
 
-    public SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures)
+    public SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler defaultFutureScheduler, Map<Verb, FutureActionScheduler> perVerbFutureScheduler, Debug debug, Failures failures)
     {
-        this(random, time, delivery, execution, ballots, failureDetector, snitch, futureScheduler, debug, failures, new ArrayList<>());
+        this(random, time, delivery, execution, ballots, failureDetector, snitch, defaultFutureScheduler, perVerbFutureScheduler, debug, failures, new ArrayList<>());
     }
 
-    private SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Debug debug, Failures failures, List<TopologyListener> topologyListeners)
+    protected SimulatedSystems(RandomSource random, SimulatedTime time, SimulatedMessageDelivery delivery, SimulatedExecution execution, SimulatedBallots ballots, SimulatedFailureDetector failureDetector, SimulatedSnitch snitch, FutureActionScheduler futureScheduler, Map<Verb, FutureActionScheduler> perVerbFutureScheduler, Debug debug, Failures failures, List<TopologyListener> topologyListeners)
     {
         this.random = random;
         this.time = time;
@@ -66,6 +69,7 @@ public class SimulatedSystems
         this.execution = execution;
         this.ballots = ballots;
         this.failureDetector = failureDetector;
+        this.perVerbFutureSchedulers = perVerbFutureScheduler;
         this.snitch = snitch;
         this.futureScheduler = futureScheduler;
         this.debug = debug;

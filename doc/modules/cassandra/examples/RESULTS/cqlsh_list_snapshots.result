@@ -1,0 +1,27 @@
+cqlsh> expand on;
+EXPAND set to ON
+cqlsh> select * from system_views.snapshots ;
+
+@ Row 1
+---------------+---------------------------------
+ name          | catalog-cql-ks
+ keyspace_name | catalogkeyspace
+ table_name    | journal
+ created_at    | 2024-01-25 10:06:41.420000+0000
+ ephemeral     | False
+ expires_at    | 2024-01-25 10:09:41.420000+0000
+ size_on_disk  | 6279
+ true_size     | 1143
+
+@ Row 2
+---------------+---------------------------------
+ name          | catalog-cql-ks
+ keyspace_name | catalogkeyspace
+ table_name    | magazine
+ created_at    | 2024-01-25 10:06:41.420000+0000
+ ephemeral     | False
+ expires_at    | 2024-01-25 10:09:41.420000+0000
+ size_on_disk  | 1125
+ true_size     | 1125
+
+(2 rows)

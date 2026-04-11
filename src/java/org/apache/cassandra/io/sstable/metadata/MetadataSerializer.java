@@ -29,6 +29,7 @@ import java.util.zip.CRC32;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,7 +230,7 @@ public class MetadataSerializer implements IMetadataSerializer
     @Override
     public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException
     {
-        if (logger.isTraceEnabled() )
+        if (logger.isTraceEnabled())
             logger.trace("Mutating {} to {}", descriptor.fileFor(Components.STATS), description);
 
         mutate(descriptor, transform);

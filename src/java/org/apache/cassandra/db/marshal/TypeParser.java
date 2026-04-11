@@ -30,11 +30,13 @@ import java.util.Map;
 
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -319,7 +321,7 @@ public class TypeParser
 
             String alias = readNextIdentifier();
             if (alias.length() != 1)
-                throwSyntaxError("An alias should be a single character");
+                throwSyntaxError("An alias should be a single character: '" + alias + "', string: " + str);
             char aliasChar = alias.charAt(0);
             if (aliasChar < 33 || aliasChar > 127)
                 throwSyntaxError("An alias should be a single character in [0..9a..bA..B-+._&]");
@@ -465,6 +467,11 @@ public class TypeParser
     {
         String className = compareWith.contains(".") ? compareWith : "org.apache.cassandra.db.marshal." + compareWith;
         Class<? extends AbstractType<?>> typeClass = FBUtilities.<AbstractType<?>>classForName(className, "abstract-type");
+        if (PseudoUtf8Type.class.isAssignableFrom(typeClass))
+        {
+            if (StorageService.instance.isDaemonSetupCompleted())
+                throw new ConfigurationException(typeClass.getName() + " is reserved for internal functionality");
+        }
         try
         {
             Method method = typeClass.getDeclaredMethod("getInstance", TypeParser.class);

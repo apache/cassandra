@@ -21,12 +21,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.Lists;
-
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
+import com.google.common.collect.Lists;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -99,8 +96,8 @@ public class LatencyMetrics
         }
         else
         {
-            latency = Metrics.register(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"), timer);
-            totalLatency = Metrics.register(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"), counter);
+            latency = Metrics.register(factory.createMetricName(namePrefix + "Latency"), timer, aliasFactory.createMetricName(namePrefix + "Latency"));
+            totalLatency = Metrics.register(factory.createMetricName(namePrefix + "TotalLatency"), counter, aliasFactory.createMetricName(namePrefix + "TotalLatency"));
         }
     }
     
@@ -164,24 +161,16 @@ public class LatencyMetrics
         {
             parent.removeChildren(this);
         }
-        if (aliasFactory == null)
-        {
-            Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
-            Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
-        }
-        else
-        {
-            Metrics.remove(factory.createMetricName(namePrefix + "Latency"), aliasFactory.createMetricName(namePrefix + "Latency"));
-            Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"), aliasFactory.createMetricName(namePrefix + "TotalLatency"));
-        }
+        // Aliases are already known to the parent metrics, so we don't need to remove them here.
+        Metrics.remove(factory.createMetricName(namePrefix + "Latency"));
+        Metrics.remove(factory.createMetricName(namePrefix + "TotalLatency"));
     }
 
-    public class LatencyMetricsTimer extends Timer
+    public class LatencyMetricsTimer extends ThreadLocalTimer implements org.apache.cassandra.metrics.Timer
     {
-
         long releasedLatencyCount = 0;
 
-        public LatencyMetricsTimer(Reservoir reservoir) 
+        public LatencyMetricsTimer(CassandraReservoir reservoir)
         {
             super(reservoir);
         }
@@ -256,7 +245,7 @@ public class LatencyMetrics
         }
     }
 
-    class LatencyMetricsCounter extends Counter 
+    class LatencyMetricsCounter extends ThreadLocalCounter
     {
         @Override
         public long getCount()

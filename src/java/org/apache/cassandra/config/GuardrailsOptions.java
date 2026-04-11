@@ -19,21 +19,29 @@
 package org.apache.cassandra.config;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.statements.schema.KeyspaceAttributes;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.guardrails.CustomGuardrailConfig;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.guardrails.GuardrailsConfig;
+import org.apache.cassandra.db.guardrails.ValueGenerator;
+import org.apache.cassandra.db.guardrails.ValueValidator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
+import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toSet;
@@ -69,6 +77,9 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.table_properties_warned = validateTableProperties(config.table_properties_warned, "table_properties_warned");
         config.table_properties_ignored = validateTableProperties(config.table_properties_ignored, "table_properties_ignored");
         config.table_properties_disallowed = validateTableProperties(config.table_properties_disallowed, "table_properties_disallowed");
+        config.keyspace_properties_warned = validateKeyspaceProperties(config.keyspace_properties_warned, "keyspace_properties_warned");
+        config.keyspace_properties_ignored = validateKeyspaceProperties(config.keyspace_properties_ignored, "keyspace_properties_ignored");
+        config.keyspace_properties_disallowed = validateKeyspaceProperties(config.keyspace_properties_disallowed, "keyspace_properties_disallowed");
         validateMaxIntThreshold(config.page_size_warn_threshold, config.page_size_fail_threshold, "page_size");
         validateMaxIntThreshold(config.partition_keys_in_select_warn_threshold, config.partition_keys_in_select_fail_threshold, "partition_keys_in_select");
         validateMaxIntThreshold(config.in_select_cartesian_product_warn_threshold, config.in_select_cartesian_product_fail_threshold, "in_select_cartesian_product");
@@ -80,6 +91,13 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateMaxLongThreshold(config.partition_tombstones_warn_threshold, config.partition_tombstones_fail_threshold, "partition_tombstones", false);
         validateSizeThreshold(config.column_value_size_warn_threshold, config.column_value_size_fail_threshold, false, "column_value_size");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
+        validateSizeThreshold(config.collection_map_size_warn_threshold, config.collection_map_size_fail_threshold, false, "collection_map_size");
+        validateSizeThreshold(config.collection_set_size_warn_threshold, config.collection_set_size_fail_threshold, false, "collection_set_size");
+        validateSizeThreshold(config.collection_list_size_warn_threshold, config.collection_list_size_fail_threshold, false, "collection_list_size");
+        validateSizeThreshold(config.column_ascii_value_size_warn_threshold, config.column_ascii_value_size_fail_threshold, false, "column_acii_value_size");
+        validateSizeThreshold(config.column_blob_value_size_warn_threshold, config.column_blob_value_size_fail_threshold, false, "column_blob_value_size");
+        validateSizeThreshold(config.column_text_and_varchar_value_size_warn_threshold, config.column_text_and_varchar_value_size_fail_threshold, false, "column_text_value_size");
+        validateSizeThreshold(config.column_varchar_value_size_warn_threshold, config.column_varchar_value_size_fail_threshold, false, "column_varchar_value_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validateMaxIntThreshold(config.vector_dimensions_warn_threshold, config.vector_dimensions_fail_threshold, "vector_dimensions");
@@ -89,6 +107,12 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateMaxRFThreshold(config.maximum_replication_factor_warn_threshold, config.maximum_replication_factor_fail_threshold);
         validateTimestampThreshold(config.maximum_timestamp_warn_threshold, config.maximum_timestamp_fail_threshold, "maximum_timestamp");
         validateTimestampThreshold(config.minimum_timestamp_warn_threshold, config.minimum_timestamp_fail_threshold, "minimum_timestamp");
+        validateMaxLongThreshold(config.sai_sstable_indexes_per_query_warn_threshold,
+                                 config.sai_sstable_indexes_per_query_fail_threshold,
+                                 "sai_sstable_indexes_per_query",
+                                 false);
+        validatePasswordPolicy(config.password_policy);
+        validateRoleNamePolicy(config.role_name_policy);
     }
 
     @Override
@@ -164,6 +188,48 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.columns_per_table_fail_threshold,
                                   x -> config.columns_per_table_fail_threshold = x);
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesWarned()
+    {
+        return config.keyspace_properties_warned;
+    }
+    
+    public void setKeyspacePropertiesWarned(Set<String> properties)
+    {
+        updatePropertyWithLogging("keyspace_properties_warned",
+                                  validateKeyspaceProperties(properties, "keyspace_properties_warned"),
+                                  () -> config.keyspace_properties_warned,
+                                  x -> config.keyspace_properties_warned = x);
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesIgnored()
+    {
+        return config.keyspace_properties_ignored;
+    }
+    
+    public void setKeyspacePropertiesIgnored(Set<String> properties)
+    {
+        updatePropertyWithLogging("keyspace_properties_ignored",
+                                  validateKeyspaceProperties(properties, "keyspace_properties_ignored"),
+                                  () -> config.keyspace_properties_ignored,
+                                  x -> config.keyspace_properties_ignored = x);
+    }
+
+    @Override
+    public Set<String> getKeyspacePropertiesDisallowed()
+    {
+        return config.keyspace_properties_disallowed;
+    }
+    
+    public void setKeyspacePropertiesDisallowed(Set<String> properties)
+    {
+        updatePropertyWithLogging("keyspace_properties_disallowed",
+                                  validateKeyspaceProperties(properties, "keyspace_properties_disallowed"),
+                                  () -> config.keyspace_properties_disallowed,
+                                  x -> config.keyspace_properties_disallowed = x);
     }
 
     @Override
@@ -622,6 +688,48 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.column_value_size_fail_threshold;
     }
 
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnAsciiValueSizeWarnThreshold()
+    {
+        return config.column_ascii_value_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnAsciiValueSizeFailThreshold()
+    {
+        return config.column_ascii_value_size_fail_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnBlobValueSizeWarnThreshold()
+    {
+        return config.column_blob_value_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnBlobValueSizeFailThreshold()
+    {
+        return config.column_blob_value_size_fail_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeWarnThreshold()
+    {
+        return config.column_text_and_varchar_value_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getColumnTextAndVarcharValueSizeFailThreshold()
+    {
+        return config.column_text_and_varchar_value_size_fail_threshold;
+    }
+
     public void setColumnValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
         validateSizeThreshold(warn, fail, false, "column_value_size");
@@ -633,6 +741,45 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.column_value_size_fail_threshold,
                                   x -> config.column_value_size_fail_threshold = x);
+    }
+
+    public void setColumnAsciiValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "column_ascii_value_size");
+        updatePropertyWithLogging("column_ascii_value_size_warn_threshold",
+                                  warn,
+                                  () -> config.column_ascii_value_size_warn_threshold,
+                                  x -> config.column_ascii_value_size_warn_threshold = x);
+        updatePropertyWithLogging("column_ascii_value_size_fail_threshold",
+                                  fail,
+                                  () -> config.column_ascii_value_size_fail_threshold,
+                                  x -> config.column_ascii_value_size_fail_threshold = x);
+    }
+
+    public void setColumnBlobValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "column_blob_value_size");
+        updatePropertyWithLogging("column_blob_value_size_warn_threshold",
+                                  warn,
+                                  () -> config.column_blob_value_size_warn_threshold,
+                                  x -> config.column_blob_value_size_warn_threshold = x);
+        updatePropertyWithLogging("column_blob_value_size_fail_threshold",
+                                  fail,
+                                  () -> config.column_blob_value_size_fail_threshold,
+                                  x -> config.column_blob_value_size_fail_threshold = x);
+    }
+
+    public void setColumnTextAndVarcharValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "column_text_value_size");
+        updatePropertyWithLogging("column_text_and_varchar_value_size_warn_threshold",
+                                  warn,
+                                  () -> config.column_text_and_varchar_value_size_warn_threshold,
+                                  x -> config.column_text_and_varchar_value_size_warn_threshold = x);
+        updatePropertyWithLogging("column_text_and_varchar_value_size_fail_threshold",
+                                  fail,
+                                  () -> config.column_text_and_varchar_value_size_fail_threshold,
+                                  x -> config.column_text_and_varchar_value_size_fail_threshold = x);
     }
 
     @Override
@@ -649,6 +796,48 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.collection_size_fail_threshold;
     }
 
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getCollectionMapSizeWarnThreshold()
+    {
+        return config.collection_map_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getCollectionMapSizeFailThreshold()
+    {
+        return config.collection_map_size_fail_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getCollectionSetSizeWarnThreshold()
+    {
+        return config.collection_set_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getCollectionSetSizeFailThreshold()
+    {
+        return config.collection_set_size_fail_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getCollectionListSizeWarnThreshold()
+    {
+        return config.collection_list_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getCollectionListSizeFailThreshold()
+    {
+        return config.collection_list_size_fail_threshold;
+    }
+
     public void setCollectionSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
     {
         validateSizeThreshold(warn, fail, false, "collection_size");
@@ -660,6 +849,45 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.collection_size_fail_threshold,
                                   x -> config.collection_size_fail_threshold = x);
+    }
+
+    public void setCollectionMapSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "collection_map_size");
+        updatePropertyWithLogging("collection_map_size_warn_threshold",
+                                  warn,
+                                  () -> config.collection_map_size_warn_threshold,
+                                  x -> config.collection_map_size_warn_threshold = x);
+        updatePropertyWithLogging("collection_map_size_fail_threshold",
+                                  fail,
+                                  () -> config.collection_map_size_fail_threshold,
+                                  x -> config.collection_map_size_fail_threshold = x);
+    }
+
+    public void setCollectionSetSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "collection_set_size");
+        updatePropertyWithLogging("collection_set_size_warn_threshold",
+                                  warn,
+                                  () -> config.collection_set_size_warn_threshold,
+                                  x -> config.collection_set_size_warn_threshold = x);
+        updatePropertyWithLogging("collection_set_size_fail_threshold",
+                                  fail,
+                                  () -> config.collection_set_size_fail_threshold,
+                                  x -> config.collection_set_size_fail_threshold = x);
+    }
+
+    public void setCollectionListSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "collection_list_size");
+        updatePropertyWithLogging("collection_list_size_warn_threshold",
+                                  warn,
+                                  () -> config.collection_list_size_warn_threshold,
+                                  x -> config.collection_list_size_warn_threshold = x);
+        updatePropertyWithLogging("collection_list_size_fail_threshold",
+                                  fail,
+                                  () -> config.collection_list_size_fail_threshold,
+                                  x -> config.collection_list_size_fail_threshold = x);
     }
 
     @Override
@@ -761,6 +989,20 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.data_disk_usage_percentage_fail_threshold = x);
     }
 
+
+    public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
+    {
+        return config.data_disk_usage_keyspace_wide_protection_enabled;
+    }
+
+    public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("data_disk_usage_keyspace_wide_protection_enabled",
+                                  enabled,
+                                  () -> config.data_disk_usage_keyspace_wide_protection_enabled,
+                                  x -> config.data_disk_usage_keyspace_wide_protection_enabled = x);
+    }
+
     @Override
     public DataStorageSpec.LongBytesBound getDataDiskUsageMaxDiskSize()
     {
@@ -813,6 +1055,18 @@ public class GuardrailsOptions implements GuardrailsConfig
         return config.maximum_replication_factor_fail_threshold;
     }
 
+    @Override
+    public CustomGuardrailConfig getPasswordPolicyConfig()
+    {
+        return config.password_policy;
+    }
+
+    @Override
+    public CustomGuardrailConfig getRoleNamePolicyConfig()
+    {
+        return config.role_name_policy;
+    }
+
     public void setMaximumReplicationFactorThreshold(int warn, int fail)
     {
         validateMaxRFThreshold(warn, fail);
@@ -857,7 +1111,36 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public  DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold()
+    public boolean getIntersectFilteringQueryWarned()
+    {
+        return config.intersect_filtering_query_warned;
+    }
+
+    @Override
+    public void setIntersectFilteringQueryWarned(boolean value)
+    {
+        updatePropertyWithLogging("intersect_filtering_query_warned",
+                                  value,
+                                  () -> config.intersect_filtering_query_warned,
+                                  x -> config.intersect_filtering_query_warned = x);
+    }
+
+    @Override
+    public boolean getIntersectFilteringQueryEnabled()
+    {
+        return config.intersect_filtering_query_enabled;
+    }
+
+    public void setIntersectFilteringQueryEnabled(boolean value)
+    {
+        updatePropertyWithLogging("intersect_filtering_query_enabled",
+                                  value,
+                                  () -> config.intersect_filtering_query_enabled,
+                                  x -> config.intersect_filtering_query_enabled = x);
+    }
+
+    @Override
+    public DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold()
     {
         return config.maximum_timestamp_warn_threshold;
     }
@@ -886,7 +1169,7 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public  DurationSpec.LongMicrosecondsBound getMinimumTimestampWarnThreshold()
+    public DurationSpec.LongMicrosecondsBound getMinimumTimestampWarnThreshold()
     {
         return config.minimum_timestamp_warn_threshold;
     }
@@ -912,6 +1195,177 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.minimum_timestamp_fail_threshold,
                                   x -> config.minimum_timestamp_fail_threshold = x);
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryWarnThreshold()
+    {
+        return config.sai_sstable_indexes_per_query_warn_threshold;
+    }
+
+    @Override
+    public int getSaiSSTableIndexesPerQueryFailThreshold()
+    {
+        return config.sai_sstable_indexes_per_query_fail_threshold;
+    }
+
+    @Override
+    public void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "sai_sstable_indexes_per_query");
+        updatePropertyWithLogging("sai_sstable_indexes_per_query_warn_threshold",
+                                  warn,
+                                  () -> config.sai_sstable_indexes_per_query_warn_threshold,
+                                  x -> config.sai_sstable_indexes_per_query_warn_threshold = x);
+
+        updatePropertyWithLogging("sai_sstable_indexes_per_query_fail_threshold",
+                                  fail,
+                                  () -> config.sai_sstable_indexes_per_query_fail_threshold,
+                                  x -> config.sai_sstable_indexes_per_query_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiStringTermSizeWarnThreshold()
+    {
+        return config.sai_string_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiStringTermSizeFailThreshold()
+    {
+        return config.sai_string_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiStringTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_string_term_size");
+        updatePropertyWithLogging("sai_string_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_string_term_size_warn_threshold,
+                                  x -> config.sai_string_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_string_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_string_term_size_fail_threshold,
+                                  x -> config.sai_string_term_size_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiFrozenTermSizeWarnThreshold()
+    {
+        return config.sai_frozen_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiFrozenTermSizeFailThreshold()
+    {
+        return config.sai_frozen_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiFrozenTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_frozen_term_size");
+        updatePropertyWithLogging("sai_frozen_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_frozen_term_size_warn_threshold,
+                                  x -> config.sai_frozen_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_frozen_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_frozen_term_size_fail_threshold,
+                                  x -> config.sai_frozen_term_size_fail_threshold = x);
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiVectorTermSizeWarnThreshold()
+    {
+        return config.sai_vector_term_size_warn_threshold;
+    }
+
+    @Override
+    @Nullable
+    public DataStorageSpec.LongBytesBound getSaiVectorTermSizeFailThreshold()
+    {
+        return config.sai_vector_term_size_fail_threshold;
+    }
+
+    @Override
+    public void setSaiVectorTermSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
+    {
+        validateSizeThreshold(warn, fail, false, "sai_vector_term_size");
+        updatePropertyWithLogging("sai_vector_term_size_warn_threshold",
+                                  warn,
+                                  () -> config.sai_vector_term_size_warn_threshold,
+                                  x -> config.sai_vector_term_size_warn_threshold = x);
+        updatePropertyWithLogging("sai_vector_term_size_fail_threshold",
+                                  fail,
+                                  () -> config.sai_vector_term_size_fail_threshold,
+                                  x -> config.sai_vector_term_size_fail_threshold = x);
+    }
+
+    @Override
+    public boolean getNonPartitionRestrictedQueryEnabled()
+    {
+        return config.non_partition_restricted_index_query_enabled;
+    }
+
+    @Override
+    public void setNonPartitionRestrictedQueryEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("non_partition_restricted_index_query_enabled",
+                                  enabled,
+                                  () -> config.non_partition_restricted_index_query_enabled,
+                                  x -> config.non_partition_restricted_index_query_enabled = x);
+    }
+
+    @Override
+    public boolean getVectorTypeEnabled()
+    {
+        return config.vector_type_enabled;
+    }
+
+    @Override
+    public void setVectorTypeEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("vector_type_enabled",
+                                  enabled,
+                                  () -> config.vector_type_enabled,
+                                  x -> config.vector_type_enabled = x);
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyWarned(boolean enabled)
+    {
+        updatePropertyWithLogging("unset_training_min_frequency_warned",
+                                  enabled,
+                                  () -> config.unset_training_min_frequency_warned,
+                                  x -> config.unset_training_min_frequency_warned = x);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyWarned()
+    {
+        return config.unset_training_min_frequency_warned;
+    }
+
+    @Override
+    public void setUnsetTrainingMinFrequencyEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("unset_training_min_frequency_enabled",
+                                  enabled,
+                                  () -> config.unset_training_min_frequency_enabled,
+                                  x -> config.unset_training_min_frequency_enabled = x);
+    }
+
+    @Override
+    public boolean getUnsetTrainingMinFrequencyEnabled()
+    {
+        return config.unset_training_min_frequency_enabled;
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
@@ -1071,10 +1525,40 @@ public class GuardrailsOptions implements GuardrailsConfig
         Set<String> diff = Sets.difference(lowerCaseProperties, TableAttributes.allKeywords());
 
         if (!diff.isEmpty())
-            throw new IllegalArgumentException(format("Invalid value for %s: '%s' do not parse as valid table properties",
-                                                      name, diff));
+            throw new IllegalArgumentException(invalidValueMessage(name, diff, "table"));
 
         return lowerCaseProperties;
+    }
+
+    private static Set<String> validateKeyspaceProperties(Set<String> properties, String name)
+    {
+        if (properties == null)
+            throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
+
+        Set<String> lowerCaseProperties = properties.stream().map(LocalizeString::toLowerCaseLocalized).collect(toSet());
+
+        for (String requiredKeyword : KeyspaceAttributes.requiredKeywords())
+        {
+            if (lowerCaseProperties.contains(requiredKeyword))
+                throw new IllegalArgumentException(format("Invalid value for %s: '%s' is a required keyspace property", name, requiredKeyword));
+        }
+
+        Set<String> diff = Sets.difference(lowerCaseProperties, KeyspaceAttributes.allKeywords());
+
+        if (!diff.isEmpty())
+            throw new IllegalArgumentException(invalidValueMessage(name, diff, "keyspace"));
+
+        return lowerCaseProperties;
+    }
+
+    public static String invalidValueMessage(String name, Set<String> invalidProperties, String type)
+    {
+        if (invalidProperties.size() == 1)
+            return format("Invalid value for %s: '%s' does not parse as valid %s property.",
+                          name, invalidProperties, type);
+
+        return format("Invalid values for %s: '%s' do not parse as valid %s properties",
+                      name, invalidProperties, type);
     }
 
     private static Set<ConsistencyLevel> validateConsistencyLevels(Set<ConsistencyLevel> consistencyLevels, String name)
@@ -1098,5 +1582,23 @@ public class GuardrailsOptions implements GuardrailsConfig
             throw new IllegalArgumentException(format("Invalid value for data_disk_usage_max_disk_size: " +
                                                       "%s specified, but only %s are actually available on disk",
                                                       maxDiskSize, FileUtils.stringifyFileSize(diskSize)));
+    }
+
+    /**
+     * This method tests not only valid configuration, but also that what we generate with
+     * a generator passes its validator, so we avoid the situation when a configuration would be valid according
+     * to a concrete implementation of a password validator but passwords it would generate would not pass
+     * its validator which is clearly not desired.
+     *
+     * @param config configuration to use for generator and validator
+     */
+    private static void validatePasswordPolicy(CustomGuardrailConfig config)
+    {
+        ValueGenerator.getGenerator("password_policy", config).generate(ValueValidator.getValidator("password_policy", config), Map.of());
+    }
+
+    private static void validateRoleNamePolicy(CustomGuardrailConfig config)
+    {
+        ValueGenerator.getGenerator("role_name_policy", config).generate(ValueValidator.getValidator("role_name_policy", config), Map.of());
     }
 }

@@ -17,7 +17,15 @@
 package org.apache.cassandra.index.sasi.utils.trie;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.SortedMap;
 
 /**
  * This class is taken from https://github.com/rkapsi/patricia-trie (v0.6), and slightly modified
@@ -414,7 +422,7 @@ public class PatriciaTrie<K, V> extends AbstractPatriciaTrie<K, V> implements Se
      * <p>This is implemented by going always to the right until
      * we encounter a valid uplink. That uplink is the last key.
      */
-    private TrieEntry<K, V> lastEntry()
+    public TrieEntry<K, V> lastEntry()
     {
         return followRight(root.left);
     }

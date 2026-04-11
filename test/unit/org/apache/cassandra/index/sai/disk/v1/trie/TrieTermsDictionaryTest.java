@@ -28,11 +28,9 @@ import org.apache.commons.lang3.mutable.MutableLong;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -48,14 +46,13 @@ import static org.junit.Assert.assertTrue;
 public class TrieTermsDictionaryTest extends SAIRandomizedTester
 {
     private IndexDescriptor indexDescriptor;
-    private IndexContext indexContext;
+    private IndexIdentifier indexIdentifier;
 
     @Before
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        String index = newIndex();
-        indexContext = SAITester.createIndexContext(index, UTF8Type.instance);
+        indexIdentifier = createIndexIdentifier("test", "test", newIndex());
     }
 
     @Test
@@ -67,7 +64,7 @@ public class TrieTermsDictionaryTest extends SAIRandomizedTester
     private void doTestExactMatch() throws Exception
     {
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexIdentifier))
         {
             writer.add(asByteComparable("ab"), 0);
             writer.add(asByteComparable("abb"), 1);
@@ -77,7 +74,7 @@ public class TrieTermsDictionaryTest extends SAIRandomizedTester
             fp = writer.complete(new MutableLong());
         }
 
-        try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, null);
+        try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier);
              TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(input.instantiateRebufferer(null), fp))
         {
             assertEquals(TrieTermsDictionaryReader.NOT_FOUND, reader.exactMatch(asByteComparable("a")));
@@ -95,7 +92,7 @@ public class TrieTermsDictionaryTest extends SAIRandomizedTester
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexIdentifier))
         {
             for (int i = 0; i < byteComparables.size(); ++i)
             {
@@ -104,7 +101,7 @@ public class TrieTermsDictionaryTest extends SAIRandomizedTester
             fp = writer.complete(new MutableLong());
         }
 
-        try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, null);
+        try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier);
              TrieTermsIterator iterator = new TrieTermsIterator(input.instantiateRebufferer(null), fp))
         {
             final Iterator<ByteComparable> expected = byteComparables.iterator();
@@ -127,7 +124,7 @@ public class TrieTermsDictionaryTest extends SAIRandomizedTester
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexIdentifier))
         {
             for (int i = 0; i < byteComparables.size(); ++i)
             {
@@ -136,7 +133,7 @@ public class TrieTermsDictionaryTest extends SAIRandomizedTester
             fp = writer.complete(new MutableLong());
         }
 
-        try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, null);
+        try (FileHandle input = indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexIdentifier);
              TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(input.instantiateRebufferer(null), fp))
         {
             final ByteComparable expectedMaxTerm = byteComparables.get(byteComparables.size() - 1);

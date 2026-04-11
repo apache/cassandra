@@ -18,7 +18,15 @@
 
 package org.apache.cassandra.service.paxos;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Random;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -31,22 +39,22 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.dht.Range.deoverlap;
@@ -116,7 +124,7 @@ public class PaxosRepairHistoryTest
             ballots[i] = points[i].right;
         }
         ballots[length - 1] = length == points.length ? points[length - 1].right : none();
-        return new PaxosRepairHistory(tokens, ballots);
+        return new PaxosRepairHistory(IPartitioner.global(), tokens, ballots);
     }
 
     static
@@ -127,7 +135,7 @@ public class PaxosRepairHistoryTest
 
     private static class Builder
     {
-        PaxosRepairHistory history = PaxosRepairHistory.EMPTY;
+        PaxosRepairHistory history = PaxosRepairHistory.empty();
 
         Builder add(Ballot ballot, Range<Token>... ranges)
         {
@@ -137,7 +145,7 @@ public class PaxosRepairHistoryTest
 
         Builder clear()
         {
-            history = PaxosRepairHistory.EMPTY;
+            history = PaxosRepairHistory.empty();
             return this;
         }
     }
@@ -149,7 +157,7 @@ public class PaxosRepairHistoryTest
 
     private static void checkSystemTableIO(PaxosRepairHistory history)
     {
-        Assert.assertEquals(history, PaxosRepairHistory.fromTupleBufferList(history.toTupleBufferList()));
+        Assert.assertEquals(history, PaxosRepairHistory.fromTupleBufferList(IPartitioner.global(), history.toTupleBufferList()));
         String tableName = "test" + tableNum.getAndIncrement();
         SystemKeyspace.savePaxosRepairHistory("test", tableName, history, false);
         Assert.assertEquals(history, SystemKeyspace.loadPaxosRepairHistory("test", tableName));
@@ -245,7 +253,7 @@ public class PaxosRepairHistoryTest
     public void testRegression()
     {
         Assert.assertEquals(none(), trim(
-                new PaxosRepairHistory(
+                new PaxosRepairHistory(IPartitioner.global(),
                         tks(-9223372036854775807L, -3952873730080618203L, -1317624576693539401L, 1317624576693539401L, 6588122883467697005L),
                         uuids("1382954c-1dd2-11b2-8fb2-f45d70d6d6d8", "138260a4-1dd2-11b2-abb2-c13c36b179e1", "1382951a-1dd2-11b2-1dd8-b7e242b38dbe", "138294fc-1dd2-11b2-83c4-43fb3a552386", "13829510-1dd2-11b2-f353-381f2ed963fa", "1382954c-1dd2-11b2-8fb2-f45d70d6d6d8")),
                 Collections.singleton(new Range<>(new LongToken(-1317624576693539401L), new LongToken(1317624576693539401L))))
@@ -256,8 +264,8 @@ public class PaxosRepairHistoryTest
     public void testInequality()
     {
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(Murmur3Partitioner.MINIMUM, Murmur3Partitioner.MINIMUM));
-        PaxosRepairHistory a = PaxosRepairHistory.add(PaxosRepairHistory.EMPTY, ranges, none());
-        PaxosRepairHistory b = PaxosRepairHistory.add(PaxosRepairHistory.EMPTY, ranges, nextBallot(NONE));
+        PaxosRepairHistory a = PaxosRepairHistory.add(PaxosRepairHistory.empty(), ranges, none());
+        PaxosRepairHistory b = PaxosRepairHistory.add(PaxosRepairHistory.empty(), ranges, nextBallot(NONE));
         Assert.assertNotEquals(a, b);
     }
 
@@ -342,7 +350,7 @@ public class PaxosRepairHistoryTest
             }
         }
 
-        PaxosRepairHistory merged = PaxosRepairHistory.EMPTY;
+        PaxosRepairHistory merged = PaxosRepairHistory.empty(Murmur3Partitioner.instance);
         for (PaxosRepairHistory split : splits)
             merged = PaxosRepairHistory.merge(merged, split);
 
@@ -418,7 +426,7 @@ public class PaxosRepairHistoryTest
 
     static class RandomPaxosRepairHistory
     {
-        PaxosRepairHistory test = PaxosRepairHistory.EMPTY;
+        PaxosRepairHistory test = PaxosRepairHistory.empty(Murmur3Partitioner.instance);
 
         void add(Collection<Range<Token>> ranges, Ballot ballot)
         {
@@ -480,7 +488,7 @@ public class PaxosRepairHistoryTest
         Ballot ballotForToken(LongToken token)
         {
             return canonical
-                    .floorEntry(token.token == Long.MIN_VALUE ? token : token.decreaseSlightly())
+                    .floorEntry(token.getLongValue() == Long.MIN_VALUE ? token : token.decreaseSlightly())
                     .getValue();
         }
 
@@ -502,7 +510,7 @@ public class PaxosRepairHistoryTest
 
         void serdeser()
         {
-            PaxosRepairHistory tmp = PaxosRepairHistory.fromTupleBufferList(test.toTupleBufferList());
+            PaxosRepairHistory tmp = PaxosRepairHistory.fromTupleBufferList(Murmur3Partitioner.instance, test.toTupleBufferList());
             Assert.assertEquals(test, tmp);
             test = tmp;
         }

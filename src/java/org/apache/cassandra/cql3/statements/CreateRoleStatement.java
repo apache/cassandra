@@ -17,17 +17,30 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.util.Map;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CIDRPermissions;
+import org.apache.cassandra.auth.DCPermissions;
+import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleOptions;
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.RoleName;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class CreateRoleStatement extends AuthenticationStatement
 {
@@ -40,7 +53,11 @@ public class CreateRoleStatement extends AuthenticationStatement
     public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions,
                                CIDRPermissions cidrPermissions, boolean ifNotExists)
     {
-        this.role = RoleResource.role(name.getName());
+        if (options.isGeneratedName())
+            this.role = RoleResource.GENERATED_ROLE;
+        else
+            this.role = RoleResource.role(name.getName());
+
         this.opts = options;
         this.dcPermissions = dcPermissions;
         this.cidrPermissions = cidrPermissions;
@@ -60,7 +77,6 @@ public class CreateRoleStatement extends AuthenticationStatement
     public void validate(ClientState state) throws RequestValidationException
     {
         opts.validate();
-
         if (role.getRoleName().isEmpty())
             throw new InvalidRequestException("Role name can't be an empty string");
 
@@ -77,37 +93,69 @@ public class CreateRoleStatement extends AuthenticationStatement
         // validate login here before authorize to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
 
-        if (!ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
+        if (!ifNotExists && role != RoleResource.GENERATED_ROLE && DatabaseDescriptor.getRoleManager().isExistingRole(role))
             throw new InvalidRequestException(String.format("%s already exists", role.getRoleName()));
     }
 
     public ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException
     {
         // not rejected in validate()
-        if (ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
+        if (ifNotExists && role != RoleResource.GENERATED_ROLE && DatabaseDescriptor.getRoleManager().isExistingRole(role))
             return null;
 
-        DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts);
+        RoleResource roleResource;
+        if (opts.isGeneratedName())
+        {
+            Map<String, Object> options = (Map<String, Object>) opts.getOptions().get(IRoleManager.Option.OPTIONS);
+            String generatedName = Guardrails.roleNamePolicy.generate(state, options);
+            if (generatedName != null)
+                roleResource = RoleResource.role(generatedName);
+            else
+                throw new InvalidRequestException("You have to enable role_name_policy and its generator_class_name property " +
+                                                  "in cassandra.yaml to be able to generate role names.");
+        }
+        else
+        {
+            roleResource = role;
+        }
+
+        if (opts.isGeneratedPassword())
+        {
+            String generatedPassword = Guardrails.passwordPolicy.generate(state);
+            if (generatedPassword != null)
+                opts.setOption(IRoleManager.Option.PASSWORD, generatedPassword);
+            else
+                throw new InvalidRequestException("You have to enable password_policy and its generator_class_name property " +
+                                                  "in cassandra.yaml to be able to generate passwords.");
+        }
+
+        opts.getPassword().ifPresent(password -> Guardrails.passwordPolicy.validate(password, state));
+        Guardrails.roleNamePolicy.validate(roleResource.getRoleName(), state);
+
+        ResultMessage resultMessage = DatabaseDescriptor.getRoleManager().createRoleWithResult(state.getUser(), roleResource, opts);
+
         if (DatabaseDescriptor.getNetworkAuthorizer().requireAuthorization())
         {
-            DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
+            DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(roleResource, dcPermissions);
         }
 
         if (cidrPermissions != null)
-            DatabaseDescriptor.getCIDRAuthorizer().setCidrGroupsForRole(role, cidrPermissions);
+            DatabaseDescriptor.getCIDRAuthorizer().setCidrGroupsForRole(roleResource, cidrPermissions);
 
-        grantPermissionsToCreator(state);
+        grantPermissionsToCreator(roleResource, state);
 
-        return null;
+        return resultMessage;
     }
 
     /**
      * Grant all applicable permissions on the newly created role to the user performing the request
      * see also: AlterTableStatement#createdResources() and the overridden implementations
      * of it in subclasses CreateKeyspaceStatement & CreateTableStatement.
-     * @param state
+     *
+     * @param roleResource role resource to grant permissions on
+     * @param state        client state
      */
-    private void grantPermissionsToCreator(ClientState state)
+    private void grantPermissionsToCreator(RoleResource roleResource, ClientState state)
     {
         // The creator of a Role automatically gets ALTER/DROP/AUTHORIZE/DESCRIBE permissions on it if:
         // * the user is not anonymous
@@ -118,8 +166,8 @@ public class CreateRoleStatement extends AuthenticationStatement
             try
             {
                 DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
-                                                         role.applicablePermissions(),
-                                                         role,
+                                                         roleResource.applicablePermissions(),
+                                                         roleResource,
                                                          RoleResource.role(state.getUser().getName()));
             }
             catch (UnsupportedOperationException e)

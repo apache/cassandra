@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.consistent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -28,28 +29,33 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.concurrent.ImmediateExecutor;
-import org.apache.cassandra.repair.SharedContext;
-import org.apache.cassandra.repair.CoordinatedRepairResult;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
-
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.CoordinatedRepairResult;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.SomeRepairFailedException;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
+import org.apache.cassandra.repair.messages.FinalizePromise;
 import org.apache.cassandra.repair.messages.FinalizePropose;
 import org.apache.cassandra.repair.messages.PrepareConsistentRequest;
-import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+
+import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
+import static org.apache.cassandra.repair.messages.RepairMessage.sendAck;
+import static org.apache.cassandra.repair.messages.RepairMessage.sendFailureResponse;
+import static org.apache.cassandra.repair.messages.RepairMessage.sendMessageWithRetries;
 
 /**
  * Coordinator side logic and state of a consistent repair session. Like {@link ActiveRepairService.ParentRepairSession},
@@ -69,9 +75,12 @@ public class CoordinatorSession extends ConsistentSession
     private volatile long repairStart = Long.MIN_VALUE;
     private volatile long finalizeStart = Long.MIN_VALUE;
 
+    private final Consumer<CoordinatorSession> listener;
+
     public CoordinatorSession(Builder builder)
     {
         super(builder);
+        this.listener = builder.listener;
         ctx = builder.ctx == null ? SharedContext.Global.instance : builder.ctx;
         for (InetAddressAndPort participant : participants)
         {
@@ -81,11 +90,17 @@ public class CoordinatorSession extends ConsistentSession
 
     public static class Builder extends AbstractBuilder
     {
+        Consumer<CoordinatorSession> listener;
         private SharedContext ctx;
 
         public Builder(SharedContext ctx)
         {
             super(ctx);
+        }
+
+        public void withListener(Consumer<CoordinatorSession> listener)
+        {
+            this.listener = listener;
         }
 
         public Builder withContext(SharedContext ctx)
@@ -110,6 +125,8 @@ public class CoordinatorSession extends ConsistentSession
     {
         logger.trace("Setting coordinator state to {} for repair {}", state, sessionID);
         super.setState(state);
+        if (listener != null)
+            listener.accept(this);
     }
 
     @VisibleForTesting
@@ -120,7 +137,8 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void setParticipantState(InetAddressAndPort participant, State state)
     {
-        logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
+        if (logger.isTraceEnabled())
+            logger.trace("Setting participant {} to state {} for repair {}", participant, state, sessionID);
         Preconditions.checkArgument(participantStates.containsKey(participant),
                                     "Session %s doesn't include %s",
                                     sessionID, participant);
@@ -154,34 +172,37 @@ public class CoordinatorSession extends ConsistentSession
         return getState() == State.FAILED || Iterables.any(participantStates.values(), v -> v == State.FAILED);
     }
 
-    protected void sendMessage(InetAddressAndPort destination, Message<RepairMessage> message)
-    {
-        logger.trace("Sending {} to {}", message.payload, destination);
-
-        ctx.messaging().send(message, destination);
-    }
-
     public Future<Void> prepare()
     {
         Preconditions.checkArgument(allStates(State.PREPARING));
 
         logger.info("Beginning prepare phase of incremental repair session {}", sessionID);
-        Message<RepairMessage> message =
-            Message.out(Verb.PREPARE_CONSISTENT_REQ, new PrepareConsistentRequest(sessionID, coordinator, participants));
+
+        PrepareConsistentRequest request = new PrepareConsistentRequest(sessionID, coordinator, participants);
         for (final InetAddressAndPort participant : participants)
         {
-            sendMessage(participant, message);
+            sendMessageWithRetries(ctx,
+                                   notDone(prepareFuture),
+                                   request,
+                                   Verb.PREPARE_CONSISTENT_REQ,
+                                   participant);
         }
         return prepareFuture;
     }
 
-    public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
+    public synchronized void handlePrepareResponse(Message<PrepareConsistentResponse> msg)
     {
+        InetAddressAndPort participant = msg.payload.participant;
+        boolean success = msg.payload.success;
         if (getState() == State.FAILED)
         {
             logger.trace("Incremental repair {} has failed, ignoring prepare response from {}", sessionID, participant);
+            sendFailureResponse(ctx, msg);
             return;
         }
+        sendAck(ctx, msg);
+        if (getParticipantState(participant) != State.PREPARING)
+            return;
         if (!success)
         {
             logger.warn("{} failed the prepare phase for incremental repair session {}", participant, sessionID);
@@ -218,19 +239,29 @@ public class CoordinatorSession extends ConsistentSession
     {
         Preconditions.checkArgument(allStates(State.REPAIRING));
         logger.info("Proposing finalization of repair session {}", sessionID);
-        Message<RepairMessage> message = Message.out(Verb.FINALIZE_PROPOSE_MSG, new FinalizePropose(sessionID));
+        FinalizePropose request = new FinalizePropose(sessionID);
         for (final InetAddressAndPort participant : participants)
         {
-            sendMessage(participant, message);
+            sendMessageWithRetries(ctx, notDone(finalizeProposeFuture), request, Verb.FINALIZE_PROPOSE_MSG, participant);
         }
         return finalizeProposeFuture;
     }
 
-    public synchronized void handleFinalizePromise(InetAddressAndPort participant, boolean success)
+    public synchronized void handleFinalizePromise(Message<FinalizePromise> message)
     {
+        InetAddressAndPort participant = message.payload.participant;
+        boolean success = message.payload.promised;
         if (getState() == State.FAILED)
         {
             logger.trace("Incremental repair {} has failed, ignoring finalize promise from {}", sessionID, participant);
+            sendFailureResponse(ctx, message);
+            return;
+        }
+        sendAck(ctx, message);
+        if (getParticipantState(participant) != State.REPAIRING)
+        {
+            // this message is a retry, or we failed the session; in either case there is nothing more to do than ack
+            return;
         }
         else if (!success)
         {
@@ -253,10 +284,10 @@ public class CoordinatorSession extends ConsistentSession
     {
         Preconditions.checkArgument(allStates(State.FINALIZE_PROMISED));
         logger.info("Committing finalization of repair session {}", sessionID);
-        Message<RepairMessage> message = Message.out(Verb.FINALIZE_COMMIT_MSG, new FinalizeCommit(sessionID));
+        FinalizeCommit payload = new FinalizeCommit(sessionID);
         for (final InetAddressAndPort participant : participants)
         {
-            sendMessage(participant, message);
+            sendMessageWithRetries(ctx, payload, Verb.FINALIZE_COMMIT_MSG, participant);
         }
         setAll(State.FINALIZED);
         logger.info("Incremental repair session {} completed", sessionID);
@@ -264,12 +295,12 @@ public class CoordinatorSession extends ConsistentSession
 
     private void sendFailureMessageToParticipants()
     {
-        Message<RepairMessage> message = Message.out(Verb.FAILED_SESSION_MSG, new FailSession(sessionID));
+        FailSession payload = new FailSession(sessionID);
         for (final InetAddressAndPort participant : participants)
         {
             if (participantStates.get(participant) != State.FAILED)
             {
-                sendMessage(participant, message);
+                sendMessageWithRetries(ctx, payload, Verb.FAILED_SESSION_MSG, participant);
             }
         }
     }

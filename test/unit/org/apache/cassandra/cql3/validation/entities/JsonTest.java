@@ -17,29 +17,34 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.Duration;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-
-import org.apache.cassandra.serializers.SimpleDateSerializer;
-import org.apache.cassandra.serializers.TimeSerializer;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.JsonUtils;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Random;
+import java.util.TimeZone;
+import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.*;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.serializers.SimpleDateSerializer;
+import org.apache.cassandra.serializers.TimeSerializer;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
@@ -51,13 +56,8 @@ public class JsonTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-        if (ROW_CACHE_SIZE_IN_MIB > 0)
-            DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
-
+        daemonInitialization();
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
-        // Once per-JVM is enough
         prepareServer();
     }
 
@@ -1489,5 +1489,14 @@ public class JsonTest extends CQLTester
         res = execute("SELECT JSON * FROM %s WHERE pk = 1");
         assertEquals(json, res.one().getString("[json]"));
 
+    }
+
+    @Test
+    public void testJsonInsertWithNullPrimaryKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, col ascii)");
+
+        assertInvalidMessage("Invalid null value for column pk",
+                             "INSERT INTO %s JSON '{\"col\": \"bar\"}'");
     }
 }

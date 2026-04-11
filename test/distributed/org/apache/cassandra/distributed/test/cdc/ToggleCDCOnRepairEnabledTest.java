@@ -18,80 +18,21 @@
 
 package org.apache.cassandra.distributed.test.cdc;
 
-import java.util.function.Consumer;
 
 import org.junit.Test;
 
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogSegment;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
 
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertTrue;
-import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-
-public class ToggleCDCOnRepairEnabledTest extends TestBaseImpl
+public class ToggleCDCOnRepairEnabledTest extends ToggleCDCOnRepair
 {
     @Test
     public void testCDCOnRepairIsEnabled() throws Exception
     {
-        testCDCOnRepairEnabled(true, cluster -> {
-            cluster.get(2).runOnInstance(() -> {
-                boolean containCDCInLog = CommitLog.instance.segmentManager
-                                              .getActiveSegments()
-                                              .stream()
-                                              .anyMatch(s -> s.getCDCState() == CommitLogSegment.CDCState.CONTAINS);
-                assertTrue("Mutation should be added to commit log when cdc_on_repair_enabled is true",
-                           containCDCInLog);
-            });
-        });
+        testCDCOnRepairEnabled(true, getRepairEnabledRepairAssertion(), false);
     }
 
     @Test
     public void testCDCOnRepairIsDisabled() throws Exception
     {
-        testCDCOnRepairEnabled(false, cluster -> {
-            cluster.get(2).runOnInstance(() -> {
-                boolean containCDCInLog = CommitLog.instance.segmentManager
-                                              .getActiveSegments()
-                                              .stream()
-                                              .allMatch(s -> s.getCDCState() != CommitLogSegment.CDCState.CONTAINS);
-                assertTrue("No mutation should be added to commit log when cdc_on_repair_enabled is false",
-                           containCDCInLog);
-            });
-        });
-    }
-
-    // test helper to repair data between nodes when cdc_on_repair_enabled is on or off.
-    private void testCDCOnRepairEnabled(boolean enabled, Consumer<Cluster> assertion) throws Exception
-    {
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(c -> c.set("cdc_enabled", true)
-                                                             .set("cdc_on_repair_enabled", enabled)
-                                                             .with(Feature.NETWORK)
-                                                             .with(Feature.GOSSIP))
-                                           .start()))
-        {
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k INT PRIMARY KEY, v INT) WITH cdc=true"));
-
-            // Data only in node1
-            cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"));
-            Object[][] result = cluster.get(1).executeInternal(withKeyspace("SELECT * FROM %s.tbl WHERE k = 1"));
-            assertRows(result, row(1, 1));
-            result = cluster.get(2).executeInternal(withKeyspace("SELECT * FROM %s.tbl WHERE k = 1"));
-            assertRows(result);
-
-            // repair
-            cluster.get(1).flush(KEYSPACE);
-            cluster.get(2).nodetool("repair", KEYSPACE, "tbl");
-
-            // verify node2 now have data
-            result = cluster.get(2).executeInternal(withKeyspace("SELECT * FROM %s.tbl WHERE k = 1"));
-            assertRows(result, row(1, 1));
-
-            assertion.accept(cluster);
-        }
+        testCDCOnRepairEnabled(false, getRepairDisabledRepairAssertion(), false);
     }
 }

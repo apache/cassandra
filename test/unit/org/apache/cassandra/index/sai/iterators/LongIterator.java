@@ -29,11 +29,6 @@ public class LongIterator extends KeyRangeIterator
     private final List<PrimaryKey> keys;
     private int currentIdx = 0;
 
-    /**
-     * whether LongIterator should throw exception during iteration.
-     */
-    private boolean shouldThrow = false;
-
     public static LongIterator newEmptyIterator()
     {
         return new LongIterator();
@@ -54,18 +49,9 @@ public class LongIterator extends KeyRangeIterator
             this.keys.add(fromToken(token));
     }
 
-    public void throwsException()
-    {
-        this.shouldThrow = true;
-    }
-
     @Override
     protected PrimaryKey computeNext()
     {
-        // throws exception if it's last element or chosen 1 out of n
-        if (shouldThrow && (currentIdx >= keys.size() - 1 || SAITester.getRandom().nextInt(keys.size()) == 0))
-            throw new RuntimeException("injected exception");
-
         if (currentIdx >= keys.size())
             return endOfData();
 
@@ -75,14 +61,11 @@ public class LongIterator extends KeyRangeIterator
     @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        for (int i = currentIdx == 0 ? 0 : currentIdx - 1; i < keys.size(); i++)
+        for ( ; currentIdx < keys.size(); currentIdx++)
         {
-            PrimaryKey token = keys.get(i);
-            if (token.compareTo(nextKey) >= 0)
-            {
-                currentIdx = i;
+            PrimaryKey key = keys.get(currentIdx);
+            if (key.compareTo(nextKey, false) >= 0)
                 break;
-            }
         }
     }
 
@@ -107,7 +90,7 @@ public class LongIterator extends KeyRangeIterator
 
     public static List<Long> convert(final long... nums)
     {
-        return new ArrayList<Long>(nums.length)
+        return new ArrayList<>(nums.length)
         {{
             for (long n : nums)
                 add(n);

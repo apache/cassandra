@@ -19,11 +19,11 @@ package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
+
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnections;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
-import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Metrics for internode connections.
@@ -119,7 +119,7 @@ public class InternodeOutboundMetrics
         // ipv6 addresses will contain colons, which are invalid in a JMX ObjectName
         address = ip.getHostAddressAndPortForJMX();
 
-        factory = new DefaultNameFactory("Connection", address);
+        factory = new DefaultNameFactory(TYPE_NAME, address);
 
         largeMessagePendingTasks = Metrics.register(factory.createMetricName("LargeMessagePendingTasks"), messagingPool.large::pendingCount);
         largeMessagePendingBytes = Metrics.register(factory.createMetricName("LargeMessagePendingBytes"), messagingPool.large::pendingBytes);

@@ -156,7 +156,7 @@ Density levelling permits a much wider variety of splitting options including on
 be kept close to a selected target, and also allows UCS to understand the levelling structure of STCS (where size grows
 with each level) as well as LCS (where token share shrinks with each level).
 
-## Sharding
+## Basic sharding scheme
 
 Once density levelling is in place, we have a range of choices for splitting sstables. One is to simply split
 when a certain output size is reached (like LCS), forming non-overlapping sstable runs instead of individual
@@ -213,6 +213,66 @@ local token space, thus 4 for the 1/4 span that the compaction covers. Assuming 
 deletions, the resulting sstables will be of size 75 MiB, token share 1/16 and density 1200 MiB.
 
 This sharding mechanism is independent of the compaction specification.
+
+## Full sharding scheme
+
+This sharding scheme easily admits extensions. In particular, when the size of the data set is expected to grow very
+large, to avoid having to pre-specify a high enough target size to avoid problems with per-sstable overhead, we can
+apply an "SSTable growth" parameter, which determines what part of the density growth should be assigned to increased
+SSTable size, reducing the growth of the number of shards (and hence non-overlapping sstables).
+
+Additionally, to allow for a mode of operation with a fixed number of shards, and splitting conditional on reaching
+a minimum size, we provide for a "minimum SSTable size" that reduces the base shard count whenever that would result
+in SSTables smaller than the provided minimum.
+
+Generally, the user can specify four sharding parameters:
+
+- base shard count $b$
+- target sstable size $t$
+- minimum sstable size $m$
+- sstable growth component $\lambda$
+
+The number of shards $S$ for a given density $d$ is then calculated as
+
+$$
+S =
+\begin{cases}
+1
+    & \text{if } d < m \\
+min(2^{\left\lfloor \log_2 \frac d m \right\rfloor}, x)
+    & \text{if } d < mb \text{, where } x \text{ is the largest power of 2 divisor of } b \\
+b
+    & \text{if } d < tb \\
+2^{\left\lfloor (1-\lambda) \cdot \log_2 \left( {\frac d t \cdot \frac 1 b}\right)\right\rceil} \cdot b
+    & \text{otherwise}
+\end{cases}
+$$
+
+Some useful combinations of these parameters:
+
+- The basic scheme above uses a sstable growth $\lambda=0$, and a minimum sstable size $m=0$. The graph below
+  illustrates it for base shard count $b=4$ and target sstable size $t=1\mathrm{GB}$:
+
+![Graph with lambda 0](unified/shards_graph_lambda_0.svg)
+
+- Using $\lambda = 0.5$ makes the strategy grow the shard count and sstable size evenly. When the density
+  quadruples, both the shard count and the expected sstable size for that density band will double. The example
+  below uses $b=8$, $t=1\mathrm{GB}$ and also applies a minimal size $m=100\mathrm{MB}$:
+
+![Graph with lambda 0.5](unified/shards_graph_lambda_0_5.svg)
+
+- Similarly, $\lambda = 1/3$ makes the sstable growth the cubic root of the density growth, i.e. the sstable size
+  grows with the square root of the growth of the shard count. The graph below uses $b=1$ and $t = 1\mathrm{GB}$
+  (note: when $b=1$ the minimal size has no effect):
+
+![Graph with lambda 0.33](unified/shards_graph_lambda_0_33.svg)
+
+- A growth component of 1 constructs a hierarchy with exactly $b$ shards at every level. Combined with a minumum
+  sstable size, this defines a mode of operation where we use a pre-specified
+  number of shards, but split only after reaching a minimum size. Illustrated below for $b=10$ and $m=100\mathrm{MB}$
+  (note: the target sstable size is irrelevant when $\lambda=1$):
+
+![Graph with lambda 1](unified/shards_graph_lambda_1.svg)
 
 ## Choosing sstables to compact
 
@@ -272,14 +332,38 @@ with legacy strategies (e.g. all resources consumed by L0 and sstables accumulat
 steady state where compactions always use more sstables than the assigned threshold and fan factor and maintain a tiered
 hierarchy based on the lowest overlap they are able to maintain for the load.
 
+## Output shard parallelization
+
+Because the sharding of the output of a compaction operation is known in advance, we can parallelize the compaction
+process by starting a separate task for each shard. This can dramatically speed the throughput of compaction and is
+especially helpful for the lower levels of the compaction heirarchy, where the number of input shards is very low
+(often just one). To make sure that we correctly change the state of input and output sstables, such operations will
+share a transaction and will complete only when all individual tasks complete (and, conversely, abort if any of the
+individual tasks abort). Early opening of sstables is not supported in this mode, because we currently do not support
+arbitraty filtering of the requests to an sstable; it is expected that the smaller size and quicker completion time of
+compactions should make up for this.
+
+This is controlled by the `parallelize_output_shards` parameter, which is `true` by default.
+
 ## Major compaction
 
-Under the working principles of UCS, a major compaction is an operation which compacts together all sstables that have
-(transitive) overlap, and where the output is split on shard boundaries appropriate for the expected result density.
+Major compaction in UCS always splits the output into a shard number suitable for the expected result density.
+If the input sstables can be split into non-overlapping sets that correspond to current shard boundaries, the compaction
+will construct independent operations that work over these sets, to improve the space overhead of the operation as well
+as the time needed to persistently complete individual steps. Because all levels will usually be split in $b$ shards,
+it will very often be the case that major compactions split into $b$ individual jobs, reducing the space overhead by a
+factor close to $b$. Note that this does not always apply; for example, if a topology change causes the sharding
+boundaries to move, the mismatch between old and new sharding boundaries will cause the compaction to produce a single
+operation and require 100% space overhead.
 
-In other words, it is expected that a major compaction will result in $b$ concurrent compactions, each containing all
-sstables covered in each of the base shards, and that the result will be split on shard boundaries whose number 
-depends on the total size of data contained in the shard.
+Output shard parallelization also applies to major compactions: if the `parallelize_output_shards` option is enabled,
+shards of individual compactions will be compacted concurrently, which can significantly reduce the time needed to
+perform the compaction; if the option is not enabled, major compaction will only be parallelized up to the number of
+individual non-overlapping sets the sstables can be split into. In either case, the number of parallel operations is
+limited to a number specified as a parameter of the operation (e.g. `nodetool compact -j n`), which is set to half the
+compaction thread count by default. Using a jobs of 0 will let the compaction use all available threads and run
+as quickly as possible, but this will prevent other compaction operations from running until it completes and thus
+should be used with caution, only while the database is known to not receive any writes.
 
 ## Differences with STCS and LCS
 
@@ -361,8 +445,31 @@ UCS accepts these compaction strategy parameters:
   The default value is 1 GiB.
 * **base_shard_count**. The minimum number of shards $b$, used for levels with the smallest density. This gives the
   minimum compaction concurrency for the lowest levels. A low number would result in larger L0 sstables but may limit
-  the overall maximum write throughput (as every piece of data has to go through L0).  
-  The default value is 4 (1 for system tables, or when multiple data locations are defined).
+  the overall maximum write throughput (as every piece of data has to go through L0). The base shard count only applies after `min_sstable_size` is reached. 
+  The default value is 4 for all tables
+* **sstable_growth** The sstable growth component $\lambda$, applied as a factor in the shard exponent calculation.
+  This is a number between 0 and 1 that controls what part of the density growth should apply to individual sstable
+  size and what part should increase the number of shards. Using a value of 1 has the effect of fixing the shard
+  count to the base value. Using 0.5 makes the shard count and sstable size grow with the square root of the density
+  growth.
+  This is useful to decrease the sheer number of sstables that will be created for very large data sets. For
+  example, without growth correction a data set of 10TiB with 1GiB target size would result in over 10k sstables,
+  which may present as too much overhead both as on-heap memory used by per-sstable structures as well as time to look
+  for intersecting sstables and tracking overlapping sets during compaction. Applying $\lambda=0.5$
+  in this scenario (with base count 4) will reduce the potential number of sstables to ~160 of ~64GiB, which is still
+  manageable both as memory overhead and individual compaction duration and space overhead. The balance between the
+  two can be further tweaked by increasing $\lambda$ to get fewer but bigger sstables on the top level, and decreasing
+  it to favour a higher count of smaller sstables. The default value is 0.333 meaning the sstable size
+  grows with the square root of the growth of the shard count.
+* **min_sstable_size** The minimum sstable size $m$, applicable when the base shard count will result is sstables
+  that are considered too small. If set, the strategy will split the space into fewer than the base count shards, to
+  make the estimated sstables size at least as large as this value. A value of 0 disables this feature.
+  The default value is 100MiB.
+* **parallelize_output_shards**. Enables or disables parallelization of compaction tasks for the output shards of a
+  compaction. This can dramatically improve compaction throughput especially on the lowest levels of the hierarchy,
+  but disables early open and thus may be less efficient when compaction is configured to produce very large
+  sstables.   
+  The default value is `true`.
 * **expired_sstable_check_frequency_seconds**. Determines how often to check for expired SSTables.  
   The default value is 10 minutes.
 

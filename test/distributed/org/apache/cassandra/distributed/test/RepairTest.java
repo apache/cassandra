@@ -26,19 +26,19 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MINUTES;

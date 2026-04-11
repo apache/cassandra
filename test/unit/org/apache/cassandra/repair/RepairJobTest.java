@@ -38,8 +38,6 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import org.apache.cassandra.repair.messages.SyncResponse;
-import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
@@ -48,6 +46,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -62,12 +61,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
-import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupSession;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -79,6 +80,8 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 
 import static java.util.Collections.emptySet;
+import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
 import static org.apache.cassandra.repair.RepairParallelism.SEQUENTIAL;
 import static org.apache.cassandra.streaming.PreviewKind.NONE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -86,8 +89,6 @@ import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
-import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -106,7 +107,7 @@ public class RepairJobTest
     private static final Range<Token> RANGE_3 = range(4, 5);
     private static final RepairJobDesc JOB_DESC = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), KEYSPACE, CF, Collections.emptyList());
     private static final List<Range<Token>> FULL_RANGE = Collections.singletonList(new Range<>(MURMUR3_PARTITIONER.getMinimumToken(),
-                                                                                               MURMUR3_PARTITIONER.getMaximumToken()));
+                                                                                               MURMUR3_PARTITIONER.getMaximumTokenForSplitting()));
     private static InetAddressAndPort addr1;
     private static InetAddressAndPort addr2;
     private static InetAddressAndPort addr3;
@@ -122,13 +123,14 @@ public class RepairJobTest
     {
         private final List<Callable<?>> syncCompleteCallbacks = new ArrayList<>();
 
-        public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, String keyspace,
+        public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, boolean excludedDeadNodes, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
-                                        PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
-                                        String... cfnames)
+                                        PreviewKind previewKind, boolean optimiseStreams, boolean repairData, boolean repairPaxos,
+                                        boolean dontPurgeTombstones, boolean repairAccord, String... cfnames)
         {
-            super(SharedContext.Global.instance, parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+            super(SharedContext.Global.instance, new Scheduler.NoopScheduler(),
+                  parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, false, isIncremental, pullRepair,
+                  previewKind, optimiseStreams, repairData, repairPaxos, dontPurgeTombstones, repairAccord, false, cfnames);
         }
 
         @Override
@@ -168,6 +170,9 @@ public class RepairJobTest
     public static void setupClass() throws UnknownHostException
     {
         SchemaLoader.prepareServer();
+        // todo; tcm - we default to paxos v2, which implies running paxos repairs, in trunk we default to v1 which doesn't
+        //       this test doesn't run them, so disable here for now
+        DatabaseDescriptor.setPaxosRepairEnabled(false);
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF));
@@ -189,9 +194,9 @@ public class RepairJobTest
                                                                    ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
 
         this.session = new MeasureableRepairSession(parentRepairSession,
-                                                    new CommonRange(neighbors, emptySet(), FULL_RANGE),
+                                                    new CommonRange(neighbors, emptySet(), FULL_RANGE), false,
                                                     KEYSPACE, SEQUENTIAL, false, false,
-                                                    NONE, false, true, false, CF);
+                                                    NONE, false, true, true, false, true, CF);
 
         this.job = new RepairJob(session, CF);
         this.sessionJobDesc = new RepairJobDesc(session.state.parentRepairSession, session.getId(),
@@ -261,6 +266,10 @@ public class RepairJobTest
 
         long singleTreeSize = ObjectSizes.measureDeep(mockTrees.get(addr1));
 
+        assertEquals(0, session.syncingCount());
+        for (var mt : mockTrees.values())
+            assertThat(mt.isReleased()).isFalse();
+
         // Use addr4 instead of one of the provided trees to force everything to be remote sync tasks as
         // LocalSyncTasks try to reach over the network.
         List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(SharedContext.Global.instance, sessionJobDesc, mockTreeResponses,
@@ -270,30 +279,41 @@ public class RepairJobTest
                                                                      session.pullRepair,
                                                                      session.previewKind);
 
+        // All trees in our mockTrees should be released after SyncTask creation
+        for (var mt : mockTrees.values())
+            assertThat(mt.isReleased()).isTrue();
+        assertThat(session.syncingCount()).isEqualTo(0);
+
         // SyncTasks themselves should not contain significant memory
         SyncTaskListAssert.assertThat(syncTasks).hasSizeLessThan(0.2 * singleTreeSize);
 
-        // Remember the size of the session before we've executed any tasks
-        long sizeBeforeExecution = ObjectSizes.measureDeep(session);
+        // We can't directly check the memory size in the session post JDK21; jamm has trouble walking the internal
+        // object graph of a ConcurrentHashMap's implementation post JDK21 and has bugs with the @Contended case (which
+        // indicates we should consider moving away from it... jamm, that is. Which we've discussed as a project).
+        // Instead, we treat the presence or removal of SyncTasks as indicative of the memory usage since the reference
+        // to the MerkleTrees lives on there after creation.
 
         // block syncComplete execution until test has verified session still retains the trees
         CompletableFuture<?> future = new CompletableFuture<>();
         session.registerSyncCompleteCallback(future::get);
-        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
 
-        // Immediately following execution the internal execution queue should still retain the trees
-        long sizeDuringExecution = ObjectSizes.measureDeep(session);
-        assertThat(sizeDuringExecution).isGreaterThan(sizeBeforeExecution + (syncTasks.size() * singleTreeSize));
+        ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
+        // Immediately following execution the SyncTasks should still be live and thus taking memory
+        assertThat(session.syncingCount()).isNotEqualTo(0);
+
         // unblock syncComplete callback, session should remove trees
         future.complete(null);
 
         // The session retains memory in the contained executor until the threads expire, so we wait for the threads
         // that ran the Tree -> SyncTask conversions to die and release the memory
         long millisUntilFreed;
+
+        // Confirm that it's the thread timeout mechanism that's causing the SyncTasks to retire
+        assertThat(session.syncingCount()).isNotEqualTo(0);
         for (millisUntilFreed = 0; millisUntilFreed < TEST_TIMEOUT_S * 1000; millisUntilFreed += THREAD_TIMEOUT_MILLIS)
         {
             TimeUnit.MILLISECONDS.sleep(THREAD_TIMEOUT_MILLIS);
-            if (ObjectSizes.measureDeep(session) < (sizeDuringExecution - (syncTasks.size() * singleTreeSize)))
+            if (session.syncingCount() == 0)
                 break;
         }
 
@@ -325,7 +345,7 @@ public class RepairJobTest
 
         interceptRepairMessages(mockTrees, new ArrayList<>());
 
-        try 
+        try
         {
             job.run();
             job.get(TEST_TIMEOUT_S, TimeUnit.SECONDS);
@@ -333,7 +353,7 @@ public class RepairJobTest
         }
         catch (ExecutionException e)
         {
-            Assertions.assertThat(e.getCause()).isInstanceOf(RepairException.class);
+            Assertions.assertThat(e).hasRootCauseInstanceOf(RepairException.class);
         }
 
         // When the job fails, all three outstanding validation tasks should be aborted.
@@ -874,7 +894,7 @@ public class RepairJobTest
                 if (message.verb() == PAXOS2_CLEANUP_REQ)
                 {
                     PaxosCleanupRequest request = (PaxosCleanupRequest) message.payload;
-                    PaxosCleanupSession.finishSession(to, new PaxosCleanupResponse(request.session, true, null));
+                    PaxosRepairState.instance().finishSession(to, new PaxosCleanupResponse(request.session, true, null));
                     return false;
                 }
 

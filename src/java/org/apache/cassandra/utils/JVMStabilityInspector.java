@@ -30,21 +30,25 @@ import java.util.function.Consumer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
-import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.tracing.Tracing;
+import net.nicoulaj.compilecommand.annotations.Exclude;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.virtual.ExceptionsTable;
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.journal.Params.FailurePolicy;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;
 
@@ -69,13 +73,14 @@ public final class JVMStabilityInspector
         try { StorageMetrics.uncaughtExceptions.inc(); } catch (Throwable ignore) { /* might not be initialised */ }
         logger.error("Exception in thread {}", thread, t);
         Tracing.trace("Exception in thread {}", thread, t);
+        ExceptionsTable.persist(t);
         for (Throwable t2 = t; t2 != null; t2 = t2.getCause())
         {
             // make sure error gets logged exactly once.
             if (t2 != t && (t2 instanceof FSError || t2 instanceof CorruptSSTableException))
                 logger.error("Exception in thread {}", thread, t2);
         }
-        JVMStabilityInspector.inspectThrowable(t);
+        inspectThrowable(t, DiskErrorsHandlerService.get()::inspectDiskError, true);
     }
 
     /**
@@ -86,23 +91,20 @@ public final class JVMStabilityInspector
      */
     public static void inspectThrowable(Throwable t) throws OutOfMemoryError
     {
-        inspectThrowable(t, JVMStabilityInspector::inspectDiskError);
+        inspectThrowable(t, DiskErrorsHandlerService.get()::inspectDiskError, false);
     }
 
     public static void inspectCommitLogThrowable(Throwable t)
     {
-        inspectThrowable(t, JVMStabilityInspector::inspectCommitLogError);
+        inspectThrowable(t, ex -> DiskErrorsHandlerService.get().inspectCommitLogError(ex), false);
     }
 
-    private static void inspectDiskError(Throwable t)
+    public static void inspectJournalThrowable(Throwable t, String journalName, FailurePolicy failurePolicy)
     {
-        if (t instanceof CorruptSSTableException)
-            FileUtils.handleCorruptSSTable((CorruptSSTableException) t);
-        else if (t instanceof FSError)
-            FileUtils.handleFSError((FSError) t);
+        inspectThrowable(t, th -> inspectJournalError(th, journalName, failurePolicy), false);
     }
 
-    public static void inspectThrowable(Throwable t, Consumer<Throwable> fn) throws OutOfMemoryError
+    public static void inspectThrowable(Throwable t, Consumer<Throwable> fn, boolean isUncaughtException) throws OutOfMemoryError
     {
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
@@ -136,10 +138,24 @@ public final class JVMStabilityInspector
         }
 
         // Anything other than an OOM, we should try and heap dump to capture what's going on if configured to do so
-        HeapUtils.maybeCreateHeapDump();
+        if (isUncaughtException && DatabaseDescriptor.getDumpHeapOnUncaughtException())
+        {
+            try
+            {
+                // Avoid entering maybeCreateHeapDump unless the setting is enabled to avoid expensive lock
+                HeapUtils.maybeCreateHeapDump();
+            }
+            catch (Throwable sub)
+            {
+                t.addSuppressed(sub);
+            }
+        }
 
         if (t instanceof InterruptedException)
             throw new UncheckedInterruptedException((InterruptedException) t);
+
+        if (t instanceof UncheckedInterruptedException)
+            throw (UncheckedInterruptedException)t;
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
@@ -153,7 +169,7 @@ public final class JVMStabilityInspector
         if (isUnstable)
         {
             if (!StorageService.instance.isDaemonSetupCompleted())
-                FileUtils.handleStartupFSError(t);
+                DiskErrorsHandlerService.get().handleStartupFSError(t);
             killer.killCurrentJVM(t);
         }
 
@@ -167,7 +183,7 @@ public final class JVMStabilityInspector
         }
 
         if (t.getCause() != null)
-            inspectThrowable(t.getCause(), fn);
+            inspectThrowable(t.getCause(), fn, isUncaughtException);
     }
 
     private static final Set<String> FORCE_HEAP_OOM_IGNORE_SET = ImmutableSet.of("Java heap space", "GC Overhead limit exceeded");
@@ -194,20 +210,27 @@ public final class JVMStabilityInspector
         }
     }
 
-    private static void inspectCommitLogError(Throwable t)
+    private static void inspectJournalError(Throwable t, String journalName, FailurePolicy failurePolicy)
     {
-        if (!StorageService.instance.isDaemonSetupCompleted())
+        if (!StorageService.instance.isDaemonSetupCompleted() && failurePolicy != FailurePolicy.ALLOW_UNSAFE_STARTUP)
         {
-            logger.error("Exiting due to error while processing commit log during initialization.", t);
+            logger.error("Exiting due to error while processing journal {} during initialization.", journalName, t);
             killer.killCurrentJVM(t, true);
         }
-        else if (DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.die)
+        else if (failurePolicy == FailurePolicy.DIE)
+        {
             killer.killCurrentJVM(t);
+        }
     }
 
     public static void killCurrentJVM(Throwable t, boolean quiet)
     {
         killer.killCurrentJVM(t, quiet);
+    }
+
+    public static void killCurrentJVM(Throwable t, boolean quiet, boolean callShutDownOnLogger)
+    {
+        killer.killCurrentJVM(t, quiet, callShutDownOnLogger);
     }
 
     public static void userFunctionTimeout(Throwable t)
@@ -216,10 +239,10 @@ public final class JVMStabilityInspector
         {
             case die:
                 // policy to give 250ms grace time to
-                ScheduledExecutors.nonPeriodicTasks.schedule(() -> killer.killCurrentJVM(t), 250, TimeUnit.MILLISECONDS);
+                ScheduledExecutors.nonPeriodicTasks.schedule(() -> killer.killCurrentJVM(t, false, true), 250, TimeUnit.MILLISECONDS);
                 break;
             case die_immediate:
-                killer.killCurrentJVM(t);
+                killer.killCurrentJVM(t, false, true);
                 break;
             case ignore:
                 logger.error(t.getMessage());
@@ -246,12 +269,17 @@ public final class JVMStabilityInspector
         * @param t
         *      The Throwable to log before killing the current JVM
         */
-        protected void killCurrentJVM(Throwable t)
+        public void killCurrentJVM(Throwable t)
         {
             killCurrentJVM(t, false);
         }
 
-        protected void killCurrentJVM(Throwable t, boolean quiet)
+        public void killCurrentJVM(Throwable t, boolean quiet)
+        {
+            killCurrentJVM(t, quiet, false);
+        }
+
+        public void killCurrentJVM(Throwable t, boolean quiet, boolean callShutDownOnLogger)
         {
             if (!quiet)
             {
@@ -263,6 +291,8 @@ public final class JVMStabilityInspector
 
             if (doExit && killing.compareAndSet(false, true))
             {
+                if (callShutDownOnLogger)
+                    LoggingSupportFactory.getLoggingSupport().onShutdown();
                 StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }

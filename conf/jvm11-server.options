@@ -50,23 +50,32 @@
 ## some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
 ##-XX:+CMSClassUnloadingEnabled
 
+# Young generation size
+# The main trade-off for the young generation is that the larger it is, the longer GC pause
+# times will be. The smaller it is, the more expensive GC will be (usually).
+#
+# If left unset MAX_HEAP_SIZE and HEAP_NEWSIZE in cassandra-env.sh take precedence.
+#-Xmn800M
 
 
 ### G1 Settings
 ## Use the Hotspot garbage-first collector.
 -XX:+UseG1GC
 -XX:+ParallelRefProcEnabled
--XX:MaxTenuringThreshold=1
+-XX:MaxTenuringThreshold=2
 -XX:G1HeapRegionSize=16m
 
-#
-## Have the JVM do less remembered set work during STW, instead
-## preferring concurrent GC. Reduces p99.9 latency.
+# Floor the young generation size to 50% of the heap size
+-XX:+UnlockExperimentalVMOptions
+-XX:G1NewSizePercent=50
+
+# Have the JVM do less remembered set work during STW, instead
+# preferring concurrent GC. Reduces p99.9 latency.
 -XX:G1RSetUpdatingPauseTimePercent=5
-#
-## Main G1GC tunable: lowering the pause target will lower throughput and vise versa.
-## 200ms is the JVM default and lowest viable setting
-## 1000ms increases throughput. Keep it smaller than the timeouts in cassandra.yaml.
+
+# Main G1GC tunable: lowering the pause target will lower throughput and vise versa.
+# 200ms is the JVM default and lowest viable setting
+# 1000ms increases throughput. Keep it smaller than the timeouts in cassandra.yaml.
 -XX:MaxGCPauseMillis=300
 
 ## Optional G1 Settings
@@ -77,9 +86,10 @@
 # For systems with > 8 cores, the default ParallelGCThreads is 5/8 the number of logical cores.
 # Otherwise equal to the number of cores when 8 or less.
 # Machines with > 10 cores should try setting these to <= full cores.
-#-XX:ParallelGCThreads=16
 # By default, ConcGCThreads is 1/4 of ParallelGCThreads.
 # Setting both to the same value can reduce STW durations.
+# When leaving both unset then cassandra-env.sh will set them both to the number of your cores.
+#-XX:ParallelGCThreads=16
 #-XX:ConcGCThreads=16
 
 

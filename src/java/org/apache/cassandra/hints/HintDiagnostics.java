@@ -37,44 +37,44 @@ final class HintDiagnostics
     {
         if (isEnabled(HintEventType.DISPATCHER_CREATED))
             service.publish(new HintEvent(HintEventType.DISPATCHER_CREATED, dispatcher,
-                                          dispatcher.hostId, dispatcher.address, null, null, null, null));
+                                          dispatcher.hostId, dispatcher.address, null, null, null, null, null));
     }
 
     static void dispatcherClosed(HintsDispatcher dispatcher)
     {
         if (isEnabled(HintEventType.DISPATCHER_CLOSED))
             service.publish(new HintEvent(HintEventType.DISPATCHER_CLOSED, dispatcher,
-                                          dispatcher.hostId, dispatcher.address, null, null, null, null));
+                                          dispatcher.hostId, dispatcher.address, null, null, null, null, null));
     }
 
     static void dispatchPage(HintsDispatcher dispatcher)
     {
         if (isEnabled(HintEventType.DISPATCHER_PAGE))
             service.publish(new HintEvent(HintEventType.DISPATCHER_PAGE, dispatcher,
-                                          dispatcher.hostId, dispatcher.address, null, null, null, null));
+                                          dispatcher.hostId, dispatcher.address, null, null, null, null, null));
     }
 
     static void abortRequested(HintsDispatcher dispatcher)
     {
         if (isEnabled(HintEventType.ABORT_REQUESTED))
             service.publish(new HintEvent(HintEventType.ABORT_REQUESTED, dispatcher,
-                                          dispatcher.hostId, dispatcher.address, null, null, null, null));
+                                          dispatcher.hostId, dispatcher.address, null, null, null, null, null));
     }
 
-    static void pageSuccessResult(HintsDispatcher dispatcher, long success, long failures, long timeouts)
+    static void pageSuccessResult(HintsDispatcher dispatcher, long success, long failures, long timeouts, long retryDifferentSystem)
     {
         if (isEnabled(HintEventType.DISPATCHER_HINT_RESULT))
             service.publish(new HintEvent(HintEventType.DISPATCHER_HINT_RESULT, dispatcher,
                                           dispatcher.hostId, dispatcher.address, HintResult.PAGE_SUCCESS,
-                                          success, failures, timeouts));
+                                          success, failures, timeouts, retryDifferentSystem));
     }
 
-    static void pageFailureResult(HintsDispatcher dispatcher, long success, long failures, long timeouts)
+    static void pageFailureResult(HintsDispatcher dispatcher, long success, long failures, long timeouts, long retryDifferentSystem)
     {
         if (isEnabled(HintEventType.DISPATCHER_HINT_RESULT))
             service.publish(new HintEvent(HintEventType.DISPATCHER_HINT_RESULT, dispatcher,
                                           dispatcher.hostId, dispatcher.address, HintResult.PAGE_FAILURE,
-                                          success, failures, timeouts));
+                                          success, failures, timeouts, retryDifferentSystem));
     }
 
     private static boolean isEnabled(HintEventType type)

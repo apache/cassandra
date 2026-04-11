@@ -26,38 +26,41 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import jdk.internal.ref.Cleaner;
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.concurrent.Shutdownable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
-
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Ref.DirectBufferRef;
+
+import io.netty.util.concurrent.FastThreadLocal;
+import jdk.internal.ref.Cleaner;
 import sun.nio.ch.DirectBuffer;
 
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
-import static org.apache.cassandra.utils.ExecutorUtils.*;
+import static org.apache.cassandra.utils.ExecutorUtils.shutdownAndWait;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
@@ -130,6 +133,7 @@ public class BufferPool
     public static final int TINY_CHUNK_SIZE = NORMAL_ALLOCATION_UNIT;
     public static final int TINY_ALLOCATION_UNIT = TINY_CHUNK_SIZE / 64;
     public static final int TINY_ALLOCATION_LIMIT = TINY_CHUNK_SIZE / 2;
+    private static final boolean REF_TRACE_ENABLED = Ref.TRACE_ENABLED;
 
     private static final Logger logger = LoggerFactory.getLogger(BufferPool.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 15L, TimeUnit.MINUTES);
@@ -815,7 +819,7 @@ public class BufferPool
 
             if (chunk == null)
             {
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
                 updateOverflowMemoryUsage(-size);
             }
             else
@@ -1330,7 +1334,7 @@ public class BufferPool
 
         void setAttachment(ByteBuffer buffer)
         {
-            if (Ref.DEBUG_ENABLED)
+            if (REF_TRACE_ENABLED)
                 MemoryUtil.setAttachment(buffer, new DirectBufferRef<>(this, null));
             else
                 MemoryUtil.setAttachment(buffer, this);
@@ -1342,7 +1346,7 @@ public class BufferPool
             if (attachment == null)
                 return false;
 
-            if (Ref.DEBUG_ENABLED)
+            if (REF_TRACE_ENABLED)
                 ((DirectBufferRef<Chunk>) attachment).release();
 
             return true;
@@ -1562,7 +1566,11 @@ public class BufferPool
             if (parent != null)
                 parent.free(slab);
             else
-                FileUtils.clean(slab);
+            {
+                // slab may be an aligned slice from allocateDirectAligned(); clean the root allocation
+                ByteBuffer attachment = (ByteBuffer) ((DirectBuffer) slab).attachment();
+                MemoryUtil.clean(attachment != null ? attachment : slab);
+            }
         }
 
         static void unsafeRecycle(Chunk chunk)
@@ -1647,5 +1655,31 @@ public class BufferPool
         return   (pool.chunks.chunk0 != null ? 1 : 0)
                  + (pool.chunks.chunk1 != null ? 1 : 0)
                  + (pool.chunks.chunk2 != null ? 1 : 0);
+    }
+
+    /**
+     * @return the inner buffer if it has a BufferPool.Chunk attached
+     *  and originalBuffer in other cases
+     */
+    public ByteBuffer unwrapBufferPoolManagedBuffer(ByteBuffer originalBuffer)
+    {
+        int MAX_DEPTH = 32; // a protection against possible loops in attachments
+        int depth = 0;
+        ByteBuffer buffer = originalBuffer;
+        do
+        {
+            if (buffer == null || !isExactlyDirect(buffer))
+                return originalBuffer;
+            if (Chunk.getParentChunk(buffer) != null)
+                return buffer;
+
+            Object attachment = MemoryUtil.getAttachment(buffer);
+            if (!(attachment instanceof ByteBuffer))
+                return originalBuffer;
+            buffer = (ByteBuffer) attachment;
+            depth++;
+        }
+        while (depth < MAX_DEPTH);
+        return originalBuffer;
     }
 }

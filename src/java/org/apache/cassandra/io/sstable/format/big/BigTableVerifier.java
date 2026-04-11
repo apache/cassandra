@@ -18,17 +18,25 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SortedTableVerifier;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
@@ -82,7 +90,7 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
     {
         try
         {
-            outputHandler.debug("Deserializing index summary for %s", sstable);
+            if (outputHandler.isDebugEnabled()) outputHandler.debug("Deserializing index summary for %s", sstable);
             deserializeIndexSummary(sstable);
         }
         catch (Throwable t)
@@ -97,6 +105,75 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
     {
         verifyIndexSummary();
         super.verifyIndex();
+    }
+
+    @Override
+    protected void deserializeIndex(SSTableReader sstable) throws IOException
+    {
+        DeserializationHelper deserializationHelper = new DeserializationHelper(sstable.metadata(),
+                                                                                sstable.descriptor.version.correspondingMessagingVersion(),
+                                                                                DeserializationHelper.Flag.LOCAL);
+        ClusteringComparator comparator = sstable.metadata().comparator;
+        try (BigTableKeyReader it = (BigTableKeyReader)sstable.keyReader(true))
+        {
+            if (it.isExhausted())
+                return;
+            ByteBuffer key;
+            boolean isFirst = true;
+            do
+            {
+                key = it.key();
+                if (outputHandler.isDebugEnabled()) outputHandler.debug("Key %s", sstable.metadata().partitionKeyType.getString(key));
+
+                if (isFirst && !Objects.equals(key, sstable.getFirst().getKey()))
+                    throw new CorruptSSTableException(new IOException("First partition does not match index"), it.toString());
+                else
+                    isFirst = false;
+                RowIndexEntry rowIndexEntry = it.rowIndexEntry();
+                if (outputHandler.isDebugEnabled()) outputHandler.debug("rowIndexEntry %s", rowIndexEntry.toString());
+
+                long partitionBase = it.dataPosition();
+                int blockCount = rowIndexEntry.blockCount();
+                if (options.extendedVerification && blockCount > 0)
+                {
+                    long expectedNextOffset = 0;
+                    RowIndexEntry.IndexInfoRetriever indexInfoRetriever = rowIndexEntry.openWithIndex(it.indexFile());
+                    for (int blockIndex = 0; blockIndex < blockCount; blockIndex++)
+                    {
+                        IndexInfo indexInfo = indexInfoRetriever.columnsIndex(blockIndex);
+                        if (outputHandler.isDebugEnabled()) outputHandler.debug("indexInfo %s", indexInfo.toString(sstable.metadata()));
+
+                        long dataFileOffset = partitionBase + indexInfo.offset;
+                        if (expectedNextOffset != 0)
+                        {
+                            if (expectedNextOffset != indexInfo.offset)
+                                throw new CorruptSSTableException(new IOException("Row entry indexInfo offset + width should match next block offset:" + indexInfo.offset + " expected: " + expectedNextOffset), it.toString());
+                        }
+                        expectedNextOffset = indexInfo.offset + indexInfo.width;
+                        dataFile.seek(dataFileOffset);
+
+                        Unfiltered unfiltered = UnfilteredSerializer.serializer.deserialize(dataFile,
+                                                                                            sstable.header,
+                                                                                            deserializationHelper,
+                                                                                            BTreeRow.sortedBuilder());
+                        if (!Objects.equals(indexInfo.firstName, unfiltered.clustering()))
+                            throw new CorruptSSTableException(new IOException("Unfiltered clustering in index does not match data:{info=" + indexInfo.toString(sstable.metadata()) + ", row:" + unfiltered.clustering().toString(sstable.metadata()) + "}"), it.toString());
+
+                        if (comparator.compare(indexInfo.firstName, indexInfo.lastName) > 0)
+                            throw new CorruptSSTableException(new IOException("First name is > Last name:{info=" + indexInfo.toString(sstable.metadata()) + "}"), it.toString());
+
+                    }
+                }
+            }
+            // The verifier checks that the partition key/position in the index and data match, here we waant to verify
+            // the entries clustering keys match.
+            while (it.advance()); // no-op, just check if index is readable
+
+            if (!Objects.equals(key, sstable.getLast().getKey()))
+                throw new CorruptSSTableException(new IOException("Last partition does not match index"), it.toString());
+        }
+        if (options.extendedVerification)
+            dataFile.reset();
     }
 
     private void logDuplicates(DecoratedKey key, Row first, int duplicateRows, long minTimestamp, long maxTimestamp)

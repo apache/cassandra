@@ -24,16 +24,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.Nullable;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -86,9 +87,8 @@ public class TrackerTest
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.daemonInitialization();
+        ServerTestUtils.prepareServerNoRegister();
         CommitLog.instance.start();
-        MockSchema.cleanup();
     }
 
     @Test
@@ -121,27 +121,7 @@ public class TrackerTest
         final Tracker tracker = Tracker.newDummyTracker();
         final View resultView = ViewTest.fakeView(0, 0, cfs);
         final AtomicInteger count = new AtomicInteger();
-        tracker.apply(new Predicate<View>()
-        {
-            public boolean apply(View view)
-            {
-                // confound the CAS by swapping the view, and check we retry
-                if (count.incrementAndGet() < 3)
-                    tracker.view.set(ViewTest.fakeView(0, 0, cfs));
-                return true;
-            }
-        }, new Function<View, View>()
-        {
-            @Nullable
-            public View apply(View view)
-            {
-                return resultView;
-            }
-        });
-        Assert.assertEquals(3, count.get());
-        Assert.assertEquals(resultView, tracker.getView());
-
-        count.set(0);
+        tracker.apply(Predicates.alwaysTrue(), view -> resultView);
         // check that if the predicate returns false, we stop immediately and return null
         Assert.assertNull(tracker.apply(new Predicate<View>()
         {
@@ -167,7 +147,7 @@ public class TrackerTest
                                                        MockSchema.sstable(2, 9, cfs));
         tracker.addInitialSSTables(copyOf(readers));
 
-        Assert.assertEquals(3, tracker.view.get().sstables.size());
+        Assert.assertEquals(3, tracker.view.sstables.size());
         Assert.assertEquals(1, listener.senders.size());
         Assert.assertEquals(1, listener.received.size());
         Assert.assertTrue(listener.received.get(0) instanceof InitialSSTableAddedNotification);
@@ -193,7 +173,7 @@ public class TrackerTest
                                                        MockSchema.sstable(2, 9, cfs));
         tracker.addSSTables(copyOf(readers));
 
-        Assert.assertEquals(3, tracker.view.get().sstables.size());
+        Assert.assertEquals(3, tracker.view.sstables.size());
 
         for (SSTableReader reader : readers)
         {
@@ -340,7 +320,8 @@ public class TrackerTest
         tracker = cfs.getTracker();
         listener = new MockListener(false);
         tracker.subscribe(listener);
-        prev1 = tracker.switchMemtable(false, cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition())));
+        Memtable next1 = cfs.createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
+        prev1 = tracker.switchMemtable(false, next1);
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
         cfs.invalidate(false);
@@ -349,7 +330,8 @@ public class TrackerTest
         Assert.assertEquals(0, tracker.getView().flushingMemtables.size());
         Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
         Assert.assertEquals(5, listener.received.size());
-        Assert.assertEquals(prev1, ((MemtableSwitchedNotification) listener.received.get(0)).memtable);
+        Assert.assertEquals(prev1, ((MemtableSwitchedNotification) listener.received.get(0)).previous);
+        Assert.assertEquals(next1, ((MemtableSwitchedNotification) listener.received.get(0)).next);
         Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(1)).added);
         Assert.assertEquals(Optional.of(prev1), ((SSTableAddedNotification) listener.received.get(1)).memtable());
         Assert.assertEquals(prev1, ((MemtableDiscardedNotification) listener.received.get(2)).memtable);

@@ -22,7 +22,6 @@ import java.util.UUID;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -33,11 +32,9 @@ public class UserTypesTest extends CQLTester
     @BeforeClass
     public static void setUpClass()     // overrides CQLTester.setUpClass()
     {
-        ServerTestUtils.daemonInitialization();
-
+        daemonInitialization();
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
         prepareServer();
     }
 
@@ -102,6 +99,22 @@ public class UserTypesTest extends CQLTester
         beforeAndAfterFlush(() ->
             assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
                 row(-104.99251)
+            )
+        );
+    }
+
+    @Test
+    public void testDescendingOrderingOfUserTypesIsSupported() throws Throwable
+    {
+        String myType = createType("CREATE TYPE %s (x double)");
+        createTable("CREATE TABLE %s (k int, v frozen<" + myType + ">, b boolean static, PRIMARY KEY (k, v)) WITH CLUSTERING ORDER BY (v DESC)");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, {x:?})", 1, -104.99251);
+        execute("UPDATE %s SET b = ? WHERE k = ?", true, 1);
+
+        beforeAndAfterFlush(() ->
+            assertRows(execute("SELECT v.x FROM %s WHERE k = ? AND v = {x:?}", 1, -104.99251),
+                       row(-104.99251)
             )
         );
     }
@@ -183,6 +196,11 @@ public class UserTypesTest extends CQLTester
         String myType2 = KEYSPACE + '.' + typename2;
         assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported",
                 "CREATE TABLE " + KEYSPACE + ".wrong (k int PRIMARY KEY, v " + myType2 + ")");
+
+        String userType = createType("CREATE TYPE %s (userids SET<UUID>)");
+        createTable("CREATE TABLE %s (id int PRIMARY KEY)");
+        assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported for column my_type",
+                             "alter TABLE %s add my_type " + userType);
     }
 
     @Test

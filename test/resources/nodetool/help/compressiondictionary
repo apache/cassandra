@@ -1,0 +1,93 @@
+NAME
+        nodetool compressiondictionary - Manage compression dictionaries
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary
+                <command> [<args>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary train
+                [(-f | --force)] [--max-dict-size <trainingMaxDictionarySize>]
+                [--max-total-sample-size <trainingMaxTotalSampleSize>] [--] <keyspace>
+                <table>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary list
+                [--] <keyspace> <table>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary export
+                [(-i <dictId> | --id <dictId>)] [--] <keyspace> <table> <dictionaryPath>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary import
+                [--] <dictionaryPath>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] compressiondictionary cleanup
+                [(-d | --dry)]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        train
+            Manually trigger compression dictionary training for a table. If no
+            SSTables are available, the memtable will be flushed first.
+
+            With --force option, Force the dictionary training even if there are not
+            enough samples
+
+            With --max-dict-size option, Maximum size of a trained compression
+            dictionary. Larger dictionaries may provide better compression but use more
+            memory. When not set, the value from compression configuration from CQL for
+            a given table is used. The default value is 64KiB.
+
+            With --max-total-sample-size option, Maximum total size of sample data to
+            collect for dictionary training. More sample data generally produces better
+            dictionaries but takes longer to train. The recommended sample size is 100x
+            the dictionary size. When not set, the value from compression configuration
+            from CQL for a give table is used. The default value is 10MiB.
+        list
+            List available dictionaries of specific keyspace and table.
+        export
+            Export dictionary from Cassandra to local file.
+
+            With --id option, The dictionary id. When not specified, the current
+            dictionary is returned.
+        import
+            Import local dictionary to Cassandra.
+        cleanup
+            Clean up orphaned dictionaries by deleting them from system_distributed.
+            compression_dictionaries table, these are ones for which a table they were
+            trained for was dropped.
+
+            With --dry option, Only display orphaned dictionaries, do not remove them.

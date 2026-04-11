@@ -21,9 +21,10 @@ package org.apache.cassandra.net;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.netty.channel.DefaultFileRegion;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.RefCounted;
+
+import io.netty.channel.DefaultFileRegion;
 
 /**
  * Netty's DefaultFileRegion closes the underlying FileChannel as soon as

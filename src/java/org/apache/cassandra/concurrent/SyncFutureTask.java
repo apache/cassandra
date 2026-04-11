@@ -71,7 +71,11 @@ public class SyncFutureTask<T> extends SyncFuture<T> implements RunnableFuture<T
         catch (Throwable t)
         {
             tryFailure(t);
-            ExecutionFailure.handle(t);
+            // A lot of exceptions are expected and will be handled by Cassandra
+            // by consuming the result of the future task so only treat Error
+            // as uncaught
+            if (t instanceof Error)
+                ExecutionFailure.handle(t);
         }
     }
 

@@ -25,10 +25,9 @@ import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
-
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;

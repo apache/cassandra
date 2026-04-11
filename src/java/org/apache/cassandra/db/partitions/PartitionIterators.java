@@ -17,21 +17,20 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.util.*;
+import java.util.List;
 
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.RowIterators;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;
-
-import org.apache.cassandra.db.SinglePartitionReadQuery;
-import org.apache.cassandra.db.rows.*;
 
 public abstract class PartitionIterators
 {
     private PartitionIterators() {}
 
-    @SuppressWarnings("resource") // The created resources are returned right away
     public static RowIterator getOnlyElement(final PartitionIterator iter, SinglePartitionReadQuery query)
     {
         // If the query has no results, we'll get an empty iterator, but we still
@@ -58,8 +57,7 @@ public abstract class PartitionIterators
         return Transformation.apply(toReturn, new Close());
     }
 
-    @SuppressWarnings("resource") // The created resources are returned right away
-    public static PartitionIterator concat(final List<PartitionIterator> iterators)
+    public static PartitionIterator concat(final List<? extends PartitionIterator> iterators)
     {
         if (iterators.size() == 1)
             return iterators.get(0);
@@ -96,27 +94,11 @@ public abstract class PartitionIterators
     }
 
     /**
-     * Consumes all rows in the next partition of the provided partition iterator.
-     */
-    public static void consumeNext(PartitionIterator iterator)
-    {
-        if (iterator.hasNext())
-        {
-            try (RowIterator partition = iterator.next())
-            {
-                while (partition.hasNext())
-                    partition.next();
-            }
-        }
-    }
-
-    /**
      * Wraps the provided iterator so it logs the returned rows for debugging purposes.
      * <p>
      * Note that this is only meant for debugging as this can log a very large amount of
      * logging at INFO.
      */
-    @SuppressWarnings("resource") // The created resources are returned right away
     public static PartitionIterator loggingIterator(PartitionIterator iterator, final String id)
     {
         class Logger extends Transformation<RowIterator>

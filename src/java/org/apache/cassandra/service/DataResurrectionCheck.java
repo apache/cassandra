@@ -19,6 +19,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,21 +31,23 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
@@ -53,7 +56,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_DISK_STATE;
 import static org.apache.cassandra.exceptions.StartupException.ERR_WRONG_MACHINE_STATE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -86,12 +88,24 @@ public class DataResurrectionCheck implements StartupCheck
 
         public void serializeToJsonFile(File outputFile) throws IOException
         {
-            JsonUtils.serializeToJsonFile(this, outputFile);
+            JsonUtils.serializeToJsonFileAtomic(this, outputFile);
         }
 
         public static Heartbeat deserializeFromJsonFile(File file) throws IOException
         {
-            return JsonUtils.deserializeFromJsonFile(Heartbeat.class, file);
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            try
+            {
+                return JsonUtils.deserializeFromJsonBytes(Heartbeat.class, bytes);
+            }
+            catch (IOException ex)
+            {
+                int maxLogBytes = Math.min(bytes.length, 1024);
+                String hexContent = bytes.length > 0 ? Hex.bytesToHex(bytes, 0, maxLogBytes) : "(empty)";
+                LOGGER.error("Failed to deserialize heartbeat file {} (length: {} bytes, first {} bytes hex: {})",
+                             file, bytes.length, maxLogBytes, hexContent, ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -145,18 +159,30 @@ public class DataResurrectionCheck implements StartupCheck
     }
 
     @Override
-    public StartupChecks.StartupCheckType getStartupCheckType()
+    public boolean isConfigurable()
     {
-        return StartupChecks.StartupCheckType.check_data_resurrection;
+        return true;
     }
 
     @Override
-    public void execute(StartupChecksOptions options) throws StartupException
+    public String name()
     {
-        if (options.isDisabled(getStartupCheckType()))
+        return "check_data_resurrection";
+    }
+
+    @Override
+    public boolean isDisabledByDefault()
+    {
+        return true;
+    }
+
+    @Override
+    public void execute(StartupChecksConfiguration configuration) throws StartupException
+    {
+        if (configuration.isDisabled(name()))
             return;
 
-        Map<String, Object> config = options.getConfig(StartupChecks.StartupCheckType.check_data_resurrection);
+        Map<String, Object> config = configuration.getConfig(name());
         File heartbeatFile = getHeartbeatFile(config);
 
         if (!heartbeatFile.exists())
@@ -173,7 +199,10 @@ public class DataResurrectionCheck implements StartupCheck
         }
         catch (IOException ex)
         {
-            throw new StartupException(ERR_WRONG_DISK_STATE, "Failed to deserialize heartbeat file " + heartbeatFile);
+            LOGGER.warn("Failed to deserialize heartbeat file {}. Falling back to file last modified time.",
+                        heartbeatFile, ex);
+            Instant lastModified = Instant.ofEpochMilli(heartbeatFile.lastModified());
+            heartbeat = new Heartbeat(lastModified);
         }
 
         if (heartbeat.lastHeartbeat == null)
@@ -223,30 +252,30 @@ public class DataResurrectionCheck implements StartupCheck
     }
 
     @Override
-    public void postAction(StartupChecksOptions options)
+    public void postAction(StartupChecksConfiguration configuration)
     {
         // Schedule heartbeating after all checks have passed, not as part of the check,
         // as it might happen that other checks after it might fail, but we would be heartbeating already.
-        if (options.isEnabled(StartupChecks.StartupCheckType.check_data_resurrection))
-        {
-            Map<String, Object> config = options.getConfig(StartupChecks.StartupCheckType.check_data_resurrection);
-            File heartbeatFile = DataResurrectionCheck.getHeartbeatFile(config);
+        if (!configuration.isEnabled(name()))
+            return;
 
-            ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() ->
+        Map<String, Object> configMap = configuration.getConfig(name());
+        File heartbeatFile = DataResurrectionCheck.getHeartbeatFile(configMap);
+
+        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() ->
+        {
+            Heartbeat heartbeat = new Heartbeat(Instant.ofEpochMilli(Clock.Global.currentTimeMillis()));
+            try
             {
-                Heartbeat heartbeat = new Heartbeat(Instant.ofEpochMilli(Clock.Global.currentTimeMillis()));
-                try
-                {
-                    heartbeatFile.parent().createDirectoriesIfNotExists();
-                    DataResurrectionCheck.LOGGER.trace("writing heartbeat to file " + heartbeatFile);
-                    heartbeat.serializeToJsonFile(heartbeatFile);
-                }
-                catch (IOException ex)
-                {
-                    DataResurrectionCheck.LOGGER.error("Unable to serialize heartbeat to " + heartbeatFile, ex);
-                }
-            }, 0, CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.getInt(), MILLISECONDS);
-        }
+                heartbeatFile.parent().createDirectoriesIfNotExists();
+                DataResurrectionCheck.LOGGER.trace("writing heartbeat to file " + heartbeatFile);
+                heartbeat.serializeToJsonFile(heartbeatFile);
+            }
+            catch (IOException ex)
+            {
+                DataResurrectionCheck.LOGGER.error("Unable to serialize heartbeat to " + heartbeatFile, ex);
+            }
+        }, 0, CassandraRelevantProperties.CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD.getInt(), MILLISECONDS);
     }
 
     @VisibleForTesting
@@ -297,7 +326,7 @@ public class DataResurrectionCheck implements StartupCheck
     List<TableGCPeriod> getTablesGcPeriods(String userKeyspace)
     {
         Optional<KeyspaceMetadata> keyspaceMetadata = SchemaKeyspace.fetchNonSystemKeyspaces().get(userKeyspace);
-        if (!keyspaceMetadata.isPresent())
+        if (keyspaceMetadata.isEmpty())
             return Collections.emptyList();
 
         KeyspaceMetadata ksmd = keyspaceMetadata.get();

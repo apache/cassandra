@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -33,10 +35,11 @@ public class ExpressionTest
     @Test
     public void testBoundHashCode()
     {
+        IndexTermType indexTermType = SAITester.createIndexTermType(UTF8Type.instance);
         ByteBuffer buf1 = UTF8Type.instance.decompose("blah");
-        Expression.Bound b1 = new Expression.Bound(buf1, UTF8Type.instance, true);
+        Expression.Bound b1 = new Expression.Bound(buf1, indexTermType, true);
         ByteBuffer buf2 = UTF8Type.instance.decompose("blah");
-        Expression.Bound b2 = new Expression.Bound(buf2, UTF8Type.instance, true);
+        Expression.Bound b2 = new Expression.Bound(buf2, indexTermType, true);
         assertEquals(b1, b2);
         assertEquals(b1.hashCode(), b2.hashCode());
     }
@@ -44,10 +47,11 @@ public class ExpressionTest
     @Test
     public void testNotMatchingBoundHashCode()
     {
+        IndexTermType indexTermType = SAITester.createIndexTermType(UTF8Type.instance);
         ByteBuffer buf1 = UTF8Type.instance.decompose("blah");
-        Expression.Bound b1 = new Expression.Bound(buf1, UTF8Type.instance, true);
+        Expression.Bound b1 = new Expression.Bound(buf1, indexTermType, true);
         ByteBuffer buf2 = UTF8Type.instance.decompose("blah2");
-        Expression.Bound b2 = new Expression.Bound(buf2, UTF8Type.instance, true);
+        Expression.Bound b2 = new Expression.Bound(buf2, indexTermType, true);
         assertNotEquals(b1, b2);
         assertNotEquals(b1.hashCode(), b2.hashCode());
     }

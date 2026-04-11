@@ -40,12 +40,13 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
@@ -54,8 +55,9 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractReadRepair.class);
 
+    protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
-    protected final long queryStartNanoTime;
+    protected final Dispatcher.RequestTime requestTime;
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
     protected final ColumnFamilyStore cfs;
 
@@ -75,12 +77,13 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         }
     }
 
-    public AbstractReadRepair(ReadCommand command,
+    public AbstractReadRepair(ReadCoordinator coordinator, ReadCommand command,
                               ReplicaPlan.Shared<E, P> replicaPlan,
-                              long queryStartNanoTime)
+                              Dispatcher.RequestTime requestTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
-        this.queryStartNanoTime = queryStartNanoTime;
+        this.requestTime = requestTime;
         this.replicaPlan = replicaPlan;
         this.cfs = Keyspace.openAndGetStore(command.metadata());
     }
@@ -92,11 +95,11 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     void sendReadCommand(Replica to, ReadCallback<E, P> readCallback, boolean speculative, boolean trackRepairedStatus)
     {
-        ReadCommand command = this.command;
-        
-        if (to.isSelf())
+        ReadCommand command = coordinator.maybeAllowOutOfRangeReads(this.command, replicaPlan().consistencyLevel());
+
+        if (to.isSelf() && coordinator.localReadSupported())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback, trackRepairedStatus));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback, requestTime, trackRepairedStatus));
             return;
         }
 
@@ -116,8 +119,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
 
-        Message<ReadCommand> message = command.createMessage(trackRepairedStatus && to.isFull());
-        MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
+        Message<ReadCommand> message = command.createMessage(trackRepairedStatus && to.isFull(), requestTime);
+        coordinator.sendReadCommand(message, to.endpoint(), readCallback);
     }
 
     abstract Meter getRepairMeter();
@@ -139,8 +142,8 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
-        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryStartNanoTime, trackRepairedStatus);
-        ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(coordinator, command, replicaPlan, this, requestTime, trackRepairedStatus);
+        ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, requestTime);
 
         digestRepair = new DigestRepair<>(resolver, readCallback, resultConsumer);
 
@@ -190,7 +193,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         if (repair == null)
             return;
 
-        if (shouldSpeculate() && !repair.readCallback.await(cfs.sampleReadLatencyMicros, MICROSECONDS))
+        if (shouldSpeculate() && !repair.readCallback.awaitUntil(requestTime.startedAtNanos() + MICROSECONDS.toNanos(cfs.sampleReadLatencyMicros)))
         {
             Replica uncontacted = replicaPlan().firstUncontactedCandidate(replica -> true);
             if (uncontacted == null)

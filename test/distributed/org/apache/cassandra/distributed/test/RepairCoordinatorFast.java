@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
+
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -40,6 +41,7 @@ import org.apache.cassandra.service.StorageService;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
+import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertNoSSTableLeak;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairFailedWithMessageContains;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairNotExist;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairSuccess;
@@ -53,10 +55,12 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         super(repairType, parallelism, withNotifications);
     }
 
+    private static Duration TIMEOUT = Duration.ofMinutes(2);
+
     @Test
     public void simple() {
         String table = tableName("simple");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, PRIMARY KEY (key))", KEYSPACE, table));
             CLUSTER.coordinator(1).execute(format("INSERT INTO %s.%s (key) VALUES (?)", KEYSPACE, table), ConsistencyLevel.ANY, "some text");
 
@@ -82,13 +86,14 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
             }
 
             Assert.assertEquals(repairExceptions, getRepairExceptions(CLUSTER, 2));
+            assertNoSSTableLeak(CLUSTER, KEYSPACE, table);
         });
     }
 
     @Test
     public void missingKeyspace()
     {
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             // as of this moment the check is done in nodetool so the JMX notifications are not imporant
             // nor is the history stored
             long repairExceptions = getRepairExceptions(CLUSTER, 2);
@@ -106,7 +111,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     @Test
     public void missingTable()
     {
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             long repairExceptions = getRepairExceptions(CLUSTER, 2);
             String tableName = tableName("doesnotexist");
             NodeToolResult result = repair(2, KEYSPACE, tableName);
@@ -134,7 +139,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         // this is done in this test to cause the keyspace to have 0 tables to repair, which causes repair to no-op
         // early and skip.
         String table = tableName("withindex");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
             CLUSTER.schemaChange(format("CREATE INDEX value_%s ON %s.%s (value)", postfix(), KEYSPACE, table));
 
@@ -167,7 +172,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         // repair to fail but it didn't, this would be fine and this test should be updated to reflect the new
         // semantic
         String table = tableName("intersectingrange");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
 
             //TODO dtest api for this?
@@ -206,7 +211,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     public void unknownHost()
     {
         String table = tableName("unknownhost");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
 
             long repairExceptions = getRepairExceptions(CLUSTER, 2);
@@ -264,7 +269,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         // this is very similar to ::desiredHostNotCoordinator but has the difference that the only host to do repair
         // is the coordinator
         String table = tableName("onlycoordinator");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
 
             long repairExceptions = getRepairExceptions(CLUSTER, 2);
@@ -293,7 +298,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     {
         // In the case of rf=1 repair fails to create a cmd handle so node tool exists early
         String table = tableName("one");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             // since cluster is shared and this test gets called multiple times, need "IF NOT EXISTS" so the second+ attempt
             // does not fail
             CLUSTER.schemaChange("CREATE KEYSPACE IF NOT EXISTS replicationfactor WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
@@ -314,7 +319,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     public void prepareFailure()
     {
         String table = tableName("preparefailure");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
             IMessageFilters.Filter filter = CLUSTER.verbs(Verb.PREPARE_MSG).messagesMatching(of(m -> {
                 throw new RuntimeException("prepare fail");
@@ -359,7 +364,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
         Assume.assumeFalse("Parallel repair does not perform snapshots", parallelism == RepairParallelism.PARALLEL);
 
         String table = tableName("snapshotfailure");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
             IMessageFilters.Filter filter = CLUSTER.verbs(Verb.SNAPSHOT_MSG).messagesMatching(of(m -> {
                 throw new RuntimeException("snapshot fail");
@@ -398,6 +403,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
                 {
                     assertParentRepairNotExist(CLUSTER, KEYSPACE, table);
                 }
+                assertNoSSTableLeak(CLUSTER, KEYSPACE, table);
             }
             finally
             {

@@ -24,14 +24,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.FailureRecordingCallback;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.utils.TriFunction;
 
-import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
-import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
+import static org.apache.cassandra.exceptions.RequestFailure.TIMEOUT;
+import static org.apache.cassandra.exceptions.RequestFailure.UNKNOWN;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T>
@@ -44,6 +48,8 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
     @Override
     public void onResponse(Message<T> message)
     {
+        if (DatabaseDescriptor.getAccordTransactionsEnabled())
+            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(message.from(), message.epoch());
         onResponse(message.payload, message.from());
     }
 
@@ -56,11 +62,43 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
             if (response == null)
                 return;
         }
+        catch (RetryOnDifferentSystemException e)
+        {
+            onFailure(getBroadcastAddressAndPort(), RequestFailure.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+            return;
+        }
         catch (Exception ex)
         {
-            RequestFailureReason reason = UNKNOWN;
+            RequestFailure reason = UNKNOWN;
             if (ex instanceof WriteTimeoutException) reason = TIMEOUT;
             else logger.error("Failed to apply {} locally", parameter, ex);
+
+            onFailure(getBroadcastAddressAndPort(), reason);
+            return;
+        }
+
+        onResponse(response, getBroadcastAddressAndPort());
+    }
+
+    protected <I, J> void executeOnSelf(I parameter1, J parameter2, TriFunction<I, J, InetAddressAndPort, T> execute)
+    {
+        T response;
+        try
+        {
+            response = execute.apply(parameter1, parameter2, getBroadcastAddressAndPort());
+            if (response == null)
+                return;
+        }
+        catch (RetryOnDifferentSystemException e)
+        {
+            onFailure(getBroadcastAddressAndPort(), RequestFailure.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM);
+            return;
+        }
+        catch (Exception ex)
+        {
+            RequestFailure reason = UNKNOWN;
+            if (ex instanceof WriteTimeoutException) reason = TIMEOUT;
+            else logger.error("Failed to apply {}, {} locally", parameter1, parameter2, ex);
 
             onFailure(getBroadcastAddressAndPort(), reason);
             return;

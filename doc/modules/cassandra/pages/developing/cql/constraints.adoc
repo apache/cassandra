@@ -1,0 +1,374 @@
+= Constraints
+
+Constraints provide a way of specifying and enforcing conditions at a
+column level in a table schema definition and enforcing them at write time.
+
+== CREATE CONSTRAINT
+
+Constraints can be created within the column definition.
+
+The syntax to define a constraint is as follows:
+
+[source,bnf]
+----
+CREATE TABLE ks.tb (
+	name text,
+	i int CHECK (condition) (AND (condition))*
+	...,
+
+);
+----
+
+As shown in this syntax, more than one constraint can be defined for a given column using the `AND` keyword.
+
+== ALTER CONSTRAINT
+
+Altering a constraint is done by following the alter column CQL syntax:
+[source,bnf]
+----
+ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> CHECK <condition>;
+----
+
+There is no way how to alter individual check when multiple checks are specified on a column. Altering constraints
+on a column will set constraints to these specified checks. A user can, of course, chain them:
+
+[source,bnf]
+----
+ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> CHECK <condition> AND <condition2>
+----
+
+== DROP CONSTRAINT
+`DROP CHECK` can be used to drop constraints for a column as well.
+[source,bnf]
+----
+ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> DROP CHECK;
+----
+
+There is no way how to drop individual check when multiple checks are specified on a column. After dropping checks, you
+are required to re-define all necessary checks again.
+
+== Constraints are pluggable
+
+On top of in-built constraints enumerated below, since https://issues.apache.org/jira/browse/CASSANDRA-20824[CASSANDRA-20824],
+it is possible to provide your own implementation of a constraint and use it in Cassandra. This is possible
+thanks to Java SPI, where you need to implement `ConstraintProvider` interface. There is an example of a custom constraint implementation in `examples/constraints` in the source distribution you can follow  to implement your own constraints.
+
+The advantage of this approach is that you can use an official release while you can just "patch" Cassandra by
+providing your additional constraints specific to your business / needs. Feel free to reach us if you want
+to make your constraint in-built!
+
+If you start to use custom constraints, your nodes will fail to start if there isn't appropriate JAR these
+constraints are implemented in. If constraints specified in JAR via SPI were not present, we skipped them and
+a user didn't notice, then it might be possible to insert invalid data (per constraint) which we consider
+is not desired behavior.
+
+== AVAILABLE CONSTRAINTS
+
+=== SCALAR CONSTRAINT
+
+Defines a comparator against a numeric type. It supports all numeric types supported in Cassandra, with all regular
+comparators.
+
+For example, we can define constraints that ensure that `i` is bigger or equal than `100` but smaller than `1000`.
+
+[source,bnf]
+----
+CREATE TABLE ks.tb (
+	name text,
+	i int CHECK i < 1000 AND i > 100
+	...,
+);
+----
+
+Altering that constraint can be done with:
+
+----
+ALTER TABLE ks.tb ALTER i CHECK i >= 500;
+----
+
+Finally, the constraint can be removed:
+
+----
+ALTER TABLE ks.tb ALTER i DROP CHECK;
+----
+
+This constraint also works for `time`, `date` and `timestamp` types. For example, a user
+can express constraints like this:
+
+----
+CREATE TABLE ks.tb
+	name text,
+	dob date CHECK dob > '1900-01-01'
+    ...
+)
+----
+
+Hence, we can enforce that date of birth is later than January 1st, 1900.
+
+----
+INSERT INTO ks.tb (name, dob) VALUES ( 'Joe Doe', '1899-08-06');
+... [Invalid query] message="Column value does not satisfy value constraint for column 'dob'. It should be dob > '1900-01-01'"
+-- this passes as it is > January 1st, 1900
+INSERT INTO ks.tb (name, dob) VALUES ( 'Joe Doe', '1976-12-06');
+----
+
+A user can also use ranges on time-related columns with `>` and `<` operators, e.g.
+
+----
+CREATE TABLE ks.tb
+	name text,
+	afternoon time CHECK afternoon >= '12:00:00' AND afternoon <= '23:59:59';
+    ...
+)
+----
+
+There is a basic satistfiability check conducted on checks' definitions so we ensure that unsatisfiable constraint
+definitions are invalid as it would be impossible to insert a value for a specific colum which would satisty all constraints.
+
+For example, imagine a user tries to create the following table (e.g. by mistake):
+
+----
+CREATE TABLE ks.tb (
+	name text,
+	i int CHECK i < 100 AND i > 1000
+	...,
+);
+----
+
+If we insert `50` for `i`, it will not satisfy `i > 1000`. If we insert `1001` as `i`, it will not satisfy `i < 100`.
+
+There is a satisfiability check in place which would prevent such constaint definitions:
+
+----
+[Invalid query] message="Constraints of scalar are not satisfiable: i < 100, i > 1000"
+----
+
+It is also illegal to specify constraints which are repeating, or they repeat on their operators:
+
+----
+CREATE TABLE ks.tb7 (id int primary key, i int check i < 100 and i > 1000 and i < 10) ;
+[Invalid query] message="There are duplicate constraint definitions on column 'i': [i <]"
+----
+
+----
+CREATE TABLE ks.tb7 (id int primary key, i int check i > 100 and i > 1000) ;
+[Invalid query] message="There are duplicate constraint definitions on column 'i': [i >]"
+----
+
+=== LENGTH CONSTRAINT
+
+Defines a condition that checks the length of text or binary type.
+
+For example, we can create a constraint that checks that name can't be longer than 256 characters:
+
+----
+CREATE TABLE ks.tb (
+	name text CHECK LENGTH() < 256
+	...,
+);
+----
+
+Altering that constraint can be done with:
+
+----
+ALTER TABLE ks.tb ALTER name LENGTH() < 512;
+----
+
+Finally, the constraint can be removed:
+
+----
+ALTER TABLE ks.tb ALTER name DROP CHECK;
+----
+
+=== OCTET_LENGTH CONSTRAINT
+
+Defines a condition that checks the size in bytes of text or binary type.
+
+For example, we can create a constraint that checks that name can't be bigger than 256 characters:
+
+----
+CREATE TABLE ks.tb (
+	name text CHECK OCTET_LENGTH() < 2
+	...,
+);
+----
+
+Inserting a valid row:
+----
+INSERT INTO ks.tb (name) VALUES ('f')
+----
+
+Inserting an invalid row:
+----
+INSERT INTO ks.tb (name) VALUES ('fooooooo')
+
+ERROR: Column value does not satisfy value constraint for column 'name'. It has a length of 8 and
+and it should be should be < 2
+----
+
+=== NOT NULL constraint
+
+Defines a constraint that checks if a column is not null in every modification statement.
+
+For example, let's have this table:
+
+----
+CREATE TABLE ks.tb (
+    id int,
+    cl int,
+    col1 int CHECK NOT NULL,
+    col2 int CHECK NOT NULL,
+    PRIMARY KEY (id, cl)
+);
+----
+
+It is possible to specify `NOT NULL` before `CHECK` / omit it to be more aligned with SQL syntax.
+
+----
+CREATE TABLE ks.tb (
+    id int,
+    cl int,
+    col1 int NOT NULL,
+    col2 int NOT NULL,
+    PRIMARY KEY (id, cl)
+);
+----
+
+Of course, mixing these two styles is forbidden:
+
+----
+-- this is illegal
+col1 int NOT NULL CHECK NOT NULL,
+[Invalid query] message="Duplicate definition of NOT NULL constraint"
+----
+
+When `NOT NULL` is specified as above, then this statement would fail:
+
+----
+INSERT INTO ks.tb (id, cl, col1) VALUES (1, 2, 3);
+... [Invalid query] message="Column 'col2' has to be specified as part of this query."
+----
+
+as well as this statement:
+
+----
+INSERT INTO ks.tb (id, cl, col1, col2) VALUES (1, 2, 3, null);
+----
+
+A column which has `NOT NULL` constraint has to be specified in every modification statement.
+
+The constraint can be removed:
+
+----
+ALTER TABLE ks.tb ALTER col1 DROP CHECK;
+ALTER TABLE ks.tb ALTER col2 DROP CHECK;
+----
+
+We can not remove the value of a column where `NOT NULL` constraint is present:
+
+----
+DELETE col2 FROM ks.tb WHERE id = 1 AND cl = 2;
+... [Invalid query] message="Column 'col2' can not be set to null."
+----
+
+Additionally, `NOT NULL` can not be specified on any column of a primary key,
+being it a partition key or a clustering column.
+
+It is possible to chain `NOT NULL` with other checks, for example, if we require a column to not be null and its
+size to be bigger than `0` every time, we do:
+
+----
+CREATE TABLE ks.tb (
+    id int,
+    cl int,
+    col1 int CHECK NOT NULL AND col1 > 0,
+    PRIMARY KEY (id, cl)
+);
+----
+
+As we said that `NOT NULL` can be put in front of `CHECK`, if we want to specify other constraints as well,
+this syntax is indeed possible:
+
+----
+CREATE TABLE ks.tb (
+    id int,
+    cl int,
+    col1 int NOT NULL CHECK col1 > 0,
+    PRIMARY KEY (id, cl)
+);
+----
+
+Internally, `NOT NULL` specified before `CHECK` will be stored as any other check - that is after `CHECK`.
+(`DESCRIBE` statement on a table will show this fact). This mean of constraint definition is just a syntax suggar.
+
+It is not possible to use `NOT NULL` before `CHECK` when altering. The following syntax is invalid:
+
+----
+ALTER TABLE ks.tb ALTER col2 NOT NULL CHECK col2 > 0;
+----
+
+However, this syntax is valid:
+
+----
+ALTER TABLE ks.tb ALTER col2 CHECK NOT NULL AND col2 > 0;
+----
+
+=== JSON constraint
+
+Defines a constraint which checks if a column contains a string which is a valid JSON.
+
+`JSON` constraint can be used only for columns of `text`, `varchar` or `ascii` types.
+
+----
+CREATE TABLE ks.tb (
+    id int primary key,
+    val text CHECK JSON()
+);
+
+-- valid JSON string
+
+INSERT INTO ks.tb (id, val) VALUES (1, '{"a": 5}');
+INSERT INTO ks.tb (id, val) VALUES (1, '{}');
+
+-- invalid JSON string
+
+INSERT INTO ks.tb (id, val) VALUES (1, '{"a": 5');
+INSERT INTO ks.tb (id, val) VALUES (1, 'abc');
+
+... [Invalid query] message="Value for column 'val' violated JSON
+constraint as it is not a valid JSON."
+
+----
+
+=== REGEXP constraint
+
+Defines a constraint which checks text-like values againt a regular expression.
+
+----
+CREATE TABLE ks.tb (
+    id int primary key,
+    value CHECK REGEXP() = 'a.*b'
+)
+----
+
+----
+INSERT INTO ks.tb (id , value ) VALUES ( 1, 'asdadasdabb');
+INSERT INTO ks.tb (id , value ) VALUES ( 1, 'aaaaa');
+... [Invalid query] message="Value does not match regular expression 'a.*b'"
+----
+
+Negation can be also used:
+
+----
+ALTER TABLE ks.tb ALTER value CHECK REGEXP() != 'a.*b';
+----
+
+which would logically invert the condition:
+
+----
+INSERT INTO ks.tb (id , value ) VALUES ( 1, 'asdadasdabb');
+... [Invalid query] message="Value does match regular expression 'a.*b'"
+INSERT INTO ks.tb (id , value ) VALUES ( 1, 'aaaaa');
+----
+
+`REGEXP` constraint supports only `!=` and `=` operators as other operators are meaningless.

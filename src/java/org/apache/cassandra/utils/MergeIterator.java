@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.utils;
 
-import java.util.*;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+
+import accord.utils.Invariants;
 
 /** Merges sorted input iterators which individually contain unique items. */
 public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implements IMergeIterator<In, Out>
@@ -31,7 +35,6 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         this.reducer = reducer;
     }
 
-    @SuppressWarnings("resource")
     public static <In, Out> MergeIterator<In, Out> get(List<? extends Iterator<In>> sources,
                                                        Comparator<? super In> comparator,
                                                        Reducer<In, Out> reducer)
@@ -43,6 +46,33 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
                  : new OneToOne<>(sources, reducer);
         }
         return new ManyToOne<>(sources, comparator, reducer);
+    }
+
+    public static <E extends Comparable<? super E>> MergeIterator<E, E> get(List<? extends Iterator<E>> sources)
+    {
+        return get(sources, Comparator.naturalOrder(), new Reducer<>()
+        {
+            private E first = null;
+            @Override
+            protected void onKeyChange()
+            {
+                first = null;
+            }
+
+            @Override
+            public void reduce(int idx, E current)
+            {
+                if (first == null)
+                    first = current;
+            }
+
+            @Override
+            protected E getReduced()
+            {
+                Invariants.require(first != null);
+                return first;
+            }
+        });
     }
 
     public Iterable<? extends Iterator<In>> iterators()
@@ -422,6 +452,23 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
     /** Accumulator that collects values of type A, and outputs a value of type B. */
     public static abstract class Reducer<In,Out>
     {
+        public static class Trivial<T> extends Reducer<T, T>
+        {
+            private T reduced = null;
+
+            @Override
+            public boolean trivialReduceIsTrivial() { return true; }
+
+            @Override
+            public void reduce(int idx, T current) { reduced = current; }
+
+            @Override
+            protected T getReduced() { return reduced; }
+
+            @Override
+            protected void onKeyChange() { reduced = null; }
+        }
+
         /**
          * @return true if Out is the same as In for the case of a single source iterator
          */

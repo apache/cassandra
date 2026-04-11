@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
@@ -25,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
@@ -34,10 +34,13 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
@@ -56,7 +59,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private static final Buffer SENTINEL = new Buffer();
 
     private Buffer buffer = new Buffer();
-    private final long bufferSize;
+    private final long maxSStableSizeInBytes;
     private long currentSize;
 
     // Used to compute the row serialized size
@@ -66,15 +69,22 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private final BlockingQueue<Buffer> writeQueue = newBlockingQueue(0);
     private final DiskWriter diskWriter = new DiskWriter();
 
-    SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long bufferSizeInMB)
+    public SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
+    {
+        this(null, directory, metadata, columns, maxSSTableSizeInMiB);
+    }
+
+    SSTableSimpleUnsortedWriter(SSTable.Owner owner, File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long maxSSTableSizeInMiB)
     {
         super(directory, metadata, columns);
-        this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.maxSStableSizeInBytes = maxSSTableSizeInMiB * 1024L * 1024L;
         this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
         this.helper = new SerializationHelper(this.header);
         diskWriter.start();
+        this.owner = owner;
     }
 
+    @Override
     PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
     {
         assert key != null;
@@ -95,7 +105,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         // Note that the accounting of a row is a bit inaccurate (it doesn't take some of the file format optimization into account)
         // and the maintaining of the bufferSize is in general not perfect. This has always been the case for this class but we should
         // improve that. In particular, what we count is closer to the serialized value, but it's debatable that it's the right thing
-        // to count since it will take a lot more space in memory and the bufferSize if first and foremost used to avoid OOM when
+        // to count since it will take a lot more space in memory and the bufferSize is first and foremost used to avoid OOM when
         // using this writer.
         currentSize += UnfilteredSerializer.serializer.serializedSize(row, helper, 0, format.getLatestVersion().correspondingMessagingVersion());
     }
@@ -104,7 +114,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     {
         try
         {
-            if (currentSize > bufferSize)
+            if (currentSize > maxSStableSizeInBytes)
                 sync();
         }
         catch (IOException e)
@@ -189,7 +199,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         }
     }
 
-    static class SyncException extends RuntimeException
+    public static class SyncException extends RuntimeException
     {
         SyncException(IOException ioe)
         {
@@ -218,7 +228,8 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     {
                         for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
                             writer.append(entry.getValue().build().unfilteredIterator());
-                        writer.finish(false);
+                        Collection<SSTableReader> finished = writer.finish(shouldOpenSSTables());
+                        notifySSTableProduced(finished);
                     }
                 }
                 catch (Throwable e)

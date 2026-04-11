@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
@@ -32,10 +33,10 @@ import static org.junit.Assert.assertTrue;
 public class ToolsEnvsConfigsTest
 {
     //Some JDK can output env info on stdout/err. Check we can clean them
-    @SuppressWarnings("resource")
     @Test
     public void testJDKEnvInfoDefaultCleaners()
     {
+        DatabaseDescriptor.daemonInitialization();
         ToolResult tool = ToolRunner.invoke(ImmutableMap.of("_JAVA_OPTIONS", "-Djava.net.preferIPv4Stack=true"),
                                             null,
                                             CQLTester.buildNodetoolArgs(Collections.emptyList()));

@@ -21,10 +21,8 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 import java.util.Set;
 
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Backend for CIDR authorization feature
@@ -38,21 +36,6 @@ public interface ICIDRAuthorizer
     {
         MONITOR,
         ENFORCE
-    }
-
-    public static ICIDRAuthorizer newCIDRAuthorizer(ParameterizedClass cidrAuthorizer)
-    {
-        if (cidrAuthorizer == null || cidrAuthorizer.class_name == null)
-        {
-            return new AllowAllCIDRAuthorizer();
-        }
-
-        String className = cidrAuthorizer.class_name;
-        if (!className.contains("."))
-        {
-            className = "org.apache.cassandra.auth." + className;
-        }
-        return FBUtilities.construct(className, "cidr authorizer");
     }
 
     public void setup();

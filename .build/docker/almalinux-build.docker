@@ -38,20 +38,66 @@ RUN echo "Building with arguments:" \
 
 # install deps
 RUN yum -y install \
-   ant \
-   git \
-   java-11-openjdk-devel \
-   java-17-openjdk-devel \
-   make \
-   rpm-build \
-   sudo \
-   python3-pip \
-   procps \
-   rsync
+   ant git make rpm-build sudo python3-pip procps \
+   java-11-openjdk-devel java-17-openjdk-devel java-21-openjdk-devel \
+   rsync wget curl
 
-RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 http://mirror.centos.org/centos/7/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done
+# Install pandoc from GitHub releases (not available in AlmaLinux 8 repos)
+ARG PANDOC_VERSION="3.9.0.2"
+RUN sh -c '\
+  set -ex ;\
+  PANDOC_ARCH=amd64 ;\
+  [ $(uname -m) = "aarch64" ] && PANDOC_ARCH=arm64 ;\
+  PANDOC_VERSION_SHAS="a69abfababda8a56969a254b09f9553a7be89ddec00d4e0fe9fd585d71a67508 b6d21e8f9c3b15744f5a7ab40248019157ed7793875dbe0383d4c82ff572b528" ;\
+  PANDOC_TAR="pandoc-${PANDOC_VERSION}-linux-${PANDOC_ARCH}.tar.gz" ;\
+  wget -q "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/${PANDOC_TAR}" --no-check-certificate ;\
+  PANDOC_SHA="$(sha256sum ${PANDOC_TAR} | cut -d" " -f1)" ;\
+  echo "$PANDOC_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$PANDOC_SHA" || { echo "SHA256 mismatch for ${PANDOC_TAR} ${PANDOC_SHA}"; exit 1; } ;\
+  tar -xzf "${PANDOC_TAR}" -C /usr/local --strip-components=1 ;\
+  rm "${PANDOC_TAR}"'
+
+RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 https://vault.centos.org/7.9.2009/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done
 
 RUN rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm
 
 # python3 is needed for the gen-doc target
 RUN pip3 install --upgrade pip
+
+# Install Node.js for Antora (documentation generation)
+RUN sh -c '\
+  set -ex ;\
+  NODE_VERSION="v20.16.0" ;\
+  NODE_PLATFORM=x64 ;\
+  [ $(uname -m) = "aarch64" ] && NODE_PLATFORM=arm64 ;\
+  NODE_VERSION_SHAS="c30af7dfea46de7d8b9b370fa33b8b15440bc93f0a686af8601bbb48b82f16c0 1d9929e72f692179f884cd676b2dfabd879cb77defa7869dc8cfc802619277fb" ;\
+  NODE_TAR="node-${NODE_VERSION}-linux-${NODE_PLATFORM}.tar.xz" ;\
+  wget -q "https://nodejs.org/dist/${NODE_VERSION}/${NODE_TAR}" --no-check-certificate ;\
+  NODE_SHA="$(sha256sum ${NODE_TAR} | cut -d" " -f1)" ;\
+  echo "$NODE_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$NODE_SHA" || { echo "SHA256 mismatch for ${NODE_TAR} ${NODE_SHA}"; exit 1; } ;\
+  tar -xJf "${NODE_TAR}" -C /usr/local --strip-components=1 ;\
+  rm "${NODE_TAR}" ;\
+  ln -s /usr/local/bin/node /usr/local/bin/nodejs'
+
+# Install Antora for documentation generation
+RUN npm i -g @antora/cli@2.3 @antora/site-generator-default@2.3 @djencks/asciidoctor-openblock
+
+# install golang.  GO_VERSION_SHA must be updated with VERSION
+
+RUN sh -c '\
+  set -ex ;\
+  GO_VERSION="1.26.1" ;\
+  GO_VERSION_SHAS="031f088e5d955bab8657ede27ad4e3bc5b7c1ba281f05f245bcc304f327c987a a290581cfe4fe28ddd737dde3095f3dbeb7f2e4065cab4eae44dfc53b760c2f7 65773dab2f8cc4cd23d93ba6d0a805de150ca0b78378879292be0b903b8cdd08 353df43a7811ce284c8938b5f3c7df40b7bfb6f56cb165b150bc40b5e2dd541f" ;\
+  GO_OS=linux ;\
+  [ $(uname) = "Darwin" ] && GO_OS=darwin ;\
+  GO_PLATFORM=amd64 ;\
+  [ $(uname -m) = "aarch64" ] && GO_PLATFORM=arm64 ;\
+  GO_TAR="go${GO_VERSION}.${GO_OS}-${GO_PLATFORM}.tar.gz" ;\
+  curl -L --fail --silent --retry 2 --retry-delay 5 --max-time 3600 https://go.dev/dl/$GO_TAR -o $GO_TAR ;\
+  GO_SHA="$(sha256sum $GO_TAR | cut -d" " -f2)" ;\
+  echo "$GO_VERSION_SHAS" | sed "s/ /\n/g" | grep -q "$GO_SHA" || { echo "SHA256 mismatch for $GO_TAR $GO_SHA"; exit 1; } ;\
+  tar -C /usr/local -xzf $GO_TAR ;\
+  rm $GO_TAR'
+
+ENV GOROOT="/usr/local/go"
+ENV GOPATH="$BUILD_HOME/go"
+ENV PATH="$PATH:/usr/local/go/bin"

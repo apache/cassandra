@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,7 +38,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  * The actual behavior by any instance of this class can be inspected by
  * interacting with the returned {@link MockMessagingSpy}.
  */
-public class MatcherResponse
+public class MatcherResponse implements Closeable
 {
     private final Matcher<?> matcher;
     private final Multimap<Long, InetAddressAndPort> sendResponses =
@@ -182,20 +183,27 @@ public class MatcherResponse
                     }
 
                     // create response asynchronously to match request/response communication execution behavior
-                    new Thread(() ->
+                    spy.responseExecutor.execute(() ->
                     {
                         Message<?> response = fnResponse.apply(message, to);
                         if (response != null)
                         {
-                            RequestCallbacks.CallbackInfo cb = MessagingService.instance().callbacks.get(message.id(), to);
-                            if (cb != null)
-                                cb.callback.onResponse(response);
+                            if (response.verb().isResponse())
+                            {
+                                RequestCallbacks.CallbackInfo cb = MessagingService.instance().callbacks.get(message.id(), to);
+                                if (cb != null)
+                                    cb.callback.onResponse(response);
+                                else
+                                    processResponse(response);
+                            }
                             else
+                            {
                                 processResponse(response);
+                            }
 
                             spy.matchingResponse(response);
                         }
-                    }).start();
+                    });
 
                     return false;
                 }
@@ -230,5 +238,12 @@ public class MatcherResponse
     public void destroy()
     {
         MessagingService.instance().outboundSink.remove(sink);
+    }
+
+    @Override
+    public void close()
+    {
+        destroy();
+        spy.close();
     }
 }

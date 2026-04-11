@@ -1,3 +1,4 @@
+[[saiUsingCollectionsSetExamples]]
 = Using the set type
 
 This example uses the following table and index:

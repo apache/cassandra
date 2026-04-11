@@ -21,17 +21,19 @@ import java.lang.management.ManagementFactory;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 public class MmapFileTest
 {
@@ -86,8 +88,8 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
                 buffer.putInt(42);
-                
-                FileUtils.clean(buffer);
+
+                MemoryUtil.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -114,7 +116,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -139,7 +141,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                FileUtils.clean(buffer);
+                MemoryUtil.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");

@@ -20,13 +20,25 @@ package org.apache.cassandra.stress.operations.userdefined;
  * 
  */
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.LocalDate;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
 import org.antlr.runtime.RecognitionException;
+
 import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlParser;
@@ -41,18 +53,6 @@ import org.apache.cassandra.stress.generate.values.Generator;
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.utils.Pair;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 
 public class CASQuery extends SchemaStatement
 {
@@ -81,15 +81,15 @@ public class CASQuery extends SchemaStatement
             throw new IllegalArgumentException("could not parse update query:" + statement.getQueryString(), e);
         }
 
-        final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> casConditionList = modificationStatement.getConditions();
+        final List<ColumnCondition.Raw> casConditionList = modificationStatement.getConditions();
         List<Integer> casConditionIndex = new ArrayList<>();
 
         boolean first = true;
         StringBuilder casReadConditionQuery = new StringBuilder();
         casReadConditionQuery.append("SELECT ");
-        for (final Pair<ColumnIdentifier, ColumnCondition.Raw> condition : casConditionList)
+        for (final ColumnCondition.Raw condition : casConditionList)
         {
-            if (!condition.right.getValue().getText().equals("?"))
+            if (!condition.containsBindMarkers())
             {
                 //condition uses static value, ignore it
                 continue;
@@ -98,8 +98,9 @@ public class CASQuery extends SchemaStatement
             {
                 casReadConditionQuery.append(", ");
             }
-            casReadConditionQuery.append(condition.left.toString());
-            casConditionIndex.add(getDataSpecification().partitionGenerator.indexOf(condition.left.toString()));
+            ColumnIdentifier column = condition.columnExpression().identifiers().get(0);
+            casReadConditionQuery.append(column.toString());
+            casConditionIndex.add(getDataSpecification().partitionGenerator.indexOf(column.toString()));
             first = false;
         }
         casReadConditionQuery.append(" FROM ").append(tableName).append(" WHERE ");

@@ -25,19 +25,27 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.regex.Pattern;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
 import com.google.common.net.HostAndPort;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -55,9 +63,10 @@ import org.apache.cassandra.utils.FastByteOperations;
  * need to sometimes return a port and sometimes not.
  *
  */
-public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable
+public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable, Endpoint
 {
     private static final long serialVersionUID = 0;
+    private static final Logger logger = LoggerFactory.getLogger(InetAddressAndPort.class);
 
     //Store these here to avoid requiring DatabaseDescriptor to be loaded. DatabaseDescriptor will set
     //these when it loads the config. A lot of unit tests won't end up loading DatabaseDescriptor.
@@ -219,6 +228,17 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
         return getByNameOverrideDefaults(name, null);
     }
 
+    public static InetAddressAndPort getByNameUnchecked(String name)
+    {
+        try
+        {
+            return getByNameOverrideDefaults(name, null);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static List<InetAddressAndPort> getAllByName(String name) throws UnknownHostException
     {
@@ -311,11 +331,83 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
         defaultPort = port;
     }
 
+    public static List<String> stringify(Iterable<InetAddressAndPort> endpoints)
+    {
+        return stringify(endpoints, true);
+    }
+
+    public static List<String> stringify(Iterable<InetAddressAndPort> endpoints, boolean withPort)
+    {
+        List<String> stringEndpoints = new ArrayList<>();
+        for (InetAddressAndPort ep : endpoints)
+        {
+            stringEndpoints.add(ep.getHostAddress(withPort));
+        }
+        return stringEndpoints;
+    }
+
+    /**
+     * Parses a comma-separated list of hosts to a set of {@link InetAddressAndPort}
+     *
+     * @param value       the comma-separated list of hosts to parse
+     * @param failOnError whether to fail when encountering an invalid hostname
+     * @return the set of parsed {@link InetAddressAndPort}
+     */
+    public static Set<InetAddressAndPort> parseHosts(String value, boolean failOnError)
+    {
+        Set<InetAddressAndPort> hosts = new HashSet<>();
+        for (String host : Splitter.on(',').split(value))
+        {
+            try
+            {
+                hosts.add(InetAddressAndPort.getByName(host));
+            }
+            catch (UnknownHostException e)
+            {
+                if (failOnError)
+                {
+                    throw new IllegalArgumentException("Failed to parse host: " + host, e);
+                }
+                else
+                {
+                    logger.warn("Invalid ip address {} from input={}", host, value);
+                }
+            }
+        }
+        return hosts;
+    }
+
     static int getDefaultPort()
     {
         return defaultPort;
     }
 
+    @Override
+    public InetAddressAndPort endpoint()
+    {
+        return this;
+    }
+
+    public static final class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<InetAddressAndPort>
+    {
+        public static final MetadataSerializer serializer = new MetadataSerializer();
+        private static final int SERDE_VERSION = MessagingService.Version.VERSION_40.value;
+
+        public void serialize(InetAddressAndPort t, DataOutputPlus out, Version version) throws IOException
+        {
+            Serializer.inetAddressAndPortSerializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public InetAddressAndPort deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return Serializer.inetAddressAndPortSerializer.deserialize(in, SERDE_VERSION);
+        }
+
+        public long serializedSize(InetAddressAndPort t, Version version)
+        {
+            return Serializer.inetAddressAndPortSerializer.serializedSize(t, SERDE_VERSION);
+        }
+    }
     /**
      * As of version 4.0 the endpoint description includes a port number as an unsigned short
      */

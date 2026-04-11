@@ -26,14 +26,15 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
 import com.datastax.driver.core.UDTValue;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -814,11 +815,11 @@ public class UFJavaTest extends CQLTester
                                                 "java",
                                                 "return 0;");
 
-        Assert.assertTrue(function.toCqlString(true, true).contains("CREATE FUNCTION IF NOT EXISTS"));
-        Assert.assertFalse(function.toCqlString(true, false).contains("CREATE FUNCTION IF NOT EXISTS"));
+        Assert.assertTrue(function.toCqlString(true, true, true).contains("CREATE FUNCTION IF NOT EXISTS"));
+        Assert.assertFalse(function.toCqlString(true, true, false).contains("CREATE FUNCTION IF NOT EXISTS"));
 
-        Assert.assertEquals(function.toCqlString(true, true), function.toCqlString(false, true));
-        Assert.assertEquals(function.toCqlString(true, false), function.toCqlString(false, false));
+        Assert.assertEquals(function.toCqlString(true, true, true), function.toCqlString(true, false, true));
+        Assert.assertEquals(function.toCqlString(true, true, false), function.toCqlString(true, false, false));
     }
 
     @Test
@@ -853,10 +854,10 @@ public class UFJavaTest extends CQLTester
                                                    Int32Type.instance,
                                                    null);
 
-        Assert.assertTrue(aggregate.toCqlString(true, true).contains("CREATE AGGREGATE IF NOT EXISTS"));
-        Assert.assertFalse(aggregate.toCqlString(true, false).contains("CREATE AGGREGATE IF NOT EXISTS"));
+        Assert.assertTrue(aggregate.toCqlString(true, true, true).contains("CREATE AGGREGATE IF NOT EXISTS"));
+        Assert.assertFalse(aggregate.toCqlString(true, true, false).contains("CREATE AGGREGATE IF NOT EXISTS"));
 
-        Assert.assertEquals(aggregate.toCqlString(true, true), aggregate.toCqlString(false, true));
-        Assert.assertEquals(aggregate.toCqlString(true, false), aggregate.toCqlString(false, false));
+        Assert.assertEquals(aggregate.toCqlString(true, true, true), aggregate.toCqlString(true, false, true));
+        Assert.assertEquals(aggregate.toCqlString(true, true, false), aggregate.toCqlString(true, false, false));
     }
 }

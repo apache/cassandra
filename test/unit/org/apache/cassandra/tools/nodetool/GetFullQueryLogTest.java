@@ -30,6 +30,14 @@ import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for the {@code GetFullQueryLog} nodetool command.
+ *
+ * @see GetFullQueryLog
+ * @see EnableFullQueryLog
+ * @see ResetFullQueryLog
+ * @see DisableFullQueryLog
+ */
 public class GetFullQueryLogTest extends CQLTester
 {
     @ClassRule

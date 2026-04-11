@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -24,22 +25,57 @@ import java.util.Map.Entry;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.BloomCalculations;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.cassandra.schema.TableParams.Option.*;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
+import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
+import static org.apache.cassandra.schema.TableParams.Option.ALLOW_AUTO_SNAPSHOT;
+import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.CACHING;
+import static org.apache.cassandra.schema.TableParams.Option.CDC;
+import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
+import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
+import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
+import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.EXTENSIONS;
+import static org.apache.cassandra.schema.TableParams.Option.FAST_PATH;
+import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
+import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
+import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
+import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.PENDING_DROP;
+import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public final class TableParams
 {
+    public static final Serializer serializer = new Serializer();
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
@@ -60,16 +96,22 @@ public final class TableParams
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
-        READ_REPAIR;
+        READ_REPAIR,
+        FAST_PATH,
+        TRANSACTIONAL_MODE,
+        TRANSACTIONAL_MIGRATION_FROM,
+        PENDING_DROP,
+        AUTO_REPAIR;
 
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return toLowerCaseLocalized(name());
         }
     }
 
     public final String comment;
+    public final String securityLabel;
     public final boolean allowAutoSnapshot;
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
@@ -88,10 +130,17 @@ public final class TableParams
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
+    public final FastPathStrategy fastPath;
+    public final TransactionalMode transactionalMode;
+    public final TransactionalMigrationFromMode transactionalMigrationFrom;
+    public final boolean pendingDrop;
+
+    public final AutoRepairParams autoRepair;
 
     private TableParams(Builder builder)
     {
         comment = builder.comment;
+        securityLabel = builder.securityLabel;
         allowAutoSnapshot = builder.allowAutoSnapshot;
         bloomFilterFpChance = builder.bloomFilterFpChance == -1
                             ? builder.compaction.defaultBloomFilterFbChance()
@@ -112,6 +161,12 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        fastPath = builder.fastPath;
+        transactionalMode = builder.transactionalMode != null ? builder.transactionalMode : TransactionalMode.off;
+        transactionalMigrationFrom = builder.transactionalMigrationFrom;
+        pendingDrop = builder.pendingDrop;
+        checkNotNull(transactionalMigrationFrom);
+        autoRepair = builder.autoRepair;
     }
 
     public static Builder builder()
@@ -125,6 +180,7 @@ public final class TableParams
                             .bloomFilterFpChance(params.bloomFilterFpChance)
                             .caching(params.caching)
                             .comment(params.comment)
+                            .securityLabel(params.securityLabel)
                             .compaction(params.compaction)
                             .compression(params.compression)
                             .memtable(params.memtable)
@@ -139,7 +195,12 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .fastPath(params.fastPath)
+                            .transactionalMode(params.transactionalMode)
+                            .transactionalMigrationFrom(params.transactionalMigrationFrom)
+                            .pendingDrop(params.pendingDrop)
+                            .automatedRepair(params.autoRepair);
     }
 
     public Builder unbuild()
@@ -153,7 +214,7 @@ public final class TableParams
         compression.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
-        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        if (bloomFilterFpChance <= minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
             fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  BLOOM_FILTER_FP_CHANCE,
@@ -194,6 +255,11 @@ public final class TableParams
 
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
+
+        if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
+            fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
+
+        autoRepair.validate();
     }
 
     private static void fail(String format, Object... args)
@@ -213,6 +279,7 @@ public final class TableParams
         TableParams p = (TableParams) o;
 
         return comment.equals(p.comment)
+            && securityLabel.equals(p.securityLabel)
             && additionalWritePolicy.equals(p.additionalWritePolicy)
             && allowAutoSnapshot == p.allowAutoSnapshot
             && bloomFilterFpChance == p.bloomFilterFpChance
@@ -230,13 +297,19 @@ public final class TableParams
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
-            && readRepair == p.readRepair;
+            && readRepair == p.readRepair
+            && fastPath.equals(p.fastPath)
+            && transactionalMode == p.transactionalMode
+            && transactionalMigrationFrom == p.transactionalMigrationFrom
+            && pendingDrop == p.pendingDrop
+            && autoRepair.equals(p.autoRepair);
     }
 
     @Override
     public int hashCode()
     {
         return Objects.hashCode(comment,
+                                securityLabel,
                                 additionalWritePolicy,
                                 allowAutoSnapshot,
                                 bloomFilterFpChance,
@@ -254,7 +327,12 @@ public final class TableParams
                                 memtable,
                                 extensions,
                                 cdc,
-                                readRepair);
+                                readRepair,
+                                fastPath,
+                                transactionalMode,
+                                transactionalMigrationFrom,
+                                pendingDrop,
+                                autoRepair);
     }
 
     @Override
@@ -262,10 +340,12 @@ public final class TableParams
     {
         return MoreObjects.toStringHelper(this)
                           .add(COMMENT.toString(), comment)
+                          .add("SECURITY_LABEL", securityLabel)
                           .add(ADDITIONAL_WRITE_POLICY.toString(), additionalWritePolicy)
                           .add(ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .add(BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(CRC_CHECK_CHANCE.toString(), crcCheckChance)
+                          .add(FAST_PATH.toString(), fastPath)
                           .add(GC_GRACE_SECONDS.toString(), gcGraceSeconds)
                           .add(DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
                           .add(INCREMENTAL_BACKUPS.toString(), incrementalBackups)
@@ -280,6 +360,11 @@ public final class TableParams
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
                           .add(READ_REPAIR.toString(), readRepair)
+                          .add(Option.FAST_PATH.toString(), fastPath)
+                          .add(Option.TRANSACTIONAL_MODE.toString(), transactionalMode)
+                          .add(Option.TRANSACTIONAL_MIGRATION_FROM.toString(), transactionalMigrationFrom)
+                          .add(PENDING_DROP.toString(), pendingDrop)
+                          .add(Option.AUTO_REPAIR.toString(), autoRepair)
                           .toString();
     }
 
@@ -296,6 +381,8 @@ public final class TableParams
                .newLine()
                .append("AND cdc = ").append(cdc)
                .newLine()
+               // TODO: AND comment should be deprecated in future releases in favor of
+               //  JIRA CASSANDRA-20943 Introducing comments and security labels for schema elements
                .append("AND comment = ").appendWithSingleQuotes(comment)
                .newLine()
                .append("AND compaction = ").append(compaction.asMap())
@@ -309,8 +396,8 @@ public final class TableParams
 
         if (!isView)
         {
-            builder.append("AND default_time_to_live = ").append(defaultTimeToLive)
-                   .newLine();
+            builder.append("AND fast_path = ").append(fastPath.asCQL()).newLine();
+            builder.append("AND default_time_to_live = ").append(defaultTimeToLive).newLine();
         }
 
         builder.append("AND extensions = ").append(extensions.entrySet()
@@ -330,13 +417,29 @@ public final class TableParams
                .append("AND min_index_interval = ").append(minIndexInterval)
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
-               .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .newLine();
+
+        if (!isView)
+        {
+               builder.append("AND transactional_mode = ").appendWithSingleQuotes(transactionalMode.toString())
+                      .newLine()
+                      .append("AND transactional_migration_from = ").appendWithSingleQuotes(transactionalMigrationFrom.toString())
+                      .newLine();
+        }
+
+        builder.append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+        if (DatabaseDescriptor.getRawConfig() != null
+            && DatabaseDescriptor.getAutoRepairConfig().isAutoRepairSchedulingEnabled())
+        {
+            builder.newLine()
+                .append("AND auto_repair = ").append(autoRepair.asMap());
+        }
     }
 
     public static final class Builder
     {
         private String comment = "";
+        private String securityLabel = "";
         private boolean allowAutoSnapshot = true;
         private double bloomFilterFpChance = -1;
         private double crcCheckChance = 1.0;
@@ -355,7 +458,12 @@ public final class TableParams
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
+        private FastPathStrategy fastPath = FastPathStrategy.inheritKeyspace();
+        private TransactionalMode transactionalMode = TransactionalMode.off;
+        public TransactionalMigrationFromMode transactionalMigrationFrom = TransactionalMigrationFromMode.none;
+        public boolean pendingDrop = false;
 
+        private AutoRepairParams autoRepair = AutoRepairParams.DEFAULT;
         public Builder()
         {
         }
@@ -368,6 +476,12 @@ public final class TableParams
         public Builder comment(String val)
         {
             comment = val;
+            return this;
+        }
+
+        public Builder securityLabel(String val)
+        {
+            securityLabel = val;
             return this;
         }
 
@@ -473,10 +587,215 @@ public final class TableParams
             return this;
         }
 
+        public Builder fastPath(FastPathStrategy val)
+        {
+            fastPath = val;
+            return this;
+        }
+
+        public Builder transactionalMode(TransactionalMode val)
+        {
+            transactionalMode = val;
+            return this;
+        }
+
+        public Builder transactionalMigrationFrom(TransactionalMigrationFromMode val)
+        {
+            transactionalMigrationFrom = val;
+            return this;
+        }
+
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
             return this;
+        }
+
+        public Builder pendingDrop(boolean pendingDrop)
+        {
+            this.pendingDrop = pendingDrop;
+            return this;
+        }
+
+        public Builder automatedRepair(AutoRepairParams val)
+        {
+            autoRepair = val;
+            return this;
+        }
+    }
+
+    public static class Serializer implements MetadataSerializer<TableParams>
+    {
+        public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.comment);
+            out.writeDouble(t.bloomFilterFpChance);
+            out.writeDouble(t.crcCheckChance);
+            out.writeInt(t.gcGraceSeconds);
+            out.writeInt(t.defaultTimeToLive);
+            out.writeInt(t.memtableFlushPeriodInMs);
+            out.writeInt(t.minIndexInterval);
+            out.writeInt(t.maxIndexInterval);
+            out.writeUTF(t.speculativeRetry.toString());
+            out.writeUTF(t.additionalWritePolicy.toString());
+            if (version.isAtLeast(Version.V2))
+                out.writeUTF(t.memtable.configurationKey());
+            serializeMap(t.caching.asMap(), out);
+            serializeMap(t.compaction.asMap(), out);
+            serializeMap(t.compression.asMap(), out);
+            serializeMapBB(t.extensions, out);
+            out.writeBoolean(t.cdc);
+            out.writeUTF(t.readRepair.name());
+            if (version.isAtLeast(Version.V4))
+            {
+                out.writeBoolean(t.allowAutoSnapshot);
+                out.writeBoolean(t.incrementalBackups);
+            }
+            if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
+            {
+                FastPathStrategy.serializer.serialize(t.fastPath, out, version);
+                out.writeUnsignedVInt32(t.transactionalMode.ordinal());
+                out.writeUnsignedVInt32(t.transactionalMigrationFrom.ordinal());
+                out.writeBoolean(t.pendingDrop);
+            }
+            if (version.isAtLeast(Version.V8))
+                out.writeUTF(t.securityLabel);
+        }
+
+        public TableParams deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            TableParams.Builder builder = TableParams.builder();
+            builder.comment(in.readUTF())
+                   .bloomFilterFpChance(in.readDouble())
+                   .crcCheckChance(in.readDouble())
+                   .gcGraceSeconds(in.readInt())
+                   .defaultTimeToLive(in.readInt())
+                   .memtableFlushPeriodInMs(in.readInt())
+                   .minIndexInterval(in.readInt())
+                   .maxIndexInterval(in.readInt())
+                   .speculativeRetry(SpeculativeRetryPolicy.fromString(in.readUTF()))
+                   .additionalWritePolicy(SpeculativeRetryPolicy.fromString(in.readUTF()))
+                   .memtable(version.isAtLeast(Version.V2) ? MemtableParams.get(in.readUTF()) : MemtableParams.DEFAULT)
+                   .caching(CachingParams.fromMap(deserializeMap(in)))
+                   .compaction(CompactionParams.fromMap(deserializeMap(in)))
+                   .compression(CompressionParams.fromMap(deserializeMap(in)))
+                   .extensions(deserializeMapBB(in))
+                   .cdc(in.readBoolean())
+                   .readRepair(ReadRepairStrategy.fromString(in.readUTF()))
+                   .allowAutoSnapshot(!version.isAtLeast(Version.V4) || in.readBoolean())
+                   .incrementalBackups(!version.isAtLeast(Version.V4) || in.readBoolean());
+            if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
+            {
+                builder.fastPath(FastPathStrategy.serializer.deserialize(in, version))
+                       .transactionalMode(TransactionalMode.fromOrdinal(in.readUnsignedVInt32()))
+                       .transactionalMigrationFrom(TransactionalMigrationFromMode.fromOrdinal(in.readUnsignedVInt32()))
+                       .pendingDrop(in.readBoolean());
+            }
+            if (version.isAtLeast(Version.V8))
+                builder.securityLabel(in.readUTF());
+            return builder.build();
+        }
+
+        public long serializedSize(TableParams t, Version version)
+        {
+            long size = sizeof(t.comment) +
+                   sizeof(t.bloomFilterFpChance) +
+                   sizeof(t.crcCheckChance) +
+                   sizeof(t.gcGraceSeconds) +
+                   sizeof(t.defaultTimeToLive) +
+                   sizeof(t.memtableFlushPeriodInMs) +
+                   sizeof(t.minIndexInterval) +
+                   sizeof(t.maxIndexInterval) +
+                   sizeof(t.speculativeRetry.toString()) +
+                   sizeof(t.additionalWritePolicy.toString()) +
+                   (version.isAtLeast(Version.V2) ? sizeof(t.memtable.configurationKey()) : 0) +
+                   serializedSizeMap(t.caching.asMap()) +
+                   serializedSizeMap(t.compaction.asMap()) +
+                   serializedSizeMap(t.compression.asMap()) +
+                   serializedSizeMapBB(t.extensions) +
+                   sizeof(t.cdc) +
+                   sizeof(t.readRepair.name()) +
+                   (version.isAtLeast(Version.V4) ? sizeof(t.allowAutoSnapshot) : 0) +
+                   (version.isAtLeast(Version.V4) ? sizeof(t.incrementalBackups) : 0);
+            if (version.isAtLeast(Version.MIN_ACCORD_VERSION))
+            {
+                size += FastPathStrategy.serializer.serializedSize(t.fastPath, version) +
+                        sizeofUnsignedVInt(t.transactionalMode.ordinal()) +
+                        sizeofUnsignedVInt(t.transactionalMigrationFrom.ordinal()) +
+                        sizeof(t.pendingDrop);
+            }
+            if (version.isAtLeast(Version.V8))
+            {
+                size += sizeof(t.securityLabel);
+            }
+            return size;
+        }
+
+        private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException
+        {
+            out.writeInt(map.size());
+            for (Map.Entry<String, String> entry : map.entrySet())
+            {
+                out.writeUTF(entry.getKey());
+                out.writeUTF(entry.getValue());
+            }
+        }
+
+        private long serializedSizeMap(Map<String, String> map)
+        {
+            long size = sizeof(map.size());
+            for (Map.Entry<String, String> entry : map.entrySet())
+            {
+                size += sizeof(entry.getKey());
+                size += sizeof(entry.getValue());
+            }
+            return size;
+        }
+
+        private void serializeMapBB(Map<String, ByteBuffer> map, DataOutputPlus out) throws IOException
+        {
+            out.writeInt(map.size());
+            for (Map.Entry<String, ByteBuffer> entry : map.entrySet())
+            {
+                out.writeUTF(entry.getKey());
+                ByteBufferUtil.writeWithVIntLength(entry.getValue(), out);
+            }
+        }
+
+        private long serializedSizeMapBB(Map<String, ByteBuffer> map)
+        {
+            long size = sizeof(map.size());
+            for (Map.Entry<String, ByteBuffer> entry : map.entrySet())
+            {
+                size += sizeof(entry.getKey());
+                size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getValue());
+            }
+            return size;
+        }
+
+        private Map<String, String> deserializeMap(DataInputPlus in) throws IOException
+        {
+            int size = in.readInt();
+            Map<String, String> map = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                String key = in.readUTF();
+                String value = in.readUTF();
+                map.put(key, value);
+            }
+            return map;
+        }
+        private Map<String, ByteBuffer> deserializeMapBB(DataInputPlus in) throws IOException
+        {
+            int size = in.readInt();
+            Map<String, ByteBuffer> map = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                String key = in.readUTF();
+                ByteBuffer value = ByteBufferUtil.readWithVIntLength(in);
+                map.put(key, value);
+            }
+            return map;
         }
     }
 }

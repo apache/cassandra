@@ -43,7 +43,7 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testNull()
     {
-        assertSetInvalidColumnIndexSize(null, "Required parameters are missing: column_index_size", 1);
+        assertSetInvalidColumnIndexSize(null, "Missing required parameter: 'column_index_size'", 1);
     }
 
     @Test
@@ -79,8 +79,8 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @Test
     public void testUnparseable()
     {
-        assertSetInvalidColumnIndexSize("1.2", "column_index_size: can not convert \"1.2\" to a int", 1);
-        assertSetInvalidColumnIndexSize("value", "column_index_size: can not convert \"value\" to a int", 1);
+        assertSetInvalidColumnIndexSize("1.2", "Invalid value for positional parameter at index 0 (column_index_size): '1.2' is not an int", 1);
+        assertSetInvalidColumnIndexSize("value", "Invalid value for positional parameter at index 0 (column_index_size): 'value' is not an int", 1);
     }
 
     private static void assertSetGetValidColumnIndexSize(int columnIndexSizeInKB)

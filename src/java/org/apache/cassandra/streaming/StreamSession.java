@@ -40,12 +40,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-
-import io.netty.channel.Channel;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +56,8 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
+import org.apache.cassandra.db.lifecycle.TransactionAlreadyCompletedException;
+import org.apache.cassandra.dht.OwnedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.File;
@@ -66,18 +67,32 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
-import org.apache.cassandra.streaming.messages.*;
+import org.apache.cassandra.streaming.messages.CompleteMessage;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
+import org.apache.cassandra.streaming.messages.PrepareAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynMessage;
+import org.apache.cassandra.streaming.messages.ReceivedMessage;
+import org.apache.cassandra.streaming.messages.SessionFailedMessage;
+import org.apache.cassandra.streaming.messages.StreamInitMessage;
+import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import io.netty.channel.Channel;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
@@ -111,7 +126,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  *
  * 3. Streaming phase
  *
- *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(boolean)}.
+ *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(PrepareDirection)}.
  *       This will send, sequentially on each outbound streaming connection (see {@link StreamingMultiplexedChannel}),
  *       an {@link OutgoingStreamMessage} for each stream in each of the {@link StreamTransferTask}.
  *       Each {@link OutgoingStreamMessage} consists of a {@link StreamMessageHeader} that contains metadata about
@@ -399,7 +414,7 @@ public class StreamSession
                                                               getPendingRepair(),
                                                               getPreviewKind());
 
-            channel.sendControlMessage(message).sync();
+            sendControlMessage(message).sync();
             onInitializationComplete();
         }
         catch (Exception e)
@@ -449,6 +464,7 @@ public class StreamSession
         //Range and if it's transient
         RangesAtEndpoint unwrappedRanges = replicas.unwrap();
         List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind);
+
         addTransferStreams(streams);
         Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
         if (toBeUpdated == null)
@@ -617,6 +633,16 @@ public class StreamSession
         return state == State.COMPLETE;
     }
 
+    /**
+     * Return if this session was failed or aborted
+     *
+     * @return true if session was failed or aborted
+     */
+    public boolean isFailedOrAborted()
+    {
+        return state == State.FAILED || state == State.ABORTED;
+    }
+
     public synchronized void messageReceived(StreamMessage message)
     {
         if (message.type != StreamMessage.Type.KEEP_ALIVE)
@@ -678,7 +704,7 @@ public class StreamSession
             prepare.summaries.add(task.getSummary());
         }
 
-        channel.sendControlMessage(prepare).syncUninterruptibly();
+        sendControlMessage(prepare).syncUninterruptibly();
     }
 
     /**
@@ -706,13 +732,22 @@ public class StreamSession
                 return closeSession(State.FAILED, "Failed because there was an " + e.getClass().getCanonicalName() + " with state=" + state.name());
             }
         }
+        else if (e instanceof TransactionAlreadyCompletedException && isFailedOrAborted())
+        {
+            // StreamDeserializer threads may actively be writing SSTables when the stream
+            // is failed or canceled, which aborts the lifecycle transaction and throws an exception
+            // when any new SSTable is added.  Since the stream has already failed, suppress
+            // extra streaming log failure messages.
+            logger.debug("Stream lifecycle transaction already completed after stream failure (ignore)", e);
+            return null;
+        }
 
         logError(e);
 
         if (channel.connected())
         {
-            state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
-            channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
+            state(State.FAILED); // make sure subsequent error handling sees the session in a final state
+            sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
         StringBuilder failureReason = new StringBuilder("Failed because of an unknown exception\n");
         boundStackTrace(e, DEBUG_STACKTRACE_LIMIT, failureReason);
@@ -741,19 +776,23 @@ public class StreamSession
 
     /**
      * Prepare this session for sending/receiving files.
+     *
+     * @return the prepare future for testing
      */
-    public void prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    public Future<Exception> prepare(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
         // prepare tasks
         state(State.PREPARING);
-        ScheduledExecutors.nonPeriodicTasks.execute(() -> {
+        return ScheduledExecutors.nonPeriodicTasks.submit(() -> {
             try
             {
                 prepareAsync(requests, summaries);
+                return null;
             }
             catch (Exception e)
             {
                 onError(e);
+                return e;
             }
         });
     }
@@ -767,12 +806,12 @@ public class StreamSession
      * Finish preparing the session. This method is blocking (memtables are flushed in {@link #addTransferRanges}),
      * so the logic should not execute on the main IO thread (read: netty event loop).
      */
-    private void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
+    @VisibleForTesting
+    void prepareAsync(Collection<StreamRequest> requests, Collection<StreamSummary> summaries)
     {
         if (StreamOperation.REPAIR == streamOperation())
             checkAvailableDiskSpaceAndCompactions(summaries);
-        for (StreamRequest request : requests)
-            addTransferRanges(request.keyspace, RangesAtEndpoint.concat(request.full, request.transientReplicas), request.columnFamilies, true); // always flush on stream request
+        processStreamRequests(requests);
         for (StreamSummary summary : summaries)
             prepareReceiving(summary);
 
@@ -789,7 +828,7 @@ public class StreamSession
         // see CASSANDRA-17116
         if (isPreview())
             state(State.COMPLETE);
-        channel.sendControlMessage(prepareSynAck).syncUninterruptibly();
+        sendControlMessage(prepareSynAck).syncUninterruptibly();
 
         if (isPreview())
             completePreview();
@@ -808,7 +847,7 @@ public class StreamSession
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
             if (!isPreview())
-                channel.sendControlMessage(new PrepareAckMessage()).syncUninterruptibly();
+                sendControlMessage(new PrepareAckMessage()).syncUninterruptibly();
         }
 
         if (isPreview())
@@ -824,6 +863,36 @@ public class StreamSession
         startStreamingFiles(PrepareDirection.ACK);
     }
 
+    protected Future<?> sendControlMessage(StreamMessage message)
+    {
+        return channel.sendControlMessage(message);
+    }
+
+    private void processStreamRequests(Collection<StreamRequest> requests)
+    {
+        List<StreamRequest> rejectedRequests = new ArrayList<>();
+
+        // group requests by keyspace
+        Multimap<String, StreamRequest> requestsByKeyspace = ArrayListMultimap.create();
+        requests.forEach(r -> requestsByKeyspace.put(r.keyspace, r));
+
+        requestsByKeyspace.asMap().forEach((ks, reqs) ->
+                                           {
+                                               OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks, getBroadcastAddressAndPort());
+
+                                               reqs.forEach(req ->
+                                                            {
+                                                                RangesAtEndpoint allRangesAtEndpoint = RangesAtEndpoint.concat(req.full, req.transientReplicas);
+                                                                if (ownedRanges.validateRangeRequest(allRangesAtEndpoint.ranges(), "Stream #" + planId(), "stream request", peer))
+                                                                    addTransferRanges(req.keyspace, allRangesAtEndpoint, req.columnFamilies, true); // always flush on stream request
+                                                                else
+                                                                    rejectedRequests.add(req);
+                                                            });
+                                           });
+
+        if (!rejectedRequests.isEmpty())
+            throw new StreamRequestOutOfTokenRangeException(rejectedRequests);
+    }
     /**
      * In the case where we have an error checking disk space we allow the Operation to continue.
      * In the case where we do _not_ have available space, this method raises a RTE.
@@ -1022,7 +1091,7 @@ public class StreamSession
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
-        channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
+        sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         long receivedStartNanos = nanoTime();
         try
@@ -1105,7 +1174,7 @@ public class StreamSession
             // before sending the message (without closing the channel)
             // see CASSANDRA-17116
             state(State.COMPLETE);
-            channel.sendControlMessage(new CompleteMessage()).syncUninterruptibly();
+            sendControlMessage(new CompleteMessage()).syncUninterruptibly();
             closeSession(State.COMPLETE);
         }
 
@@ -1202,7 +1271,7 @@ public class StreamSession
     {
         failIfFinished();
         if (summary.files > 0)
-            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
+            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.ranges, summary.files, summary.totalSize));
     }
 
     private void startStreamingFiles(@Nullable PrepareDirection prepareDirection)
@@ -1222,7 +1291,7 @@ public class StreamSession
                     // pass the session planId/index to the OFM (which is only set at init(), after the transfers have already been created)
                     ofm.header.addSessionInfo(this);
                     // do not sync here as this does disk access
-                    channel.sendControlMessage(ofm);
+                    sendControlMessage(ofm);
                 }
             }
             else
@@ -1239,8 +1308,16 @@ public class StreamSession
         return requests.size();
     }
 
-    @VisibleForTesting
     public int getNumTransfers()
+    {
+        return transfers.size();
+    }
+
+    //TODO (now, review): there were 2 tests that use this (nothing else) and both are checking that its > 1... but in both cases they are checking if there are transfer tasks, but there isn't any as the range doesn't have data...
+    // This looks like AccordBootstrapTest and LocalSyncTaskTest have a test bug, so rather than fixing this method was created to keep the old semantic...
+    @Deprecated(since = "5.1")
+    @VisibleForTesting
+    public int getNumKeyspaceTransfers()
     {
         return transferredRangesPerKeyspace.size();
     }
@@ -1325,7 +1402,7 @@ public class StreamSession
         logger.info("[Stream #{}] Aborting stream session with peer {}...", planId(), peer);
 
         if (channel.connected())
-            channel.sendControlMessage(new SessionFailedMessage());
+            sendControlMessage(new SessionFailedMessage());
 
         try
         {

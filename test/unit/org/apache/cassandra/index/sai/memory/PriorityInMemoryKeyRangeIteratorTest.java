@@ -21,8 +21,8 @@ import java.util.Arrays;
 import java.util.PriorityQueue;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 public class PriorityInMemoryKeyRangeIteratorTest extends AbstractInMemoryKeyRangeIteratorTester
 {

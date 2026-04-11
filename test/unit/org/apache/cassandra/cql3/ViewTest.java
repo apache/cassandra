@@ -23,11 +23,17 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
+import com.datastax.driver.core.ResultSet;
+
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMRules;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -42,11 +48,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMRules;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -424,7 +425,7 @@ public class ViewTest extends ViewAbstractTest
         assertRowsNet(executeViewNet("SELECT * FROM %s"), row(1, 0));
     }
 
-    private void testViewBuilderResume(int concurrentViewBuilders) throws Throwable
+    private void testViewBuilderResumeHelper(int concurrentViewBuilders) throws Throwable
     {
         createTable("CREATE TABLE %s (" +
                     "k int, " +
@@ -481,7 +482,7 @@ public class ViewTest extends ViewAbstractTest
     {
         for (int i = 1; i <= 8; i *= 2)
         {
-            testViewBuilderResume(i);
+            testViewBuilderResumeHelper(i);
         }
     }
 

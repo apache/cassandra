@@ -31,7 +31,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
@@ -53,15 +53,15 @@ public abstract class AbstractStrategyHolder
     public static class TaskSupplier implements Comparable<TaskSupplier>
     {
         private final int numRemaining;
-        private final Supplier<AbstractCompactionTask> supplier;
+        private final Supplier<Collection<AbstractCompactionTask>> supplier;
 
-        TaskSupplier(int numRemaining, Supplier<AbstractCompactionTask> supplier)
+        TaskSupplier(int numRemaining, Supplier<Collection<AbstractCompactionTask>> supplier)
         {
             this.numRemaining = numRemaining;
             this.supplier = supplier;
         }
 
-        public AbstractCompactionTask getTask()
+        public Collection<AbstractCompactionTask> getTasks()
         {
             return supplier.get();
         }
@@ -181,6 +181,7 @@ public abstract class AbstractStrategyHolder
         return new GroupedSSTableContainer(this);
     }
 
+    public abstract void addSSTable(SSTableReader sstable);
     public abstract void addSSTables(GroupedSSTableContainer sstables);
 
     public abstract void removeSSTables(GroupedSSTableContainer sstables);
@@ -199,7 +200,7 @@ public abstract class AbstractStrategyHolder
                                                                 int sstableLevel,
                                                                 SerializationHeader header,
                                                                 Collection<Index.Group> indexGroups,
-                                                                LifecycleNewTracker lifecycleNewTracker);
+                                                                ILifecycleTransaction txn);
 
     /**
      * Return the directory index the given compaction strategy belongs to, or -1

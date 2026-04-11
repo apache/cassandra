@@ -19,6 +19,8 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
 
@@ -30,6 +32,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static java.util.stream.Stream.of;
 import static org.apache.cassandra.utils.Throwables.perform;
@@ -63,27 +66,22 @@ public class MmappedRegions extends SharedCloseableImpl
      */
     private volatile State copy;
 
-    private MmappedRegions(ChannelProxy channel, CompressionMetadata metadata, long length)
-    {
-        this(new State(channel), metadata, length);
-    }
-
-    private MmappedRegions(State state, CompressionMetadata metadata, long length)
+    private MmappedRegions(State state, long length, int chunkSize)
     {
         super(new Tidier(state));
-
         this.state = state;
-
-        if (metadata != null)
+        if (length > 0)
         {
-            assert length == 0 : "expected no length with metadata";
-            updateState(metadata);
+            updateState(length, chunkSize);
         }
-        else if (length > 0)
-        {
-            updateState(length);
-        }
+        this.copy = new State(state);
+    }
 
+    private MmappedRegions(State state, CompressionMetadata metadata)
+    {
+        super(new Tidier(state));
+        this.state = state;
+        updateState(metadata);
         this.copy = new State(state);
     }
 
@@ -95,7 +93,7 @@ public class MmappedRegions extends SharedCloseableImpl
 
     public static MmappedRegions empty(ChannelProxy channel)
     {
-        return new MmappedRegions(channel, null, 0);
+        return new MmappedRegions(new State(channel), 0, 0);
     }
 
     /**
@@ -107,16 +105,16 @@ public class MmappedRegions extends SharedCloseableImpl
     {
         if (metadata == null)
             throw new IllegalArgumentException("metadata cannot be null");
-
-        return new MmappedRegions(channel, metadata, 0);
+        State state = new State(channel);
+        return new MmappedRegions(state, metadata);
     }
 
-    public static MmappedRegions map(ChannelProxy channel, long length)
+    public static MmappedRegions map(ChannelProxy channel, long length, int chunkSize)
     {
         if (length <= 0)
             throw new IllegalArgumentException("Length must be positive");
-
-        return new MmappedRegions(channel, null, length);
+        State state = new State(channel);
+        return new MmappedRegions(state, length, chunkSize);
     }
 
     /**
@@ -138,8 +136,10 @@ public class MmappedRegions extends SharedCloseableImpl
      *
      * @return {@code true} if new regions have been created
      */
-    public boolean extend(long length)
+    public boolean extend(long length, int chunkSize)
     {
+        // We cannot enforce length to be a multiple of chunkSize (at the very least the last extend on a file
+        // will not satisfy this), so we hope the caller knows what they are doing.
         if (length < 0)
             throw new IllegalArgumentException("Length must not be negative");
 
@@ -149,7 +149,7 @@ public class MmappedRegions extends SharedCloseableImpl
             return false;
 
         int initialRegions = state.last;
-        updateState(length);
+        updateState(length, chunkSize);
         copy = new State(state);
         return state.last > initialRegions;
     }
@@ -160,7 +160,7 @@ public class MmappedRegions extends SharedCloseableImpl
      *
      * @return {@code true} if new regions have been created
      */
-    public boolean extend(CompressionMetadata compressionMetadata)
+    public boolean extend(CompressionMetadata compressionMetadata, int chunkSize)
     {
         assert !isCopy() : "Copies cannot be extended";
 
@@ -169,7 +169,7 @@ public class MmappedRegions extends SharedCloseableImpl
 
         int initialRegions = state.last;
         if (compressionMetadata.compressedFileLength - state.length <= MAX_SEGMENT_SIZE)
-            updateState(compressionMetadata.compressedFileLength);
+            updateState(compressionMetadata.compressedFileLength, chunkSize);
         else
             updateState(compressionMetadata);
 
@@ -181,13 +181,15 @@ public class MmappedRegions extends SharedCloseableImpl
      * Updates state by adding the remaining segments. It starts with the current state last segment end position and
      * subsequently add new segments until all data up to the provided length are mapped.
      */
-    private void updateState(long length)
+    private void updateState(long length, int chunkSize)
     {
+        // make sure the regions span whole chunks
+        long maxSize = Math.max(chunkSize, (long) (MAX_SEGMENT_SIZE / chunkSize) * chunkSize);
         state.length = length;
         long pos = state.getPosition();
         while (pos < length)
         {
-            long size = Math.min(MAX_SEGMENT_SIZE, length - pos);
+            long size = Math.min(maxSize, length - pos);
             state.add(pos, size);
             pos += size;
         }
@@ -263,11 +265,27 @@ public class MmappedRegions extends SharedCloseableImpl
             this.buffer = buffer;
         }
 
+        @Override
         public ByteBuffer buffer()
         {
             return buffer.duplicate();
         }
 
+        @Override
+        public FloatBuffer floatBuffer()
+        {
+            // this does an implicit duplicate(), so we need to expose it directly to avoid doing it twice unnecessarily
+            return buffer.asFloatBuffer();
+        }
+
+        @Override
+        public IntBuffer intBuffer()
+        {
+            // this does an implicit duplicate(), so we need to expose it directly to avoid doing it twice unnecessarily
+            return buffer.asIntBuffer();
+        }
+
+        @Override
         public long offset()
         {
             return offset;
@@ -278,6 +296,7 @@ public class MmappedRegions extends SharedCloseableImpl
             return offset + buffer.capacity();
         }
 
+        @Override
         public void release()
         {
             // only released after no readers are present
@@ -382,7 +401,7 @@ public class MmappedRegions extends SharedCloseableImpl
                                 () ->
                                 {
                                     if (buffer != null)
-                                        FileUtils.clean(buffer);
+                                        MemoryUtil.clean(buffer);
                                 }));
         }
     }

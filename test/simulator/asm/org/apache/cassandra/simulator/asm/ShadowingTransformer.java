@@ -244,6 +244,12 @@ public class ShadowingTransformer extends ClassTransformer
     }
 
     @Override
+    public void visitPermittedSubclass(String permittedSubclass)
+    {
+        super.visitPermittedSubclass(toShadowType(permittedSubclass));
+    }
+
+    @Override
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value)
     {
         return super.visitField(access, name, toShadowTypeDescriptor(descriptor), signature, value);

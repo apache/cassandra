@@ -18,71 +18,49 @@
 package org.apache.cassandra.io.sstable;
 
 
-import java.io.IOException;
-import java.util.function.BiPredicate;
-
 import com.google.common.io.Files;
-import org.apache.cassandra.io.util.File;
+
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
-import static org.junit.Assert.assertEquals;
-
-public class CQLSSTableWriterClientTest
+public class CQLSSTableWriterClientTest extends CQLSSTableWriterTest
 {
     private File testDirectory;
+    private IPartitioner oldPartitioner;
 
     @Before
-    public void setUp()
+    public void setup()
     {
+        // setting this to true will execute a CQL query to table
+        // and this path is not enabled in client mode
+        verifyDataAfterLoading = false;
+
         this.testDirectory = new File(Files.createTempDir());
-        DatabaseDescriptor.clientInitialization();
-    }
-
-    @Test
-    public void testWriterInClientMode() throws IOException, InvalidRequestException
-    {
-        final String TABLE1 = "table1";
-        final String TABLE2 = "table2";
-
-        String schema = "CREATE TABLE client_test.%s ("
-                            + "  k int PRIMARY KEY,"
-                            + "  v1 text,"
-                            + "  v2 int"
-                            + ")";
-        String insert = "INSERT INTO client_test.%s (k, v1, v2) VALUES (?, ?, ?)";
-
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                  .inDirectory(this.testDirectory)
-                                                  .forTable(String.format(schema, TABLE1))
-                                                  .using(String.format(insert, TABLE1)).build();
-
-        CQLSSTableWriter writer2 = CQLSSTableWriter.builder()
-                                                   .inDirectory(this.testDirectory)
-                                                   .forTable(String.format(schema, TABLE2))
-                                                   .using(String.format(insert, TABLE2)).build();
-
-        writer.addRow(0, "A", 0);
-        writer2.addRow(0, "A", 0);
-        writer.addRow(1, "B", 1);
-        writer2.addRow(1, "B", 1);
-        writer.close();
-        writer2.close();
-
-        BiPredicate<File, String> filter = (dir, name) -> name.endsWith("-Data.db");
-
-        File[] dataFiles = this.testDirectory.tryList(filter);
-        assertEquals(2, dataFiles.length);
+        DatabaseDescriptor.clientInitialization(true,
+                                                () -> {
+                                                    Config config = new Config();
+                                                    config.data_file_directories = new String[]{ testDirectory.absolutePath() };
+                                                    return config;
+                                                });
+        CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.setBoolean(true);
+        oldPartitioner = DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        Keyspace.setInitialized();
     }
 
     @After
     public void tearDown()
     {
         FileUtils.deleteRecursive(this.testDirectory);
+        if (oldPartitioner != null)
+            DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 }

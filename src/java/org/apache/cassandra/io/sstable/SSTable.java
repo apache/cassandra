@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -39,6 +40,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -203,6 +205,11 @@ public abstract class SSTable
         return descriptor.ksname;
     }
 
+    public SSTableId getId()
+    {
+        return descriptor.id;
+    }
+
     public List<String> getAllFilePaths()
     {
         List<String> ret = new ArrayList<>(components.size());
@@ -320,7 +327,7 @@ public abstract class SSTable
     public synchronized void addComponents(Collection<Component> newComponents)
     {
         Collection<Component> componentsToAdd = Collections2.filter(newComponents, Predicates.not(Predicates.in(components)));
-        TOCComponent.appendTOC(descriptor, componentsToAdd);
+        TOCComponent.updateTOC(descriptor, componentsToAdd);
         components.addAll(componentsToAdd);
     }
 
@@ -332,7 +339,7 @@ public abstract class SSTable
     public synchronized void registerComponents(Collection<Component> newComponents, Tracker tracker)
     {
         Collection<Component> componentsToAdd = new HashSet<>(Collections2.filter(newComponents, x -> !components.contains(x)));
-        TOCComponent.appendTOC(descriptor, componentsToAdd);
+        TOCComponent.updateTOC(descriptor, componentsToAdd);
         components.addAll(componentsToAdd);
 
         for (Component component : componentsToAdd)
@@ -345,7 +352,7 @@ public abstract class SSTable
 
     /**
      * Unregisters custom components from sstable and update size tracking
-     * @param removeComponents collection of components to be remove
+     * @param removeComponents collection of components to be removed
      * @param tracker used to update on-disk size metrics
      */
     public synchronized void unregisterComponents(Collection<Component> removeComponents, Tracker tracker)
@@ -369,6 +376,8 @@ public abstract class SSTable
         OpOrder.Barrier newReadOrderingBarrier();
 
         TableMetrics getMetrics();
+
+        CompressionDictionaryManager compressionDictionaryManager();
     }
 
     /**

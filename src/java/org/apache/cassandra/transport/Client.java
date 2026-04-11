@@ -22,7 +22,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.base.Splitter;
 
@@ -33,18 +38,27 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.transport.messages.AuthResponse;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.RegisterMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
+
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class Client extends SimpleClient
 {
     private final SimpleEventHandler eventHandler = new SimpleEventHandler();
 
-    public Client(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
+    public Client(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
-        super(host, port, version, version.isBeta(), new EncryptionOptions(encryptionOptions).applyConfig());
+        super(host, port, version, version.isBeta(), encryptionOptions.applyConfig());
         setEventHandler(eventHandler);
     }
 
@@ -100,7 +114,7 @@ public class Client extends SimpleClient
         Iterator<String> iter = splitter.split(line).iterator();
         if (!iter.hasNext())
             return null;
-        String msgType = iter.next().toUpperCase();
+        String msgType = toUpperCaseLocalized(iter.next());
         if (msgType.equals("STARTUP"))
         {
             Map<String, String> options = new HashMap<String, String>();
@@ -108,17 +122,17 @@ public class Client extends SimpleClient
             while (iter.hasNext())
             {
                String next = iter.next();
-               if (next.toLowerCase().equals("snappy"))
+               if (toLowerCaseLocalized(next).equals("snappy"))
                {
                    options.put(StartupMessage.COMPRESSION, "snappy");
                    connection.setCompressor(Compressor.SnappyCompressor.instance);
                }
-               if (next.toLowerCase().equals("lz4"))
+               if (toLowerCaseLocalized(next).equals("lz4"))
                {
                    options.put(StartupMessage.COMPRESSION, "lz4");
                    connection.setCompressor(Compressor.LZ4Compressor.instance);
                }
-               if (next.toLowerCase().equals("throw_on_overload"))
+               if (toLowerCaseLocalized(next).equals("throw_on_overload"))
                {
                    options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
                    connection.setThrowOnOverload(true);
@@ -198,7 +212,7 @@ public class Client extends SimpleClient
         }
         else if (msgType.equals("REGISTER"))
         {
-            String type = line.substring(9).toUpperCase();
+            String type = toUpperCaseLocalized(line.substring(9));
             try
             {
                 return new RegisterMessage(Collections.singletonList(Enum.valueOf(Event.Type.class, type)));
@@ -257,10 +271,13 @@ public class Client extends SimpleClient
         int port = Integer.parseInt(args[1]);
         ProtocolVersion version = args.length == 3 ? ProtocolVersion.decode(Integer.parseInt(args[2]), DatabaseDescriptor.getNativeTransportAllowOlderProtocols()) : ProtocolVersion.CURRENT;
 
-        EncryptionOptions encryptionOptions = new EncryptionOptions().applyConfig();
+        EncryptionOptions.ClientEncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions().applyConfig();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
-        new Client(host, port, version, encryptionOptions).run();
+        try (Client client = new Client(host, port, version, encryptionOptions))
+        {
+            client.run();
+        }
         System.exit(0);
     }
 }

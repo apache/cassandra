@@ -18,47 +18,80 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.BatchQueryOptions;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.metrics.BatchMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
-import org.apache.cassandra.service.*;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.PreserveTimestamp;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.TimestampSource;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.function.Predicate.isEqual;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
  */
-public class BatchStatement implements CQLStatement
+public class BatchStatement implements CQLStatement.CompositeCQLStatement
 {
     public enum Type
     {
@@ -109,27 +142,62 @@ public class BatchStatement implements CQLStatement
         this.attrs = attrs;
 
         boolean hasConditions = false;
-        MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
-        RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
         boolean updateRegular = false;
         boolean updateStatic = false;
         boolean updatesVirtualTables = false;
 
+        boolean sameTableAndColumnsNoConditions = true;
+        TableMetadata tableMetadata = null;
+        RegularAndStaticColumns regularAndStaticColumns = null;
+        // we check initially if it is a typical scenario:
+        // when many similar rows for the same table are written unconditionally
+        // in this case we can avoid columns info merging and builders allocation
         for (ModificationStatement stmt : statements)
         {
-            regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
+            if (tableMetadata == null)
+                tableMetadata = stmt.metadata();
+            if (regularAndStaticColumns == null)
+                regularAndStaticColumns = stmt.updatedColumns();
+
+            if (tableMetadata != stmt.metadata()
+                || regularAndStaticColumns != stmt.updatedColumns()
+                || stmt.hasConditions())
+            {
+                sameTableAndColumnsNoConditions = false;
+                break;
+            }
+
             updateRegular |= stmt.updatesRegularRows();
             updatesVirtualTables |= stmt.isVirtual();
-            if (stmt.hasConditions())
-            {
-                hasConditions = true;
-                conditionBuilder.addAll(stmt.conditionColumns());
-                updateStatic |= stmt.updatesStaticRow();
-            }
+            updateStatic |= stmt.updatesStaticRow();
         }
 
-        this.updatedColumns = regularBuilder.build();
-        this.conditionColumns = conditionBuilder.build();
+        if (sameTableAndColumnsNoConditions && tableMetadata != null)
+        {
+            this.updatedColumns = Collections.singletonMap(tableMetadata.id(), regularAndStaticColumns);
+            this.conditionColumns = RegularAndStaticColumns.NONE;
+        }
+        else
+        {
+
+            MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
+            RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
+            for (ModificationStatement stmt : statements)
+            {
+                regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
+                updateRegular |= stmt.updatesRegularRows();
+                updatesVirtualTables |= stmt.isVirtual();
+                if (stmt.hasConditions())
+                {
+                    hasConditions = true;
+                    conditionBuilder.addAll(stmt.conditionColumns());
+                    updateStatic |= stmt.updatesStaticRow();
+                }
+            }
+
+            this.updatedColumns = regularBuilder.build();
+            this.conditionColumns = conditionBuilder.build();
+        }
         this.updatesRegularRows = updateRegular;
         this.updatesStaticRow = updateStatic;
         this.hasConditions = hasConditions;
@@ -137,9 +205,9 @@ public class BatchStatement implements CQLStatement
     }
 
     @Override
-    public List<ColumnSpecification> getBindVariables()
+    public ImmutableList<ColumnSpecification> getBindVariables()
     {
-        return bindVariables.getBindVariables();
+        return bindVariables.getImmutableBindVariables();
     }
 
     @Override
@@ -164,6 +232,13 @@ public class BatchStatement implements CQLStatement
         return functions;
     }
 
+    @Override
+    public boolean eligibleAsPreparedStatement()
+    {
+        return true;
+    }
+
+    @Override
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         for (ModificationStatement statement : statements)
@@ -195,7 +270,7 @@ public class BatchStatement implements CQLStatement
         for (ModificationStatement statement : statements)
         {
             if (timestampSet && statement.isTimestampSet())
-                throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
+                throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements: " + statement.source);
 
             if (statement.isCounter())
                 hasCounters = true;
@@ -236,7 +311,7 @@ public class BatchStatement implements CQLStatement
             for (ModificationStatement stmt : statements)
             {
                 if (ksName != null && (!stmt.keyspace().equals(ksName) || !stmt.table().equals(cfName)))
-                    throw new InvalidRequestException("Batch with conditions cannot span multiple tables");
+                    throw new InvalidRequestException("Batch with conditions cannot span multiple tables: " + stmt.source);
                 ksName = stmt.keyspace();
                 cfName = stmt.table();
             }
@@ -261,6 +336,7 @@ public class BatchStatement implements CQLStatement
             statement.validate(state);
     }
 
+    @Override
     public List<ModificationStatement> getStatements()
     {
         return statements;
@@ -272,7 +348,8 @@ public class BatchStatement implements CQLStatement
                                                   boolean local,
                                                   long batchTimestamp,
                                                   long nowInSeconds,
-                                                  long queryStartNanoTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  @Nullable TimestampSource.Collector timestampSourceCollector)
     {
         if (statements.isEmpty())
             return Collections.emptyList();
@@ -289,6 +366,8 @@ public class BatchStatement implements CQLStatement
             HashMultiset<ByteBuffer> perKeyCountsForTable = partitionCounts.computeIfAbsent(stmt.metadata.id, k -> HashMultiset.create());
             for (int stmtIdx = 0, stmtSize = stmtPartitionKeys.size(); stmtIdx < stmtSize; stmtIdx++)
                 perKeyCountsForTable.add(stmtPartitionKeys.get(stmtIdx));
+            if (timestampSourceCollector != null)
+                timestampSourceCollector.collect(stmt.attrs.isTimestampSet() ? TimestampSource.using : TimestampSource.server);
         }
 
         Set<String> tablesWithZeroGcGs = null;
@@ -309,7 +388,7 @@ public class BatchStatement implements CQLStatement
             }
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(batchTimestamp, statementOptions);
-            statement.addUpdates(collector, partitionKeys.get(i), state, statementOptions, local, timestamp, nowInSeconds, queryStartNanoTime);
+            statement.addUpdates(collector, partitionKeys.get(i), state, statementOptions, local, timestamp, nowInSeconds, requestTime);
         }
 
         if (tablesWithZeroGcGs != null)
@@ -320,7 +399,9 @@ public class BatchStatement implements CQLStatement
             ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
                                                      .getMessage());
         }
-        return collector.toMutations();
+        // local is either executeWithoutConditions modifying a virtual table (doesn't support txns) or executeLocal
+        // which is called by test or internal things that are bypassing distributed system modification/checks
+        return collector.toMutations(state, local ? PotentialTxnConflicts.ALLOW : PotentialTxnConflicts.DISALLOW);
     }
 
     /**
@@ -397,12 +478,13 @@ public class BatchStatement implements CQLStatement
     }
 
 
-    public ResultMessage execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
+    @Override
+    public ResultMessage execute(QueryState queryState, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
-        return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options), queryStartNanoTime);
+        return execute(queryState, BatchQueryOptions.withoutPerStatementVariables(options), requestTime);
     }
 
-    public ResultMessage execute(QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
+    public ResultMessage execute(QueryState queryState, BatchQueryOptions options, Dispatcher.RequestTime requestTime)
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
@@ -413,25 +495,43 @@ public class BatchStatement implements CQLStatement
             throw new InvalidRequestException("Invalid empty serial consistency level");
 
         ClientState clientState = queryState.getClientState();
-        Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(), options.getSerialConsistency()),
-                                                clientState);
+        if (Guardrails.writeConsistencyLevels.enabled(clientState)) // to avoid EnumSet allocation
+            Guardrails.writeConsistencyLevels.guard(EnumSet.of(options.getConsistency(),
+                                                               options.getSerialConsistency()),
+                                                    clientState);
 
         for (int i = 0; i < statements.size(); i++ )
             statements.get(i).validateDiskUsage(options.forStatement(i), clientState);
 
         if (hasConditions)
-            return executeWithConditions(options, queryState, queryStartNanoTime);
+            return executeWithConditions(options, queryState, requestTime);
 
         if (updatesVirtualTables)
-            executeInternalWithoutCondition(queryState, options, queryStartNanoTime);
-        else    
-            executeWithoutConditions(getMutations(clientState, options, false, timestamp, nowInSeconds, queryStartNanoTime),
-                                     options.getConsistency(), queryStartNanoTime);
+            executeInternalWithoutCondition(queryState, options, requestTime);
+        else
+        {
+            PreserveTimestamp preserveTimestamp;
+            TimestampSource.Collector collector;
+            if (attrs.isTimestampSet())
+            {
+                preserveTimestamp = PreserveTimestamp.yes;
+                collector = null;
+            }
+            else
+            {
+                preserveTimestamp = PreserveTimestamp.no;
+                collector = new TimestampSource.Collector();
+            }
+            List<? extends IMutation> mutations = getMutations(clientState, options, false, timestamp, nowInSeconds, requestTime, collector);
+            if (!mutations.isEmpty() && collector != null)
+                preserveTimestamp = preserveTimestamp.merge(collector.get());
+            executeWithoutConditions(mutations, options.getConsistency(), requestTime, preserveTimestamp);
+        }
 
         return new ResultMessage.Void();
     }
 
-    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
+    private void executeWithoutConditions(List<? extends IMutation> mutations, ConsistencyLevel cl, Dispatcher.RequestTime requestTime, PreserveTimestamp preserveTimestamp) throws RequestExecutionException, RequestValidationException
     {
         if (mutations.isEmpty())
             return;
@@ -442,7 +542,7 @@ public class BatchStatement implements CQLStatement
         updatePartitionsPerBatchMetrics(mutations.size());
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
-        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
+        StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }
 
@@ -457,9 +557,9 @@ public class BatchStatement implements CQLStatement
         }
     }
 
-    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, long queryStartNanoTime)
+    private ResultMessage executeWithConditions(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
-        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state);
+        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state, requestTime);
         CQL3CasRequest casRequest = p.left;
         Set<ColumnMetadata> columnsWithConditions = p.right;
 
@@ -474,7 +574,7 @@ public class BatchStatement implements CQLStatement
                                                    options.getConsistency(),
                                                    state.getClientState(),
                                                    options.getNowInSeconds(state),
-                                                   queryStartNanoTime))
+                                                   requestTime))
         {
             return new ResultMessage.Rows(ModificationStatement.buildCasResultSet(ksName,
                                                                                   tableName,
@@ -486,7 +586,7 @@ public class BatchStatement implements CQLStatement
         }
     }
 
-    private Pair<CQL3CasRequest,Set<ColumnMetadata>> makeCasRequest(BatchQueryOptions options, QueryState state)
+    private Pair<CQL3CasRequest,Set<ColumnMetadata>> makeCasRequest(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
         long batchTimestamp = options.getTimestamp(state);
         long nowInSeconds = options.getNowInSeconds(state);
@@ -505,7 +605,7 @@ public class BatchStatement implements CQLStatement
             if (key == null)
             {
                 key = statement.metadata().partitioner.decorateKey(pks.get(0));
-                casRequest = new CQL3CasRequest(statement.metadata(), key, conditionColumns, updatesRegularRows, updatesStaticRow);
+                casRequest = new CQL3CasRequest(statement.metadata(), key, conditionColumns, updatesRegularRows, updatesStaticRow, requestTime);
             }
             else if (!key.getKey().equals(pks.get(0)))
             {
@@ -561,25 +661,25 @@ public class BatchStatement implements CQLStatement
         BatchQueryOptions batchOptions = BatchQueryOptions.withoutPerStatementVariables(options);
 
         if (hasConditions)
-            return executeInternalWithConditions(batchOptions, queryState);
+            return executeInternalWithConditions(batchOptions, queryState, Dispatcher.RequestTime.forImmediateExecution());
 
-        executeInternalWithoutCondition(queryState, batchOptions, nanoTime());
+        executeInternalWithoutCondition(queryState, batchOptions, Dispatcher.RequestTime.forImmediateExecution());
         return new ResultMessage.Void();
     }
 
-    private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, long queryStartNanoTime)
+    private ResultMessage executeInternalWithoutCondition(QueryState queryState, BatchQueryOptions batchOptions, Dispatcher.RequestTime requestTime)
     {
         long timestamp = batchOptions.getTimestamp(queryState);
         long nowInSeconds = batchOptions.getNowInSeconds(queryState);
 
-        for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, queryStartNanoTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), batchOptions, true, timestamp, nowInSeconds, requestTime, null))
             mutation.apply();
         return null;
     }
 
-    private ResultMessage executeInternalWithConditions(BatchQueryOptions options, QueryState state)
+    private ResultMessage executeInternalWithConditions(BatchQueryOptions options, QueryState state, Dispatcher.RequestTime requestTime)
     {
-        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state);
+        Pair<CQL3CasRequest, Set<ColumnMetadata>> p = makeCasRequest(options, state, requestTime);
         CQL3CasRequest request = p.left;
         Set<ColumnMetadata> columnsWithConditions = p.right;
 
@@ -608,7 +708,7 @@ public class BatchStatement implements CQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends QualifiedStatement
+    public static class Parsed extends QualifiedStatement.Composite
     {
         private final Type type;
         private final Attributes.Raw attrs;
@@ -616,21 +716,15 @@ public class BatchStatement implements CQLStatement
 
         public Parsed(Type type, Attributes.Raw attrs, List<ModificationStatement.Parsed> parsedStatements)
         {
-            super(null);
             this.type = type;
             this.attrs = attrs;
             this.parsedStatements = parsedStatements;
         }
 
-        // Not doing this in the constructor since we only need this for prepared statements
         @Override
-        public boolean isFullyQualified()
+        protected Iterable<? extends QualifiedStatement> getStatements()
         {
-            for (ModificationStatement.Parsed statement : parsedStatements)
-                if (!statement.isFullyQualified())
-                    return false;
-
-            return true;
+            return parsedStatements;
         }
 
         @Override
@@ -643,7 +737,27 @@ public class BatchStatement implements CQLStatement
         @Override
         public String keyspace()
         {
-            return null;
+            if (parsedStatements.isEmpty())
+                return null;
+
+            String currentKeyspace = null;
+            for (ModificationStatement.Parsed statement : parsedStatements)
+            {
+                String keyspace = statement.keyspace();
+                if (keyspace == null && currentKeyspace != null)
+                    return null;
+
+                if (keyspace != null && currentKeyspace == null)
+                {
+                    currentKeyspace = keyspace;
+                    continue;
+                }
+
+                if (currentKeyspace != null && !currentKeyspace.equals(keyspace))
+                    return null;
+            }
+
+            return currentKeyspace;
         }
 
         public BatchStatement prepare(ClientState state)

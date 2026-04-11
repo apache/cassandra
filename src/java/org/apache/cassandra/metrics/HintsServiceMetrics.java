@@ -17,14 +17,21 @@
  */
 package org.apache.cassandra.metrics;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.io.Serializable;
+import java.net.UnknownHostException;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -34,13 +41,38 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public final class HintsServiceMetrics
 {
+    public static final String TYPE_NAME = "HintsService";
+
+    // Hint metrics are by address and hints that are for Accord need an address
+    public static final InetAddressAndPort ACCORD_HINT_ENDPOINT;
+
+    static
+    {
+        try
+        {
+            ACCORD_HINT_ENDPOINT = InetAddressAndPort.getByNameOverrideDefaults("0.0.0.0", 0);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(HintsServiceMetrics.class);
 
-    private static final MetricNameFactory factory = new DefaultNameFactory("HintsService");
+    private static final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME);
 
     public static final Meter hintsSucceeded = Metrics.meter(factory.createMetricName("HintsSucceeded"));
     public static final Meter hintsFailed    = Metrics.meter(factory.createMetricName("HintsFailed"));
     public static final Meter hintsTimedOut  = Metrics.meter(factory.createMetricName("HintsTimedOut"));
+    public static final Meter hintsRetryDifferentSystem  = Metrics.meter(factory.createMetricName("HintsRetryDifferentSystem"));
+
+    public static final Gauge<Long> hintsFileSize = Metrics.gauge(factory.createMetricName("HintsFileSize"), new TotalHintsSizeGauge());
+    // Corresponding to the hinted_handoff_throttle_in_kb configuration
+    public static final Counter hintsThrottle = Metrics.counter(factory.createMetricName("HintsThrottle"));
+
+    public static final Meter hintsApplySucceeded = Metrics.meter(factory.createMetricName("HintsApplySucceeded"));
+    public static final Meter hintsApplyFailed = Metrics.meter(factory.createMetricName("HintsApplyFailed"));
 
     /** Histogram of all hint delivery delays */
     private static final Histogram globalDelayHistogram = Metrics.histogram(factory.createMetricName("Hint_delays"), false);
@@ -49,6 +81,18 @@ public final class HintsServiceMetrics
     private static final LoadingCache<InetAddressAndPort, Histogram> delayByEndpoint = Caffeine.newBuilder()
                                                                                                .executor(ImmediateExecutor.INSTANCE)
                                                                                                .build(address -> Metrics.histogram(factory.createMetricName("Hint_delays-"+address.toString().replace(':', '.')), false));
+
+    // because at the time of static hintsFileSize being initialized,
+    // HintsService.instance is null / is not initialized yet so usage of method reference is not possible,
+    // so this is the workaround.
+    private static class TotalHintsSizeGauge implements Gauge<Long>, Serializable
+    {
+        @Override
+        public Long getValue()
+        {
+            return HintsService.instance.getTotalHintsSize();
+        }
+    }
 
     public static void updateDelayMetrics(InetAddressAndPort endpoint, long delay)
     {
@@ -60,5 +104,10 @@ public final class HintsServiceMetrics
 
         globalDelayHistogram.update(delay);
         delayByEndpoint.get(endpoint).update(delay);
+    }
+
+    public static long getDelayCount(InetAddressAndPort endpoint)
+    {
+        return delayByEndpoint.get(endpoint).getCount();
     }
 }

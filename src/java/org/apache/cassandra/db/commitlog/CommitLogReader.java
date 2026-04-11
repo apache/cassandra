@@ -17,15 +17,21 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.io.util.File;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,9 +42,10 @@ import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadError
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
-import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.RebufferingInputStream;
@@ -301,8 +308,7 @@ public class CommitLogReader
         while (statusTracker.shouldContinue() && reader.getFilePointer() < end && !reader.isEOF())
         {
             long mutationStart = reader.getFilePointer();
-            if (logger.isTraceEnabled())
-                logger.trace("Reading mutation at {}", mutationStart);
+            logger.trace("Reading mutation at {}", mutationStart);
 
             long claimedCRC32;
             int serializedSize;
@@ -324,7 +330,9 @@ public class CommitLogReader
                 serializedSize = reader.readInt();
                 if (serializedSize == LEGACY_END_OF_SEGMENT_MARKER)
                 {
-                    logger.trace("Encountered end of segment marker at {}", reader.getFilePointer());
+                    if (logger.isTraceEnabled())
+                        logger.trace("Encountered end of segment marker at {}", reader.getFilePointer());
+
                     statusTracker.requestTermination();
                     return;
                 }
@@ -471,8 +479,10 @@ public class CommitLogReader
         }
 
         if (logger.isTraceEnabled())
-            logger.trace("Read mutation for {}.{}: {}", mutation.getKeyspaceName(), mutation.key(),
-                         "{" + StringUtils.join(mutation.getPartitionUpdates().iterator(), ", ") + "}");
+            logger.trace("Read mutation for {}.{}: {{}}",
+                         mutation.getKeyspaceName(),
+                         mutation.key(),
+                         StringUtils.join(mutation.getPartitionUpdates().iterator(), ", "));
 
         if (shouldReplay)
             handler.handleMutation(mutation, size, entryLocation, desc);

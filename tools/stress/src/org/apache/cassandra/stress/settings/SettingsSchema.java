@@ -23,9 +23,12 @@ package org.apache.cassandra.stress.settings;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
+
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -69,8 +72,6 @@ public class SettingsSchema implements Serializable
         {
             //Keyspace
             client.execute(createKeyspaceStatementCQL3(), org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE);
-
-            client.execute("USE \""+keyspace+"\"", org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE);
 
             //Add standard1 and counter1
             client.execute(createStandard1StatementCQL3(settings), org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE);
@@ -125,7 +126,8 @@ public class SettingsSchema implements Serializable
         StringBuilder b = new StringBuilder();
 
         b.append("CREATE TABLE IF NOT EXISTS ")
-         .append("standard1 (key blob PRIMARY KEY ");
+         .append(keyspace)
+         .append(".standard1 (key blob PRIMARY KEY ");
 
         try
         {
@@ -166,7 +168,8 @@ public class SettingsSchema implements Serializable
         StringBuilder b = new StringBuilder();
 
         b.append("CREATE TABLE IF NOT EXISTS ")
-         .append("counter1 (key blob PRIMARY KEY,");
+         .append(keyspace)
+         .append(".counter1 (key blob PRIMARY KEY,");
 
         try
         {

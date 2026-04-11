@@ -46,6 +46,7 @@ import com.google.common.hash.Hashing;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -80,7 +81,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
      * I don't think that has any practical consequence and is more robust in
      * case someone provides a UUID with a broken variant.
      */
-    private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
+    public static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
     private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
 
     public static final long TIMEUUID_SIZE = ObjectSizes.measureDeep(new TimeUUID(10, 10));
@@ -143,7 +144,12 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     public static TimeUUID deserialize(ByteBuffer buffer)
     {
-        return fromBytes(buffer.getLong(buffer.position()), buffer.getLong(buffer.position() + 8));
+        return deserialize(buffer, buffer.position());
+    }
+
+    public static TimeUUID deserialize(ByteBuffer buffer, int position)
+    {
+        return fromBytes(buffer.getLong(position), buffer.getLong(position + 8));
     }
 
     public static TimeUUID deserialize(DataInput in) throws IOException
@@ -237,6 +243,11 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return unixMicros * 10 - (UUID_EPOCH_UNIX_MILLIS * 10000);
     }
 
+    public static long unixMicrosToMsb(long unixMicros)
+    {
+        return TimeUUID.rawTimestampToMsb(TimeUUID.unixMicrosToRawTimestamp(unixMicros));
+    }
+
     public static long msbToRawTimestamp(long msb)
     {
         assert (UUID_VERSION_BITS_IN_MSB & msb) == TIMESTAMP_UUID_VERSION_IN_MSB;
@@ -293,6 +304,25 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return ballot == null ? "null" : String.format("%s(%d:%s)", kind, ballot.uuidTimestamp(), ballot);
     }
 
+    public int sequence()
+    {
+        return (int) ((lsb >> 48) & 0x0000000000003FFFL);
+    }
+
+    /**
+     * Returns a new TimeUUID with the same data as this one, but with the provided sequence value.
+     *
+     * <b>Warning:</b> the uniqueness of the returned TimeUUID is not guaranteed by this method. Caller must ensure that
+     * the sequence numbers in use are distinct.
+     */
+    public TimeUUID withSequence(long sequence)
+    {
+        long sequenceBits = 0x0000000000003FFFL;
+        long sequenceMask = ~(sequenceBits << 48);
+        final long bits = (sequence & sequenceBits) << 48;
+        return new TimeUUID(uuidTimestamp, lsb() & sequenceMask | bits);
+    }
+
     @Override
     public int compareTo(TimeUUID that)
     {
@@ -332,7 +362,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         }
     }
 
-    public static class Serializer extends AbstractSerializer<TimeUUID> implements IVersionedSerializer<TimeUUID>
+    public static class Serializer extends AbstractSerializer<TimeUUID> implements IVersionedSerializer<TimeUUID>, UnversionedSerializer<TimeUUID>
     {
         public static final Serializer instance = new Serializer();
 
@@ -353,13 +383,31 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         }
 
         @Override
+        public void serialize(TimeUUID t, DataOutputPlus out) throws IOException
+        {
+            t.serialize(out);
+        }
+
+        @Override
         public TimeUUID deserialize(DataInputPlus in, int version) throws IOException
         {
             return TimeUUID.deserialize(in);
         }
 
         @Override
+        public TimeUUID deserialize(DataInputPlus in) throws IOException
+        {
+            return TimeUUID.deserialize(in);
+        }
+
+        @Override
         public long serializedSize(TimeUUID t, int version)
+        {
+            return 16;
+        }
+
+        @Override
+        public long serializedSize(TimeUUID t)
         {
             return 16;
         }
@@ -370,6 +418,16 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         private static final long clockSeqAndNode = makeClockSeqAndNode();
 
         private static final AtomicLong lastMicros = new AtomicLong();
+
+        public interface Factory<T extends TimeUUID>
+        {
+            T atUnixMicrosWithLsb(long unixMicros, long clockSeqAndNode);
+        }
+
+        public static <T extends TimeUUID> T nextTimeUUID(Factory<T> factory)
+        {
+            return factory.atUnixMicrosWithLsb(nextUnixMicros(), clockSeqAndNode);
+        }
 
         public static TimeUUID nextTimeUUID()
         {

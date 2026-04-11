@@ -24,7 +24,9 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.sstable.SSTableId;
 
 /**
  * A bidirectional map of {@link PrimaryKey} to row ID. Implementations of this interface
@@ -55,6 +57,12 @@ public interface PrimaryKeyMap extends Closeable
     }
 
     /**
+     * Returns the {@link SSTableId} associated with this {@link PrimaryKeyMap}
+     * @return an {@link SSTableId}
+     */
+    SSTableId getSSTableId();
+
+    /**
      * Returns a {@link PrimaryKey} for a row ID
      *
      * @param sstableRowId the row ID to lookup
@@ -69,6 +77,24 @@ public interface PrimaryKeyMap extends Closeable
      * @return the row ID associated with the {@link PrimaryKey}
      */
     long rowIdFromPrimaryKey(PrimaryKey key);
+
+    /**
+     * Returns the first row ID of the nearest {@link Token} greater than or equal to the given {@link Token},
+     * or a negative value if not found
+     *
+     * @param token the {@link Token} to lookup
+     * @return the ceiling row ID associated with the {@link Token} or a negative value
+     */
+    long ceiling(Token token);
+
+    /**
+     * Returns the last row ID of the nearest {@link Token} less than or equal to the given {@link Token},
+     * or a negative value if the {@link Token} is at its minimum value
+     *
+     * @param token the {@link Token} to lookup
+     * @return the floor row ID associated with the {@link Token}
+     */
+    long floor(Token token);
 
     @Override
     default void close()

@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.net.Message;
@@ -36,7 +37,6 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JsonUtils;
-import org.yaml.snakeyaml.Yaml;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,50 +49,6 @@ public class TpStatsTest extends CQLTester
     {
         requireNetwork();
         startJMXServer();
-    }
-
-    @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "tpstats");
-        tool.assertOnCleanExit();
-
-        String help =   "NAME\n" +
-                        "        nodetool tpstats - Print usage statistics of thread pools\n" + 
-                        "\n" + 
-                        "SYNOPSIS\n" + 
-                        "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" + 
-                        "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" + 
-                        "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" + 
-                        "                [(-u <username> | --username <username>)] tpstats\n" + 
-                        "                [(-F <format> | --format <format>)]\n" + 
-                        "\n" + 
-                        "OPTIONS\n" + 
-                        "        -F <format>, --format <format>\n" + 
-                        "            Output format (json, yaml)\n" + 
-                        "\n" + 
-                        "        -h <host>, --host <host>\n" + 
-                        "            Node hostname or ip address\n" + 
-                        "\n" + 
-                        "        -p <port>, --port <port>\n" + 
-                        "            Remote jmx agent port number\n" + 
-                        "\n" + 
-                        "        -pp, --print-port\n" + 
-                        "            Operate in 4.0 mode with hosts disambiguated by port number\n" + 
-                        "\n" + 
-                        "        -pw <password>, --password <password>\n" + 
-                        "            Remote jmx agent password\n" + 
-                        "\n" + 
-                        "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" + 
-                        "            Path to the JMX password file\n" + 
-                        "\n" + 
-                        "        -u <username>, --username <username>\n" + 
-                        "            Remote jmx agent username\n" +  
-                        "\n" + 
-                        "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test

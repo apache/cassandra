@@ -88,6 +88,15 @@ public enum StatementType
     }
 
     /**
+     * Checks if this type is an insert or an update.
+     * @return <code>true</code> if this type is an insert or an update, <code>false</code> otherwise.
+     */
+    public boolean isInsertOrUpdate()
+    {
+        return this == INSERT || this == UPDATE;
+    }
+
+    /**
      * Checks if this type is a select.
      * @return <code>true</code> if this type is a select, <code>false</code> otherwise.
      */

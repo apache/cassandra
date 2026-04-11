@@ -56,14 +56,16 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NoSpamLogger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -71,11 +73,8 @@ import static java.nio.file.StandardOpenOption.READ;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.Collections.unmodifiableSet;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE;
 import static org.apache.cassandra.utils.Throwables.merge;
-
-import net.openhft.chronicle.core.util.ThrowingFunction;
 
 /**
  * Vernacular: tryX means return false or 0L on any failure; XIfNotY means propagate any exceptions besides those caused by Y
@@ -98,12 +97,7 @@ public final class PathUtils
     private static final Logger logger = LoggerFactory.getLogger(PathUtils.class);
     private static final NoSpamLogger nospam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
-    private static Consumer<Path> onDeletion = path -> {
-        if (StorageService.instance.isDaemonSetupCompleted())
-            setDeletionListener(ignore -> {});
-        else
-            logger.trace("Deleting file during startup: {}", path);
-    };
+    private static Consumer<Path> onDeletion = path -> {};
 
     public static FileChannel newReadChannel(Path path) throws NoSuchFileException
     {
@@ -355,11 +349,22 @@ public final class PathUtils
     private static void deleteRecursiveUsingNixCommand(Path path, boolean quietly)
     {
         String [] cmd = new String[]{ "rm", quietly ? "-rdf" : "-rd", path.toAbsolutePath().toString() };
+        IOException failure = null;
+        if (!quietly && !Files.exists(path))
+            failure = new NoSuchFileException(path.toString());
+
+        if (failure == null)
+            failure = tryDeleteRecursiveUsingNixCommand(path, quietly);
+
+        if (failure != null)
+            throw propagateUnchecked(failure, path, true);
+    }
+
+    private static IOException tryDeleteRecursiveUsingNixCommand(Path path, boolean quietly)
+    {
+        String[] cmd = new String[]{ "rm", quietly ? "-rdf" : "-rd", path.toAbsolutePath().toString() };
         try
         {
-            if (!quietly && !Files.exists(path))
-                throw new NoSuchFileException(path.toString());
-
             Process p = Runtime.getRuntime().exec(cmd);
             int result = p.waitFor();
 
@@ -372,22 +377,37 @@ public final class PathUtils
             }
 
             if (result != 0 && Files.exists(path))
-            {
-                logger.error("{} returned:\nstdout:\n{}\n\nstderr:\n{}", Arrays.toString(cmd), out, err);
-                throw new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
-            }
+                return new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
 
             onDeletion.accept(path);
+            return null;
         }
         catch (IOException e)
         {
-            throw propagateUnchecked(e, path, true);
+            return e;
         }
         catch (InterruptedException e)
         {
-            Thread.currentThread().interrupt();
-            throw new FSWriteError(e, path);
+            return new IOException("Interrupted while executing command " + Arrays.toString(cmd), e);
         }
+    }
+
+
+    /**
+     * Deletes all files and subdirectories under "path".
+     * @param path file to be deleted
+     * @return false if the root cannot be deleted
+     */
+    public static boolean tryDeleteRecursive(Path path)
+    {
+        if (USE_NIX_RECURSIVE_DELETE.getBoolean() && path.getFileSystem() == java.nio.file.FileSystems.getDefault())
+            return null == tryDeleteRecursiveUsingNixCommand(path, true);
+
+        if (isDirectory(path))
+            forEach(path, PathUtils::tryDeleteRecursive);
+
+        // The directory should now be empty, so now it can be smoked
+        return tryDelete(path);
     }
 
     /**

@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Set;
+
 import javax.annotation.Nullable;
 
 /**
@@ -193,6 +194,66 @@ public interface GuardrailsMBean
      * @param properties Comma-separated list of properties that are ignored when creating or altering a table.
      */
     void setTablePropertiesIgnoredCSV(String properties);
+
+    /**
+     * @return properties that are warned about when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesWarned();
+
+    /**
+     * @return Comma-separated list of properties that are warned about when creating or altering a keyspace.
+     */
+    String getKeyspacePropertiesWarnedCSV();
+
+    /**
+     * @param properties properties that are warned about when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesWarned(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are warned about when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesWarnedCSV(String properties);
+
+    /**
+     * @return properties that are not allowed when creating or altering a keyspace.
+     */    
+    Set<String> getKeyspacePropertiesDisallowed();
+    
+    /**
+     * @return Comma-separated list of properties that are not allowed when creating or altering a keyspace.
+     */
+    String getKeyspacePropertiesDisallowedCSV();
+
+    /**
+     * @param properties properties that are not allowed when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesDisallowed(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are not allowed when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesDisallowedCSV(String properties);
+
+    /**
+     * @return properties that are ignored when creating or altering a keyspace.
+     */
+    Set<String> getKeyspacePropertiesIgnored();
+
+    /**
+     * @return Comma-separated list of properties that are ignored when creating or altering a keyspace.
+     */
+    String getKeyspacePropertiesIgnoredCSV();
+
+    /**
+     * @param properties properties that are ignored when creating or altering a keyspace.
+     */ 
+    void setKeyspacePropertiesIgnored(Set<String> properties);
+
+    /**
+     * @param properties Comma-separated list of properties that are ignored when creating or altering a keyspace.
+     */
+    void setKeyspacePropertiesIgnoredCSV(String properties);
 
     /**
      * Returns whether user-provided timestamps are allowed.
@@ -552,6 +613,78 @@ public interface GuardrailsMBean
     void setColumnValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
+     * @return The threshold to warn when encountering ascii column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnAsciiValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent ascii column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnAsciiValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering ascii column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent ascii column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnAsciiValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering blob column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnBlobValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent blob column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnBlobValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering blob column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent blob column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnBlobValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering text and varchar column values larger than threshold, as a string  formatted as
+     * in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnTextAndVarcharValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent text and varchar column values larger than threshold, as a string formatted as in, for example,
+     * {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means disabled.
+     */
+    @Nullable
+    String getColumnTextAndVarcharValueSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering text or varchar column values larger than threshold, as a string
+     *                 formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent text column values larger than threshold, as a string formatted as in, for
+     *                 example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     */
+    void setColumnTextAndVarcharValueSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
      * @return The threshold to warn when encountering larger size of collection data than threshold, as a string
      * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
      * means that the threshold is disabled.
@@ -576,6 +709,84 @@ public interface GuardrailsMBean
      *                 value means disabled.
      */
     void setCollectionSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering larger size of map collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionMapSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent map collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionMapSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of map collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent map collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionMapSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering larger size of set collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionSetSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent set collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionSetSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of set collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent set collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionSetSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The threshold to warn when encountering larger size of list collection data than threshold, as a string
+     * formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.  A {@code null} value
+     * means that the threshold is disabled.
+     */
+    @Nullable
+    String getCollectionListSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent list collections with larger data size than threshold, as a string formatted as in,
+     * for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null} value means that the
+     * threshold is disabled.
+     */
+    @Nullable
+    String getCollectionListSizeFailThreshold();
+
+    /**
+     * @param warnSize The threshold to warn when encountering larger size of list collection data than threshold, as a
+     *                 string formatted as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}.
+     *                 A {@code null} value means disabled.
+     * @param failSize The threshold to prevent list collections with larger data size than threshold, as a string formatted
+     *                 as in, for example, {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}. A {@code null}
+     *                 value means disabled.
+     */
+    void setCollectionListSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
 
     /**
      * @return The threshold to warn when encountering more elements in a collection than threshold.
@@ -626,6 +837,16 @@ public interface GuardrailsMBean
     void setVectorDimensionsThreshold(int warn, int fail);
 
     /**
+     * @param enabled {@code true} if vector type usage is enabled.
+     */
+    void setVectorTypeEnabled(boolean enabled);
+
+    /**
+     * @return {@code true} if vector type usage is enabled.
+     */
+    boolean getVectorTypeEnabled();
+
+    /**
      * @return The threshold to warn when local data disk usage percentage exceeds that threshold.
      * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
      */
@@ -652,6 +873,17 @@ public interface GuardrailsMBean
      */
     @Nullable
     String getDataDiskUsageMaxDiskSize();
+
+    /**
+     * @return Return whether a single node replicating a given keyspace being full should block writes for the
+     * entire keyspace. Returns true if this behavior is set, false otherwise.
+     */
+    boolean getDataDiskUsageKeyspaceWideProtectionEnabled();
+
+    /**
+     * @param enabled Enables or disables blocking writes for a keyspace if a node replicating that keyspace is full.
+     */
+    void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled);
 
     /**
      * @param size The max disk size of the data directories when calculating disk usage thresholds, as a string
@@ -782,4 +1014,180 @@ public interface GuardrailsMBean
      *                     {@code 20m}, {@code 30h} or {@code 40d}. A {@code null} value means disabled.
      */
     void setMinimumTimestampThreshold(@Nullable String warnDuration, @Nullable String failDuration);
+
+    /**
+     * @return the warning threshold for the number of SAI SSTable indexes searched by a query
+     */
+    int getSaiSSTableIndexesPerQueryWarnThreshold();
+
+    /**
+     * @return the failure threshold for the number of SAI SSTable indexes searched by a query
+     */
+    int getSaiSSTableIndexesPerQueryFailThreshold();
+
+    /**
+     * Sets warning and failure thresholds for the number of SAI SSTable indexes searched by a query
+     *
+     * @param warn value to set for warn threshold
+     * @param fail value to set for fail threshold
+     */
+    void setSaiSSTableIndexesPerQueryThreshold(int warn, int fail);
+
+    /**
+     * @return The warning threshold for string terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiStringTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for string terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiStringTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for string terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for string terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiStringTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The warning threshold for frozen terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiFrozenTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for frozen terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiFrozenTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for frozen terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for frozen terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiFrozenTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * @return The warning threshold for vector terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiVectorTermSizeWarnThreshold();
+
+    /**
+     * @return The failure threshold for vector terms written to an SAI index, as a human-readable string.
+     *         (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B}) A {@code null} value means disabled.
+     */
+    @Nullable
+    String getSaiVectorTermSizeFailThreshold();
+
+    /**
+     * @param warnSize The warning threshold for vector terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     * @param failSize The failure threshold for vector terms written to an SAI index, as a human-readable string.
+     *                 (ex. {@code 10GiB}, {@code 20MiB}, {@code 30KiB} or {@code 40B})
+     *                 A {@code null} value means disabled.
+     */
+    void setSaiVectorTermSizeThreshold(@Nullable String warnSize, @Nullable String failSize);
+
+    /**
+     * Returns whether it is possible to execute a query against secondary indexes without specifying
+     * any partition key restrictions.
+     *
+     * @return true if it is possible to execute a query without a partition key, false otherwise
+     */
+    boolean getNonPartitionRestrictedQueryEnabled();
+
+    /**
+     * Sets whether it is possible to execute a query against indexes (secondary or SAI) without specifying
+     * any partition key restrictions.
+     *
+     * @param enabled {@code true} if a query without partition key is enabled or not
+     */
+    void setNonPartitionRestrictedQueryEnabled(boolean enabled);
+
+    /**
+     * @return true if a client warning is emitted for a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryWarned();
+    
+    void setIntersectFilteringQueryWarned(boolean value);
+
+    /**
+     * @return true if it is possible to execute a filtering query with an intersection on mutable columns at a 
+     *         consistency level requiring coordinator reconciliation
+     */
+    boolean getIntersectFilteringQueryEnabled();
+    
+    void setIntersectFilteringQueryEnabled(boolean value);
+
+    /**
+     * @return JSON representation of the configuration of password policy
+     */
+    String getPasswordPolicy();
+
+    /**
+     * @return JSON representation of the configuration of role name policy
+     */
+    String getRoleNamePolicy();
+
+    /**
+     * Reconfigures password validator.
+     *
+     * @param value configuration of new password validator
+     */
+    void setPasswordPolicy(String value);
+
+    /**
+     * Reconfigures role name validator.
+     *
+     * @param value configuration of new role name validator.
+     */
+    void setRoleNamePolicy(String value);
+
+    /**
+     * Sets whether a user will be warned when creating a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyWarned(boolean value);
+
+    /**
+     *
+     * @return true if a user will be warned when training compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyWarned();
+
+    /**
+     * Sets whether it is allowed to create a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyEnabled(boolean value);
+
+    /**
+     *
+     * @return true if it is possible to train compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyEnabled();
 }

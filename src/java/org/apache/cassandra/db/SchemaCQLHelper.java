@@ -29,7 +29,10 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.ViewMetadata;
 
 /**
  * Helper methods to represent TableMetadata and related objects in CQL format
@@ -70,14 +73,14 @@ public class SchemaCQLHelper
              * first argument(withInternals) indicates to include table metadata id and clustering columns order,
              * second argument(ifNotExists) instructs to include IF NOT EXISTS statement within creation statements.
              */
-            return viewMetadata.toCqlString(true, true);
+            return viewMetadata.toCqlString(true, true, true);
         }
 
         /*
          * With addition to withInternals and ifNotExists arguments, includeDroppedColumns will include dropped
          * columns as ALTER TABLE statements appended into the snapshot.
          */
-        return metadata.toCqlString(true, true, true);
+        return metadata.toCqlString(true, true, true, true);
     }
 
     /**
@@ -122,7 +125,7 @@ public class SchemaCQLHelper
          */
         return metadata.getReferencedUserTypes()
                        .stream()
-                       .map(name -> getType(metadata, types, name).toCqlString(false, ifNotExists));
+                       .map(name -> getType(metadata, types, name).toCqlString(true, false, ifNotExists));
     }
 
     /**

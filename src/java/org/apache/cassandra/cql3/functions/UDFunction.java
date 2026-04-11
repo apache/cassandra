@@ -17,26 +17,30 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture; // checkstyle: permit this import
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture; // checkstyle: permit this import
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,8 +54,15 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.CQLTypeParser;
+import org.apache.cassandra.schema.Difference;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.tcm.serialization.UDTAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -59,6 +70,8 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.schema.SchemaKeyspace.bbToString;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -66,6 +79,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public abstract class UDFunction extends UserFunction implements ScalarFunction
 {
+    public static final Serializer serializer = new Serializer();
+
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
     static final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
@@ -123,12 +138,6 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     // Only need to disallow a pattern, if it would otherwise be allowed via allowedPatterns
     private static final String[] disallowedPatterns =
     {
-    "com/datastax/driver/core/Cluster.class",
-    "com/datastax/driver/core/Metrics.class",
-    "com/datastax/driver/core/NettyOptions.class",
-    "com/datastax/driver/core/Session.class",
-    "com/datastax/driver/core/Statement.class",
-    "com/datastax/driver/core/TimestampGenerator.class", // indirectly covers ServerSideTimestampGenerator + ThreadLocalMonotonicTimestampGenerator
     "java/lang/Compiler.class",
     "java/lang/InheritableThreadLocal.class",
     "java/lang/Package.class",
@@ -313,7 +322,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     }
 
     @Override
-    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    public String toCqlString(boolean withWarnings, boolean withInternals, boolean ifNotExists)
     {
         CqlBuilder builder = new CqlBuilder();
         builder.append("CREATE FUNCTION ");
@@ -730,6 +739,68 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
             if (!secureResource(name.replace('.', '/') + ".class"))
                 throw new ClassNotFoundException(name);
             return super.loadClass(name);
+        }
+    }
+
+    public static class Serializer implements UDTAwareMetadataSerializer<UDFunction>
+    {
+        public void serialize(UDFunction t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.name().keyspace);
+            out.writeUTF(t.name().name);
+            out.writeUTF(t.body());
+            out.writeUTF(t.language());
+            out.writeUTF(t.returnType().asCQL3Type().toString());
+            out.writeBoolean(t.isCalledOnNullInput());
+            List<String> arguments = t.argNames().stream().map(c -> bbToString(c.bytes)).collect(Collectors.toList());
+            out.writeInt(arguments.size());
+            for (String argument : arguments)
+                out.writeUTF(argument);
+
+            out.writeInt(t.argumentsList().size());
+            for (String type : t.argumentsList())
+                out.writeUTF(type);
+        }
+
+        public UDFunction deserialize(DataInputPlus in, Types types, Version version) throws IOException
+        {
+            String keyspace = in.readUTF();
+            String name = in.readUTF();
+            FunctionName fn = new FunctionName(keyspace, name);
+            String body = in.readUTF();
+            String language = in.readUTF();
+            AbstractType<?> returnType = CQLTypeParser.parse(keyspace, in.readUTF(), types).udfType();
+            boolean isCalledOnNullInput = in.readBoolean();
+            int argumentCount = in.readInt();
+            List<ColumnIdentifier> arguments = new ArrayList<>(argumentCount);
+            for (int i = 0; i < argumentCount; i++)
+                arguments.add(new ColumnIdentifier(in.readUTF(), true));
+
+            int argumentTypeCount = in.readInt();
+            List<AbstractType<?>> argTypes = new ArrayList<>(argumentTypeCount);
+            for (int i = 0; i < argumentTypeCount; i++)
+                argTypes.add(CQLTypeParser.parse(keyspace, in.readUTF(), types).udfType());
+
+            return UDFunction.create(fn, arguments, argTypes, returnType, isCalledOnNullInput, language, body);
+        }
+
+        public long serializedSize(UDFunction t, Version version)
+        {
+            long size = sizeof(t.name().keyspace);
+            size += sizeof(t.name().name);
+            size += sizeof(t.body());
+            size += sizeof(t.language());
+            size += sizeof(t.returnType().asCQL3Type().toString());
+            size += sizeof(t.isCalledOnNullInput());
+            List<String> arguments = t.argNames().stream().map(c -> bbToString(c.bytes)).collect(Collectors.toList());
+            size += sizeof(arguments.size());
+            for (String argument : arguments)
+                size += sizeof(argument);
+
+            size += sizeof(t.argumentsList().size());
+            for (String type : t.argumentsList())
+                size += sizeof(type);
+            return size;
         }
     }
 }

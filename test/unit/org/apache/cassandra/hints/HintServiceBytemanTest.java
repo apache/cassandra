@@ -22,7 +22,13 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
+import org.awaitility.Awaitility;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitConfig;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,11 +44,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.awaitility.Awaitility;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
+import org.apache.cassandra.utils.MockFailureDetector;
 
-import static org.apache.cassandra.hints.HintsTestUtil.MockFailureDetector;
 import static org.apache.cassandra.hints.HintsTestUtil.sendHintsAndResponses;
 import static org.junit.Assert.assertEquals;
 
@@ -52,7 +55,7 @@ public class HintServiceBytemanTest
     private static final String KEYSPACE = "hints_service_test";
     private static final String TABLE = "table";
 
-    private final MockFailureDetector failureDetector = new HintsTestUtil.MockFailureDetector();
+    private final MockFailureDetector failureDetector = new MockFailureDetector();
     private static TableMetadata metadata;
 
     @BeforeClass
@@ -91,27 +94,33 @@ public class HintServiceBytemanTest
         HintsService.instance.startDispatch();
     }
 
-    @Test
+    // When this test hangs it does it _hard_. Working now but don't want to make the worker in CI hang out for full timeout.
+    @Test (timeout = 300000)
+    @BMUnitConfig(bmunitVerbose=true, verbose=true)
     @BMRule(name = "Delay delivering hints",
     targetClass = "DispatchHintsTask",
     targetMethod = "run",
     action = "Thread.sleep(DatabaseDescriptor.getHintsFlushPeriodInMS() * 3L)")
-    public void testListPendingHints() throws InterruptedException, ExecutionException
+    public void testListPendingHints() throws InterruptedException, ExecutionException, TimeoutException
     {
         HintsService.instance.resumeDispatch();
-        MockMessagingSpy spy = sendHintsAndResponses(metadata, 20000, -1);
-        Awaitility.await("For the hints file to flush")
-                  .atMost(Duration.ofMillis(DatabaseDescriptor.getHintsFlushPeriodInMS() * 2L))
-                  .until(() -> !HintsService.instance.getPendingHints().isEmpty());
+        try(MockMessagingSpy spy = sendHintsAndResponses(metadata, 20000, -1))
+        {
+            Awaitility.await("For the hints file to flush")
+                      .atMost(Duration.ofMillis(DatabaseDescriptor.getHintsFlushPeriodInMS() * 2L))
+                      .until(() -> !HintsService.instance.getPendingHints().isEmpty());
 
-        List<PendingHintsInfo> pendingHints = HintsService.instance.getPendingHintsInfo();
-        assertEquals(1, pendingHints.size());
-        PendingHintsInfo info = pendingHints.get(0);
-        assertEquals(StorageService.instance.getLocalHostUUID(), info.hostId);
-        assertEquals(1, info.totalFiles);
-        assertEquals(info.oldestTimestamp, info.newestTimestamp); // there is 1 descriptor with only 1 timestamp
+            List<PendingHintsInfo> pendingHints = HintsService.instance.getPendingHintsInfo();
+            assertEquals(1, pendingHints.size());
+            PendingHintsInfo info = pendingHints.get(0);
+            assertEquals(StorageService.instance.getLocalHostUUID(), info.hostId);
+            assertEquals(1, info.totalFiles);
+            assertEquals(info.oldestTimestamp, info.newestTimestamp); // there is 1 descriptor with only 1 timestamp
 
-        spy.interceptMessageOut(20000).get();
-        assertEquals(Collections.emptyList(), HintsService.instance.getPendingHints());
+            // JDK21 genZGC uncovered some flakiness / hanging here waiting on Condition
+            spy.interceptMessageOut(20000).get(60, TimeUnit.SECONDS);
+            spy.printMessageCounts();
+            assertEquals(Collections.emptyList(), HintsService.instance.getPendingHints());
+        }
     }
 }

@@ -17,15 +17,23 @@
  */
 package org.apache.cassandra.db.virtual;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import org.yaml.snakeyaml.introspector.Property;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Loader;
 import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.Redacted;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.db.DecoratedKey;
@@ -33,17 +41,19 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
+import org.apache.cassandra.utils.JsonUtils;
 
-final class SettingsTable extends AbstractVirtualTable
+@VisibleForTesting
+public final class SettingsTable extends AbstractVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
 
-    private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
+    public static final Map<String, String> BACKWARDS_COMPATIBLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatibleNames());
     protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
 
     private final Config config;
+    private final boolean useJsonFormat;
 
     SettingsTable(String keyspace)
     {
@@ -60,6 +70,7 @@ final class SettingsTable extends AbstractVirtualTable
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
         this.config = config;
+        this.useJsonFormat = CassandraRelevantProperties.VIRTUAL_TABLE_COMPLEX_SETTINGS_FORMAT_JSON.getBoolean();
     }
 
     @Override
@@ -67,8 +78,8 @@ final class SettingsTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
-        if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
-            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
+        if (BACKWARDS_COMPATIBLE_NAMES.containsKey(name))
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATIBLE_NAMES.get(name) + "'");
         if (PROPERTIES.containsKey(name))
             result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
         return result;
@@ -83,10 +94,58 @@ final class SettingsTable extends AbstractVirtualTable
         return result;
     }
 
-    private String getValue(Property prop)
+    @VisibleForTesting
+    String getValue(Property prop)
     {
+        Redacted maybeCredential = prop.getAnnotation(Redacted.class);
+        if (maybeCredential != null)
+            return maybeCredential.redactedValue();
+
         Object value = prop.get(config);
-        return value == null ? null : value.toString();
+        if (value == null)
+            return null;
+
+        if (value.getClass().isArray())
+            return tryConstructJson(Arrays.asList((Object[]) value));
+        else if (value instanceof Collection)
+            return tryConstructJson(value);
+        else if (value instanceof Map)
+        {
+            Map<String, Object> map = new HashMap<>();
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet())
+            {
+                // this is done on best-effort basis as we do not have names in parameters
+                // inherently under control as this is what a user is responsible for
+                // when dealing with custom implementations
+                if (entry.getKey().endsWith("_password") || entry.getKey().equals("password"))
+                    map.put(entry.getKey(), Redacted.REDACTED_STRING);
+                else
+                    map.put(entry.getKey(), entry.getValue());
+            }
+
+            return tryConstructJson(map);
+        }
+
+        return value.toString();
+    }
+
+    private String tryConstructJson(Object o)
+    {
+        if (useJsonFormat)
+        {
+            try
+            {
+                return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(o);
+            }
+            catch (Exception e)
+            {
+                return o.toString();
+            }
+        }
+        else
+        {
+            return o.toString();
+        }
     }
 
     private static Map<String, Property> getProperties()
@@ -106,7 +165,7 @@ final class SettingsTable extends AbstractVirtualTable
                 assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
             }
         }
-        for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
+        for (Map.Entry<String, String> e : BACKWARDS_COMPATIBLE_NAMES.entrySet())
         {
             String oldName = e.getKey();
             if (properties.containsKey(oldName))
@@ -126,7 +185,7 @@ final class SettingsTable extends AbstractVirtualTable
      * There were a handle full of properties which had custom names, names not present in the yaml, this map also
      * fixes this and returns the proper (what is accessable via yaml) names.
      */
-    private static Map<String, String> getBackwardsCompatableNames()
+    private static Map<String, String> getBackwardsCompatibleNames()
     {
         Map<String, String> names = new HashMap<>();
         // Names that dont match yaml
@@ -135,6 +194,12 @@ final class SettingsTable extends AbstractVirtualTable
         names.put("server_encryption_options_endpoint_verification", "server_encryption_options.require_endpoint_verification");
         names.put("server_encryption_options_legacy_ssl_storage_port", "server_encryption_options.legacy_ssl_storage_port_enabled");
         names.put("server_encryption_options_protocol", "server_encryption_options.accepted_protocols");
+        names.put("authenticator", "authenticator.class_name");
+        names.put("authorizer", "authorizer.class_name");
+        names.put("network_authorizer", "network_authorizer.class_name");
+        names.put("role_manager", "role_manager.class_name");
+        names.put("internode_authenticator", "internode_authenticator.class_name");
+
 
         // matching names
         names.put("audit_logging_options_audit_logs_dir", "audit_logging_options.audit_logs_dir");

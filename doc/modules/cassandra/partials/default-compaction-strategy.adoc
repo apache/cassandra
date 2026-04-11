@@ -1,0 +1,5 @@
+[IMPORTANT]
+====
+The `SizeTieredCompactionStrategy` is the default compaction strategy.
+Any other compaction strategy must be defined in the `cassandra.yaml` file.
+====

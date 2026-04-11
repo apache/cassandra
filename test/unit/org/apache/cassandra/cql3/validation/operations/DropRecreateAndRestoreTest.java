@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.List;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -28,27 +27,30 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.TableId;
 
 public class DropRecreateAndRestoreTest extends CQLTester
 {
+    // don't run CQLTester after test, commitlog is messed up by testCreateWithIdRestore and we now need to commit a ForceSnapshot when resetting the CMS
+    public void afterTest() {}
+
     @Test
     public void testCreateWithIdRestore() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
 
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 1);
+        long timeInMicroSecond1 = System.currentTimeMillis() * 1000;
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 0, 0, 0, timeInMicroSecond1);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", 0, 1, 1, timeInMicroSecond1);
 
-
-        long time = System.currentTimeMillis();
-        TableId id = currentTableMetadata().id;
+        String id = currentTableMetadata().id.toLongString();
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
         Thread.sleep(5);
 
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 0, 2);
-        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, 3);
+        long timeInMicroSecond2 = System.currentTimeMillis() * 1000;
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 1, 0, 2, timeInMicroSecond2);
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ? ", 1, 1, 3, timeInMicroSecond2);
         assertRows(execute("SELECT * FROM %s"), row(1, 0, 2), row(1, 1, 3), row(0, 0, 0), row(0, 1, 1));
 
         // Drop will flush and clean segments. Hard-link them so that they can be restored later.
@@ -68,13 +70,13 @@ public class DropRecreateAndRestoreTest extends CQLTester
             FileUtils.renameWithConfirm(new File(logPath, segment + ".save"), new File(logPath, segment));
         try
         {
-            // Restore to point in time.
-            CommitLog.instance.archiver.restorePointInTime = time;
+            // Restore to point in time (microseconds granularity)
+            CommitLog.instance.archiver.setRestorePointInTimeInMicroseconds(timeInMicroSecond1);
             CommitLog.instance.resetUnsafe(false);
         }
         finally
         {
-            CommitLog.instance.archiver.restorePointInTime = Long.MAX_VALUE;
+            CommitLog.instance.archiver.setRestorePointInTimeInMicroseconds(Long.MAX_VALUE);
         }
 
         assertRows(execute("SELECT * FROM %s"), row(0, 0, 0), row(0, 1, 1));
@@ -84,7 +86,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
     public void testCreateWithIdDuplicate() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
-        TableId id = currentTableMetadata().id;
+        String id = currentTableMetadata().id.toLongString();
         execute(String.format("CREATE TABLE %%s (a int, b int, c int, PRIMARY KEY(a, b)) WITH ID = %s", id));
     }
 
@@ -98,7 +100,7 @@ public class DropRecreateAndRestoreTest extends CQLTester
     public void testAlterWithId() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY(a, b))");
-        TableId id = currentTableMetadata().id;
+        String id = currentTableMetadata().id.toLongString();
         execute(String.format("ALTER TABLE %%s WITH ID = %s", id));
     }
 }

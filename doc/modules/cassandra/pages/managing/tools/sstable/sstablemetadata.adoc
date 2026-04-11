@@ -271,7 +271,7 @@ It is possible to specify `--scan` option to get additional statistics about a t
 Example
 
 ....
-sstablemetadata -s /var/lib/cassandra/data/data/ks/tb-dbead8501c9511ee805bb3deafc4499b/nc-1-big-Data.db
+sstablemetadata -s /var/lib/cassandra/data/data/ks/tb-dbead8501c9511ee805bb3deafc4499b/oa-1-big-Data.db
 ....
 
 This gives you statistics such as:

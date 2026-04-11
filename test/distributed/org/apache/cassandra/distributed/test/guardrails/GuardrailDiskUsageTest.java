@@ -22,17 +22,21 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.assertj.core.api.Assertions;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -44,7 +48,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.disk.usage.DiskUsageState;
-import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -63,7 +66,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     private static Session driverSession;
 
     @BeforeClass
-    public static void setupCluster() throws IOException
+    public static void setupCluster() throws IOException, InterruptedException
     {
         // speed up the task that calculates and propagates the disk usage info
         CassandraRelevantProperties.DISK_USAGE_MONITOR_INTERVAL_MS.setInt(100);
@@ -72,21 +75,29 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         cluster = init(Cluster.build(2)
                               .withInstanceInitializer(DiskStateInjection::install)
                               .withConfig(c -> c.with(Feature.GOSSIP, Feature.NATIVE_PROTOCOL)
+                                                .set("data_disk_usage_max_disk_size", "10GiB")
                                                 .set("data_disk_usage_percentage_warn_threshold", 98)
                                                 .set("data_disk_usage_percentage_fail_threshold", 99)
                                                 .set("authenticator", "PasswordAuthenticator"))
                               .start(), 1);
-
         Auth.waitForExistingRoles(cluster.get(1));
-
-        // create a regular user, since the default superuser is excluded from guardrails
-        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1");
-        try (com.datastax.driver.core.Cluster c = builder.withCredentials("cassandra", "cassandra").build();
-             Session session = c.connect())
+        com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1")
+                                                                                           .withCredentials("cassandra", "cassandra");
+        while (true)
         {
-            session.execute("CREATE USER test WITH PASSWORD 'test'");
+            // create a regular user, since the default superuser is excluded from guardrails
+            try (com.datastax.driver.core.Cluster c = builder.build();
+                 Session session = c.connect())
+            {
+                session.execute("CREATE USER test WITH PASSWORD 'test'");
+                break;
+            }
+            catch (AuthenticationException e)
+            {
+                Thread.sleep(1000L);
+                // ignore
+            }
         }
-
         // connect using that superuser, we use the driver to get access to the client warnings
         driverCluster = builder.withCredentials("test", "test").build();
         driverSession = driverCluster.connect();
@@ -193,6 +204,83 @@ public class GuardrailDiskUsageTest extends GuardrailTester
         }
     }
 
+    @Test
+    public void testDiskUsageNodetoolDisableWhenDiskIsFullShouldEnableWrites()
+    {
+        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+        String insert = format("INSERT INTO %s(k, v) VALUES (?, 0)");
+
+        // With both nodes in SPACIOUS state, we can write without warnings nor failures
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+
+        // If the STUFFED node becomes FULL, the writes targeting that node will fail, while the writes targeting
+        // the node that remains SPACIOUS will keep succeeding without warnings
+        DiskStateInjection.setState(getCluster(), 2, DiskUsageState.FULL);
+        int numFailures = 0;
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            try
+            {
+                ResultSet rs = driverSession.execute(insert, i);
+                Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+            }
+            catch (InvalidQueryException e)
+            {
+                Assertions.assertThat(e).hasMessageContaining(FAIL_MESSAGE);
+                numFailures++;
+            }
+        }
+        Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
+
+        // After disabling the guardrail, we should be able to write again.
+        cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(-1, -1));
+        int stateDissemenationTimeoutSec = 2 * 60; // 2 minutes.
+        Util.spinUntilTrue(
+            () -> cluster.get(1).callOnInstance(() -> !DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
+            stateDissemenationTimeoutSec
+        );
+
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+
+        // Re-enabling the guardrail should again cause writes to fail
+        cluster.get(2).runOnInstance(() -> Guardrails.instance.setDataDiskUsagePercentageThreshold(98, 99));
+        Util.spinUntilTrue(
+            () -> cluster.get(1).callOnInstance(() -> DiskUsageBroadcaster.instance.hasStuffedOrFullNode()),
+            stateDissemenationTimeoutSec
+        );
+        numFailures = 0;
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            try
+            {
+                ResultSet rs = driverSession.execute(insert, i);
+                Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+            }
+            catch (InvalidQueryException e)
+            {
+                Assertions.assertThat(e).hasMessageContaining(FAIL_MESSAGE);
+                numFailures++;
+            }
+        }
+        Assertions.assertThat(numFailures).isGreaterThan(0).isLessThan(NUM_ROWS);
+
+        // Finally, if both nodes go back to SPACIOUS, all queries will succeed again
+        DiskStateInjection.setState(getCluster(), 2, DiskUsageState.SPACIOUS);
+        for (int i = 0; i < NUM_ROWS; i++)
+        {
+            ResultSet rs = driverSession.execute(insert, i);
+            Assertions.assertThat(rs.getExecutionInfo().getWarnings()).isEmpty();
+        }
+    }
+
     /**
      * ByteBuddy rule to override the disk usage state of each node.
      */
@@ -200,7 +288,7 @@ public class GuardrailDiskUsageTest extends GuardrailTester
     {
         public static volatile DiskUsageState state = DiskUsageState.SPACIOUS;
 
-        private static void install(ClassLoader cl, int node)
+        static void install(ClassLoader cl, int node)
         {
             new ByteBuddy().rebase(DiskUsageMonitor.class)
                            .method(named("getState"))

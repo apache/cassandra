@@ -20,23 +20,32 @@ package org.apache.cassandra.distributed.mock.nodetool;
 
 import java.io.IOException;
 
-import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.INodeProbeFactory;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.Output;
 
 public class InternalNodeProbeFactory implements INodeProbeFactory
 {
     private final boolean withNotifications;
+    private final Output output;
 
-    public InternalNodeProbeFactory(boolean withNotifications)
+    public InternalNodeProbeFactory(boolean withNotifications, Output output)
     {
         this.withNotifications = withNotifications;
+        this.output = output;
     }
 
     public NodeProbe create(String host, int port) throws IOException {
-        return new InternalNodeProbe(withNotifications);
+        return createInternalNodeProbe(withNotifications, output);
     }
 
     public NodeProbe create(String host, int port, String username, String password) throws IOException {
-        return new InternalNodeProbe(withNotifications);
+        return createInternalNodeProbe(withNotifications, output);
+    }
+
+    private static NodeProbe createInternalNodeProbe(boolean withNotifications, Output output) {
+        NodeProbe probe = new InternalNodeProbe(withNotifications);
+        probe.setOutput(output);
+        return probe;
     }
 }

@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
+
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertNull;
@@ -34,7 +35,6 @@ import static org.junit.Assert.assertNull;
 public class ColumnMaskWithUDFTest extends ColumnMaskTester
 {
     @Test
-    @SuppressWarnings("resource")
     public void testUDF() throws Throwable
     {
         // create a table masked with a UDF and with a materialized view

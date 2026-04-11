@@ -26,21 +26,25 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message.Header;
-import org.apache.cassandra.net.FrameDecoder.IntactFrame;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
+import org.apache.cassandra.net.FrameDecoder.IntactFrame;
+import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -125,7 +129,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
         long timeElapsed = currentTimeNanos - header.createdAtNanos;
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
 
         if (approxTime.isAfter(currentTimeNanos, header.expiresAtNanos))
         {
@@ -165,13 +169,29 @@ public class InboundMessageHandler extends AbstractMessageHandler
         {
             Message<?> m = serializer.deserialize(in, header, version);
             if (in.available() > 0) // bytes remaining after deser: deserializer is busted
-                throw new InvalidSerializedSizeException(header.verb, size, size - in.available());
+            {
+                Throwable t = new InvalidSerializedSizeException(header.verb, size, size - in.available());
+                ByteBuffer clone = bytes.get();
+                clone.limit(clone.position() + size); // cap to expected message size
+                logger.error("Could not deserialize the message: {}", ByteBufferUtil.bytesToHex(clone), t);
+                throw t;
+
+            }
             message = m;
         }
         catch (IncompatibleSchemaException e)
         {
             callbacks.onFailedDeserialize(size, header, e);
             noSpamLogger.info("{} incompatible schema encountered while deserializing a message", this, e);
+            ClusterMetadataService.instance().fetchLogFromPeerAsync(header.from, header.epoch);
+        }
+        catch (CMSIdentifierMismatchException e)
+        {
+            callbacks.onFailedDeserialize(size, header, e);
+            logger.error("{} is a member of a different CMS group. Forcing connection close.", header.from, e);
+            MessagingService.instance().closeOutbound(header.from);
+            // Sharable bytes will be released by the frame decoder
+            channel.close();
         }
         catch (Throwable t)
         {
@@ -211,7 +231,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
 
         boolean expired = approxTime.isAfter(currentTimeNanos, header.expiresAtNanos);
         if (!expired && !acquireCapacity(endpointReserve, globalReserve, size, currentTimeNanos, header.expiresAtNanos))
@@ -370,6 +390,14 @@ public class InboundMessageHandler extends AbstractMessageHandler
                 callbacks.onFailedDeserialize(size, header, e);
                 noSpamLogger.info("{} incompatible schema encountered while deserializing a message", InboundMessageHandler.this, e);
             }
+            catch (CMSIdentifierMismatchException e)
+            {
+                callbacks.onFailedDeserialize(size, header, e);
+                noSpamLogger.info("{} is a member of a different CMS group, and should not be tried. Forcing connection close.", header.from);
+                // Sharable bytes will be released by the frame decoder
+                channel.close();
+                MessagingService.instance().closeOutbound(header.from);
+            }
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
@@ -403,24 +431,24 @@ public class InboundMessageHandler extends AbstractMessageHandler
     {
         /**
          * Actually handle the message. Runs on the appropriate {@link Stage} for the {@link Verb}.
-         *
+         * <p>
          * Small messages will come pre-deserialized. Large messages will be deserialized on the stage,
          * just in time, and only then processed.
          */
         public void run()
         {
             Header header = header();
-            long currentTimeNanos = approxTime.now();
-            boolean expired = approxTime.isAfter(currentTimeNanos, header.expiresAtNanos);
+            long approxStartTimeNanos = approxTime.now();
+            boolean expired = approxTime.isAfter(approxStartTimeNanos, header.expiresAtNanos);
 
             boolean processed = false;
             try
             {
-                callbacks.onExecuting(size(), header, currentTimeNanos - header.createdAtNanos, NANOSECONDS);
+                callbacks.onExecuting(size(), header, approxStartTimeNanos - header.createdAtNanos, NANOSECONDS);
 
                 if (expired)
                 {
-                    callbacks.onExpired(size(), header, currentTimeNanos - header.createdAtNanos, NANOSECONDS);
+                    callbacks.onExpired(size(), header, approxStartTimeNanos - header.createdAtNanos, NANOSECONDS);
                     return;
                 }
 
@@ -441,7 +469,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
                 releaseResources();
 
-                callbacks.onExecuted(size(), header, approxTime.now() - currentTimeNanos, NANOSECONDS);
+                callbacks.onExecuted(size(), header, approxTime.now() - approxStartTimeNanos, NANOSECONDS);
             }
         }
 

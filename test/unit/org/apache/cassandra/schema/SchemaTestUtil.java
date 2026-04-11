@@ -18,22 +18,15 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.concurrent.Future;
-
-import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class SchemaTestUtil
 {
@@ -41,13 +34,13 @@ public class SchemaTestUtil
 
     public static void announceNewKeyspace(KeyspaceMetadata ksm) throws ConfigurationException
     {
-        ksm.validate();
+        ksm.validate(ClusterMetadata.current());
 
         if (Schema.instance.getKeyspaceMetadata(ksm.name) != null)
             throw new AlreadyExistsException(ksm.name);
 
         logger.info("Create new Keyspace: {}", ksm);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm));
+        submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void announceNewTable(TableMetadata cfm)
@@ -67,19 +60,19 @@ public class SchemaTestUtil
             throw new AlreadyExistsException(cfm.keyspace, cfm.name);
 
         logger.info("Create new table: {}", cfm);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm.withSwapped(ksm.tables.with(cfm))));
+        submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.with(cfm))));
     }
 
     static void announceKeyspaceUpdate(KeyspaceMetadata ksm)
     {
-        ksm.validate();
+        ksm.validate(ClusterMetadata.current());
 
         KeyspaceMetadata oldKsm = Schema.instance.getKeyspaceMetadata(ksm.name);
         if (oldKsm == null)
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
         logger.info("Update Keyspace '{}' From {} To {}", ksm.name, oldKsm, ksm);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm));
+        submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void announceTableUpdate(TableMetadata updated)
@@ -94,7 +87,7 @@ public class SchemaTestUtil
         updated.validateCompatibility(current);
 
         logger.info("Update table '{}/{}' From {} To {}", current.keyspace, current.name, current, updated);
-        Schema.instance.transform(schema -> schema.withAddedOrUpdated(ksm.withSwapped(ksm.tables.withSwapped(updated))));
+        submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.withSwapped(updated))));
     }
 
     static void announceKeyspaceDrop(String ksName)
@@ -104,43 +97,77 @@ public class SchemaTestUtil
             throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
 
         logger.info("Drop Keyspace '{}'", oldKsm.name);
-        Schema.instance.transform(schema -> schema.without(ksName));
+        submit((metadata) -> metadata.schema.getKeyspaces().without(ksName));
     }
 
-    public static SchemaTransformation dropTable(String ksName, String cfName)
+    public static void announceTableDrop(String ksName, String cfName)
     {
-        return schema -> {
+        logger.info("Drop table '{}/{}'", ksName, cfName);
+        submit((metadata) -> {
+            Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata ksm = schema.getNullable(ksName);
             TableMetadata tm = ksm != null ? ksm.getTableOrViewNullable(cfName) : null;
             if (tm == null)
                 throw new ConfigurationException(String.format("Cannot drop non existing table '%s' in keyspace '%s'.", cfName, ksName));
 
             return schema.withAddedOrUpdated(ksm.withSwapped(ksm.tables.without(cfName)));
-        };
+        });
     }
 
-    public static void announceTableDrop(String ksName, String cfName)
+    public static void addOrUpdateKeyspace(KeyspaceMetadata ksm)
     {
-        logger.info("Drop table '{}/{}'", ksName, cfName);
-        Schema.instance.transform(dropTable(ksName, cfName));
+        submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
+    @Deprecated(since = "CEP-21") // TODO remove this
     public static void addOrUpdateKeyspace(KeyspaceMetadata ksm, boolean locally)
     {
-        Schema.instance.transform(current -> current.withAddedOrUpdated(ksm));
+        submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void dropKeyspaceIfExist(String ksName, boolean locally)
     {
-        Schema.instance.transform(current -> current.without(Collections.singletonList(ksName)));
+        submit((metadata) -> metadata.schema.getKeyspaces().without(Collections.singletonList(ksName)));
     }
 
-    public static void mergeAndAnnounceLocally(Collection<Mutation> schemaMutations)
+    public static void submit(Function<ClusterMetadata, Keyspaces> transformation)
     {
-        SchemaPushVerbHandler.instance.doVerb(Message.out(SCHEMA_PUSH_REQ, schemaMutations));
-        Future<?> f = Stage.MIGRATION.submit(() -> {});
-        Assert.assertTrue(f.awaitThrowUncheckedOnInterrupt(10, TimeUnit.SECONDS));
-        f.rethrowIfFailed();
+        Schema.instance.submit(toTransformation(transformation));
     }
 
+    /**
+     * Returns a {@link SchemaTransformation} with an {@code compatibleWith} implementation hardcoded to return true.
+     *
+     * This is intended for use in unit tests where there is only a single Cassandra version to consider, i.e. the
+     * transformation can be assumed compatible with whatever the current {@link ClusterMetadata} state is. It isn't
+     * suitable for dtests/upgrade tests etc. It is also worth noting that the {@code cql} method of the returned
+     * {@code SchemaTransformation} does not produce valid CQL, which procludes these transformations from being
+     * serialized/deserialized.
+     *
+     * @param transformation function to apply in order to modify schema
+     * @return SchemaTransformation instance that wraps the supplied function
+     */
+    public static SchemaTransformation toTransformation(Function<ClusterMetadata, Keyspaces> transformation)
+    {
+       return new SchemaTransformation()
+       {
+           @Override
+           public Keyspaces apply(ClusterMetadata metadata)
+           {
+               return transformation.apply(metadata);
+           }
+
+           @Override
+           public boolean compatibleWith(ClusterMetadata metadata)
+           {
+               return true;
+           }
+
+           @Override
+           public String cql()
+           {
+               return "fake";
+           }
+       };
+    }
 }

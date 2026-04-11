@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.sstable.KeyReader;
@@ -45,6 +46,7 @@ import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
@@ -137,9 +139,13 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
                 }
             }
 
-            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components))
+            CompressionDictionaryManager compressionDictionaryManager = owner == null ? null : owner.compressionDictionaryManager();
+            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components, compressionDictionaryManager))
             {
-                builder.setDataFile(dataFileBuilder(builder.getStatsMetadata()).withCompressionMetadata(compressionMetadata).complete());
+                builder.setDataFile(dataFileBuilder(builder.getStatsMetadata())
+                                    .withCompressionMetadata(compressionMetadata)
+                                    .withCrcCheckChance(() -> tableMetadataRef.getLocal().params.crcCheckChance)
+                                    .complete());
             }
 
             if (builder.getFilter() == null)
@@ -172,7 +178,7 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
         checkNotNull(serializationHeader);
 
         RowIndexEntry.IndexSerializer serializer = new RowIndexEntry.Serializer(descriptor.version, serializationHeader, tableMetrics);
-        return BigTableKeyReader.create(indexFile, serializer);
+        return BigTableKeyReader.create(indexFile, serializer, false);
     }
 
     /**
@@ -182,7 +188,6 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
      * @param rebuildSummary true if index summary, first and last keys should be rebuilt
      * @return a pair of created filter and index summary component (or nulls if some of them were not created)
      */
-    @SuppressWarnings("resource")
     private Pair<IFilter, IndexSummaryComponent> buildSummaryAndBloomFilter(FileHandle indexFile,
                                                                             SerializationHeader serializationHeader,
                                                                             boolean rebuildFilter,
@@ -195,6 +200,7 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
         DecoratedKey first = null, key = null;
         IFilter bf = null;
         IndexSummary indexSummary = null;
+        TableMetadata tableMetadata = tableMetadataRef.getLocal();
 
         // we read the positions in a BRAF, so we don't have to worry about an entry spanning a mmap boundary.
         try (KeyReader keyReader = createKeyReader(indexFile, serializationHeader, tableMetrics))
@@ -202,15 +208,15 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
             long estimatedRowsNumber = rebuildFilter || rebuildSummary ? estimateRowsFromIndex(indexFile) : 0;
 
             if (rebuildFilter)
-                bf = FilterFactory.getFilter(estimatedRowsNumber, tableMetadataRef.getLocal().params.bloomFilterFpChance);
+                bf = FilterFactory.getFilter(estimatedRowsNumber, tableMetadata.params.bloomFilterFpChance);
 
             try (IndexSummaryBuilder summaryBuilder = !rebuildSummary ? null : new IndexSummaryBuilder(estimatedRowsNumber,
-                                                                                                       tableMetadataRef.getLocal().params.minIndexInterval,
+                                                                                                       tableMetadata.params.minIndexInterval,
                                                                                                        Downsampling.BASE_SAMPLING_LEVEL))
             {
                 while (!keyReader.isExhausted())
                 {
-                    key = tableMetadataRef.getLocal().partitioner.decorateKey(keyReader.key());
+                    key = tableMetadata.partitioner.decorateKey(keyReader.key());
                     if (rebuildSummary)
                     {
                         if (first == null)
@@ -225,7 +231,7 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
                 }
 
                 if (rebuildSummary)
-                    indexSummary = summaryBuilder.build(tableMetadataRef.getLocal().partitioner);
+                    indexSummary = summaryBuilder.build(tableMetadata.partitioner);
             }
         }
         catch (IOException | RuntimeException | Error ex)

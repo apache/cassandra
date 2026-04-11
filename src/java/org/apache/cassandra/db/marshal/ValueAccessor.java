@@ -41,7 +41,12 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static org.apache.cassandra.db.ClusteringPrefix.Kind.*;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.EXCL_START_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_BOUND;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY;
+import static org.apache.cassandra.db.ClusteringPrefix.Kind.INCL_START_BOUND;
 
 /**
  * ValueAccessor allows serializers and other code dealing with raw bytes to operate on different backing types
@@ -120,6 +125,12 @@ public interface ValueAccessor<V>
         return TypeSizes.sizeofUnsignedVInt(size) + size;
     }
 
+    default int sizeWithVIntLength(IndexedValueHolder<V> valueHolder, int i)
+    {
+        int size = valueHolder.size(i);
+        return TypeSizes.sizeofUnsignedVInt(size) + size;
+    }
+
     /** serialized size including a short length prefix */
     default int sizeWithShortLength(V value)
     {
@@ -168,10 +179,22 @@ public interface ValueAccessor<V>
      */
     void write(V value, DataOutputPlus out) throws IOException;
 
+    default void write(IndexedValueHolder<V> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        write(valueHolder.get(i), out);
+    }
+
+
     default void writeWithVIntLength(V value, DataOutputPlus out) throws IOException
     {
         out.writeUnsignedVInt32(size(value));
         write(value, out);
+    }
+
+    default void writeWithVIntLength(IndexedValueHolder<V> valueHolder, int i, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(valueHolder.size(i));
+        write(valueHolder.get(i), out);
     }
 
     /**
@@ -340,6 +363,11 @@ public interface ValueAccessor<V>
         return VIntCoding.getVInt32(value, this, offset);
     }
 
+    default long getLeastSignificantBytes(V value, int offset, int bytes)
+    {
+        return getLeastSignificantBytes(this, value, offset, bytes);
+    }
+
     float getFloat(V value, int offset);
     double getDouble(V value, int offset);
     /** returns a long from offset 0 */
@@ -360,6 +388,9 @@ public interface ValueAccessor<V>
 
     /** returns a TimeUUID from offset 0 */
     Ballot toBallot(V value);
+
+    /** returns a float[] from offset 0 */
+    float[] toFloatArray(V value, int dimension);
 
     /**
      * writes the byte value {@param value} to {@param dst} at offset {@param offset}
@@ -394,6 +425,18 @@ public interface ValueAccessor<V>
     default int putBytes(V dst, int offset, byte[] src, int srcOffset, int length)
     {
         return ByteArrayAccessor.instance.copyTo(src, srcOffset, dst, this, offset, length);
+    }
+
+    /**
+     * An efficient way to write the type {@code bytes} of a long
+     *
+     * @param register - the long value to be written
+     * @param bytes - the number of bytes the register occupies. Valid values are between 1 and 8 inclusive.
+     * @throws IOException
+     */
+    default int putLeastSignificantBytes(V dst, int offset, long register, int bytes)
+    {
+        return putLeastSignificantBytes(this, dst, offset, register, bytes);
     }
 
     default int putBytes(V dst, int offset, byte[] src)
@@ -489,5 +532,73 @@ public interface ValueAccessor<V>
     public static <L, R> boolean equals(L left, ValueAccessor<L> leftAccessor, R right, ValueAccessor<R> rightAccessor)
     {
         return compare(left, leftAccessor, right, rightAccessor) == 0;
+    }
+
+    public static <V> int putLeastSignificantBytes(ValueAccessor<V> accessor, V dst, int offset, long register, int bytes)
+    {
+        switch (bytes)
+        {
+            case 0:
+                break;
+            case 1:
+                accessor.putByte(dst, offset, (byte)register);
+                break;
+            case 2:
+                accessor.putShort(dst, offset, (short)register);
+                break;
+            case 3:
+                accessor.putShort(dst, offset, (short)(register >>> 8));
+                accessor.putByte(dst, offset + 2, (byte)register);
+                break;
+            case 4:
+                accessor.putInt(dst, offset, (int)register);
+                break;
+            case 5:
+                accessor.putInt(dst, offset, (int)(register >>> 8));
+                accessor.putByte(dst, offset + 4, (byte)register);
+                break;
+            case 6:
+                accessor.putInt(dst, offset, (int)(register >>> 16));
+                accessor.putShort(dst, offset + 4, (short)register);
+                break;
+            case 7:
+                accessor.putInt(dst, offset, (int)(register >>> 24));
+                accessor.putShort(dst, offset + 4, (short)(register >> 8));
+                accessor.putByte(dst, offset + 6, (byte)register);
+                break;
+            case 8:
+                accessor.putLong(dst, offset, register);
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+        return bytes;
+    }
+
+    public static <V> long getLeastSignificantBytes(ValueAccessor<V> accessor, V dst, int offset, int bytes)
+    {
+        switch (bytes)
+        {
+            case 0: return 0;
+            case 1: return accessor.getByte(dst, offset) & 0xffL;
+            case 2: return accessor.getShort(dst, offset) & 0xffffL;
+            case 3:
+                return ((accessor.getShort(dst, offset) & 0xffffL) << 8)
+                     |  (accessor.getByte(dst, offset + 2) & 0xffL);
+            case 4:
+                return accessor.getInt(dst, offset) & 0xffffffffL;
+            case 5:
+                return ((accessor.getInt(dst, offset) & 0xffffffffL) << 8)
+                     |  (accessor.getByte(dst, offset + 4) & 0xffL);
+            case 6:
+                return ((accessor.getInt(dst, offset) & 0xffffffffL) << 16)
+                     |  (accessor.getShort(dst, offset + 4) & 0xffffL);
+            case 7:
+                return ((accessor.getInt(dst, offset) & 0xffffffffL) << 24)
+                     | ((accessor.getShort(dst, offset + 4) & 0xffffL) << 8)
+                     |  (accessor.getByte(dst, offset + 6) & 0xffL);
+            case 8: return accessor.getLong(dst, offset);
+            default: throw new IllegalArgumentException();
+        }
     }
 }

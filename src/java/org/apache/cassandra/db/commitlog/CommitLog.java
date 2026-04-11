@@ -36,10 +36,12 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.Mutation;
@@ -56,13 +58,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -104,7 +107,8 @@ public class CommitLog implements CommitLogMBean
     CommitLog(CommitLogArchiver archiver, Function<CommitLog, AbstractCommitLogSegmentManager> segmentManagerProvider)
     {
         this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
-                                               DatabaseDescriptor.getEncryptionContext());
+                                               DatabaseDescriptor.getEncryptionContext(),
+                                               DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
         DatabaseDescriptor.createAllDirectories();
 
         this.archiver = archiver;
@@ -162,7 +166,7 @@ public class CommitLog implements CommitLogMBean
         return getUnmanagedFiles().length > 0;
     }
 
-    private File[] getUnmanagedFiles()
+    public File[] getUnmanagedFiles()
     {
         File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
         if (files == null)
@@ -201,8 +205,11 @@ public class CommitLog implements CommitLogMBean
         {
             Arrays.sort(files, new CommitLogSegment.CommitLogSegmentFileComparator());
             logger.info("Replaying {}", StringUtils.join(files, ", "));
+            long startTime = nanoTime();
             replayed = recoverFiles(files);
-            logger.info("Log replay complete, {} replayed mutations", replayed);
+            long endTime = nanoTime();
+            logger.info("Log replay complete, {} replayed mutations in {} ms", replayed,
+                        TimeUnit.NANOSECONDS.toMillis(endTime - startTime));
 
             for (File f : files)
                 segmentManager.handleReplayedSegment(f);
@@ -346,7 +353,8 @@ public class CommitLog implements CommitLogMBean
      */
     public void discardCompletedSegments(final TableId id, final CommitLogPosition lowerBound, final CommitLogPosition upperBound)
     {
-        logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, id);
+        if (logger.isTraceEnabled())
+            logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, id);
 
         // Go thru the active segment files, which are ordered oldest to newest, marking the
         // flushed CF as clean, until we reach the segment file containing the CommitLogPosition passed
@@ -366,7 +374,7 @@ public class CommitLog implements CommitLogMBean
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Not safe to delete{} commit log segment {}; dirty is {}",
-                            (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
+                                 (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
             }
 
             // Don't mark or try to delete any newer segments once we've reached the one containing the
@@ -397,7 +405,7 @@ public class CommitLog implements CommitLogMBean
     @Override
     public long getRestorePointInTime()
     {
-        return archiver.restorePointInTime;
+        return archiver.restorePointInTimeInMicroseconds;
     }
 
     @Override
@@ -521,7 +529,8 @@ public class CommitLog implements CommitLogMBean
     synchronized public void resetConfiguration()
     {
         configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
-                                          DatabaseDescriptor.getEncryptionContext());
+                                          DatabaseDescriptor.getEncryptionContext(),
+                                          DatabaseDescriptor.getCommitLogWriteDiskAccessMode());
     }
 
     /**
@@ -568,24 +577,7 @@ public class CommitLog implements CommitLogMBean
     @VisibleForTesting
     public static boolean handleCommitError(String message, Throwable t)
     {
-        JVMStabilityInspector.inspectCommitLogThrowable(t);
-        switch (DatabaseDescriptor.getCommitFailurePolicy())
-        {
-            // Needed here for unit tests to not fail on default assertion
-            case die:
-            case stop:
-                StorageService.instance.stopTransports();
-                //$FALL-THROUGH$
-            case stop_commit:
-                String errorMsg = String.format("%s. Commit disk failure policy is %s; terminating thread.", message, DatabaseDescriptor.getCommitFailurePolicy());
-                logger.error(addAdditionalInformationIfPossible(errorMsg), t);
-                return false;
-            case ignore:
-                logger.error(addAdditionalInformationIfPossible(message), t);
-                return true;
-            default:
-                throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
-        }
+        return DiskErrorsHandlerService.get().handleCommitError(message, t);
     }
 
     /**
@@ -610,6 +602,11 @@ public class CommitLog implements CommitLogMBean
     public static final class Configuration
     {
         /**
+         * Flag used to shows user configured Direct-IO status.
+         */
+        public final Config.DiskAccessMode diskAccessMode;
+
+        /**
          * The compressor class.
          */
         private final ParameterizedClass compressorClass;
@@ -622,17 +619,18 @@ public class CommitLog implements CommitLogMBean
         /**
          * The encryption context used to encrypt the segments.
          */
-        private EncryptionContext encryptionContext;
+        private final EncryptionContext encryptionContext;
 
-        public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext)
+        public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext,
+                             Config.DiskAccessMode diskAccessMode)
         {
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
             this.encryptionContext = encryptionContext;
+            this.diskAccessMode = diskAccessMode;
         }
 
         /**
-         * Checks if the segments must be compressed.
          * @return <code>true</code> if the segments must be compressed, <code>false</code> otherwise.
          */
         public boolean useCompression()
@@ -641,7 +639,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Checks if the segments must be encrypted.
          * @return <code>true</code> if the segments must be encrypted, <code>false</code> otherwise.
          */
         public boolean useEncryption()
@@ -650,7 +647,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor used to compress the segments.
          * @return the compressor used to compress the segments
          */
         public ICompressor getCompressor()
@@ -659,7 +655,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor class.
          * @return the compressor class
          */
         public ParameterizedClass getCompressorClass()
@@ -668,7 +663,6 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the compressor name.
          * @return the compressor name.
          */
         public String getCompressorName()
@@ -677,12 +671,27 @@ public class CommitLog implements CommitLogMBean
         }
 
         /**
-         * Returns the encryption context used to encrypt the segments.
          * @return the encryption context used to encrypt the segments
          */
         public EncryptionContext getEncryptionContext()
         {
             return encryptionContext;
+        }
+
+        /**
+         * @return Direct-IO used for CommitLog IO
+         */
+        public boolean isDirectIOEnabled()
+        {
+            return diskAccessMode == Config.DiskAccessMode.direct;
+        }
+
+        /**
+         * @return Standard or buffered I/O used for CommitLog IO
+         */
+        public boolean isStandardModeEnable()
+        {
+            return diskAccessMode == Config.DiskAccessMode.standard;
         }
     }
 }

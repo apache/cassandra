@@ -1,0 +1,46 @@
+== Cassandra Constraint Example
+
+
+The `CustomConstraintsProvider` class will create custom constraints. For the purposes of this example,
+there will be two constraints: `MY_CUSTOM_CONSTRAINT` and `MY_CUSTOM_UNARY_CONSTRAINT`.
+
+If you want to code your own constraints without patching Cassandra yourself, you need to do the following:
+
+1. Code against interface `org.apache.cassandra.cql3.constraints.ConstraintProvider`.
+2. Put the class implementing this interface to `META-INF/services/org.apache.cassandra.cql3.constraints.ConstraintProvider`
+3. Build a JAR both with the implementation and `META-INF` resources, as show in this example, and put this JAR onto
+Cassandra's classpath.
+4. When Cassandra starts, it will auto-detect new constraints by loading `CustomConstraintsProvider` in your JAR.
+Custom constraints are resolved first, in-built ones when constraint can not be resolved by given provider. This
+means that if you have a constraint in Cassandra which is buggy, you can create your own provider, and return constraint
+which "fixes" the in-built one, without any need to patch Cassandra itself. Of course, you can just implement any
+other constraint you want so you can start to use your custom constraints without depending on Cassandra release etc.
+
+There is only one `ConstraintProvider` loaded via `ServiceLoader`.
+
+=== Installation
+
+----
+$ cd <cassandra_src_dir>/examples/constraints
+$ ant install
+----
+
+It will build the constraints and will copy it to `lib` as well as to `build/lib/jars`.
+
+You remove it from everywhere by
+
+----
+$ cd <cassandra_src_dir>/examples/constraints
+$ ant clean
+----
+
+=== Usage
+
+----
+cqlsh> CREATE KEYSPACE ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+cqlsh> CREATE TABLE ks.tb (id int primary key, col text CHECK MY_CUSTOM_CONSTRAINT() > 10);
+cqlsh> ALTER TABLE ks.tb ALTER col CHECK MY_CUSTOM_CONSTRAINT() > 20;
+----
+
+`MY_CUSTOM_CONSTRAINT` is functionally same as `LENGTH` constraint and `MY_CUSTOM_UNARY_CONSTRAINT` is functionally
+same as `JSON` constraint.

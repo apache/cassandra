@@ -19,11 +19,20 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -33,11 +42,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -53,6 +63,7 @@ public class SystemKeyspaceTest
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+        SchemaLoader.prepareServer();
     }
 
     @Test
@@ -61,7 +72,7 @@ public class SystemKeyspaceTest
         // Remove all existing tokens
         Collection<Token> current = SystemKeyspace.loadTokens().asMap().get(FBUtilities.getLocalAddressAndPort());
         if (current != null && !current.isEmpty())
-            SystemKeyspace.updateTokens(current);
+            SystemKeyspace.updateLocalTokens(current);
 
         List<Token> tokens = new ArrayList<Token>()
         {{
@@ -69,7 +80,7 @@ public class SystemKeyspaceTest
                 add(new BytesToken(ByteBufferUtil.bytes(String.format("token%d", i))));
         }};
 
-        SystemKeyspace.updateTokens(tokens);
+        SystemKeyspace.updateLocalTokens(tokens);
         int count = 0;
 
         for (Token tok : SystemKeyspace.getSavedTokens())
@@ -87,14 +98,6 @@ public class SystemKeyspaceTest
         assert !SystemKeyspace.loadTokens().containsValue(token);
     }
 
-    @Test
-    public void testLocalHostID()
-    {
-        UUID firstId = SystemKeyspace.getOrInitializeLocalHostId();
-        UUID secondId = SystemKeyspace.getOrInitializeLocalHostId();
-        assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
-    }
-
     private void assertDeleted()
     {
         assertTrue(getSystemSnapshotFiles(SchemaConstants.SYSTEM_KEYSPACE_NAME).isEmpty());
@@ -106,14 +109,14 @@ public class SystemKeyspaceTest
         // First, check that in the absence of any previous installed version, we don't create snapshots
         for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
         SystemKeyspace.snapshotOnVersionChange();
         assertDeleted();
 
         // now setup system.local as if we're upgrading from a previous version
         setupReleaseVersion(getOlderVersionString());
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
         assertDeleted();
 
         // Compare versions again & verify that snapshots were created for all tables in the system ks
@@ -126,7 +129,7 @@ public class SystemKeyspaceTest
 
         // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
         // see any new snapshots created this time.
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
         setupReleaseVersion(FBUtilities.getReleaseVersionString());
 
         SystemKeyspace.snapshotOnVersionChange();
@@ -135,7 +138,7 @@ public class SystemKeyspaceTest
         // 10 files expected.
         assertDeleted();
 
-        StorageService.instance.clearSnapshot(Collections.emptyMap(), null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        SnapshotManager.instance.clearSnapshot(null, Collections.emptyMap(), SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
     @Test
@@ -152,8 +155,8 @@ public class SystemKeyspaceTest
         assertEquals(FBUtilities.getReleaseVersionString(), row.getString("release_version"));
         assertEquals(QueryProcessor.CQL_VERSION.toString(), row.getString("cql_version"));
         assertEquals(String.valueOf(ProtocolVersion.CURRENT.asInt()), row.getString("native_protocol_version"));
-        assertEquals(DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter(), row.getString("data_center"));
-        assertEquals(DatabaseDescriptor.getEndpointSnitch().getLocalRack(), row.getString("rack"));
+        assertEquals(DatabaseDescriptor.getLocator().local().datacenter, row.getString("data_center"));
+        assertEquals(DatabaseDescriptor.getLocator().local().rack, row.getString("rack"));
         assertEquals(DatabaseDescriptor.getPartitioner().getClass().getName(), row.getString("partitioner"));
         assertEquals(FBUtilities.getJustBroadcastNativeAddress(), row.getInetAddress("rpc_address"));
         assertEquals(DatabaseDescriptor.getNativeTransportPort(), row.getInt("rpc_port"));
@@ -161,6 +164,38 @@ public class SystemKeyspaceTest
         assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("broadcast_port"));
         assertEquals(FBUtilities.getJustLocalAddress(), row.getInetAddress("listen_address"));
         assertEquals(DatabaseDescriptor.getStoragePort(), row.getInt("listen_port"));
+    }
+
+    @Test
+    public void testCompactionHistory()
+    {
+        String ks = "test_ks";
+        String cf = "test_cf";
+        long now = System.currentTimeMillis();
+        Map<Integer, Long> rowsMerged = Collections.singletonMap(1, 100L);
+        Map<String, String> props = Collections.singletonMap("strategy", "STCS");
+        String compactionType = "TestMajor";
+
+        Map<String, String> propertiesWithType = new HashMap<>(props);
+        propertiesWithType.put("compaction_type", compactionType);
+
+        SystemKeyspace.updateCompactionHistory(
+            TimeUUID.Generator.nextTimeUUID(),
+            ks,
+            cf,
+            now,
+            1000,
+            500,
+            rowsMerged,
+            propertiesWithType
+        );
+
+        UntypedResultSet result = executeInternal("SELECT compaction_properties FROM system.compaction_history WHERE keyspace_name=? AND columnfamily_name=? ALLOW FILTERING", ks, cf);
+
+        assertNotNull(result);
+
+        Map<String, String> resProps = result.one().getMap("compaction_properties", org.apache.cassandra.db.marshal.UTF8Type.instance, org.apache.cassandra.db.marshal.UTF8Type.instance);
+        assertEquals(compactionType, resProps.get("compaction_type"));
     }
 
     private String getOlderVersionString()
@@ -176,7 +211,7 @@ public class SystemKeyspaceTest
         Set<String> snapshottedTableNames = new HashSet<>();
         for (ColumnFamilyStore cfs : Keyspace.open(keyspace).getColumnFamilyStores())
         {
-            if (!cfs.listSnapshots().isEmpty())
+            if (!Util.listSnapshots(cfs).isEmpty())
                 snapshottedTableNames.add(cfs.getTableName());
         }
         return snapshottedTableNames;

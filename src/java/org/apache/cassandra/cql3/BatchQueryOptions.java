@@ -22,12 +22,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.utils.MD5Digest;
+import com.google.common.collect.ImmutableList;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.QueryState;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.utils.MD5Digest;
+
+import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
 
 public abstract class BatchQueryOptions
 {
@@ -47,14 +51,14 @@ public abstract class BatchQueryOptions
         return new WithoutPerStatementVariables(options, Collections.<Object>emptyList());
     }
 
-    public static BatchQueryOptions withPerStatementVariables(QueryOptions options, List<List<ByteBuffer>> variables, List<Object> queryOrIdList)
+    public static BatchQueryOptions withPerStatementVariables(QueryOptions options, List<byte[][]> variables, List<Object> queryOrIdList)
     {
         return new WithPerStatementVariables(options, variables, queryOrIdList);
     }
 
     public abstract QueryOptions forStatement(int i);
 
-    public void prepareStatement(int i, List<ColumnSpecification> boundNames)
+    public void prepareStatement(int i, ImmutableList<ColumnSpecification> boundNames)
     {
         forStatement(i).prepare(boundNames);
     }
@@ -89,6 +93,50 @@ public abstract class BatchQueryOptions
         return wrapped.getNowInSeconds(state);
     }
 
+    private static class BatchQueryOptionsWrapper extends QueryOptions.QueryOptionsWrapper {
+        private final byte[][] valuesAsByteArray;
+        private List<ByteBuffer> values; // initialized on demand
+
+        BatchQueryOptionsWrapper(QueryOptions wrapped, byte[][] vars)
+        {
+            super(wrapped);
+            this.valuesAsByteArray = vars;
+        }
+        public List<ByteBuffer> getValues()
+        {
+            if (values == null)
+            {
+                values = new ArrayList<>(valuesAsByteArray.length);
+                for (byte[] byteArrayValue : valuesAsByteArray)
+                    values.add(convertToByteBufferValue(byteArrayValue));
+            }
+            return values;
+        }
+
+        public int getValuesSize()
+        {
+            return valuesAsByteArray.length;
+        }
+
+        public ByteBuffer getValue(int index)
+        {
+            if (values == null) // we convert values to ByteBuffer in a lazy way, on demand
+                return convertToByteBufferValue(valuesAsByteArray[index]);
+            else
+                return values.get(index);
+        }
+
+        public boolean isByteArrayValuesGetSupported()
+        {
+            return true;
+        }
+
+        public byte[][] getByteArrayValues()
+        {
+            return valuesAsByteArray;
+        }
+    }
+
     private static class WithoutPerStatementVariables extends BatchQueryOptions
     {
         private WithoutPerStatementVariables(QueryOptions wrapped, List<Object> queryOrIdList)
@@ -104,38 +152,31 @@ public abstract class BatchQueryOptions
 
     private static class WithPerStatementVariables extends BatchQueryOptions
     {
-        private final List<QueryOptions> perStatementOptions;
+        private final QueryOptions[] perStatementOptions;
 
-        private WithPerStatementVariables(QueryOptions wrapped, List<List<ByteBuffer>> variables, List<Object> queryOrIdList)
+        private WithPerStatementVariables(QueryOptions wrapped, List<byte[][]> variables, List<Object> queryOrIdList)
         {
             super(wrapped, queryOrIdList);
-            this.perStatementOptions = new ArrayList<>(variables.size());
-            for (final List<ByteBuffer> vars : variables)
-            {
-                perStatementOptions.add(new QueryOptions.QueryOptionsWrapper(wrapped)
-                {
-                    public List<ByteBuffer> getValues()
-                    {
-                        return vars;
-                    }
-                });
-            }
+            this.perStatementOptions = new QueryOptions[variables.size()];
+            int i = 0;
+            for (final byte[][] vars : variables)
+                perStatementOptions[i++] = new BatchQueryOptionsWrapper(wrapped, vars);
         }
 
         public QueryOptions forStatement(int i)
         {
-            return perStatementOptions.get(i);
+            return perStatementOptions[i];
         }
 
         @Override
-        public void prepareStatement(int i, List<ColumnSpecification> boundNames)
+        public void prepareStatement(int i, ImmutableList<ColumnSpecification> boundNames)
         {
             if (isPreparedStatement(i))
             {
-                QueryOptions options = perStatementOptions.get(i);
+                QueryOptions options = perStatementOptions[i];
                 options.prepare(boundNames);
                 options = QueryOptions.addColumnSpecifications(options, boundNames);
-                perStatementOptions.set(i, options);
+                perStatementOptions[i] = options;
             }
             else
             {

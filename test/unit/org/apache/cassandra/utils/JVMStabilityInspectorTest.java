@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.SocketException;
 import java.util.Arrays;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,10 +31,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.assertj.core.api.Assertions;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
+import org.apache.cassandra.service.DiskErrorsHandler;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.StorageService;
 
 import static java.util.Arrays.asList;
@@ -59,7 +59,7 @@ public class JVMStabilityInspectorTest
 
         Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
         Config.CommitFailurePolicy oldCommitPolicy = DatabaseDescriptor.getCommitFailurePolicy();
-        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+        DiskErrorsHandlerService.configure();
         try
         {
             CassandraDaemon daemon = new CassandraDaemon();
@@ -114,7 +114,49 @@ public class JVMStabilityInspectorTest
             DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
             DatabaseDescriptor.setCommitFailurePolicy(oldCommitPolicy);
             StorageService.instance.registerDaemon(null);
-            FileUtils.setFSErrorHandler(null);
+            DiskErrorsHandlerService.set(DiskErrorsHandler.NoOpDiskErrorHandler.NO_OP);
+        }
+    }
+
+    @Test
+    public void testCallShutDownOnLoggerOnSpecificErrors() throws Exception
+    {
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+
+        Config.DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
+        Config.UserFunctionTimeoutPolicy oldUserFunctionTimeoutPolicy = DatabaseDescriptor.getUserFunctionTimeoutPolicy();
+        DiskErrorsHandlerService.configure();
+        try
+        {
+            DatabaseDescriptor.setDiskFailurePolicy(Config.DiskFailurePolicy.die);
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
+            assertTrue(killerForTests.wasKilled());
+            assertTrue(killerForTests.calledShutDownOnLogger());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
+            assertTrue(killerForTests.wasKilled());
+            assertTrue(killerForTests.calledShutDownOnLogger());
+
+            DatabaseDescriptor.setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy.die_immediate);
+            killerForTests.reset();
+            JVMStabilityInspector.userFunctionTimeout(new Throwable());
+            assertTrue(killerForTests.wasKilled());
+            assertTrue(killerForTests.calledShutDownOnLogger());
+        }
+        catch (Exception | Error e)
+        {
+            throw new AssertionError("Failure when daemonSetupCompleted=false", e);
+        }
+        finally
+        {
+            JVMStabilityInspector.replaceKiller(originalKiller);
+            DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
+            DatabaseDescriptor.setUserFunctionTimeoutPolicy(oldUserFunctionTimeoutPolicy);
+            StorageService.instance.registerDaemon(null);
+            DiskErrorsHandlerService.set(DiskErrorsHandler.NoOpDiskErrorHandler.NO_OP);
         }
     }
 

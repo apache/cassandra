@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.io.FileUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,18 +35,17 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.BulkLoader;
 import org.apache.cassandra.tools.ToolRunner;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NativeSSTableLoaderClient;
 
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
-
 import static com.google.common.collect.Lists.transform;
-import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
@@ -61,12 +61,12 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
         CLUSTER = Cluster.build().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP); // need gossip to get hostid for java driver
             c.set("server_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("internode_encryption", "all")
                               .put("optional", false)
                               .build());
             c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
+                  ImmutableMap.builder().putAll(validFileBasedKeystores)
                               .put("enabled", true)
                               .put("optional", false)
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
@@ -109,7 +109,7 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
     public void bulkLoaderSuccessfullyStreamsOverSslWithDeprecatedSslStoragePort() throws Throwable
     {
         File sstables_to_upload = prepareSstablesForUpload();
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+        ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class, true,
                                                             "--nodes", NODES,
                                                             "--port", Integer.toString(NATIVE_PORT),
                                                             "--storage-port", Integer.toString(STORAGE_PORT),

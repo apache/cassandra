@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
@@ -60,6 +61,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -196,7 +198,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         return cacheLoad;
     }
 
-    @SuppressWarnings("resource")
     public int loadSaved()
     {
         int count = 0;
@@ -220,12 +221,13 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 in = streamFactory.getInputStream(dataPath, crcPath);
 
                 //Check the schema has not changed since CFs are looked up by name which is ambiguous
-                UUID schemaVersion = new UUID(in.readLong(), in.readLong());
-                if (!schemaVersion.equals(Schema.instance.getVersion()))
+                UUID expected = new UUID(in.readLong(), in.readLong());
+                UUID actual = ClusterMetadata.current().schema.getVersion();
+                if (!expected.equals(actual))
                     throw new RuntimeException("Cache schema version "
-                                               + schemaVersion
+                                               + expected
                                                + " does not match current schema version "
-                                               + Schema.instance.getVersion());
+                                               + actual);
 
                 ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<>();
                 long loadByNanos = start + TimeUnit.SECONDS.toNanos(DatabaseDescriptor.getCacheLoadTimeout());

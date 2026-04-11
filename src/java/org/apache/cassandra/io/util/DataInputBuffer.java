@@ -67,6 +67,11 @@ public class DataInputBuffer extends RebufferingInputStream
         return buffer.remaining();
     }
 
+    public ByteBuffer buffer()
+    {
+        return buffer;
+    }
+
     @Override
     public void close() {}
 }

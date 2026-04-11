@@ -27,6 +27,7 @@ import java.nio.ByteOrder;
 import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -272,6 +273,18 @@ public abstract class RebufferingInputStream extends DataInputStreamPlus impleme
         firstByte &= VIntCoding.firstByteValueMask(extraBytes);
         // shift the first byte up to its correct position
         retval |= (long) firstByte << extraBits;
+        return retval;
+    }
+
+    @Override
+    public long readLeastSignificantBytes(int bytes) throws IOException
+    {
+        if (buffer.remaining() < 8)
+            return super.readLeastSignificantBytes(bytes);
+
+        long retval = buffer.getLong(buffer.position());
+        retval >>>= 64 - (bytes * 8);
+        buffer.position(buffer.position() + bytes);
         return retval;
     }
 

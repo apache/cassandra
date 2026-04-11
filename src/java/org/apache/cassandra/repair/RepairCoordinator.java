@@ -32,6 +32,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -40,14 +41,10 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -62,20 +59,34 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.messages.FailSession;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -99,6 +110,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private final List<ProgressListener> listeners = new ArrayList<>();
     private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
     final SharedContext ctx;
+    final Scheduler validationScheduler;
 
     private TraceState traceState;
 
@@ -116,7 +128,8 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                       int cmd, RepairOption options, String keyspace)
     {
         this.ctx = ctx;
-        this.state = new CoordinatorState(ctx.clock(), cmd, keyspace, options);
+        this.validationScheduler = Scheduler.build(DatabaseDescriptor.getConcurrentMerkleTreeRequests());
+        this.state = new CoordinatorState(ctx, cmd, keyspace, options);
         this.tag = "repair:" + cmd;
         this.validColumnFamilies = validColumnFamilies;
         this.getLocalReplicas = getLocalReplicas;
@@ -209,6 +222,17 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
             reason = error != null ? error.toString() : "Some repair failed";
         }
         state.phase.fail(reason);
+        ParticipateState p = ctx.repair().participate(state.id);
+        if (p != null)
+            p.phase.fail(reason);
+        NeighborsAndRanges neighborsAndRanges = state.getNeighborsAndRanges();
+        // this is possible if the failure happened during input processing, in which case no particpates have been notified
+        if (neighborsAndRanges != null)
+        {
+            FailSession msg = new FailSession(state.id);
+            for (InetAddressAndPort participate : neighborsAndRanges.participants)
+                RepairMessage.sendMessageWithRetries(ctx, msg, Verb.FAILED_SESSION_MSG, participate);
+        }
         String completionMessage = String.format("Repair command #%d finished with error", state.cmd);
 
         // Note we rely on the first message being the reason for the failure
@@ -267,17 +291,35 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         }
     }
 
+    private static void validate(RepairOption options, List<ColumnFamilyStore> columnFamilies)
+    {
+        if (options.paxosOnly() && options.accordOnly())
+            throw new IllegalArgumentException("Cannot specify a repair as both paxos only and accord only");
+
+        for (ColumnFamilyStore cfs : columnFamilies)
+        {
+            TableMetadata metadata = cfs.metadata();
+            if (options.paxosOnly() && !metadata.supportsPaxosOperations())
+                throw new IllegalArgumentException(String.format("Cannot run paxos only repair on %s.%s, which isn't configured for paxos operations", cfs.keyspace.getName(), cfs.name));
+
+            if (options.accordOnly() && !metadata.requiresAccordSupport())
+                throw new IllegalArgumentException(String.format("Cannot run accord only repair on %s.%s, which isn't configured for accord operations", cfs.keyspace.getName(), cfs.name));
+        }
+    }
+
     private void runMayThrow() throws Throwable
     {
         state.phase.setup();
         ctx.repair().recordRepairStatus(state.cmd, ParentRepairStatus.IN_PROGRESS, ImmutableList.of());
 
         List<ColumnFamilyStore> columnFamilies = getColumnFamilies();
+        validate(state.options, columnFamilies);
         String[] cfnames = columnFamilies.stream().map(cfs -> cfs.name).toArray(String[]::new);
 
         this.traceState = maybeCreateTraceState(columnFamilies);
         notifyStarting();
         NeighborsAndRanges neighborsAndRanges = getNeighborsAndRanges();
+
         // We test to validate the start JMX notification is seen before we compute neighbors and ranges
         // but in state (vtable) tracking, we rely on getNeighborsAndRanges to know where we are running repair...
         // JMX start != state start, its possible we fail in getNeighborsAndRanges and state start is never reached
@@ -353,22 +395,33 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     private NeighborsAndRanges getNeighborsAndRanges() throws RepairException
     {
         Set<InetAddressAndPort> allNeighbors = new HashSet<>();
+        Set<InetAddressAndPort> includeNeighbors = new HashSet<>();
         List<CommonRange> commonRanges = new ArrayList<>();
 
         //pre-calculate output of getLocalReplicas and pass it to getNeighbors to increase performance and prevent
         //calculation multiple times
         Iterable<Range<Token>> keyspaceLocalRanges = getLocalReplicas.apply(state.keyspace).ranges();
-
+        boolean isMeta = Keyspace.open(state.keyspace).getMetadata().params.replication.isMeta();
+        boolean isCMS = ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort());
         for (Range<Token> range : state.options.getRanges())
         {
-            EndpointsForRange neighbors = ctx.repair().getNeighbors(state.keyspace, keyspaceLocalRanges, range,
-                                                                           state.options.getDataCenters(),
-                                                                           state.options.getHosts());
-            if (neighbors.isEmpty())
+            EndpointsForRange allForRange = ctx.repair().getNeighbors(state.keyspace, keyspaceLocalRanges, range);
+            allNeighbors.addAll(allForRange.endpoints());
+
+            EndpointsForRange includeForRange = ctx.repair().filterNeighbors(allForRange, range,
+                                                                             state.options.getDataCenters(),
+                                                                             state.options.getHosts());
+
+            if (includeForRange.isEmpty())
             {
                 if (state.options.ignoreUnreplicatedKeyspaces())
                 {
                     logger.info("{} Found no neighbors for range {} for {} - ignoring since repairing with --ignore-unreplicated-keyspaces", state.id, range, state.keyspace);
+                    continue;
+                }
+                else if (isMeta && !isCMS)
+                {
+                    logger.info("{} Repair requested for keyspace {}, which is only replicated by CMS members - ignoring", state.id, state.keyspace);
                     continue;
                 }
                 else
@@ -376,26 +429,36 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                     throw RepairException.warn(String.format("Nothing to repair for %s in %s - aborting", range, state.keyspace));
                 }
             }
-            addRangeToNeighbors(commonRanges, range, neighbors);
-            allNeighbors.addAll(neighbors.endpoints());
+            addRangeToNeighbors(commonRanges, range, includeForRange);
+            includeNeighbors.addAll(includeForRange.endpoints());
         }
 
-        if (state.options.ignoreUnreplicatedKeyspaces() && allNeighbors.isEmpty())
+        if (includeNeighbors.isEmpty())
         {
-            throw new SkipRepairException(String.format("Nothing to repair for %s in %s - unreplicated keyspace is ignored since repair was called with --ignore-unreplicated-keyspaces",
-                                                        state.options.getRanges(),
-                                                        state.keyspace));
+            if (state.options.ignoreUnreplicatedKeyspaces())
+            {
+                throw new SkipRepairException(String.format("Nothing to repair for %s in %s - unreplicated keyspace is ignored since repair was called with --ignore-unreplicated-keyspaces",
+                                                            state.options.getRanges(),
+                                                            state.keyspace));
+            }
+            else if (isMeta && !isCMS)
+            {
+                throw new SkipRepairException(String.format("Nothing to repair for %s in %s - keypaces with MetaStrategy replication are not replicated to this node",
+                                                            state.options.getRanges(),
+                                                            state.keyspace));
+            }
         }
 
         boolean shouldExcludeDeadParticipants = state.options.isForcedRepair();
 
         if (shouldExcludeDeadParticipants)
         {
-            Set<InetAddressAndPort> actualNeighbors = Sets.newHashSet(Iterables.filter(allNeighbors, ctx.failureDetector()::isAlive));
-            shouldExcludeDeadParticipants = !allNeighbors.equals(actualNeighbors);
-            allNeighbors = actualNeighbors;
+            Set<InetAddressAndPort> actualNeighbors = Sets.newHashSet(Iterables.filter(includeNeighbors, ctx.failureDetector()::isAlive));
+            shouldExcludeDeadParticipants = !includeNeighbors.equals(actualNeighbors);
+            if (shouldExcludeDeadParticipants) includeNeighbors = actualNeighbors;
+            else logger.info("{} all replicas {} considered up and healthy; clearing force flag for this job", state.id, includeNeighbors);
         }
-        return new NeighborsAndRanges(shouldExcludeDeadParticipants, allNeighbors, commonRanges);
+        return new NeighborsAndRanges(shouldExcludeDeadParticipants, includeNeighbors.containsAll(allNeighbors), includeNeighbors, commonRanges);
     }
 
     private void maybeStoreParentRepairStart(String[] cfnames)
@@ -453,7 +516,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
 
         ExecutorPlus executor = createExecutor();
         state.phase.repairSubmitted();
-        return task.perform(executor)
+        return task.perform(executor, validationScheduler)
                    // after adding the callback java could no longer infer the type...
                    .<Pair<CoordinatedRepairResult, Supplier<String>>>map(r -> Pair.create(r, task::successMessage))
                    .addCallback((s, f) -> executor.shutdown());
@@ -534,7 +597,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));
-                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, ctx.clock().nanoTime());
+                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, new Dispatcher.RequestTime(ctx.clock().nanoTime()));
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 
                     for (UntypedResultSet.Row r : result)
@@ -579,12 +642,14 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     public static final class NeighborsAndRanges
     {
         final boolean shouldExcludeDeadParticipants;
+        public final boolean includesAllReplicas;
         public final Set<InetAddressAndPort> participants;
         public final List<CommonRange> commonRanges;
 
-        public NeighborsAndRanges(boolean shouldExcludeDeadParticipants, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
+        public NeighborsAndRanges(boolean shouldExcludeDeadParticipants, boolean includesAllReplicas, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
         {
             this.shouldExcludeDeadParticipants = shouldExcludeDeadParticipants;
+            this.includesAllReplicas = includesAllReplicas;
             this.participants = participants;
             this.commonRanges = commonRanges;
         }
@@ -594,11 +659,11 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
          * and exludes ranges left without any participants
          * When not in the force mode, no-op.
          */
-        public List<CommonRange> filterCommonRanges(String keyspace, String[] tableNames)
+        public NeighborsAndRanges filterCommonRanges(String keyspace, String[] tableNames)
         {
             if (!shouldExcludeDeadParticipants)
             {
-                return commonRanges;
+                return this;
             }
             else
             {
@@ -626,7 +691,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                     }
                 }
                 Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
-                return filtered;
+                return new NeighborsAndRanges(shouldExcludeDeadParticipants, includesAllReplicas, participants, filtered);
             }
         }
     }

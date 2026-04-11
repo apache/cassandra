@@ -30,6 +30,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.util.Throwables;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,8 +54,9 @@ import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.util.Throwables;
 
+import static java.util.Collections.emptyList;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingVirtualTableTest extends CQLTester
@@ -67,7 +70,6 @@ public class StreamingVirtualTableTest extends CQLTester
     @BeforeClass
     public static void setup()
     {
-        CQLTester.setUpClass();
         StreamingVirtualTable table = new StreamingVirtualTable(KS_NAME);
         TABLE_NAME = table.toString();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
@@ -90,15 +92,15 @@ public class StreamingVirtualTableTest extends CQLTester
     {
         StreamingState state = stream(true);
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.id(), true, "Repair", Collections.emptyList(), "init", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", emptyList(), "init", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
         state.phase.start();
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.id(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", emptyList(), "start", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
-        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.PREPARING, null), StreamSession.PrepareDirection.ACK));
+        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), new SessionInfo(PEER2, 1, PEER1, emptyList(), emptyList(), StreamSession.State.PREPARING, null), StreamSession.PrepareDirection.ACK));
 
-        state.onSuccess(new StreamState(state.id(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE, null))));
+        state.onSuccess(new StreamState(state.id(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, emptyList(), emptyList(), StreamSession.State.COMPLETE, null))));
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
                    new Object[] { state.id(), true, "Repair", Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.lastUpdatedAtMillis()), null, null });
     }
@@ -186,7 +188,7 @@ public class StreamingVirtualTableTest extends CQLTester
             long fileSize = summary.totalSize / summary.files;
             for (int i = 0; i < summary.files - 1; i++)
             {
-                String fileName = summary.tableId + "-" + direction.name().toLowerCase() + "-" + i;
+                String fileName = summary.tableId + "-" + toLowerCaseLocalized(direction.name()) + "-" + i;
                 state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
                 counter += fileSize;
             }
@@ -200,7 +202,7 @@ public class StreamingVirtualTableTest extends CQLTester
         for (StreamSummary summary : summaries)
         {
             long fileSize = summary.totalSize / summary.files;
-            String fileName = summary.tableId + "-" + direction.name().toLowerCase() + "-" + summary.files;
+            String fileName = summary.tableId + "-" + toLowerCaseLocalized(direction.name()) + "-" + summary.files;
             state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
             counter += fileSize;
         }
@@ -222,7 +224,7 @@ public class StreamingVirtualTableTest extends CQLTester
     private static StreamSummary streamSummary()
     {
         int files = ThreadLocalRandom.current().nextInt(2, 10);
-        return new StreamSummary(TableId.fromUUID(UUID.randomUUID()), files, files * 1024);
+        return new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), files, files * 1024);
     }
 
     @Test
@@ -232,7 +234,7 @@ public class StreamingVirtualTableTest extends CQLTester
         RuntimeException t = new RuntimeException("You failed!");
         state.onFailure(t);
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.id(), true, Collections.emptyList(), "failure", 100F, new Date(state.lastUpdatedAtMillis()), Throwables.getStackTrace(t), null });
+                   new Object[] { state.id(), true, emptyList(), "failure", 100F, new Date(state.lastUpdatedAtMillis()), Throwables.getStackTrace(t), null });
     }
 
     private static String t(String query)

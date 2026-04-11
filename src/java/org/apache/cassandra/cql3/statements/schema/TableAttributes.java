@@ -23,20 +23,45 @@ import java.util.Set;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.schema.AutoRepairParams;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
+import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.consensus.TransactionalMode;
+import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.schema.TableParams.Option.*;
+import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
+import static org.apache.cassandra.schema.TableParams.Option.ALLOW_AUTO_SNAPSHOT;
+import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.CACHING;
+import static org.apache.cassandra.schema.TableParams.Option.CDC;
+import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
+import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
+import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
+import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
+import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
+import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
+import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
+import static org.apache.cassandra.schema.TableParams.Option.TRANSACTIONAL_MODE;
 
 public final class TableAttributes extends PropertyDefinitions
 {
@@ -60,9 +85,12 @@ public final class TableAttributes extends PropertyDefinitions
         build(TableParams.builder()).validate();
     }
 
-    TableParams asNewTableParams()
+    TableParams asNewTableParams(String keyspaceName)
     {
-        return build(TableParams.builder());
+        TableParams.Builder builder = TableParams.builder();
+        if (!hasOption(TRANSACTIONAL_MODE) && !SchemaConstants.isSystemKeyspace(keyspaceName) && Schema.instance.distributedKeyspaces().names().contains(keyspaceName))
+            builder.transactionalMode(DatabaseDescriptor.defaultTransactionalMode());
+        return build(builder);
     }
 
     TableParams asAlteredTableParams(TableParams previous)
@@ -97,8 +125,8 @@ public final class TableAttributes extends PropertyDefinitions
 
     private TableParams build(TableParams.Builder builder)
     {
-        if (hasOption(Option.ALLOW_AUTO_SNAPSHOT))
-            builder.allowAutoSnapshot(getBoolean(Option.ALLOW_AUTO_SNAPSHOT.toString(), true));
+        if (hasOption(ALLOW_AUTO_SNAPSHOT))
+            builder.allowAutoSnapshot(getBoolean(ALLOW_AUTO_SNAPSHOT.toString(), true));
 
         if (hasOption(BLOOM_FILTER_FP_CHANCE))
             builder.bloomFilterFpChance(getDouble(BLOOM_FILTER_FP_CHANCE));
@@ -113,20 +141,10 @@ public final class TableAttributes extends PropertyDefinitions
             builder.compaction(CompactionParams.fromMap(getMap(COMPACTION)));
 
         if (hasOption(COMPRESSION))
-        {
-            //crc_check_chance was "promoted" from a compression property to a top-level-property after #9839,
-            //so we temporarily accept it to be defined as a compression option, to maintain backwards compatibility
-            Map<String, String> compressionOpts = getMap(COMPRESSION);
-            if (compressionOpts.containsKey(CRC_CHECK_CHANCE.toString().toLowerCase()))
-            {
-                double crcCheckChance = getDeprecatedCrcCheckChance(compressionOpts);
-                builder.crcCheckChance(crcCheckChance);
-            }
             builder.compression(CompressionParams.fromMap(getMap(COMPRESSION)));
-        }
 
         if (hasOption(Option.MEMTABLE))
-            builder.memtable(MemtableParams.get(getString(Option.MEMTABLE)));
+            builder.memtable(MemtableParams.getWithFallback(getString(Option.MEMTABLE)));
 
         if (hasOption(DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(DEFAULT_TIME_TO_LIVE));
@@ -160,6 +178,27 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
+
+        if (hasOption(Option.FAST_PATH))
+        {
+            try
+            {
+                builder.fastPath(FastPathStrategy.fromMap(getMap(Option.FAST_PATH)));
+            }
+            catch (SyntaxException e)
+            {
+                builder.fastPath(FastPathStrategy.tableStrategyFromString(getString(Option.FAST_PATH)));
+            }
+        }
+
+        if (hasOption(Option.TRANSACTIONAL_MODE))
+            builder.transactionalMode(TransactionalMode.fromString(getString(Option.TRANSACTIONAL_MODE)));
+
+        if (hasOption(Option.TRANSACTIONAL_MIGRATION_FROM))
+            builder.transactionalMigrationFrom(TransactionalMigrationFromMode.fromString(getString(Option.TRANSACTIONAL_MIGRATION_FROM)));
+
+        if (hasOption(Option.AUTO_REPAIR))
+            builder.automatedRepair(AutoRepairParams.fromMap(getMap(Option.AUTO_REPAIR)));
 
         return builder.build();
     }
@@ -198,11 +237,5 @@ public final class TableAttributes extends PropertyDefinitions
     private double getDouble(Option option)
     {
         return parseDouble(option.toString(), getString(option));
-    }
-
-    private double getDeprecatedCrcCheckChance(Map<String, String> compressionOpts)
-    {
-        String value = compressionOpts.get(CRC_CHECK_CHANCE.toString().toLowerCase());
-        return parseDouble(CRC_CHECK_CHANCE.toString(), value);
     }
 }

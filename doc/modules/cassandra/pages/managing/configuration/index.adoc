@@ -1,4 +1,5 @@
 = Configuring Cassandra
+:navtitle: Configuring
 
 This section describes how to configure Apache Cassandra.
 

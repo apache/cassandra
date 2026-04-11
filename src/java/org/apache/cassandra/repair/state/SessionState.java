@@ -26,10 +26,8 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.TimeUUID;
-
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class SessionState extends AbstractState<SessionState.State, TimeUUID>
 {
@@ -46,9 +44,9 @@ public class SessionState extends AbstractState<SessionState.State, TimeUUID>
 
     public final Phase phase = new Phase();
 
-    public SessionState(Clock clock, TimeUUID parentRepairSession, String keyspace, String[] cfnames, CommonRange commonRange)
+    public SessionState(SharedContext ctx, TimeUUID parentRepairSession, String keyspace, String[] cfnames, CommonRange commonRange)
     {
-        super(clock, nextTimeUUID(), State.class);
+        super(ctx.clock(), ctx.timeUUID().get(), State.class);
         this.parentRepairSession = parentRepairSession;
         this.keyspace = keyspace;
         this.cfnames = cfnames;

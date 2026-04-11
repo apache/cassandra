@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.utils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Objects;
-
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -58,6 +57,18 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
         Kind(boolean hasClustering)
         {
             this.hasClustering = hasClustering;
+        }
+
+        public boolean isIntersectable(Kind other)
+        {
+            if (this == TOKEN)
+                return other == TOKEN;
+            else if (this == SKINNY)
+                return other == SKINNY;
+            else if (this == WIDE || this == STATIC)
+                return other == WIDE || other == STATIC;
+            
+            throw new AssertionError("Unknown Kind: " + other);
         }
     }
 
@@ -107,6 +118,11 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             assert clustering != null : "Cannot create a primary key with a null clustering";
 
             return clustering == Clustering.STATIC_CLUSTERING ? new StaticPrimaryKey(partitionKey) : new WidePrimaryKey(partitionKey, clustering);
+        }
+
+        public boolean hasClusteringColumns()
+        {
+            return clusteringComparator != null && clusteringComparator.size() > 0;
         }
 
         /**
@@ -202,10 +218,20 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public boolean equals(Object obj)
+            public boolean equals(Object o)
             {
-                if (obj instanceof PrimaryKey)
-                    return compareTo((PrimaryKey) obj) == 0;
+                if (o instanceof PrimaryKey)
+                    return compareTo((PrimaryKey) o) == 0;
+                return false;
+            }
+
+            @Override
+            public boolean equals(Object o, boolean strict)
+            {
+                if (o == null)
+                    return false;
+                if (o instanceof PrimaryKey)
+                    return compareTo((PrimaryKey) o, strict) == 0;
                 return false;
             }
 
@@ -253,10 +279,9 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 // Otherwise, if the other key is token only we can only compare tokens
                 // This is used by the ResultRetriever to skip to the current key range start position
                 // during result retrieval.
-                if ((cmp != 0) || o.kind() == Kind.TOKEN)
+                if (cmp != 0 || o.kind() == Kind.TOKEN)
                     return cmp;
 
-                // Finally compare the partition keys
                 return partitionKey().compareTo(o.partitionKey());
             }
 
@@ -304,14 +329,25 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public int compareTo(PrimaryKey o)
+            public int compareTo(PrimaryKey o, boolean strict)
             {
                 int cmp = super.compareTo(o);
                 if (cmp != 0 || o.kind() == Kind.TOKEN || o.kind() == Kind.SKINNY)
                     return cmp;
-                // The static clustering comes first in the sort order of if the other key has static clustering we
-                // are equals otherwise we are less than the other
-                return o.kind() == Kind.STATIC ? 0 : -1;
+
+                // If we're comparing strictly, order this STATIC key before a WIDE key, as this corresponds to the
+                // order of the corresponding row IDs in an on-disk postings list. If we're not being strict, treat
+                // the keys as being equal, given they are in the same partition.
+                if (strict && o.kind() == Kind.WIDE)
+                    return -1;
+
+                return 0;
+            }
+
+            @Override
+            public int compareTo(PrimaryKey o)
+            {
+                return compareTo(o, true);
             }
 
             @Override
@@ -324,6 +360,12 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             public String toString()
             {
                 return String.format("PrimaryKey: { token: %s, partition: %s, clustering: STATIC } ", token(), partitionKey());
+            }
+
+            @Override
+            public PrimaryKey toStatic()
+            {
+                return this;
             }
         }
 
@@ -363,15 +405,25 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public int compareTo(PrimaryKey o)
+            public int compareTo(PrimaryKey o, boolean strict)
             {
                 int cmp = super.compareTo(o);
                 if (cmp != 0 || o.kind() == Kind.TOKEN || o.kind() == Kind.SKINNY)
                     return cmp;
-                // At this point we will be greater than other if it is static
+
                 if (o.kind() == Kind.STATIC)
-                    return 1;
+                    // If we're comparing strictly, order this WIDE key after the STATIC key, as this corresponds to the
+                    // order of the corresponding row IDs in an on-disk postings list. If we're not being strict, treat
+                    // the keys as being equal, given they are in the same partition.
+                    return strict ? 1 : 0;
+
                 return clusteringComparator.compare(clustering(), o.clustering());
+            }
+
+            @Override
+            public int compareTo(PrimaryKey o)
+            {
+                return compareTo(o, true);
             }
 
             @Override
@@ -390,6 +442,12 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                                      Arrays.stream(clustering().getBufferArray())
                                            .map(ByteBufferUtil::bytesToHex)
                                            .collect(Collectors.joining(", ")));
+            }
+
+            @Override
+            public PrimaryKey toStatic()
+            {
+                return new StaticPrimaryKey(partitionKey);
             }
         }
     }
@@ -436,4 +494,16 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
      * @throws UnsupportedOperationException for {@link PrimaryKey} implementations that are not byte-comparable
      */
     ByteSource asComparableBytes(ByteComparable.Version version);
+
+    default PrimaryKey toStatic()
+    {
+        throw new UnsupportedOperationException("Only STATIC and WIDE keys can be converted to STATIC");
+    }
+
+    default int compareTo(PrimaryKey key, boolean strict)
+    {
+        return compareTo(key);
+    }
+
+    boolean equals(Object obj, boolean strict);
 }

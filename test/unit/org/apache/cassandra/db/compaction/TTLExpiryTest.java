@@ -24,8 +24,11 @@ import java.util.Set;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -55,6 +58,8 @@ import static org.junit.Assert.assertTrue;
 
 public class TTLExpiryTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(TTLExpiryTest.class);
+
     public static final String KEYSPACE1 = "TTLExpiryTest";
     private static final String CF_STANDARD1 = "Standard1";
 
@@ -141,7 +146,7 @@ public class TTLExpiryTest
         Set<SSTableReader> expired = CompactionController.getFullyExpiredSSTables(
                 cfs,
                 sstables,
-                Collections.EMPTY_SET,
+                s -> Collections.EMPTY_SET,
                 gcBefore);
         assertEquals(2, expired.size());
 
@@ -258,8 +263,10 @@ public class TTLExpiryTest
         assertTrue(scanner.hasNext());
         while(scanner.hasNext())
         {
-            UnfilteredRowIterator iter = scanner.next();
-            assertEquals(Util.dk(noTTLKey), iter.partitionKey());
+            try (UnfilteredRowIterator iter = scanner.next())
+            {
+                assertEquals(Util.dk(noTTLKey), iter.partitionKey());
+            }
         }
         scanner.close();
     }
@@ -293,5 +300,9 @@ public class TTLExpiryTest
         assertEquals(1, blockers.keySet().size());
         assertTrue(blockers.keySet().contains(blockingSSTable));
         assertEquals(10, blockers.get(blockingSSTable).size());
+
+        // with and without human friendly output
+        logger.info(SSTableExpiredBlockers.formatForExpiryTracing(true, blockers.keySet()));
+        logger.info(SSTableExpiredBlockers.formatForExpiryTracing(false, blockers.keySet()));
     }
 }

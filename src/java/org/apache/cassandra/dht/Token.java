@@ -17,23 +17,38 @@
  */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.google.common.collect.Sets;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.PartitionerAwareMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public abstract class Token implements RingPosition<Token>, Serializable
 {
+    private static final Logger logger = LoggerFactory.getLogger(Token.class);
+
     private static final long serialVersionUID = 1L;
 
     public static final TokenSerializer serializer = new TokenSerializer();
+    public static final MetadataSerializer metadataSerializer = new MetadataSerializer();
+    public static final CompactTokenSerializer compactSerializer = new CompactTokenSerializer();
 
     public static abstract class TokenFactory
     {
@@ -61,6 +76,8 @@ public abstract class Token implements RingPosition<Token>, Serializable
          */
         public abstract Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version);
 
+        public abstract void skipComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version, IPartitioner partitioner);
+
         public abstract String toString(Token token); // serialize as string, not necessarily human-readable
         public abstract Token fromString(String string); // deserialize
 
@@ -71,9 +88,23 @@ public abstract class Token implements RingPosition<Token>, Serializable
             out.write(toByteArray(token));
         }
 
-        public void serialize(Token token, ByteBuffer out) throws IOException
+        public void serialize(Token token, ByteBuffer out)
         {
             out.put(toByteArray(token));
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public void skip(DataInputPlus in, IPartitioner p) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            in.skipBytesFully(size);
         }
 
         public Token fromByteBuffer(ByteBuffer bytes, int position, int length)
@@ -90,6 +121,40 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    public static class MetadataSerializer implements PartitionerAwareMetadataSerializer<Token>
+    {
+        private static final int SERDE_VERSION = MessagingService.VERSION_40;
+
+        // Convenience method as Token has a reference to its Partitioner
+        public void serialize(Token t, DataOutputPlus out, Version version) throws IOException
+        {
+            serialize(t, out, t.getPartitioner(), version);
+        }
+
+        public void serialize(Token t, DataOutputPlus out, IPartitioner partitioner, Version version) throws IOException
+        {
+            serializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner partitioner, Version version) throws IOException
+        {
+            // This is only ever used to deserialize Tokens from this cluster and as the partitioner can
+            // never be changed, it's safe to assume that the right implementation is provided by ClusterMetadata
+            return serializer.deserialize(in, partitioner, SERDE_VERSION);
+        }
+
+        // Convenience method as Token has a reference to its Partitioner
+        public long serializedSize(Token t, Version version)
+        {
+            return serializedSize(t, t.getPartitioner(), version);
+        }
+
+        public long serializedSize(Token t, IPartitioner partitioner, Version version)
+        {
+            return serializer.serializedSize(t, SERDE_VERSION);
+        }
+    }
+
     public static class TokenSerializer implements IPartitionerDependentSerializer<Token>
     {
         public void serialize(Token token, DataOutputPlus out, int version) throws IOException
@@ -99,7 +164,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             p.getTokenFactory().serialize(token, out);
         }
 
-        public Token deserialize(DataInput in, IPartitioner p, int version) throws IOException
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             int size = deserializeSize(in);
             byte[] bytes = new byte[size];
@@ -107,7 +172,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
         }
 
-        public int deserializeSize(DataInput in) throws IOException
+        public int deserializeSize(DataInputPlus in) throws IOException
         {
             return in.readInt();
         }
@@ -120,9 +185,80 @@ public abstract class Token implements RingPosition<Token>, Serializable
         }
     }
 
+    public static boolean logPartitioner = false;
+    public static final Set<Class<? extends IPartitioner>> serializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
+    public static final Set<Class<? extends IPartitioner>> deserializePartitioners = Sets.newSetFromMap(new ConcurrentHashMap<>());
+
+    public static class CompactTokenSerializer implements IPartitionerDependentSerializer<Token>
+    {
+        public void serialize(Token token, DataOutputPlus out, int version) throws IOException
+        {
+            IPartitioner p = token.getPartitioner();
+            if (logPartitioner && serializePartitioners.add(p.getClass()))
+              logger.debug("Serializing token with partitioner " + p);
+            if (!p.isFixedLength())
+                out.writeUnsignedVInt32(p.getTokenFactory().byteSize(token));
+            p.getTokenFactory().serialize(token, out);
+        }
+
+        public void serialize(Token token, ByteBuffer out)
+        {
+            IPartitioner p = token.getPartitioner();
+            if (logPartitioner && serializePartitioners.add(p.getClass()))
+              logger.debug("Serializing token with partitioner " + p);
+            if (!p.isFixedLength())
+                VIntCoding.writeUnsignedVInt32(p.getTokenFactory().byteSize(token), out);
+            p.getTokenFactory().serialize(token, out);
+        }
+
+        public Token deserialize(ByteBuffer in, IPartitioner p)
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : VIntCoding.readUnsignedVInt32(in);
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
+            byte[] bytes = new byte[size];
+            in.get(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public void skip(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
+            in.skipBytesFully(size);
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        {
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
+            if (logPartitioner && deserializePartitioners.add(p.getClass()))
+                logger.debug("Deserializing token with partitioner " + p);
+            byte[] bytes = new byte[size];
+            in.readFully(bytes);
+            return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
+        }
+
+        public long serializedSize(Token object, int version)
+        {
+            return serializedSize(object);
+        }
+
+        public long serializedSize(Token object)
+        {
+            IPartitioner p = object.getPartitioner();
+            int byteSize = p.getTokenFactory().byteSize(object);
+            if (p.isFixedLength())
+                return byteSize;
+            return TypeSizes.sizeofUnsignedVInt(byteSize) + byteSize;
+        }
+    }
+
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
+    abstract public int tokenHash();
+    public TokenFactory tokenFactory() { return getPartitioner().getTokenFactory(); }
 
     /**
      * This method exists so that callers can access the primitive {@code long} value for this {@link Token}, if
@@ -158,6 +294,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * Used by the token allocation algorithm (see CASSANDRA-7032).
      */
     abstract public double size(Token next);
+
     /**
      * Returns the next possible token in the token space, one that compares
      * greater than this and such that there is no other token that sits
@@ -171,6 +308,15 @@ public abstract class Token implements RingPosition<Token>, Serializable
      * constructing token ranges for sstables.
      */
     abstract public Token nextValidToken();
+    /**
+     * Returns a token that is slightly more than this. This is NOT guaranteed to be the directly following token.
+     */
+    public Token increaseSlightly() { return nextValidToken(); }
+
+    /**
+     * Returns a token that is slightly less than this. This is NOT guaranteed to be the directly preceding token.
+     */
+    abstract public Token decreaseSlightly();
 
     public Token getToken()
     {
@@ -185,6 +331,11 @@ public abstract class Token implements RingPosition<Token>, Serializable
     public boolean isMinimum()
     {
         return this.equals(minValue());
+    }
+
+    public boolean isMaximum()
+    {
+        return getPartitioner().supportsSplitting() && this.equals(getPartitioner().getMaximumTokenForSplitting());
     }
 
     /*
@@ -277,7 +428,13 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         public boolean isMinimum()
         {
+            // minimum token is reserved for boundaries, so there is no need for isMinimumBound check
             return getToken().isMinimum();
+        }
+
+        public boolean isMaximum()
+        {
+            return getToken().isMaximum() && !isMinimumBound;
         }
 
         public PartitionPosition.Kind kind()

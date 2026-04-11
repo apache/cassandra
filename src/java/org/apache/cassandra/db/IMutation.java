@@ -19,29 +19,35 @@ package org.apache.cassandra.db;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ClientState;
 
 public interface IMutation
 {
-    public long MAX_MUTATION_SIZE = DatabaseDescriptor.getMaxMutationSize();
+    long MAX_MUTATION_SIZE = DatabaseDescriptor.getMaxMutationSize();
 
-    public void apply();
-    public String getKeyspaceName();
-    public Collection<TableId> getTableIds();
-    public DecoratedKey key();
-    public long getTimeout(TimeUnit unit);
-    public String toString(boolean shallow);
-    public Collection<PartitionUpdate> getPartitionUpdates();
-    public Supplier<Mutation> hintOnFailure();
+    void apply();
+    String getKeyspaceName();
+    Collection<TableId> getTableIds();
+    DecoratedKey key();
+    long getTimeout(TimeUnit unit);
+    String toString(boolean shallow);
+    Collection<PartitionUpdate> getPartitionUpdates();
+    boolean hasUpdateForTable(TableId tableId);
+    Supplier<Mutation> hintOnFailure();
 
-    public default void validateIndexedColumns()
+    default void validateIndexedColumns(ClientState state)
     {
         for (PartitionUpdate pu : getPartitionUpdates())
-            pu.validateIndexedColumns();
+            pu.validateIndexedColumns(state);
     }
 
     /**
@@ -50,16 +56,16 @@ public interface IMutation
      * @param version the MessagingService version the mutation is being serialized for.
      *                see {@link org.apache.cassandra.net.MessagingService#current_version}
      * @param overhead overhadd to add for mutation size to validate. Pass zero if not required but not a negative value.
-     * @throws {@link MutationExceededMaxSizeException} if {@link DatabaseDescriptor#getMaxMutationSize()} is exceeded
+     * @throws MutationExceededMaxSizeException if {@link DatabaseDescriptor#getMaxMutationSize()} is exceeded
       */
-    public void validateSize(int version, int overhead);
+    void validateSize(int version, int overhead);
 
     /**
      * Computes the total data size of the specified mutations.
      * @param mutations the mutations
      * @return the total data size of the specified mutations
      */
-    public static long dataSize(Collection<? extends IMutation> mutations)
+    static long dataSize(Collection<? extends IMutation> mutations)
     {
         long size = 0;
         for (IMutation mutation : mutations)
@@ -69,4 +75,24 @@ public interface IMutation
         }
         return size;
     }
+
+    /**
+     * True if this mutation is being applied by a transaction system or doesn't need to be
+     * and conflicts between this mutation and transactions systems that are managing all or part of this table
+     * should be assumed to be handled already (by either Paxos or Accord) and the mutation should be applied.
+     *
+     * This causes mutations against tables to fail if they are from a non-transaction sub-system such as mutations,
+     * logged and unlogged batches, hints, and read repair against tables that are being managed by a transaction system
+     * like Accord that can't safely read data that is written non-transactionally.
+     *
+     */
+    default PotentialTxnConflicts potentialTxnConflicts()
+    {
+        return PotentialTxnConflicts.DISALLOW;
+    }
+
+    // Construct replacement mutation that is identical except it only includes updates for the specified tables
+    @Nullable IMutation filter(Predicate<TableId> predicate);
+
+    default void clearCachedSerializationsForRetry() {}
 }

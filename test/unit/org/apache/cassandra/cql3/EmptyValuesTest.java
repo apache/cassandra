@@ -22,13 +22,13 @@ import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
-import org.apache.commons.io.IOUtils;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 
+import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -100,7 +100,7 @@ public class EmptyValuesTest extends CQLTester
         execute("TRUNCATE %s");
 
         // In most cases we cannot insert empty value when we do not bind variables
-        // This is due to the current implementation of org.apache.cassandra.cql3.Constants.Literal.testAssignment
+        // This is due to the current implementation of org.apache.cassandra.cql3.terms.Constants.Literal.testAssignment
         // execute("INSERT INTO %s (id, v) VALUES (1, '" + emptyValue + "')");
         execute("INSERT INTO %s (id, v) VALUES (1, ?)", ByteBufferUtil.EMPTY_BYTE_BUFFER);
         flush();

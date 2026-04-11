@@ -21,22 +21,17 @@ package org.apache.cassandra.db.guardrails;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.StorageService;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 
@@ -114,25 +109,11 @@ public class GuardrailMaximumReplicationFactorTest extends ThresholdTester
     @Test
     public void testMultipleDatacenter() throws Throwable
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
-        {
-            public static final String RACK1 = ServerTestUtils.RACK1;
-
-            @Override
-            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint) { return "datacenter2"; }
-
-            @Override
-            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
-        });
-
         List<String> twoWarnings = Arrays.asList(format("The keyspace ks has a replication factor of 3, above the warning threshold of %s.", MAXIMUM_REPLICATION_FACTOR_WARN_THRESHOLD),
                                                  format("The keyspace ks has a replication factor of 3, above the warning threshold of %s.", MAXIMUM_REPLICATION_FACTOR_WARN_THRESHOLD));
 
-        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.255"));
+        ClusterMetadataTestHelper.register(InetAddressAndPort.getByName("127.0.0.255"), "datacenter2", RACK1);
+
         guardrails().setMaximumReplicationFactorThreshold(MAXIMUM_REPLICATION_FACTOR_WARN_THRESHOLD, MAXIMUM_REPLICATION_FACTOR_FAIL_THRESHOLD);
         assertValid("CREATE KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 2, 'datacenter2' : 2}");
         execute("DROP KEYSPACE IF EXISTS ks");
@@ -152,7 +133,7 @@ public class GuardrailMaximumReplicationFactorTest extends ThresholdTester
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 2, 'datacenter2' : 5}", 5);
         assertFails("ALTER KEYSPACE ks WITH replication = { 'class' : 'NetworkTopologyStrategy', 'datacenter1': 5, 'datacenter2' : 5}", 5);
 
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+//        DatabaseDescriptor.setEndpointSnitch(snitch);
     }
 
     @Test

@@ -43,6 +43,22 @@
 # The directory location of the cassandra.yaml file.
 #-Dcassandra.config=directory
 
+# Allow cassandra.yaml settings to be overriden via JVM properties
+# When this setting is enabled, cassandra.yaml settings can be overriden via JVM properties in the format -Dcassandra.settings.<cassandra_yaml_property_name>
+# For example, override cassandra.yaml property 'cdc_enabled' via JVM property -Dcassandra.settings.cdc_enabled
+# Nested properties can be specified using '.' as separator, for example: -Dcassandra.settings.replica_filtering_protection.cached_rows_warn_threshold
+# Complex property values should be specified as a JSON string, for example: -Dcassandra.settings.table_properties_warned="[\"sstable_preemptive_open_interval_in_mb\", \"index_summary_resize_interval_in_minutes\"]"
+#-Dcassandra.config.allow_system_properties=true
+
+# Allow cassandra.yaml settings to be overriden via environment variables
+# When this setting is enabled, cassandra.yaml settings can be overriden via environment variables in the format 'CASSANDRA_SETTINGS_<CASSANDRA_YAML_PROPERTY_NAME>'
+# For example, override cassandra.yaml property 'cdc_enabled' via env var: export CASSANDRA_SETTINGS_CDC_ENABLED=true
+# Nested properties can be specified using '__' as separator, for example: export CASSANDRA_SETTINGS_REPLICA_FILTERING_PROTECTION__CACHED_ROWS_WARN_THRESHOLD=1000
+# Complex property values should be specified as a JSON string, for example: export CASSANDRA_SETTINGS_TABLE_PROPERTIES_WARNED='["bloom_filter_fp_chance", "default_time_to_live"]'
+# This feature can also be enabled via the CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES environment variable via export CASSANDRA_ALLOW_CONFIG_ENVIRONMENT_VARIABLES=true'
+# The system property has precedence over the environment variable when both are specified.
+#-Dcassandra.config.allow_environment_variables=true
+
 # Sets the initial partitioner token for a node the first time the node is started.
 #-Dcassandra.initial_token=token
 
@@ -97,6 +113,12 @@
 # Imposes an upper bound on hint lifetime below the normal min gc_grace_seconds
 #-Dcassandra.maxHintTTL=max_hint_ttl_in_seconds
 
+# Override compaction strategy for specific keyspaces or tables at startup.
+# Entities is a comma-separated list of keyspaces and keyspace.table pairs.
+# Params is a JSON string with the compaction parameters to apply.
+#-Dcassandra.override_compaction.entities=ks1,ks2.tbl1
+#-Dcassandra.override_compaction.params={"class":"SizeTieredCompactionStrategy"}
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################
@@ -137,6 +159,16 @@
 # comment out this entry to enable IPv6 support).
 -Djava.net.preferIPv4Stack=true
 
+# Disable chronicle analytics. See CASSANDRA-19656
+-Dchronicle.analytics.disable=true
+
+# AsyncProfiler Flags
+#-Dcassandra.async_profiler.enabled=true|false
+#-Dcassandra.async_profiler.unsafe_mode=true|false
+# When not set, logs from profiler will be placed under
+# directory behind "cassandra.logdir" property, into "async-profiler" sub-directory
+#-Dcassandra.logdir.async_profiler=/tmp/cassandra-profiling
+
 ### Debug options
 
 # uncomment to enable flight recorder
@@ -153,39 +185,21 @@
 # HEAP SETTINGS #
 #################
 
-# Heap size is automatically calculated by cassandra-env based on this
-# formula: max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
-# That is:
-# - calculate 1/2 ram and cap to 1024MB
-# - calculate 1/4 ram and cap to 8192MB
-# - pick the max
+# Heap size is automatically calculated by cassandra-env.sh based on the
+# formula: min(1/2 ram, CMS ? 16G : 31G)
 #
 # For production use you may wish to adjust this for your environment.
-# If that's the case, uncomment the -Xmx and Xms options below to override the
-# automatic calculation of JVM heap memory.
-#
-# It is recommended to set min (-Xms) and max (-Xmx) heap sizes to
-# the same value to avoid stop-the-world GC pauses during resize, and
-# so that we can lock the heap in memory on startup to prevent any
-# of it from being swapped out.
-#-Xms4G
-#-Xmx4G
+# If that's the case, see MAX_HEAP_SIZE (and HEAP_NEWSIZE for CMS) in cassandra-env.sh
 
-# Young generation size is automatically calculated by cassandra-env
-# based on this formula: min(100 * num_cores, 1/4 * heap size)
-#
-# The main trade-off for the young generation is that the larger it
-# is, the longer GC pause times will be. The shorter it is, the more
-# expensive GC will be (usually).
-#
-# It is not recommended to set the young generation size if using the
-# G1 GC, since that will override the target pause-time goal.
-# More info: http://www.oracle.com/technetwork/articles/java/g1gc-1984535.html
-#
-# The example below assumes a modern 8-core+ machine for decent
-# times. If in doubt, and if you do not particularly want to tweak, go
-# 100 MB per physical CPU core.
-#-Xmn800M
+# Need experimental bytebuddy for JDK21
+-Dnet.bytebuddy.experimental
+
+#####################
+# OFF-HEAP SETTINGS #
+#####################
+
+# By default, this setting is half of max heap size
+#-XX:MaxDirectMemorySize=
 
 ###################################
 # EXPIRATION DATE OVERFLOW POLICY #
@@ -193,9 +207,9 @@
 
 # Defines how to handle INSERT requests with TTL exceeding the maximum supported expiration date:
 # * REJECT: this is the default policy and will reject any requests with expiration date timestamp 
-#   after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00 depending on compatibility mode (<="nc" sstable formats)
+#   after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00 depending on compatibility mode (<="oa" sstable formats)
 # * CAP: any insert with TTL expiring after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00, 
-#   depending on compatibility mode (<="nc" sstable formats), will expire on 2106-02-07T06:28:13+00:00 
+#   depending on compatibility mode (<="oa" sstable formats), will expire on 2106-02-07T06:28:13+00:00
 #   or 2038-01-19T03:14:06+00:00 and the client will receive a warning.
 # * CAP_NOWARN: same as previous, except that the client warning will not be emitted.
 #

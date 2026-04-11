@@ -18,7 +18,10 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.PriorityQueue;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.io.util.FileUtils;
@@ -36,7 +39,6 @@ import org.apache.cassandra.io.util.FileUtils;
  * @param <K> The type used to sort ranges.
  * @param <D> The container type which is going to be returned by {@link Iterator#next()}.
  */
-@SuppressWarnings("resource")
 public class RangeUnionIterator<K extends Comparable<K>, D extends CombinedValue<K>> extends RangeIterator<K, D>
 {
     private final PriorityQueue<RangeIterator<K, D>> ranges;

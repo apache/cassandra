@@ -33,18 +33,24 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.SnitchAdapter;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.AsyncProfilerService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordOperations;
+import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tools.NodeProbe;
 
 public class InternalNodeProbe extends NodeProbe
@@ -68,6 +74,9 @@ public class InternalNodeProbe extends NodeProbe
         StorageService.instance.skipNotificationListeners = !withNotifications;
 
         ssProxy = StorageService.instance;
+        snapshotProxy = SnapshotManager.instance;
+        cmsProxy = CMSOperations.instance;
+        accordProxy = AccordOperations.instance;
         msProxy = MessagingService.instance();
         streamProxy = StreamManager.instance;
         compactionProxy = CompactionManager.instance;
@@ -82,6 +91,7 @@ public class InternalNodeProbe extends NodeProbe
         arsProxy = ActiveRepairService.instance();
         memProxy = ManagementFactory.getMemoryMXBean();
         runtimeProxy = ManagementFactory.getRuntimeMXBean();
+        asyncProfilerProxy = AsyncProfilerService.instance();
     }
 
     @Override
@@ -100,7 +110,8 @@ public class InternalNodeProbe extends NodeProbe
 	@Override
     public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
     {
-        return (DynamicEndpointSnitchMBean) DatabaseDescriptor.createEndpointSnitch(true, DatabaseDescriptor.getRawConfig().endpoint_snitch);
+        // TODO At some point we should change this to use modern config e.g. Locator and InitialLocationProvider
+        return new DynamicEndpointSnitch(new SnitchAdapter(DatabaseDescriptor.createEndpointSnitch(DatabaseDescriptor.getRawConfig().endpoint_snitch)));
     }
 
     public CacheServiceMBean getCacheServiceMBean()

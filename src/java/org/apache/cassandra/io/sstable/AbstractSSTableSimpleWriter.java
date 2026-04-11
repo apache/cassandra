@@ -23,17 +23,23 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -41,7 +47,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 /**
  * Base class for the sstable writers used by CQLSSTableWriter.
  */
-abstract class AbstractSSTableSimpleWriter implements Closeable
+public abstract class AbstractSSTableSimpleWriter implements Closeable
 {
     protected final File directory;
     protected final TableMetadataRef metadata;
@@ -49,12 +55,18 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
+    protected final Collection<Index.Group> indexGroups;
+    protected Consumer<Collection<SSTableReader>> sstableProducedListener;
+    protected boolean openSSTableOnProduced = false;
+    protected CompressionDictionary compressionDictionary;
+    protected SSTable.Owner owner;
 
     protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
         this.metadata = metadata;
         this.directory = directory;
         this.columns = columns;
+        indexGroups = new ArrayList<>();
     }
 
     protected void setSSTableFormatType(SSTableFormat<?, ?> type)
@@ -67,12 +79,62 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         this.makeRangeAware = makeRangeAware;
     }
 
+    protected void addIndexGroup(Index.Group indexGroup)
+    {
+        this.indexGroups.add(indexGroup);
+    }
+
+    public void setCompressionDictionary(CompressionDictionary compressionDictionary)
+    {
+        this.compressionDictionary = compressionDictionary;
+    }
+
+    protected void setSSTableProducedListener(Consumer<Collection<SSTableReader>> listener)
+    {
+        this.sstableProducedListener = Objects.requireNonNull(listener, "sstableProducedListener cannot be null");
+    }
+
+    protected void setShouldOpenProducedSSTable(boolean openSSTableOnProduced)
+    {
+        this.openSSTableOnProduced = openSSTableOnProduced;
+    }
+
+    /**
+     * Indicate whether the produced sstable should be opened or not.
+     */
+    protected boolean shouldOpenSSTables()
+    {
+        return openSSTableOnProduced;
+    }
+
+    protected void notifySSTableProduced(Collection<SSTableReader> sstables)
+    {
+        if (sstableProducedListener == null)
+            return;
+
+        sstableProducedListener.accept(sstables);
+    }
+
     protected SSTableTxnWriter createWriter(SSTable.Owner owner) throws IOException
     {
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
             return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
+
+
+        SSTable.Owner effectiveOwner;
+
+        if (this.owner != null && this.owner.compressionDictionaryManager() != null && compressionDictionary != null)
+        {
+            // already checks if it is cached or not
+            this.owner.compressionDictionaryManager().add(compressionDictionary);
+            effectiveOwner = this.owner;
+        }
+        else
+        {
+            effectiveOwner = owner;
+        }
 
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.keyspace, metadata.name, format),
@@ -81,8 +143,8 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
                                        header,
-                                       Collections.emptySet(),
-                                       owner);
+                                       indexGroups,
+                                       effectiveOwner);
     }
 
     private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException
@@ -110,7 +172,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         }
     }
 
-    PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException
+    public PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException
     {
         return getUpdateFor(metadata.get().partitioner.decorateKey(key));
     }

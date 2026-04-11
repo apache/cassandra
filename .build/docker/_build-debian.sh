@@ -21,8 +21,10 @@
 #
 ################################
 
+[ $DEBUG ] && set -x
+
 # variables, with defaults
-[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
+[ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname -- "$0")/..)"
 [ "x${DIST_DIR}" != "x" ] || DIST_DIR="${CASSANDRA_DIR}/build"
 
 # pre-conditions
@@ -96,7 +98,7 @@ else
     # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, it fails on the '-' char; replace with '~'
     CASSANDRA_VERSION=${buildxml_version/-/\~}
     dt=`date +"%Y%m%d"`
-    ref=`git rev-parse --short HEAD`
+    ref=`git rev-parse --short HEAD || ( grep -q GitSHA src/resources/org/apache/cassandra/config/version.properties && grep GitSHA src/resources/org/apache/cassandra/config/version.properties | cut -d"=" -f2 ) || echo unknown`
     CASSANDRA_REVISION="${dt}git${ref}"
     dch -D unstable -v "${CASSANDRA_VERSION}-${CASSANDRA_REVISION}" --package "cassandra" "building ${CASSANDRA_VERSION}-${CASSANDRA_REVISION}"
 fi
@@ -117,14 +119,16 @@ if [ $buildxml_version != $git_version ]; then
    echo "Warning: build.xml version ($buildxml_version) not matching git/dpkg derived version ($git_version)">&2
 fi
 
-# build package
+# build package (gen-asciidoc needs to happen before quilt patches are applied)
+ant gen-doc -Dcheck.skip=true
 dpkg-buildpackage -rfakeroot -uc -us -tc --source-option=--tar-ignore=.git
 
+set +e
 # Move created artifacts to dist dir mapped to docker host directory (must have proper permissions)
 mv ../cassandra[-_]*${CASSANDRA_VERSION}* "${DIST_DIR}"
 # clean build deps
 rm -f cassandra-build-deps_*
 # restore debian/changelog
-git restore debian/changelog
+git restore debian/changelog || true
 
 popd >/dev/null

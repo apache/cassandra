@@ -29,6 +29,7 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.SerializationHeader.ParameterizedSerializer;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter;
@@ -36,6 +37,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.db.SerializationHeader.MessagingHeaderSerializer.MESSAGING;
 
 /**
  * Serialize/Deserialize an unfiltered row iterator.
@@ -90,7 +93,11 @@ public class UnfilteredRowIteratorSerializer
 
     public void serialize(UnfilteredRowIterator iterator, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
+        serialize(iterator, out, version, rowEstimate, MESSAGING, selection);
+    }
 
+    public <P> void serialize(UnfilteredRowIterator iterator, DataOutputPlus out, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param) throws IOException
+    {
         SerializationHeader header = new SerializationHeader(false,
                                                              iterator.metadata(),
                                                              iterator.columns(),
@@ -98,7 +105,7 @@ public class UnfilteredRowIteratorSerializer
 
         try
         {
-            serialize(iterator, header, selection, out, version, rowEstimate);
+            serialize(iterator, header, out, version, rowEstimate, serializer, param);
         }
         catch (BufferOverflowException boe)
         {
@@ -106,13 +113,22 @@ public class UnfilteredRowIteratorSerializer
         }
     }
 
-    // Should only be used for the on-wire format.
     private void serialize(UnfilteredRowIterator iterator, SerializationHeader header, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
+    {
+        serialize(iterator, header, out, version, rowEstimate, MESSAGING, selection);
+    }
+
+    // Should only be used for the on-wire format.
+    private <P> void serialize(UnfilteredRowIterator iterator, SerializationHeader header, DataOutputPlus out, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param) throws IOException
     {
         assert !header.isForSSTable();
 
         ByteBufferUtil.writeWithVIntLength(iterator.partitionKey().getKey(), out);
+        serializeWithoutKey(iterator, header, out, version, rowEstimate, serializer, param);
+    }
 
+    public <P> void serializeWithoutKey(UnfilteredRowIterator iterator, SerializationHeader header, DataOutputPlus out, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param) throws IOException
+    {
         int flags = 0;
         if (iterator.isReverseOrder())
             flags |= IS_REVERSED;
@@ -136,7 +152,7 @@ public class UnfilteredRowIteratorSerializer
 
         out.writeByte((byte)flags);
 
-        SerializationHeader.serializer.serializeForMessaging(header, selection, out, hasStatic);
+        serializer.serialize(out, header, hasStatic, param);
         SerializationHelper helper = new SerializationHelper(header);
 
         if (!partitionDeletion.isLive())
@@ -153,30 +169,40 @@ public class UnfilteredRowIteratorSerializer
         UnfilteredSerializer.serializer.writeEndOfPartition(out);
     }
 
+    public long serializedSize(UnfilteredRowIterator iterator, ColumnFilter selection, int version, int rowEstimate)
+    {
+        return serializedSize(iterator, version, rowEstimate, MESSAGING, selection);
+    }
+
     // Please note that this consume the iterator, and as such should not be called unless we have a simple way to
     // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate/ArrayBackedCachedPartition.
-    public long serializedSize(UnfilteredRowIterator iterator, ColumnFilter selection, int version, int rowEstimate)
+    public <P> long serializedSize(UnfilteredRowIterator iterator, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param)
     {
         SerializationHeader header = new SerializationHeader(false,
                                                              iterator.metadata(),
                                                              iterator.columns(),
                                                              iterator.stats());
 
-        SerializationHelper helper = new SerializationHelper(header);
-
         assert rowEstimate >= 0;
 
-        long size = ByteBufferUtil.serializedSizeWithVIntLength(iterator.partitionKey().getKey())
-                  + 1; // flags
+        long size = ByteBufferUtil.serializedSizeWithVIntLength(iterator.partitionKey().getKey());
+        return size + serializedSizeWithoutKey(iterator, header, version, rowEstimate, serializer, param);
+    }
 
+    // Please note that this consume the iterator, and as such should not be called unless we have a simple way to
+    // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate/ArrayBackedCachedPartition.
+    public <P> long serializedSizeWithoutKey(UnfilteredRowIterator iterator, SerializationHeader header, int version, int rowEstimate, ParameterizedSerializer<P> serializer, P param)
+    {
+        long size = 1; // flags
         if (iterator.isEmpty())
             return size;
 
+        SerializationHelper helper = new SerializationHelper(header);
         DeletionTime partitionDeletion = iterator.partitionLevelDeletion();
         Row staticRow = iterator.staticRow();
         boolean hasStatic = staticRow != Rows.EMPTY_STATIC_ROW;
 
-        size += SerializationHeader.serializer.serializedSizeForMessaging(header, selection, hasStatic);
+        size += serializer.serializedSize(header, hasStatic, param);
 
         if (!partitionDeletion.isLive())
             size += header.deletionTimeSerializedSize(partitionDeletion);
@@ -196,7 +222,17 @@ public class UnfilteredRowIteratorSerializer
 
     public Header deserializeHeader(TableMetadata metadata, ColumnFilter selection, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
     {
+        return deserializeHeader(metadata, in, version, flag, MESSAGING, selection);
+    }
+
+    public <P> Header deserializeHeader(TableMetadata metadata, DataInputPlus in, int version, DeserializationHelper.Flag flag, ParameterizedSerializer<P> serializer, P param) throws IOException
+    {
         DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
+        return deserializeHeaderWithoutKey(metadata, key, in, version, flag, serializer, param);
+    }
+
+    public <P> Header deserializeHeaderWithoutKey(TableMetadata metadata, DecoratedKey key, DataInputPlus in, int version, DeserializationHelper.Flag flag, ParameterizedSerializer<P> serializer, P param) throws IOException
+    {
         int flags = in.readUnsignedByte();
         boolean isReversed = (flags & IS_REVERSED) != 0;
         if ((flags & IS_EMPTY) != 0)
@@ -209,7 +245,7 @@ public class UnfilteredRowIteratorSerializer
         boolean hasStatic = (flags & HAS_STATIC_ROW) != 0;
         boolean hasRowEstimate = (flags & HAS_ROW_ESTIMATE) != 0;
 
-        SerializationHeader header = SerializationHeader.serializer.deserializeForMessaging(in, metadata, selection, hasStatic);
+        SerializationHeader header = serializer.deserialize(in, metadata, hasStatic, param);
 
         DeletionTime partitionDeletion = hasPartitionDeletion ? header.readDeletionTime(in) : DeletionTime.LIVE;
 

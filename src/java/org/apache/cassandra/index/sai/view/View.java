@@ -21,19 +21,17 @@ package org.apache.cassandra.index.sai.view;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
  * The View is an immutable, point in time, view of the avalailable {@link SSTableIndex}es for an index.
- *
+ * <p>
  * The view maintains a {@link RangeTermTree} for querying the view by value range. This is used by the
  * {@link org.apache.cassandra.index.sai.plan.QueryViewBuilder} to select the set of {@link SSTableIndex}es
  * to perform a query without needing to query indexes that are known not to contain to the requested
@@ -45,18 +43,19 @@ public class View implements Iterable<SSTableIndex>
 
     private final RangeTermTree rangeTermTree;
 
-    public View(IndexContext context, Collection<SSTableIndex> indexes)
+    public View(IndexTermType indexTermType, Collection<SSTableIndex> indexes)
     {
         this.view = new HashMap<>();
 
-        AbstractType<?> termValidator = context.getValidator();
-
-        RangeTermTree.Builder rangeTermTreeBuilder = new RangeTermTree.Builder(termValidator);
+        RangeTermTree.Builder rangeTermTreeBuilder = new RangeTermTree.Builder(indexTermType);
 
         for (SSTableIndex sstableIndex : indexes)
         {
             this.view.put(sstableIndex.getSSTable().descriptor, sstableIndex);
-            rangeTermTreeBuilder.add(sstableIndex);
+            // Skip vector indexes, since they are scatter gather for all terms. Skip empty indexes since they
+            // cannot be inserted into the tree due to the lack of min and max terms.
+            if (!indexTermType.isVector() && sstableIndex.getRowCount() > 0)
+                rangeTermTreeBuilder.add(sstableIndex);
         }
 
         this.rangeTermTree = rangeTermTreeBuilder.build();
@@ -66,8 +65,11 @@ public class View implements Iterable<SSTableIndex>
      * Search for a list of {@link SSTableIndex}es that contain values within
      * the value range requested in the {@link Expression}
      */
-    public List<SSTableIndex> match(Expression expression)
+    public Collection<SSTableIndex> match(Expression expression)
     {
+        if (expression.getIndexOperator() == Expression.IndexOperator.ANN)
+            return getIndexes();
+
         return rangeTermTree.search(expression);
     }
 

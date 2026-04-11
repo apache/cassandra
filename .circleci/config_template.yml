@@ -63,6 +63,13 @@ default_env_vars: &default_env_vars
     # The number of times that new, modified or manually specified fqltool unit tests should be run.
     REPEATED_UTESTS_FQLTOOL_COUNT: 500
 
+    # Comma-separated list of tests that should be included in the repeated run for sstableloader unit tests,
+    # in addition to automatically detected new and modified tests. For example:
+    # REPEATED_UTESTS_SSTABLELOADER: org.apache.cassandra.tools.LoaderOptionsTest
+    REPEATED_UTESTS_SSTABLELOADER:
+    # The number of times that new, modified or manually specified sstableloader unit tests should be run.
+    REPEATED_UTESTS_SSTABLELOADER_COUNT: 500
+
     # Comma-separated list of tests that should be included in the repeated run for long unit tests,
     # in addition to automatically detected new and modified tests. For example:
     # REPEATED_UTESTS_LONG: org.apache.cassandra.db.commitlog.CommitLogStressTest
@@ -134,7 +141,7 @@ default_env_vars: &default_env_vars
     # REPEATED_ANT_TEST_TARGET: test-jvm-dtest-some
     # REPEATED_ANT_TEST_TARGET: test-cdc
     # REPEATED_ANT_TEST_TARGET: test-compression
-    # REPEATED_ANT_TEST_TARGET: test-trie
+    # REPEATED_ANT_TEST_TARGET: test-latest
     # REPEATED_ANT_TEST_TARGET: test-oa
     # REPEATED_ANT_TEST_TARGET: test-system-keyspace-directory
     REPEATED_ANT_TEST_TARGET: testsome
@@ -149,7 +156,7 @@ default_env_vars: &default_env_vars
     REPEATED_ANT_TEST_METHODS:
     # Whether the test iteration should use vnodes for JVM dtests (-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16').
     # This will only be applied as a default to JVM dtests that don't provide their own initial tokens or token count,
-    # in the same way that it's done for *_jvm_dtests_vnode jobs. Ant targets other than JVM dtests will ignore this.
+    # in the same way that it's done for *_jvm_dtests_latest_vnode jobs. Ant targets other than JVM dtests will ignore this.
     REPEATED_ANT_TEST_VNODES: false
     # The number of times that the repeated JUnit test should be run.
     REPEATED_ANT_TEST_COUNT: 500
@@ -277,11 +284,11 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_jvm_dtests
           - j11_build
-    - start_j11_jvm_dtests_vnode:
+    - start_j11_jvm_dtests_latest_vnode:
         type: approval
-    - j11_jvm_dtests_vnode:
+    - j11_jvm_dtests_latest_vnode:
         requires:
-          - start_j11_jvm_dtests_vnode
+          - start_j11_jvm_dtests_latest_vnode
           - j11_build
     - start_j11_jvm_dtests_repeat:
         type: approval
@@ -289,11 +296,11 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_jvm_dtests_repeat
           - j11_build
-    - start_j11_jvm_dtests_vnode_repeat:
+    - start_j11_jvm_dtests_latest_vnode_repeat:
         type: approval
-    - j11_jvm_dtests_vnode_repeat:
+    - j11_jvm_dtests_latest_vnode_repeat:
         requires:
-          - start_j11_jvm_dtests_vnode_repeat
+          - start_j11_jvm_dtests_latest_vnode_repeat
           - j11_build
     - start_j17_jvm_dtests:
         type: approval
@@ -301,11 +308,11 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j17_jvm_dtests
           - j11_build
-    - start_j17_jvm_dtests_vnode:
+    - start_j17_jvm_dtests_latest_vnode:
         type: approval
-    - j17_jvm_dtests_vnode:
+    - j17_jvm_dtests_latest_vnode:
         requires:
-          - start_j17_jvm_dtests_vnode
+          - start_j17_jvm_dtests_latest_vnode
           - j11_build
     - start_j17_jvm_dtests_repeat:
         type: approval
@@ -313,11 +320,11 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j17_jvm_dtests_repeat
           - j11_build
-    - start_j17_jvm_dtests_vnode_repeat:
+    - start_j17_jvm_dtests_latest_vnode_repeat:
         type: approval
-    - j17_jvm_dtests_vnode_repeat:
+    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
-          - start_j17_jvm_dtests_vnode_repeat
+          - start_j17_jvm_dtests_latest_vnode_repeat
           - j11_build
     - start_j11_simulator_dtests:
         type: approval
@@ -465,29 +472,29 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j17_utests_compression_repeat
           - j11_build
-    - start_j11_utests_trie:
+    - start_j11_utests_latest:
         type: approval
-    - j11_utests_trie:
+    - j11_utests_latest:
         requires:
-          - start_j11_utests_trie
+          - start_j11_utests_latest
           - j11_build
-    - start_j17_utests_trie:
+    - start_j17_utests_latest:
         type: approval
-    - j17_utests_trie:
+    - j17_utests_latest:
         requires:
-          - start_j17_utests_trie
+          - start_j17_utests_latest
           - j11_build
-    - start_j11_utests_trie_repeat:
+    - start_j11_utests_latest_repeat:
         type: approval
-    - j11_utests_trie_repeat:
+    - j11_utests_latest_repeat:
         requires:
-          - start_j11_utests_trie_repeat
+          - start_j11_utests_latest_repeat
           - j11_build
-    - start_j17_utests_trie_repeat:
+    - start_j17_utests_latest_repeat:
         type: approval
-    - j17_utests_trie_repeat:
+    - j17_utests_latest_repeat:
         requires:
-          - start_j17_utests_trie_repeat
+          - start_j17_utests_latest_repeat
           - j11_build
     - start_j11_utests_stress:
         type: approval
@@ -536,6 +543,30 @@ j11_separate_jobs: &j11_separate_jobs
     - j17_utests_fqltool_repeat:
         requires:
           - start_j17_utests_fqltool_repeat
+          - j11_build
+    - start_j11_utests_sstableloader:
+        type: approval
+    - j11_utests_sstableloader:
+        requires:
+          - start_j11_utests_sstableloader
+          - j11_build
+    - start_j17_utests_sstableloader:
+        type: approval
+    - j17_utests_sstableloader:
+        requires:
+          - start_j17_utests_sstableloader
+          - j11_build
+    - start_j11_utests_sstableloader_repeat:
+        type: approval
+    - j11_utests_sstableloader_repeat:
+        requires:
+          - start_j11_utests_sstableloader_repeat
+          - j11_build
+    - start_j17_utests_sstableloader_repeat:
+        type: approval
+    - j17_utests_sstableloader_repeat:
+        requires:
+          - start_j17_utests_sstableloader_repeat
           - j11_build
     - start_j11_utests_system_keyspace_directory:
         type: approval
@@ -594,17 +625,17 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j11_dtests_vnode
           - j11_build
     # Java 11 off-heap dtests
-    - start_j11_dtests_offheap:
+    - start_j11_dtests_latest:
         type: approval
-    - j11_dtests_offheap:
+    - j11_dtests_latest:
         requires:
-          - start_j11_dtests_offheap
+          - start_j11_dtests_latest
           - j11_build
-    - start_j11_dtests_offheap_repeat:
+    - start_j11_dtests_latest_repeat:
         type: approval
-    - j11_dtests_offheap_repeat:
+    - j11_dtests_latest_repeat:
         requires:
-          - start_j11_dtests_offheap_repeat
+          - start_j11_dtests_latest_repeat
           - j11_build
     # Java 17 dtests
     - start_j17_dtests:
@@ -620,17 +651,17 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j17_dtests_vnode
           - j11_build
     # Java 17 off-heap dtests
-    - start_j17_dtests_offheap:
+    - start_j17_dtests_latest:
         type: approval
-    - j17_dtests_offheap:
+    - j17_dtests_latest:
         requires:
-          - start_j17_dtests_offheap
+          - start_j17_dtests_latest
           - j11_build
-    - start_j17_dtests_offheap_repeat:
+    - start_j17_dtests_latest_repeat:
         type: approval
-    - j17_dtests_offheap_repeat:
+    - j17_dtests_latest_repeat:
         requires:
-          - start_j17_dtests_offheap_repeat
+          - start_j17_dtests_latest_repeat
           - j11_build
     # Python large DTests
     - start_j11_dtests_large:
@@ -684,14 +715,6 @@ j11_separate_jobs: &j11_separate_jobs
     # Java 11 cqlsh dtests
     - start_j11_cqlsh_tests:
         type: approval
-    - j11_cqlsh_dtests_py3:
-        requires:
-          - start_j11_cqlsh_tests
-          - j11_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-          - start_j11_cqlsh_tests
-          - j11_build
     - j11_cqlsh_dtests_py38:
         requires:
           - start_j11_cqlsh_tests
@@ -708,32 +731,20 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
         - start_j11_cqlsh_tests
         - j11_build
-    # Java 11 cqlsh offheap dtests offheap
-    - start_j11_cqlsh_tests_offheap:
+    # Java 11 cqlsh latest dtests
+    - start_j11_cqlsh_tests_latest:
         type: approval
-    - j11_cqlsh_dtests_py3_offheap:
+    - j11_cqlsh_dtests_py38_latest:
         requires:
-          - start_j11_cqlsh_tests_offheap
+          - start_j11_cqlsh_tests_latest
           - j11_build
-    - j11_cqlsh_dtests_py38_offheap:
+    - j11_cqlsh_dtests_py311_latest:
         requires:
-          - start_j11_cqlsh_tests_offheap
-          - j11_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-          - start_j11_cqlsh_tests_offheap
+          - start_j11_cqlsh_tests_latest
           - j11_build
     # Java 17 cqlsh dtests
     - start_j17_cqlsh_tests:
         type: approval
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - start_j17_cqlsh_tests
-          - j11_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-        - start_j17_cqlsh_tests
-        - j11_build
     - j17_cqlsh_dtests_py38:
         requires:
           - start_j17_cqlsh_tests
@@ -751,19 +762,15 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j17_cqlsh_tests
           - j11_build
     # Java 17 cqlsh dtests off-heap
-    - start_j17_cqlsh_tests_offheap:
+    - start_j17_cqlsh_tests_latest:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
+    - j17_cqlsh_dtests_py38_latest:
         requires:
-          - start_j17_cqlsh_tests_offheap
+          - start_j17_cqlsh_tests_latest
           - j11_build
-    - j17_cqlsh_dtests_py38_offheap:
+    - j17_cqlsh_dtests_py311_latest:
         requires:
-          - start_j17_cqlsh_tests_offheap
-          - j11_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-          - start_j17_cqlsh_tests_offheap
+          - start_j17_cqlsh_tests_latest
           - j11_build
     # Java 11 upgrade tests
     - start_j11_upgrade_dtests:
@@ -843,6 +850,12 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_unit_tests_repeat:
         requires:
           - j11_build
+    - j11_utests_latest:
+        requires:
+          - j11_build
+    - j11_utests_latest_repeat:
+        requires:
+          - j11_build
     - j11_simulator_dtests:
         requires:
           - j11_build
@@ -855,10 +868,10 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_jvm_dtests_repeat:
         requires:
           - j11_build
-    - j11_jvm_dtests_vnode:
+    - j11_jvm_dtests_latest_vnode:
         requires:
           - j11_build
-    - j11_jvm_dtests_vnode_repeat:
+    - j11_jvm_dtests_latest_vnode_repeat:
         requires:
           - j11_build
     - j17_jvm_dtests:
@@ -867,10 +880,10 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j17_jvm_dtests_repeat:
         requires:
           - j11_build
-    - j17_jvm_dtests_vnode:
+    - j17_jvm_dtests_latest_vnode:
         requires:
           - j11_build
-    - j17_jvm_dtests_vnode_repeat:
+    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
           - j11_build
     - j11_cqlshlib_tests:
@@ -893,6 +906,12 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - j11_build
     - j17_unit_tests_repeat:
+        requires:
+          - j11_build
+    - j17_utests_latest:
+        requires:
+          - j11_build
+    - j17_utests_latest_repeat:
         requires:
           - j11_build
     # specialized unit tests (all run on request)
@@ -950,24 +969,6 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - start_utests_compression
           - j11_build
-    - start_utests_trie:
-        type: approval
-    - j11_utests_trie:
-        requires:
-          - start_utests_trie
-          - j11_build
-    - j17_utests_trie:
-        requires:
-          - start_utests_trie
-          - j11_build
-    - j11_utests_trie_repeat:
-        requires:
-          - start_utests_trie
-          - j11_build
-    - j17_utests_trie_repeat:
-        requires:
-          - start_utests_trie
-          - j11_build
     - start_utests_stress:
         type: approval
     - j11_utests_stress:
@@ -1003,6 +1004,24 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j17_utests_fqltool_repeat:
         requires:
           - start_utests_fqltool
+          - j11_build
+    - start_utests_sstableloader:
+        type: approval
+    - j11_utests_sstableloader:
+        requires:
+          - start_utests_sstableloader
+          - j11_build
+    - j17_utests_sstableloader:
+        requires:
+          - start_utests_sstableloader
+          - j11_build
+    - j11_utests_sstableloader_repeat:
+        requires:
+          - start_utests_sstableloader
+          - j11_build
+    - j17_utests_sstableloader_repeat:
+        requires:
+          - start_utests_sstableloader
           - j11_build
     - start_utests_system_keyspace_directory:
         type: approval
@@ -1046,15 +1065,11 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_dtests_vnode_repeat:
         requires:
           - j11_build
-    - start_j11_dtests_offheap:
-        type: approval
-    - j11_dtests_offheap:
+    - j11_dtests_latest:
         requires:
-          - start_j11_dtests_offheap
           - j11_build
-    - j11_dtests_offheap_repeat:
+    - j11_dtests_latest_repeat:
         requires:
-          - start_j11_dtests_offheap
           - j11_build
     # Java 17 dtests
     - j17_dtests:
@@ -1069,15 +1084,11 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j17_dtests_vnode_repeat:
         requires:
           - j11_build
-    - start_j17_dtests_offheap:
-        type: approval
-    - j17_dtests_offheap:
+    - j17_dtests_latest:
         requires:
-          - start_j17_dtests_offheap
           - j11_build
-    - j17_dtests_offheap_repeat:
+    - j17_dtests_latest_repeat:
         requires:
-          - start_j17_dtests_offheap
           - j11_build
     # Large Python DTests
     - start_j11_dtests_large:
@@ -1117,12 +1128,6 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
           - start_j17_dtests_large
           - j11_build
     # Java 11 cqlsh dtests
-    - j11_cqlsh_dtests_py3:
-        requires:
-          - j11_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-          - j11_build
     - j11_cqlsh_dtests_py38:
         requires:
           - j11_build
@@ -1135,28 +1140,18 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_cqlsh_dtests_py311_vnode:
         requires:
           - j11_build
-    # Java 11 cqlsh dtests offheap
-    - start_j11_cqlsh_dtests_offheap:
+    # Java 11 cqlsh dtests latest
+    - start_j11_cqlsh_dtests_latest:
         type: approval
-    - j11_cqlsh_dtests_py3_offheap:
+    - j11_cqlsh_dtests_py38_latest:
         requires:
-          - start_j11_cqlsh_dtests_offheap
+          - start_j11_cqlsh_dtests_latest
           - j11_build
-    - j11_cqlsh_dtests_py38_offheap:
+    - j11_cqlsh_dtests_py311_latest:
         requires:
-          - start_j11_cqlsh_dtests_offheap
-          - j11_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-          - start_j11_cqlsh_dtests_offheap
+          - start_j11_cqlsh_dtests_latest
           - j11_build
     # Java 17 cqlsh dtests
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - j11_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-          - j11_build
     - j17_cqlsh_dtests_py38:
         requires:
           - j11_build
@@ -1170,19 +1165,15 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - j11_build
     # Java 17 cqlsh dtests off-heap
-    - start_j17_cqlsh-dtests-offheap:
+    - start_j17_cqlsh-dtests-latest:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
+    - j17_cqlsh_dtests_py38_latest:
         requires:
-          - start_j17_cqlsh-dtests-offheap
+          - start_j17_cqlsh-dtests-latest
           - j11_build
-    - j17_cqlsh_dtests_py38_offheap:
+    - j17_cqlsh_dtests_py311_latest:
         requires:
-          - start_j17_cqlsh-dtests-offheap
-          - j11_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-          - start_j17_cqlsh-dtests-offheap
+          - start_j17_cqlsh-dtests-latest
           - j11_build
     # Java 11 upgrade tests (on request)
     - start_j11_upgrade_dtests:
@@ -1222,11 +1213,11 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_jvm_dtests
           - j17_build
-    - start_j17_jvm_dtests_vnode:
+    - start_j17_jvm_dtests_latest_vnode:
         type: approval
-    - j17_jvm_dtests_vnode:
+    - j17_jvm_dtests_latest_vnode:
         requires:
-          - start_j17_jvm_dtests_vnode
+          - start_j17_jvm_dtests_latest_vnode
           - j17_build
     - start_j17_jvm_dtests_repeat:
         type: approval
@@ -1234,11 +1225,11 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_jvm_dtests_repeat
           - j17_build
-    - start_j17_jvm_dtests_vnode_repeat:
+    - start_j17_jvm_dtests_latest_vnode_repeat:
         type: approval
-    - j17_jvm_dtests_vnode_repeat:
+    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
-          - start_j17_jvm_dtests_vnode_repeat
+          - start_j17_jvm_dtests_latest_vnode_repeat
           - j17_build
     - start_j17_cqlshlib_tests:
         type: approval
@@ -1265,17 +1256,17 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_dtests_vnode
           - j17_build
-    - start_j17_dtests_offheap:
+    - start_j17_dtests_latest:
         type: approval
-    - j17_dtests_offheap:
+    - j17_dtests_latest:
         requires:
-          - start_j17_dtests_offheap
+          - start_j17_dtests_latest
           - j17_build
-    - start_j17_dtests_offheap_repeat:
+    - start_j17_dtests_latest_repeat:
         type: approval
-    - j17_dtests_offheap_repeat:
+    - j17_dtests_latest_repeat:
         requires:
-          - start_j17_dtests_offheap_repeat
+          - start_j17_dtests_latest_repeat
           - j17_build
     - start_j17_dtests_large:
         type: approval
@@ -1303,14 +1294,6 @@ j17_separate_jobs: &j17_separate_jobs
           - j17_build
     - start_j17_cqlsh_tests:
         type: approval
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - start_j17_cqlsh_tests
-          - j17_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-          - start_j17_cqlsh_tests
-          - j17_build
     - j17_cqlsh_dtests_py38:
         requires:
           - start_j17_cqlsh_tests
@@ -1327,19 +1310,15 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_cqlsh_tests
           - j17_build
-    - start_j17_cqlsh-dtests-offheap:
+    - start_j17_cqlsh-dtests-latest:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
+    - j17_cqlsh_dtests_py38_latest:
         requires:
-          - start_j17_cqlsh-dtests-offheap
+          - start_j17_cqlsh-dtests-latest
           - j17_build
-    - j17_cqlsh_dtests_py38_offheap:
+    - j17_cqlsh_dtests_py311_latest:
         requires:
-          - start_j17_cqlsh-dtests-offheap
-          - j17_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-          - start_j17_cqlsh-dtests-offheap
+          - start_j17_cqlsh-dtests-latest
           - j17_build
     # specialized unit tests (all run on request)
     - start_j17_utests_oa:
@@ -1390,17 +1369,17 @@ j17_separate_jobs: &j17_separate_jobs
         requires:
           - start_j17_utests_compression_repeat
           - j17_build
-    - start_j17_utests_trie:
+    - start_j17_utests_latest:
         type: approval
-    - j17_utests_trie:
+    - j17_utests_latest:
         requires:
-          - start_j17_utests_trie
+          - start_j17_utests_latest
           - j17_build
-    - start_j17_utests_trie_repeat:
+    - start_j17_utests_latest_repeat:
         type: approval
-    - j17_utests_trie_repeat:
+    - j17_utests_latest_repeat:
         requires:
-          - start_j17_utests_trie_repeat
+          - start_j17_utests_latest_repeat
           - j17_build
     - start_j17_utests_stress:
         type: approval
@@ -1425,6 +1404,18 @@ j17_separate_jobs: &j17_separate_jobs
     - j17_utests_fqltool_repeat:
         requires:
           - start_j17_utests_fqltool_repeat
+          - j17_build
+    - start_j17_utests_sstableloader:
+        type: approval
+    - j17_utests_sstableloader:
+        requires:
+          - start_j17_utests_sstableloader
+          - j17_build
+    - start_j17_utests_sstableloader_repeat:
+        type: approval
+    - j17_utests_sstableloader_repeat:
+        requires:
+          - start_j17_utests_sstableloader_repeat
           - j17_build
     - start_j17_utests_system_keyspace_directory:
         type: approval
@@ -1478,16 +1469,22 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
     - j17_unit_tests_repeat:
         requires:
           - j17_build
+    - j17_utests_latest:
+        requires:
+          - j17_build
+    - j17_utests_latest_repeat:
+        requires:
+          - j17_build
     - j17_jvm_dtests:
         requires:
           - j17_build
     - j17_jvm_dtests_repeat:
         requires:
           - j17_build
-    - j17_jvm_dtests_vnode:
+    - j17_jvm_dtests_latest_vnode:
         requires:
           - j17_build
-    - j17_jvm_dtests_vnode_repeat:
+    - j17_jvm_dtests_latest_vnode_repeat:
         requires:
           - j17_build
     - j17_cqlshlib_tests:
@@ -1508,17 +1505,11 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
     - j17_dtests_vnode_repeat:
         requires:
           - j17_build
-    - start_j17_dtests_offheap:
-        type: approval
-    - j17_dtests_offheap:
+    - j17_dtests_latest:
         requires:
-          - start_j17_dtests_offheap
           - j17_build
-    - start_j17_dtests_offheap_repeat:
-        type: approval
-    - j17_dtests_offheap_repeat:
+    - j17_dtests_latest_repeat:
         requires:
-          - start_j17_dtests_offheap_repeat
           - j17_build
     - start_j17_dtests_large:
         type: approval
@@ -1538,12 +1529,6 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
         requires:
           - start_j17_dtests_large
           - j17_build
-    - j17_cqlsh_dtests_py3:
-        requires:
-          - j17_build
-    - j17_cqlsh_dtests_py3_vnode:
-        requires:
-          - j17_build
     - j17_cqlsh_dtests_py38:
         requires:
           - j17_build
@@ -1556,19 +1541,15 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
     - j17_cqlsh_dtests_py311_vnode:
         requires:
           - j17_build
-    - start_j17_cqlsh-dtests-offheap:
+    - start_j17_cqlsh-dtests-latest:
         type: approval
-    - j17_cqlsh_dtests_py3_offheap:
+    - j17_cqlsh_dtests_py38_latest:
         requires:
-          - start_j17_cqlsh-dtests-offheap
+          - start_j17_cqlsh-dtests-latest
           - j17_build
-    - j17_cqlsh_dtests_py38_offheap:
+    - j17_cqlsh_dtests_py311_latest:
         requires:
-          - start_j17_cqlsh-dtests-offheap
-          - j17_build
-    - j17_cqlsh_dtests_py311_offheap:
-        requires:
-          - start_j17_cqlsh-dtests-offheap
+          - start_j17_cqlsh-dtests-latest
           - j17_build
     # specialized unit tests (all run on request)
     - start_utests_long:
@@ -1601,16 +1582,6 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
         requires:
           - start_utests_compression
           - j17_build
-    - start_utests_trie:
-        type: approval
-    - j17_utests_trie:
-        requires:
-          - start_utests_trie
-          - j17_build
-    - j17_utests_trie_repeat:
-        requires:
-          - start_utests_trie
-          - j17_build
     - start_utests_stress:
         type: approval
     - j17_utests_stress:
@@ -1630,6 +1601,16 @@ j17_pre-commit_jobs: &j17_pre-commit_jobs
     - j17_utests_fqltool_repeat:
         requires:
           - start_utests_fqltool
+          - j17_build
+    - start_utests_sstableloader:
+        type: approval
+    - j17_utests_sstableloader:
+        requires:
+          - start_utests_sstableloader
+          - j17_build
+    - j17_utests_sstableloader_repeat:
+        requires:
+          - start_utests_sstableloader
           - j17_build
     - start_utests_system_keyspace_directory:
         type: approval
@@ -1756,7 +1737,7 @@ jobs:
           classlistprefix: distributed
           target: "testclasslist"
 
-  j11_jvm_dtests_vnode:
+  j11_jvm_dtests_latest_vnode:
     <<: *j11_small_par_executor
     steps:
       - attach_workspace:
@@ -1768,7 +1749,7 @@ jobs:
       - run_parallel_junit_tests:
           classlistprefix: distributed
           target: "testclasslist"
-          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16 -Djvm_dtests.latest=true'"
 
   j17_jvm_dtests:
     <<: *j17_small_par_executor
@@ -1796,7 +1777,7 @@ jobs:
           classlistprefix: distributed
           target: "testclasslist"
 
-  j17_jvm_dtests_vnode:
+  j17_jvm_dtests_latest_vnode:
     <<: *j17_small_par_executor
     steps:
       - attach_workspace:
@@ -1808,7 +1789,7 @@ jobs:
       - run_parallel_junit_tests:
           classlistprefix: distributed
           target: "testclasslist"
-          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
+          arguments: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16 -Djvm_dtests.latest=true'"
 
   j17_unit_tests:
     <<: *j17_par_executor
@@ -1913,7 +1894,7 @@ jobs:
       - run_parallel_junit_tests:
           target: testclasslist-compression
 
-  j11_utests_trie:
+  j11_utests_latest:
     <<: *j11_par_executor
     steps:
       - attach_workspace:
@@ -1921,9 +1902,9 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests:
-          target: testclasslist-trie
+          target: testclasslist-latest
 
-  j17_utests_trie:
+  j17_utests_latest:
     <<: *j17_par_executor
     steps:
       - attach_workspace:
@@ -1931,7 +1912,7 @@ jobs:
       - create_junit_containers
       - log_environment
       - run_parallel_junit_tests:
-          target: testclasslist-trie
+          target: testclasslist-latest
 
   j11_utests_stress:
     <<: *j11_seq_executor
@@ -1964,6 +1945,22 @@ jobs:
           at: /home/cassandra
       - run_junit_tests:
           target: fqltool-test
+
+  j11_utests_sstableloader:
+    <<: *j11_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: sstableloader-test
+
+  j17_utests_sstableloader:
+    <<: *j17_seq_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - run_junit_tests:
+          target: sstableloader-test
 
   j11_utests_system_keyspace_directory:
     <<: *j11_par_executor
@@ -1999,7 +1996,7 @@ jobs:
           file_tag: j11_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
 
-  j11_dtests_offheap:
+  j11_dtests_latest:
     <<: *j11_par_executor
     steps:
       - attach_workspace:
@@ -2007,11 +2004,11 @@ jobs:
       - clone_dtest
       - create_venv
       - create_dtest_containers:
-          file_tag: j11_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql'"
+          file_tag: j11_dtests_latest
+          run_dtests_extra_args: "--use-vnodes --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests --pytest-options '-k not cql'"
       - run_dtests:
-          file_tag: j11_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          file_tag: j11_dtests_latest
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests'
 
   j17_dtests_vnode:
     <<: *j17_par_executor
@@ -2028,7 +2025,7 @@ jobs:
         file_tag: j17_with_vnodes
         pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
 
-  j17_dtests_offheap:
+  j17_dtests_latest:
     <<: *j17_par_executor
     steps:
       - attach_workspace:
@@ -2037,11 +2034,11 @@ jobs:
       - clone_dtest
       - create_venv
       - create_dtest_containers:
-          file_tag: j17_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql'"
+          file_tag: j17_dtests_latest
+          run_dtests_extra_args: "--use-vnodes --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests --pytest-options '-k not cql'"
       - run_dtests:
-          file_tag: j17_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          file_tag: j17_dtests_latest
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests'
 
   j11_dtests:
     <<: *j11_par_executor
@@ -2086,36 +2083,6 @@ jobs:
         file_tag: j11_upgradetests_without_vnodes
         pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
 
-  j11_cqlsh_dtests_py3_vnode:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
-
-  j11_cqlsh_dtests_py3_offheap:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
-
   j11_cqlsh_dtests_py38_vnode:
     <<: *j11_par_executor
     steps:
@@ -2152,7 +2119,7 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
 
-  j11_cqlsh_dtests_py38_offheap:
+  j11_cqlsh_dtests_py38_latest:
     <<: *j11_par_executor
     steps:
       - attach_workspace:
@@ -2161,16 +2128,16 @@ jobs:
       - create_venv:
           python_version: '3.8'
       - create_dtest_containers:
-          file_tag: j11_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          file_tag: j11_dtests_latest
+          run_dtests_extra_args: "--use-vnodes --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests --pytest-options '-k cql'"
           python_version: '3.8'
       - run_dtests:
-          file_tag: j11_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          file_tag: j11_dtests_latest
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
-  j11_cqlsh_dtests_py311_offheap:
+  j11_cqlsh_dtests_py311_latest:
     <<: *j11_par_executor
     steps:
       - attach_workspace:
@@ -2179,29 +2146,14 @@ jobs:
       - create_venv:
           python_version: '3.11'
       - create_dtest_containers:
-          file_tag: j11_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          file_tag: j11_dtests_latest
+          run_dtests_extra_args: "--use-vnodes --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests --pytest-options '-k cql'"
           python_version: '3.11'
       - run_dtests:
-          file_tag: j11_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          file_tag: j11_dtests_latest
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
-
-  j11_cqlsh_dtests_py3:
-    <<: *j11_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j11_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j11_without_vnodes
-          pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
   j11_cqlsh_dtests_py38:
     <<: *j11_par_executor
@@ -2239,36 +2191,6 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
 
-  j17_cqlsh_dtests_py3_vnode:
-    <<: *j17_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j17_with_vnodes
-          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j17_with_vnodes
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
-
-  j17_cqlsh_dtests_py3_offheap:
-    <<: *j17_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j17_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j17_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
-
   j17_cqlsh_dtests_py38_vnode:
     <<: *j17_par_executor
     steps:
@@ -2305,7 +2227,7 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
 
-  j17_cqlsh_dtests_py38_offheap:
+  j17_cqlsh_dtests_py38_latest:
     <<: *j17_par_executor
     steps:
       - attach_workspace:
@@ -2314,16 +2236,16 @@ jobs:
       - create_venv:
           python_version: '3.8'
       - create_dtest_containers:
-          file_tag: j17_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          file_tag: j17_dtests_latest
+          run_dtests_extra_args: "--use-vnodes --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests --pytest-options '-k cql'"
           python_version: '3.8'
       - run_dtests:
-          file_tag: j17_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          file_tag: j17_dtests_latest
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
-  j17_cqlsh_dtests_py311_offheap:
+  j17_cqlsh_dtests_py311_latest:
     <<: *j17_par_executor
     steps:
       - attach_workspace:
@@ -2332,29 +2254,14 @@ jobs:
       - create_venv:
           python_version: '3.11'
       - create_dtest_containers:
-          file_tag: j17_dtests_offheap
-          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          file_tag: j17_dtests_latest
+          run_dtests_extra_args: "--use-vnodes --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests --pytest-options '-k cql'"
           python_version: '3.11'
       - run_dtests:
-          file_tag: j17_dtests_offheap
-          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          file_tag: j17_dtests_latest
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
           python_version: '3.11'
-
-  j17_cqlsh_dtests_py3:
-    <<: *j17_par_executor
-    steps:
-      - attach_workspace:
-          at: /home/cassandra
-      - clone_dtest
-      - create_venv
-      - create_dtest_containers:
-          file_tag: j17_without_vnodes
-          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
-      - run_dtests:
-          file_tag: j17_without_vnodes
-          pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
 
   j17_cqlsh_dtests_py38:
     <<: *j17_par_executor
@@ -2496,21 +2403,21 @@ jobs:
       - log_environment
       - run_utests_compression_repeat
 
-  j11_utests_trie_repeat:
+  j11_utests_latest_repeat:
     <<: *j11_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
-      - run_utests_trie_repeat
+      - run_utests_latest_repeat
 
-  j17_utests_trie_repeat:
+  j17_utests_latest_repeat:
     <<: *j17_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
-      - run_utests_trie_repeat
+      - run_utests_latest_repeat
 
   j11_utests_oa_repeat:
     <<: *j11_repeated_utest_executor
@@ -2560,6 +2467,22 @@ jobs:
       - log_environment
       - run_utests_fqltool_repeat
 
+  j11_utests_sstableloader_repeat:
+    <<: *j11_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_sstableloader_repeat
+
+  j17_utests_sstableloader_repeat:
+    <<: *j17_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_sstableloader_repeat
+
   j11_utests_long_repeat:
     <<: *j11_repeated_utest_executor
     steps:
@@ -2608,13 +2531,13 @@ jobs:
       - log_environment
       - run_jvm_dtests_repeat
 
-  j11_jvm_dtests_vnode_repeat:
+  j11_jvm_dtests_latest_vnode_repeat:
     <<: *j11_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
-      - run_jvm_dtests_vnode_repeat
+      - run_jvm_dtests_latest_vnode_repeat
 
   j11_simulator_dtests_repeat:
     <<: *j11_repeated_utest_executor
@@ -2632,13 +2555,13 @@ jobs:
       - log_environment
       - run_jvm_dtests_repeat
 
-  j17_jvm_dtests_vnode_repeat:
+  j17_jvm_dtests_latest_vnode_repeat:
     <<: *j17_repeated_utest_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
       - log_environment
-      - run_jvm_dtests_vnode_repeat
+      - run_jvm_dtests_latest_vnode_repeat
 
   j11_repeated_ant_test:
     <<: *j11_repeated_utest_executor
@@ -2696,7 +2619,7 @@ jobs:
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  j11_dtests_offheap_repeat:
+  j11_dtests_latest_repeat:
     <<: *j11_repeated_dtest_executor
     steps:
       - attach_workspace:
@@ -2709,7 +2632,7 @@ jobs:
           upgrade: "false"
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
-          extra_dtest_args: "--use-off-heap-memtables --skip-resource-intensive-tests"
+          extra_dtest_args: "--configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests"
 
   j11_dtests_large_repeat:
     <<: *j11_repeated_dtest_executor
@@ -2771,7 +2694,7 @@ jobs:
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  j17_dtests_offheap_repeat:
+  j17_dtests_latest_repeat:
     <<: *j17_repeated_dtest_executor
     steps:
       - attach_workspace:
@@ -2784,7 +2707,7 @@ jobs:
           upgrade: "false"
           count: ${REPEATED_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
-          extra_dtest_args: "--use-off-heap-memtables --skip-resource-intensive-tests"
+          extra_dtest_args: "--configuration-yaml=cassandra_latest.yaml --skip-resource-intensive-tests"
 
   j17_dtests_large_repeat:
     <<: *j17_repeated_dtest_executor
@@ -3117,8 +3040,8 @@ commands:
     parameters:
       python_version:
         type: enum
-        default: "3.6"
-        enum: ["3.6", "3.7", "3.8", "3.11"]
+        default: "3.8"
+        enum: ["3.8", "3.11"]
     steps:
     - run:
         name: Configure virtualenv and python Dependencies
@@ -3148,8 +3071,8 @@ commands:
         default: ''
       python_version:
         type: enum
-        default: "3.6"
-        enum: ["3.6", "3.7", "3.8", "3.11"]
+        default: "3.8"
+        enum: ["3.8", "3.11"]
     steps:
     - run:
         name: Determine Tests to Run (<<parameters.file_tag>>)
@@ -3190,8 +3113,8 @@ commands:
         default: ''
       python_version:
         type: enum
-        default: "3.6"
-        enum: ["3.6", "3.7", "3.8", "3.11"]
+        default: "3.8"
+        enum: ["3.8", "3.11"]
     steps:
       - run:
           name: Run dtests (<<parameters.file_tag>>)
@@ -3216,7 +3139,7 @@ commands:
             # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
             export SPLIT_TESTS=`cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt`
             if [ ! -z "$SPLIT_TESTS" ]; then
-              set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+              set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-cli-level="DEBUG" --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
             else
               echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
               (exit 1)
@@ -3254,10 +3177,10 @@ commands:
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  run_utests_trie_repeat:
+  run_utests_latest_repeat:
     steps:
       - run_repeated_utests:
-          target: test-trie
+          target: test-latest
           tests: ${REPEATED_UTESTS}
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
@@ -3294,6 +3217,14 @@ commands:
           count: ${REPEATED_UTESTS_FQLTOOL_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
+  run_utests_sstableloader_repeat:
+    steps:
+      - run_repeated_utests:
+          target: sstableloader-test
+          tests: ${REPEATED_UTESTS_SSTABLELOADER}
+          count: ${REPEATED_UTESTS_SSTABLELOADER_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
   run_utests_stress_repeat:
     steps:
       - run_repeated_utests:
@@ -3319,7 +3250,7 @@ commands:
           count: ${REPEATED_SIMULATOR_DTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
-  run_jvm_dtests_vnode_repeat:
+  run_jvm_dtests_latest_vnode_repeat:
     steps:
       - run_repeated_utests:
           target: test-jvm-dtest-some
@@ -3389,8 +3320,8 @@ commands:
               testtag="compression"
             elif [[ $target == "test-system-keyspace-directory" ]]; then
               testtag="system_keyspace_directory"
-            elif [[ $target == "test-trie" ]]; then
-              testtag="trie"
+            elif [[ $target == "test-latest" ]]; then
+              testtag="latest"
             elif [[ $target == "test-oa" ]]; then
               testtag="oa"
             fi
@@ -3413,10 +3344,11 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
-                      $target == "test-trie" || \
+                      $target == "test-latest" || \
                       $target == "test-oa" || \
                       $target == "test-system-keyspace-directory" || \
                       $target == "fqltool-test" || \
+                      $target == "sstableloader-test" || \
                       $target == "long-test" || \
                       $target == "stress-test" || \
                       $target == "test-simulator-dtest" ]]; then
@@ -3459,11 +3391,11 @@ commands:
                   fi
 
                   # move the log files
-                  source=build/test/logs/${testtag}
+                  source="build/test/logs"
                   dest=/tmp/results/repeated_utests/logs/${status}/${i}
                   mkdir -p $dest
-                  if [[ -d $source && -n "$(ls $source)" ]]; then
-                    mv $source/* $dest/
+                  if [[ -d $source && -n "$(ls $source)" && -n "$(ls ${source}/${testtag}*)" ]]; then
+                    mv $source/${testtag}*/* $dest/
                   fi
                   
                   # maybe stop iterations on test failure
@@ -3541,10 +3473,11 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
-                      $target == "test-trie" || \
+                      $target == "test-latest" || \
                       $target == "test-oa" || \
                       $target == "test-system-keyspace-directory" || \
                       $target == "fqltool-test" || \
+                      $target == "sstableloader-test" || \
                       $target == "long-test" || \
                       $target == "stress-test" || \
                       $target == "test-simulator-dtest" ]]; then
@@ -3662,7 +3595,7 @@ commands:
               else
                 echo "Running <<parameters.tests>> $count times"
             
-                source ~/env3.6/bin/activate
+                source ~/env3.8/bin/activate
                 export PATH=$JAVA_HOME/bin:$PATH
 
                 java -version

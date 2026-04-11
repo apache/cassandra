@@ -21,7 +21,17 @@ import java.math.BigDecimal;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -31,6 +41,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
+
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,7 +54,40 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.DateType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.DynamicCompositeType;
+import org.apache.cassandra.db.marshal.DynamicCompositeTypeTest;
+import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.TimeType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -432,7 +476,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                                                safeStr(c.clusteringString(comp.subtypes())),
                                                safeStr(e.clusteringString(comp.subtypes())), bsc, bse, v),
                                  expected, Integer.signum(ByteComparable.compare(bsc, bse, v)));
-                    maybeCheck41Properties(expected, bsc, bse, v);
+                    maybeCheck50Properties(expected, bsc, bse, v);
                     maybeAssertNotPrefix(bsc, bse, v);
 
                     ClusteringComparator compR = new ClusteringComparator(ReversedType.getInstance(t1), ReversedType.getInstance(t2));
@@ -443,7 +487,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                                                safeStr(c.clusteringString(comp.subtypes())),
                                                safeStr(e.clusteringString(comp.subtypes())), bsrc, bsre, v),
                                  expectedR, Integer.signum(ByteComparable.compare(bsrc, bsre, v)));
-                    maybeCheck41Properties(expectedR, bsrc, bsre, v);
+                    maybeCheck50Properties(expectedR, bsrc, bsre, v);
                     maybeAssertNotPrefix(bsrc, bsre, v);
                 }
     }
@@ -491,20 +535,13 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
         TupleType tt = new TupleType(ImmutableList.of(UTF8Type.instance, Int32Type.instance));
         List<ByteBuffer> tests = ImmutableList.of
             (
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, ""),
-                                 decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), decomposeAndRandomPad(Int32Type.instance, 0)),
             // Note: a decomposed null (e.g. decomposeAndRandomPad(Int32Type.instance, null)) should not reach a tuple
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, ""),
-                                 null),
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 null,
-                                 decomposeAndRandomPad(Int32Type.instance, 0)),
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, "")),
-            TupleType.buildValue(ByteBufferAccessor.instance, (ByteBuffer) null),
-            TupleType.buildValue(ByteBufferAccessor.instance)
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), null),
+            tt.pack((ByteBuffer) null, decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, "")),
+            tt.pack((ByteBuffer) null),
+            tt.pack()
             );
         testBuffers(tt, tests);
     }
@@ -515,11 +552,8 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
         TupleType t1 = new TupleType(ImmutableList.of(UTF8Type.instance));
         TupleType t2 = new TupleType(ImmutableList.of(UTF8Type.instance, Int32Type.instance));
 
-        ByteBuffer vOne = TupleType.buildValue(ByteBufferAccessor.instance,
-                                               decomposeAndRandomPad(UTF8Type.instance, "str"));
-        ByteBuffer vOneAndNull = TupleType.buildValue(ByteBufferAccessor.instance,
-                                                      decomposeAndRandomPad(UTF8Type.instance, "str"),
-                                                      null);
+        ByteBuffer vOne = t1.pack(decomposeAndRandomPad(UTF8Type.instance, "str"));
+        ByteBuffer vOneAndNull = t2.pack(decomposeAndRandomPad(UTF8Type.instance, "str"), null);
 
         ByteComparable bOne1 = typeToComparable(t1, vOne);
         ByteComparable bOne2 = typeToComparable(t2, vOne);
@@ -537,12 +571,8 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
     void assertTupleComparesSame(AbstractType t1, AbstractType t2, Object o1, Object o2, Object o3, Object o4)
     {
         TupleType tt = new TupleType(ImmutableList.of(t1, t2));
-        ByteBuffer b1 = TupleType.buildValue(ByteBufferAccessor.instance,
-                                             decomposeForTuple(t1, o1),
-                                             decomposeForTuple(t2, o2));
-        ByteBuffer b2 = TupleType.buildValue(ByteBufferAccessor.instance,
-                                             decomposeForTuple(t1, o3),
-                                             decomposeForTuple(t2, o4));
+        ByteBuffer b1 = tt.pack(decomposeForTuple(t1, o1), decomposeForTuple(t2, o2));
+        ByteBuffer b2 = tt.pack(decomposeForTuple(t1, o3), decomposeForTuple(t2, o4));
         assertComparesSameBuffers(tt, b1, b2);
     }
 
@@ -658,7 +688,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
     @Test
     public void testDecoratedKeyPrefixesVOSS50()
     {
-        // This should pass with the OSS 4.1 encoding
+        // This should pass with the OSS 5.0 encoding
         testDecoratedKeyPrefixes(Version.OSS50);
     }
 
@@ -826,9 +856,14 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
         ByteBuffer collision = Util.generateMurmurCollision(original, append.getBytes(StandardCharsets.UTF_8));
 
         long[] hash = new long[2];
+        long[] hash2 = new long[2];
         MurmurHash.hash3_x64_128(original, 0, original.limit(), 0, hash);
+        MurmurHash.hash3_x64_128(original.array(), original.arrayOffset(), original.limit(), 0, hash2);
+        Assert.assertArrayEquals(hash, hash2);
         logger.info(String.format("Original hash  %016x,%016x", hash[0], hash[1]));
         MurmurHash.hash3_x64_128(collision, 0, collision.limit(), 0, hash);
+        MurmurHash.hash3_x64_128(collision.array(), collision.arrayOffset(), original.limit(), 0, hash2);
+        Assert.assertArrayEquals(hash, hash2);
         logger.info(String.format("Collision hash %016x,%016x", hash[0], hash[1]));
 
         DecoratedKey kk1 = partitioner.decorateKey(original);
@@ -878,13 +913,13 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
 
     private void maybeAssertNotPrefix(ByteComparable s1, ByteComparable s2, Version version)
     {
-        if (version == Version.OSS50)
+        if (version != Version.LEGACY)
             assertNotPrefix(s1.asComparableBytes(version), s2.asComparableBytes(version));
     }
 
-    private void maybeCheck41Properties(int expectedComparison, ByteComparable s1, ByteComparable s2, Version version)
+    private void maybeCheck50Properties(int expectedComparison, ByteComparable s1, ByteComparable s2, Version version)
     {
-        if (version != Version.OSS50)
+        if (version == Version.LEGACY)
             return;
 
         if (s1 == null || s2 == null || 0 == expectedComparison)
@@ -999,7 +1034,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
             assertEquals(String.format("Failed comparing %s(%s) and %s(%s)", ByteBufferUtil.bytesToHex(b1), bs1.byteComparableAsString(version), ByteBufferUtil.bytesToHex(b2), bs2.byteComparableAsString(version)),
                          expected,
                          actual);
-            maybeCheck41Properties(expected, bs1, bs2, version);
+            maybeCheck50Properties(expected, bs1, bs2, version);
         }
     }
 
@@ -1153,7 +1188,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
                                  expected,
                                  actual);
             }
-            maybeCheck41Properties(expected, bc1, bc2, version);
+            maybeCheck50Properties(expected, bc1, bc2, version);
         }
     }
 

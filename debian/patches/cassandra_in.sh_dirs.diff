@@ -25,7 +25,7 @@
  
  # This can be the path to a jar file, or a directory containing the 
  # compiled classes. NOTE: This isn't needed by the startup script,
-@@ -38,7 +38,7 @@ fi
+@@ -45,7 +45,7 @@ fi
  
  # the default location for commitlogs, sstables, and saved caches
  # if not set in cassandra.yaml
@@ -34,8 +34,8 @@
  
  # JAVA_HOME can optionally be set here
  #JAVA_HOME=/usr/local/jdk6
-@@ -47,6 +47,10 @@ for jar in "$CASSANDRA_HOME"/lib/*.jar; do
-     CLASSPATH="$CLASSPATH:$jar"
+@@ -59,6 +59,10 @@ for jsr223jar in "$CASSANDRA_HOME"/lib/jsr223/*/*.jar; do
+     CLASSPATH="$CLASSPATH:$jsr223jar"
  done
  
 +for jar in "$CASSANDRA_HOME"/*.jar; do
@@ -44,4 +44,4 @@
 +
  CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
  
- # JSR223 - collect all JSR223 engines' jars
+ # JSR223/JRuby - set ruby lib directory

@@ -25,7 +25,9 @@ import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
+import org.quicktheories.generators.SourceDSL;
 
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -34,8 +36,6 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.apache.cassandra.utils.CassandraUInt;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.generators.SourceDSL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;

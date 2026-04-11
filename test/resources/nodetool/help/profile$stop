@@ -1,0 +1,29 @@
+NAME
+        nodetool profile stop - Stop Async-Profiler on a Cassandra process
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] profile stop
+                [(-o <filename> | --output <filename>)]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -o <filename>, --output <filename>
+            File name to save profiling results into, defaults to a file of
+            name 'yyyy-MM-dd-HH-mm-ss.html'
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username

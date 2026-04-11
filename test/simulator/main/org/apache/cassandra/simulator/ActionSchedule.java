@@ -31,17 +31,19 @@ import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.internal.DefaultPriorityQueue;
-import io.netty.util.internal.PriorityQueue;
 import org.apache.cassandra.simulator.OrderOn.OrderOnId;
 import org.apache.cassandra.simulator.Ordered.Sequence;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.SafeCollections;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
+
+import io.netty.util.internal.DefaultPriorityQueue;
+import io.netty.util.internal.PriorityQueue;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_DEBUG;
 import static org.apache.cassandra.simulator.Action.Modifier.DAEMON;
@@ -54,8 +56,8 @@ import static org.apache.cassandra.simulator.Action.Phase.SEQUENCED_POST_SCHEDUL
 import static org.apache.cassandra.simulator.Action.Phase.SEQUENCED_PRE_SCHEDULED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
-import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.SimulatorUtils.dumpStackTraces;
+import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 /**
  * TODO (feature): support total stalls on specific nodes
@@ -73,7 +75,34 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
 {
     private static final Logger logger = LoggerFactory.getLogger(ActionList.class);
 
-    public enum Mode { TIME_LIMITED, STREAM_LIMITED, TIME_AND_STREAM_LIMITED, FINITE, UNLIMITED }
+    public enum Mode
+    {
+        /**
+         * Definition: Runs the simulation for a specific duration (specified by {@link Work#runForNanos})
+         * Behavior: After the time limit is reached, cancels both daemon tasks and stream actions
+         */
+        TIME_LIMITED,
+        /**
+         * Definition: Runs until all finite streams are processed ({@link #activeFiniteStreamCount} reaches 0)
+         * Behavior: Once all finite streams complete, cancels daemon tasks
+         */
+        STREAM_LIMITED,
+        /**
+         * Definition: Combines both time and stream limitations
+         * Behavior: Cancels daemon tasks if either all finite streams complete OR the time limit is reached
+         */
+        TIME_AND_STREAM_LIMITED,
+        /**
+         * Definition: Processes a finite set of actions; does not allow stream actions
+         * Behavior: Processes a finite set of actions, if any action is added that has stream then the action will be rejected.
+         */
+        FINITE,
+        /**
+         * Definition: Processes a finite set of actions, but allow daemon actions (unlike FINITE).
+         * Behavior: Similar to FINITE, but will handle daemon tasks in "waves", so that the scheduler can know when the "real" work is actually completed.
+         */
+        UNLIMITED
+    }
 
     public static class Work
     {
@@ -322,6 +351,9 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         return false;
     }
 
+    // NOTE: this is only here for debugging, its a quick way to see if pre (0), interleave (1), or post (2) is active
+    private int step = -1;
+
     private boolean moreWork()
     {
         if (!moreWork.hasNext())
@@ -347,6 +379,8 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         work.actors.forEach(runnableScheduler::attachTo);
         work.actors.forEach(a -> a.forEach(Action::setConsequence));
         work.actors.forEach(this::add);
+
+        step++;
         return true;
     }
 

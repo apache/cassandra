@@ -25,12 +25,13 @@ import java.nio.channels.WritableByteChannel;
 
 import com.google.common.net.InetAddresses;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.FileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class TestChannel extends EmbeddedChannel
 {

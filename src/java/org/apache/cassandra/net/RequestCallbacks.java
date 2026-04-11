@@ -26,12 +26,12 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
@@ -154,7 +154,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         messagingService.markExpiredCallback(info.peer);
 
         if (info.invokeOnFailure())
-            INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailureReason.TIMEOUT));
+            INTERNAL_RESPONSE.submit(() -> info.callback.onFailure(info.peer, RequestFailure.TIMEOUT));
     }
 
     void shutdownNow(boolean expireCallbacks)

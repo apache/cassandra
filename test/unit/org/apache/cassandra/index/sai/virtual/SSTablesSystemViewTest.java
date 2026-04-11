@@ -21,11 +21,11 @@ import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
 import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
@@ -33,8 +33,8 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -68,8 +68,6 @@ public class SSTablesSystemViewTest extends SAITester
     public static void setup()
     {
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(SchemaConstants.VIRTUAL_VIEWS, ImmutableList.of(new SSTableIndexesSystemView(SchemaConstants.VIRTUAL_VIEWS))));
-
-        CQLTester.setUpClass();
     }
 
     @Test
@@ -177,7 +175,7 @@ public class SSTablesSystemViewTest extends SAITester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         StorageAttachedIndex sai = (StorageAttachedIndex) cfs.indexManager.getIndexByName(indexName);
 
-        for (SSTableIndex sstableIndex : sai.getIndexContext().getView())
+        for (SSTableIndex sstableIndex : sai.view())
         {
             SSTableReader sstable = sstableIndex.getSSTable();
 

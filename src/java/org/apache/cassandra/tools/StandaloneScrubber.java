@@ -50,13 +50,15 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public class StandaloneScrubber
 {
@@ -87,12 +89,10 @@ public class StandaloneScrubber
             DatabaseDescriptor.toolInitialization(false); //Necessary for testing
         else
             Util.initDatabaseDescriptor();
+        ClusterMetadataService.initializeForTools(false);
 
         try
         {
-            // load keyspace descriptions.
-            Schema.instance.loadFromDisk();
-
             if (Schema.instance.getKeyspaceMetadata(options.keyspaceName) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace %s", options.keyspaceName));
 
@@ -242,12 +242,12 @@ public class StandaloneScrubber
 
             static HeaderFixMode fromCommandLine(String value)
             {
-                return valueOf(value.replace('-', '_').toUpperCase().trim());
+                return valueOf(toUpperCaseLocalized(value.replace('-', '_')).trim());
             }
 
             String asCommandLineOption()
             {
-                return name().toLowerCase().replace('_', '-');
+                return toLowerCaseLocalized(name()).replace('_', '-');
             }
         }
 

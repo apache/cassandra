@@ -18,14 +18,23 @@
 
 package org.apache.cassandra.service.paxos.uncommitted;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -42,7 +51,7 @@ class PaxosUncommittedTests
         CommitLog.instance.start();
     }
 
-    static final IPartitioner PARTITIONER = new ByteOrderedPartitioner();
+    static final IPartitioner PARTITIONER = ByteOrderedPartitioner.instance;
     static final Token MIN_TOKEN = PARTITIONER.getMinimumToken();
     static final Range<Token> FULL_RANGE = new Range<>(MIN_TOKEN, MIN_TOKEN);
     static final Collection<Range<Token>> ALL_RANGES = Collections.singleton(FULL_RANGE);

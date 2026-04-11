@@ -1,5 +1,4 @@
 = Cassandra Stress
-:page-aliases: cassandra-stress.adoc
 
 [IMPORTANT]
 ====

@@ -1,3 +1,4 @@
+[[saiUsingCollectionsListExamples]]
 = Using the list type
 
 This example uses the following table and index:

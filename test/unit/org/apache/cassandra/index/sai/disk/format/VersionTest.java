@@ -30,7 +30,7 @@ public class VersionTest
     @BeforeClass
     public static void initialise()
     {
-        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.toolInitialization();
     }
 
     @Test

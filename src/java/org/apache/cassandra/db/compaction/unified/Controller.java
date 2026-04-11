@@ -25,19 +25,20 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
+import org.apache.cassandra.utils.Overlaps;
 
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 /**
 * The controller provides compaction parameters to the unified compaction strategy
 */
@@ -49,17 +50,25 @@ public class Controller
      * The scaling parameters W, one per bucket index and separated by a comma.
      * Higher indexes will use the value of the last index with a W specified.
      */
-    final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    public final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
     private final static String DEFAULT_SCALING_PARAMETERS =
         CassandraRelevantProperties.UCS_SCALING_PARAMETER.getString();
+
+    /**
+     * The minimum sstable size. Sharded writers split sstables over shard only if they are at least as large as the
+     * minimum size.
+     */
+    public static final String MIN_SSTABLE_SIZE_OPTION = "min_sstable_size";
+
+    private static final String DEFAULT_MIN_SSTABLE_SIZE = CassandraRelevantProperties.UCS_MIN_SSTABLE_SIZE.getString();
 
     /**
      * Override for the flush size in MB. The database should be able to calculate this from executing flushes, this
      * should only be necessary in rare cases.
      */
-    static final String FLUSH_SIZE_OVERRIDE_OPTION = "flush_size_override";
+    public static final String FLUSH_SIZE_OVERRIDE_OPTION = "flush_size_override";
 
-    static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
+    public static final String BASE_SHARD_COUNT_OPTION = "base_shard_count";
     /**
      * Default base shard count, used when a base count is not explicitly supplied. This value applies as long as the
      * table is not a system one, and directories are not defined.
@@ -70,10 +79,38 @@ public class Controller
     public static final int DEFAULT_BASE_SHARD_COUNT =
         CassandraRelevantProperties.UCS_BASE_SHARD_COUNT.getInt();
 
-    static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
+    public static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
     public static final long DEFAULT_TARGET_SSTABLE_SIZE =
         CassandraRelevantProperties.UCS_TARGET_SSTABLE_SIZE.getSizeInBytes();
-    static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
+    public static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
+
+    /**
+     * Provision for growth of the constructed SSTables as the size of the data grows. By default, the target SSTable
+     * size is fixed for all levels. In some scenarios it may be better to reduce the overall number of SSTables when
+     * the data size becomes larger to avoid using too much memory and processing for the corresponding structures.
+     * The setting enables such control and determines how much we reduce the growth of the number of split points as
+     * the data size grows. The number specifies the SSTable growth part, and the difference from 1 is the shard count
+     * growth component, which is a multiplier applied to the logarithm of the data size, before it is rounded and
+     * applied as an exponent in the number of split points. In other words, the given value applies as a negative
+     * exponent in the calculation of the number of split points.
+     * <p>
+     * Using 0 applies no correction to the number of split points, resulting in SSTables close to the
+     * target size. Setting this number to 1 will make UCS never split beyong the base shard count. Using 0.5 will
+     * make the number of split points a square root of the required number for the target SSTable size, making
+     * the number of split points and the size of SSTables grow in lockstep as the density grows. Using
+     * 0.333 (the default) makes the sstable growth the cubic root of the density growth, i.e. the SSTable size
+     * grows with the square root of the growth of the shard count.
+     * <p>
+     * For example, given a data size of 1TiB on the top density level and 1GiB target size with base shard count of 1,
+     * growth 0 would result in 1024 SSTables of ~1GiB each, 0.333 would result in 128 SSTables of ~8 GiB each,
+     * 0.5 would yield 32 SSTables of ~32GiB each, and 1 would yield 1 SSTable of 1TiB.
+     * <p>
+     * Note that this correction only applies after the base shard count is reached, so for the above example with
+     * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, 128 (~8GiB each) for
+     * a growth value of 0.333, and 64 (~16GiB each) for a growth value of 0.5.
+     */
+    public static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
+    private static final double DEFAULT_SSTABLE_GROWTH = CassandraRelevantProperties.UCS_SSTABLE_GROWTH.getDouble();
 
     /**
      * This parameter is intended to modify the shape of the LSM by taking into account the survival ratio of data, for now it is fixed to one.
@@ -90,7 +127,7 @@ public class Controller
      *
      * If the fanout factor is larger than the maximum number of sstables, the strategy will ignore the latter.
      */
-    static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
+    public static final String MAX_SSTABLES_TO_COMPACT_OPTION = "max_sstables_to_compact";
 
     static final String ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION = "unsafe_aggressive_sstable_expiration";
     static final boolean ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION =
@@ -100,22 +137,33 @@ public class Controller
     static final int DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS = 60 * 10;
     static final String EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION = "expired_sstable_check_frequency_seconds";
 
+    /** The maximum exponent for shard splitting. The maximum number of shards is this number the base count shifted this many times left. */
+    static final int MAX_SHARD_SHIFT = 20;
     /** The maximum splitting factor for shards. The maximum number of shards is this number multiplied by the base count. */
-    static final double MAX_SHARD_SPLIT = 1048576;
+    static final double MAX_SHARD_SPLIT = Math.scalb(1, MAX_SHARD_SHIFT);
 
     /**
      * Overlap inclusion method. NONE for participating sstables only (not recommended), SINGLE to only include sstables
      * that overlap with participating (LCS-like, higher concurrency during upgrades but some double compaction),
      * TRANSITIVE to include overlaps of overlaps (likely to trigger whole level compactions, safest).
      */
-    static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
+    public static final String OVERLAP_INCLUSION_METHOD_OPTION = "overlap_inclusion_method";
     static final Overlaps.InclusionMethod DEFAULT_OVERLAP_INCLUSION_METHOD =
         CassandraRelevantProperties.UCS_OVERLAP_INCLUSION_METHOD.getEnum(Overlaps.InclusionMethod.TRANSITIVE);
+
+    /**
+     * Whether to create subtask for the output shards of individual compactions and execute them in parallel.
+     * Defaults to true for improved parallelization and efficiency.
+     */
+    static final String PARALLELIZE_OUTPUT_SHARDS_OPTION = "parallelize_output_shards";
+    static final boolean DEFAULT_PARALLELIZE_OUTPUT_SHARDS =
+            CassandraRelevantProperties.UCS_PARALLELIZE_OUTPUT_SHARDS.getBoolean(true);
 
     protected final ColumnFamilyStore cfs;
     protected final MonotonicClock clock;
     private final int[] scalingParameters;
     protected final double[] survivalFactors;
+    protected volatile long minSSTableSize;
     protected final long flushSizeOverride;
     protected volatile long currentFlushSize;
     protected final int maxSSTablesToCompact;
@@ -126,32 +174,43 @@ public class Controller
 
     protected final double targetSSTableSize;
 
+    protected final double sstableGrowthModifier;
+
     static final double INVERSE_SQRT_2 = Math.sqrt(0.5);
 
+    private static final double INVERSE_LOG_2 = 1.0 / Math.log(2);
+
     protected final Overlaps.InclusionMethod overlapInclusionMethod;
+    protected final boolean parallelizeOutputShards;
 
     Controller(ColumnFamilyStore cfs,
                MonotonicClock clock,
                int[] scalingParameters,
                double[] survivalFactors,
+               long minSSTableSize,
                long flushSizeOverride,
                int maxSSTablesToCompact,
                long expiredSSTableCheckFrequency,
                boolean ignoreOverlapsInExpirationCheck,
                int baseShardCount,
                double targetSStableSize,
-               Overlaps.InclusionMethod overlapInclusionMethod)
+               double sstableGrowthModifier,
+               Overlaps.InclusionMethod overlapInclusionMethod,
+               boolean parallelizeOutputShards)
     {
         this.cfs = cfs;
         this.clock = clock;
         this.scalingParameters = scalingParameters;
         this.survivalFactors = survivalFactors;
+        this.minSSTableSize = minSSTableSize;
         this.flushSizeOverride = flushSizeOverride;
         this.currentFlushSize = flushSizeOverride;
         this.expiredSSTableCheckFrequency = TimeUnit.MILLISECONDS.convert(expiredSSTableCheckFrequency, TimeUnit.SECONDS);
         this.baseShardCount = baseShardCount;
         this.targetSSTableSize = targetSStableSize;
         this.overlapInclusionMethod = overlapInclusionMethod;
+        this.sstableGrowthModifier = sstableGrowthModifier;
+        this.parallelizeOutputShards = parallelizeOutputShards;
 
         if (maxSSTablesToCompact <= 0)
             maxSSTablesToCompact = Integer.MAX_VALUE;
@@ -200,38 +259,118 @@ public class Controller
     }
 
     /**
-     * Calculate the number of shards to split the local token space in for the given sstable density.
-     * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
-     * is between sqrt(0.5) * targetSSTableSize and sqrt(2) * targetSSTableSize, with a minimum of baseShardCount shards
-     * for smaller sstables.
-     *
-     * Note that to get the sstables resulting from this splitting within the bounds, the density argument must be
+     * Calculate the number of shards to split the local token space in for the given SSTable density.
+     * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting SSTables
+     * is between sqrt(0.5) and sqrt(2) times the target size, which is calculated from targetSSTableSize to grow
+     * at the given sstableGrowthModifier of the exponential growth of the density.
+     * <p>
+     * Additionally, if a minimum SSTable size is set, we can go below the baseShardCount when that would result in
+     * SSTables smaller than that minimum. Note that in the case of a non-power-of-two base count, we will only
+     * split to divisors of baseShardCount.
+     * <p>
+     * Note that to get the SSTables resulting from this splitting within the bounds, the density argument must be
      * normalized to the span that is being split. In other words, if no disks are defined, the density should be
      * scaled by the token coverage of the locally-owned ranges. If multiple data directories are defined, the density
-     * should be scaled by the token coverage of the respective data directory. That is localDensity = size / span,
+     * should be scaled by the token coverage of the respective data directory. That is, localDensity = size / span,
      * where the span is normalized so that span = 1 when the data covers the range that is being split.
      */
     public int getNumShards(double localDensity)
     {
-        // How many we would have to aim for the target size. Divided by the base shard count, so that we can ensure
-        // the result is a multiple of it by multiplying back below.
-        double count = localDensity / (targetSSTableSize * INVERSE_SQRT_2 * baseShardCount);
-        if (count > MAX_SHARD_SPLIT)
-            count = MAX_SHARD_SPLIT;
-        assert !(count < 0);    // Must be positive, 0 or NaN, which should translate to baseShardCount
+        int shards;
+        // Check the minimum size first.
+        if (minSSTableSize > 0)
+        {
+            double count = localDensity / minSSTableSize;
+            // Minimum size only applies if the base count would result in smaller sstables.
+            // We also want to use the min size if we don't yet know the flush size (density is NaN).
+            // Note: the minimum size cannot be larger than the target size's minimum.
+            if (!(count >= baseShardCount)) // also true for count == NaN
+            {
+                // Make it a power of two, rounding down so that sstables are greater in size than the min.
+                // Setting the bottom bit to 1 ensures the result is at least 1.
+                // If baseShardCount is not a power of 2, split only to powers of two that are divisors of baseShardCount so boundaries match higher levels
+                shards = Math.min(Integer.highestOneBit((int) count | 1), baseShardCount & -baseShardCount);
+                if (logger.isDebugEnabled())
+                    logger.debug("Shard count {} for density {}, {} times min size {}",
+                                 shards,
+                                 FBUtilities.prettyPrintBinary(localDensity, "B", " "),
+                                 localDensity / minSSTableSize,
+                                 FBUtilities.prettyPrintBinary(minSSTableSize, "B", " "));
 
-        // Make it a power of two multiple of the base count so that split points for lower levels remain split points
-        // for higher.
-        // The conversion to int and highestOneBit round down, for which we compensate by using the sqrt(0.5) multiplier
-        // applied above.
-        // Setting the bottom bit to 1 ensures the result is at least baseShardCount.
-        int shards = baseShardCount * Integer.highestOneBit((int) count | 1);
-        logger.debug("Shard count {} for density {}, {} times target {}",
-                     shards,
-                     FBUtilities.prettyPrintBinary(localDensity, "B", " "),
-                     localDensity / targetSSTableSize,
-                     FBUtilities.prettyPrintBinary(targetSSTableSize, "B", " "));
-        return shards;
+                return shards;
+            }
+        }
+
+        if (sstableGrowthModifier == 1)
+        {
+            shards = baseShardCount;
+            logger.debug("Shard count {} for density {} in fixed shards mode",
+                         shards,
+                         FBUtilities.prettyPrintBinary(localDensity, "B", " "));
+            return shards;
+        }
+        else if (sstableGrowthModifier == 0)
+        {
+            // How many we would have to aim for the target size. Divided by the base shard count, so that we can ensure
+            // the result is a multiple of it by multiplying back below. Adjusted by sqrt(0.5) to calculate the split
+            // points needed for the minimum size.
+            double count = localDensity / (targetSSTableSize * INVERSE_SQRT_2 * baseShardCount);
+            if (count > MAX_SHARD_SPLIT)
+                count = MAX_SHARD_SPLIT;
+            assert !(count < 0);    // Must be positive, 0 or NaN, which should translate to baseShardCount
+
+            // Make it a power of two multiple of the base count so that split points for lower levels remain split points for higher.
+            // The conversion to int and highestOneBit round down, for which we compensate by using the sqrt(0.5) multiplier
+            // already applied in the count.
+            // Setting the bottom bit to 1 ensures the result is at least baseShardCount.
+            shards = baseShardCount * Integer.highestOneBit((int) count | 1);
+
+            if (logger.isDebugEnabled())
+                logger.debug("Shard count {} for density {}, {} times target {}",
+                             shards,
+                             FBUtilities.prettyPrintBinary(localDensity, "B", " "),
+                             localDensity / targetSSTableSize,
+                             FBUtilities.prettyPrintBinary(targetSSTableSize, "B", " "));
+            return shards;
+        }
+        else
+        {
+            // How many we would have to aim for the target size. Divided by the base shard count, so that we can ensure
+            // the result is a multiple of it by multiplying back below.
+            double count = localDensity / (targetSSTableSize * baseShardCount);
+            // Take a logarithm of the count (in base 2), and adjust it by the given growth modifier.
+            // Adjust by 0.5 to round the exponent so that the result falls between targetSSTableSize * sqrt(0.5) and
+            // targetSSTableSize * sqrt(2). Finally, make sure the exponent is at least 0 and not greater than the
+            // fixed maximum.
+            // Note: This code also works correctly for the special cases of sstableGrowthModifier == 0 and 1,
+            //       but the above code avoids the imprecise floating point arithmetic for these common cases.
+            // Note: We use log instead of getExponent because we also need the non-integer part of the logarithm
+            //       in order to apply the growth modifier correctly.
+            final double countLog = Math.log(count);
+            double pow = countLog * INVERSE_LOG_2 * (1 - sstableGrowthModifier) + 0.5;
+            if (pow >= MAX_SHARD_SHIFT)
+                shards = baseShardCount << MAX_SHARD_SHIFT;
+            else if (pow >= 0)
+                shards = baseShardCount << (int) pow;
+            else
+                shards = baseShardCount;    // this also covers the case of pow == NaN
+
+            if (logger.isDebugEnabled())
+            {
+                long targetSize = (long) (targetSSTableSize * Math.exp(countLog * sstableGrowthModifier));
+                logger.debug("Shard count {} for density {}, {} times target {}",
+                             shards,
+                             FBUtilities.prettyPrintBinary(localDensity, "B", " "),
+                             localDensity / targetSize,
+                             FBUtilities.prettyPrintBinary(targetSize, "B", " "));
+            }
+            return shards;
+        }
+    }
+
+    public boolean parallelizeOutputShards()
+    {
+        return parallelizeOutputShards;
     }
 
     /**
@@ -305,32 +444,43 @@ public class Controller
         }
         else
         {
-            if (SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName())
-                || (cfs.getDiskBoundaries().positions != null && cfs.getDiskBoundaries().positions.size() > 1))
-                baseShardCount = 1;
-            else
-                baseShardCount = DEFAULT_BASE_SHARD_COUNT;
+            baseShardCount = DEFAULT_BASE_SHARD_COUNT;
         }
 
         long targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
                 ? FBUtilities.parseHumanReadableBytes(options.get(TARGET_SSTABLE_SIZE_OPTION))
                 : DEFAULT_TARGET_SSTABLE_SIZE;
 
+        long minSSTableSize = options.containsKey(MIN_SSTABLE_SIZE_OPTION)
+                ? FBUtilities.parseHumanReadableBytes(options.get(MIN_SSTABLE_SIZE_OPTION))
+                : FBUtilities.parseHumanReadableBytes(DEFAULT_MIN_SSTABLE_SIZE);
+
+        double sstableGrowthModifier = DEFAULT_SSTABLE_GROWTH;
+        if (options.containsKey(SSTABLE_GROWTH_OPTION))
+            sstableGrowthModifier = FBUtilities.parsePercent(options.get(SSTABLE_GROWTH_OPTION));
+
         Overlaps.InclusionMethod inclusionMethod = options.containsKey(OVERLAP_INCLUSION_METHOD_OPTION)
-                ? Overlaps.InclusionMethod.valueOf(options.get(OVERLAP_INCLUSION_METHOD_OPTION).toUpperCase())
+                ? Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(options.get(OVERLAP_INCLUSION_METHOD_OPTION)))
                 : DEFAULT_OVERLAP_INCLUSION_METHOD;
+
+        boolean parallelizeOutputShards = options.containsKey(PARALLELIZE_OUTPUT_SHARDS_OPTION)
+                ? Boolean.parseBoolean(options.get(PARALLELIZE_OUTPUT_SHARDS_OPTION))
+                : DEFAULT_PARALLELIZE_OUTPUT_SHARDS;
 
         return new Controller(cfs,
                               MonotonicClock.Global.preciseTime,
                               Ws,
                               DEFAULT_SURVIVAL_FACTORS,
+                              minSSTableSize,
                               flushSizeOverride,
                               maxSSTablesToCompact,
                               expiredSSTableCheckFrequency,
                               ignoreOverlapsInExpirationCheck,
                               baseShardCount,
                               targetSStableSize,
-                              inclusionMethod);
+                              sstableGrowthModifier,
+                              inclusionMethod,
+                parallelizeOutputShards);
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
@@ -361,19 +511,27 @@ public class Controller
             }
         }
 
+        // preserve the configuration for later use during min_sstable_size.
+        long targetSSTableSize = DEFAULT_TARGET_SSTABLE_SIZE;
         s = options.remove(TARGET_SSTABLE_SIZE_OPTION);
         if (s != null)
         {
             try
             {
-                long targetSSTableSize = FBUtilities.parseHumanReadableBytes(s);
-                if (targetSSTableSize < MIN_TARGET_SSTABLE_SIZE)
+                double targetSize = FBUtilities.parseHumanReadable(s, null, "B");
+                if (targetSize >= Long.MAX_VALUE) {
+                    throw new ConfigurationException(String.format("%s %s is out of range of Long.",
+                                                                    TARGET_SSTABLE_SIZE_OPTION,
+                                                                    s));
+                }
+                if (targetSize < MIN_TARGET_SSTABLE_SIZE)
                 {
                     throw new ConfigurationException(String.format("%s %s is not acceptable, size must be at least %s",
                                                                    TARGET_SSTABLE_SIZE_OPTION,
                                                                    s,
                                                                    FBUtilities.prettyPrintMemory(MIN_TARGET_SSTABLE_SIZE)));
                 }
+                targetSSTableSize = (long) Math.ceil(targetSize);
             }
             catch (NumberFormatException e)
             {
@@ -442,19 +600,15 @@ public class Controller
             }
         }
 
-        s = options.remove(ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
-        if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false"))
-        {
-            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
-                                                           ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, s));
-        }
+        validateBoolean(options, ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION);
+        validateBoolean(options, PARALLELIZE_OUTPUT_SHARDS_OPTION);
 
         s = options.remove(OVERLAP_INCLUSION_METHOD_OPTION);
         if (s != null)
         {
             try
             {
-                Overlaps.InclusionMethod.valueOf(s.toUpperCase());
+                Overlaps.InclusionMethod.valueOf(toUpperCaseLocalized(s));
             }
             catch (IllegalArgumentException e)
             {
@@ -464,7 +618,65 @@ public class Controller
             }
         }
 
+        s = options.remove(MIN_SSTABLE_SIZE_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                long sizeInBytes = FBUtilities.parseHumanReadableBytes(s);
+                // zero is a valid option to disable feature
+                if (sizeInBytes < 0)
+                    throw new ConfigurationException(String.format("Invalid configuration, %s should be greater than or equal to 0 (zero)",
+                                                                   MIN_SSTABLE_SIZE_OPTION));
+                long limit = (long) Math.ceil(targetSSTableSize * INVERSE_SQRT_2);
+                if (sizeInBytes >= limit)
+                    throw new ConfigurationException(String.format("Invalid configuration, %s (%s) should be less than 70%% of the targetSSTableSize (%s)",
+                                                                   MIN_SSTABLE_SIZE_OPTION,
+                                                                   FBUtilities.prettyPrintMemory(sizeInBytes),
+                                                                   FBUtilities.prettyPrintMemory(targetSSTableSize)));
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a valid size in bytes for %s",
+                                                               s,
+                                                               MIN_SSTABLE_SIZE_OPTION),
+                                                 e);
+            }
+        }
+
+        s = options.remove(SSTABLE_GROWTH_OPTION);
+        if (s != null)
+        {
+            try
+            {
+                double targetSSTableGrowth  = FBUtilities.parsePercent(s);
+                if (targetSSTableGrowth < 0 || targetSSTableGrowth > 1)
+                {
+                    throw new ConfigurationException(String.format("%s %s must be between 0 and 1",
+                                                                   SSTABLE_GROWTH_OPTION,
+                                                                   s));
+                }
+            }
+            catch (NumberFormatException e)
+            {
+                throw new ConfigurationException(String.format("%s is not a valid number between 0 and 1: %s",
+                                                               SSTABLE_GROWTH_OPTION,
+                                                               e.getMessage()),
+                                                 e);
+            }
+        }
+
         return options;
+    }
+
+    private static void validateBoolean(Map<String, String> options, String option)
+    {
+        String s;
+        s = options.remove(option);
+        if (s != null && !s.equalsIgnoreCase("true") && !s.equalsIgnoreCase("false")) {
+            throw new ConfigurationException(String.format("%s should either be 'true' or 'false', not %s",
+                    option, s));
+        }
     }
 
     // The methods below are implemented here (rather than directly in UCS) to aid testability.
@@ -497,7 +709,7 @@ public class Controller
 
     public int maxConcurrentCompactions()
     {
-        return DatabaseDescriptor.getConcurrentCompactors();
+        return CompactionManager.instance.getMaximumCompactorThreads();
     }
 
     public int maxSSTablesToCompact()

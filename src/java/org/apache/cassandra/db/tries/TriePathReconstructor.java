@@ -21,6 +21,7 @@ package org.apache.cassandra.db.tries;
 import java.util.Arrays;
 
 import org.agrona.DirectBuffer;
+
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class TriePathReconstructor implements Trie.ResettingTransitionsReceiver

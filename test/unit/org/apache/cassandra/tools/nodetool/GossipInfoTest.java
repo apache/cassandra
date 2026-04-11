@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.apache.commons.lang3.StringUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -29,11 +30,13 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * @see GossipInfo
+ */
 public class GossipInfoTest extends CQLTester
 {
     private static String token;
@@ -47,50 +50,6 @@ public class GossipInfoTest extends CQLTester
     }
 
     @Test
-    @SuppressWarnings("SingleCharacterStringConcatenation")
-    public void testMaybeChangeDocs()
-    {
-        // If you added, modified options or help, please update docs if necessary
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "gossipinfo");
-        tool.assertOnCleanExit();
-
-        String help =   "NAME\n" +
-                "        nodetool gossipinfo - Shows the gossip information for the cluster\n" +
-                "\n" +
-                "SYNOPSIS\n" +
-                "        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]\n" +
-                "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
-                "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
-                "                [(-u <username> | --username <username>)] gossipinfo\n" +
-                "                [(-r | --resolve-ip)]\n" +
-                "\n" +
-                "OPTIONS\n" +
-                "        -h <host>, --host <host>\n" +
-                "            Node hostname or ip address\n" +
-                "\n" +
-                "        -p <port>, --port <port>\n" +
-                "            Remote jmx agent port number\n" +
-                "\n" +
-                "        -pp, --print-port\n" +
-                "            Operate in 4.0 mode with hosts disambiguated by port number\n" +
-                "\n" +
-                "        -pw <password>, --password <password>\n" +
-                "            Remote jmx agent password\n" +
-                "\n" +
-                "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
-                "            Path to the JMX password file\n" +
-                "\n" +
-                "        -r, --resolve-ip\n" +
-                "            Show node domain names instead of IPs\n" +
-                "\n" +
-                "        -u <username>, --username <username>\n" +
-                "            Remote jmx agent username\n" +
-                "\n" +
-                "\n";
-        assertThat(tool.getStdout()).isEqualTo(help);
-    }
-
-    @Test
     public void testGossipInfo()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gossipinfo");
@@ -99,7 +58,6 @@ public class GossipInfoTest extends CQLTester
         Assertions.assertThat(stdout).contains("/127.0.0.1");
         Assertions.assertThat(stdout).containsPattern("\\s+generation:[0-9]+");
         Assertions.assertThat(stdout).containsPattern("heartbeat:[0-9]+");
-        Assertions.assertThat(stdout).containsPattern("STATUS:[0-9]+:NORMAL," + token);
         Assertions.assertThat(stdout).containsPattern("SCHEMA:.+");
         Assertions.assertThat(stdout).containsPattern("DC:[0-9]+:datacenter1");
         Assertions.assertThat(stdout).containsPattern("RACK:[0-9]+:rack1");

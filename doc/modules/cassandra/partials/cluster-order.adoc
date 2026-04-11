@@ -1,0 +1,14 @@
+=== Table keywords
+
+*CLUSTERING ORDER BY ( column_name ASC | DESC)* ::
+Order rows storage to make use of the on-disk sorting of columns.
+Specifying order can make query results more efficient.
+Options are:
++
+`ASC`: ascending (default order)
++
+`DESC`: descending, reverse order
+
+*ID* ::
+If a table is accidentally dropped with xref:reference/cql-commands/drop-table.adoc[DROP TABLE], use this option to
+xref:reference/cql-commands/create-table.adoc#restore-commit-log[recreate the table] and run a commit log replay to retrieve the data.

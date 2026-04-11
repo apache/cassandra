@@ -21,13 +21,10 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicates;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaPlans;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,15 +35,22 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.locator.BaseProximity;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NodeProximity;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.ReplicaUtils;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -80,27 +84,8 @@ public class WriteResponseHandlerTest
         SchemaLoader.loadSchema();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // Register peers with expected DC for NetworkTopologyStrategy.
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.1.0.255"));
-        metadata.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.2.0.255"));
-
-        DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
+        NodeProximity sorter = new BaseProximity()
         {
-            public String getRack(InetAddressAndPort endpoint)
-            {
-                return null;
-            }
-
-            public String getDatacenter(InetAddressAndPort endpoint)
-            {
-                byte[] address = endpoint.getAddress().getAddress();
-                if (address[1] == 1)
-                    return "datacenter1";
-                else
-                    return "datacenter2";
-            }
-
             public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C replicas)
             {
                 return replicas;
@@ -111,24 +96,22 @@ public class WriteResponseHandlerTest
                 return 0;
             }
 
-            public void gossiperStarting()
-            {
-
-            }
-
             public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
             {
                 return false;
             }
-        });
+        };
+        DatabaseDescriptor.setNodeProximity(sorter);
         DatabaseDescriptor.setBroadcastAddress(InetAddress.getByName("127.1.0.1"));
-        SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
-        ks = Keyspace.open("Foo");
-        cfs = ks.getColumnFamilyStore("Bar");
         targets = EndpointsForToken.of(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)),
                                        full("127.1.0.255"), full("127.1.0.254"), full("127.1.0.253"),
                                        full("127.2.0.255"), full("127.2.0.254"), full("127.2.0.253"));
+        for (InetAddressAndPort ep : targets.endpoints())
+            ClusterMetadataTestHelper.register(ep, ep.addressBytes[1] == 1 ? "datacenter1" : "datacenter2", "rack1");
         pending = EndpointsForToken.empty(DatabaseDescriptor.getPartitioner().getToken(ByteBufferUtil.bytes(0)));
+        SchemaLoader.createKeyspace("Foo", KeyspaceParams.nts("datacenter1", 3, "datacenter2", 3), SchemaLoader.standardCFMD("Foo", "Bar"));
+        ks = Keyspace.open("Foo");
+        cfs = ks.getColumnFamilyStore("Bar");
     }
 
     @Before
@@ -147,22 +130,28 @@ public class WriteResponseHandlerTest
     {
         long startingCount = ks.metric.idealCLWriteLatency.latency.getCount();
         //Specify query start time in past to ensure minimum latency measurement
-        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, nanoTime() - DAYS.toNanos(1));
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, new Dispatcher.RequestTime(nanoTime() - DAYS.toNanos(1)));
 
         //dc1
         awr.onResponse(createDummyMessage(0));
         awr.onResponse(createDummyMessage(1));
+
+        // there are not enough responses for ideal EACH_QUORUM yet
+        assertEquals(startingCount, ks.metric.idealCLWriteLatency.latency.getCount());
+
         //dc2
         awr.onResponse(createDummyMessage(4));
         awr.onResponse(createDummyMessage(5));
+
+        // there are enough responses for ideal EACH_QUORUM, we should not wait for all responses
+        assertTrue( TimeUnit.DAYS.toMicros(1) < ks.metric.idealCLWriteLatency.totalLatency.getCount());
+        assertEquals(startingCount + 1, ks.metric.idealCLWriteLatency.latency.getCount());
 
         //Don't need the others
         awr.expired();
         awr.expired();
 
         assertEquals(0,  ks.metric.writeFailedIdealCL.getCount());
-        assertTrue( TimeUnit.DAYS.toMicros(1) < ks.metric.idealCLWriteLatency.totalLatency.getCount());
-        assertEquals(startingCount + 1, ks.metric.idealCLWriteLatency.latency.getCount());
     }
 
     /**
@@ -234,6 +223,30 @@ public class WriteResponseHandlerTest
         assertEquals(0, ks.metric.idealCLWriteLatency.totalLatency.getCount());
     }
 
+    @Test
+    public void failedIdealCLIncrementsStatForExplicitOnFailure()
+    {
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+
+        long startingCountForWriteFailedIdealCL = ks.metric.writeFailedIdealCL.getCount();
+        long startingCountForIdealCLWriteLatency = ks.metric.idealCLWriteLatency.totalLatency.getCount();
+
+
+        //Succeed in local DC
+        awr.onResponse(createDummyMessage(0));
+        awr.onResponse(createDummyMessage(1));
+        awr.onResponse(createDummyMessage(2));
+
+
+        //Fail in remote DC
+        awr.onFailure(targets.get(3).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailure.TIMEOUT);
+        awr.onResponse(createDummyMessage(5));
+
+        assertEquals(startingCountForWriteFailedIdealCL + 1, ks.metric.writeFailedIdealCL.getCount());
+        assertEquals(startingCountForIdealCLWriteLatency, ks.metric.idealCLWriteLatency.totalLatency.getCount());
+    }
+
     /**
      * Validate that failing to achieve ideal CL doesn't increase the failure counter when not meeting CL
      * @throws Throwable
@@ -259,16 +272,40 @@ public class WriteResponseHandlerTest
         assertEquals(startingCount, ks.metric.writeFailedIdealCL.getCount());
     }
 
+    @Test
+    public void failedIdealCLDoesNotIncrementsStatOnExplicitQueryFailure()
+    {
+        AbstractWriteResponseHandler awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM);
+
+        long startingCountForWriteFailedIdealCL = ks.metric.writeFailedIdealCL.getCount();
+        long startingCountForIdealCLWriteLatency = ks.metric.idealCLWriteLatency.totalLatency.getCount();
+
+
+        //Fail in local DC
+        awr.onFailure(targets.get(0).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(1).endpoint(), RequestFailure.TIMEOUT);
+        awr.onResponse(createDummyMessage(2));
+
+
+        //Fail in remote DC
+        awr.onFailure(targets.get(3).endpoint(), RequestFailure.TIMEOUT);
+        awr.onFailure(targets.get(4).endpoint(), RequestFailure.TIMEOUT);
+        awr.onResponse(createDummyMessage(5));
+
+        assertEquals(startingCountForWriteFailedIdealCL, ks.metric.writeFailedIdealCL.getCount());
+        assertEquals(startingCountForIdealCLWriteLatency, ks.metric.idealCLWriteLatency.totalLatency.getCount());
+    }
+
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
     {
-        return createWriteResponseHandler(cl, ideal, nanoTime());
+        return createWriteResponseHandler(cl, ideal, Dispatcher.RequestTime.forImmediateExecution());
     }
 
-    private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, long queryStartTime)
+    private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, targets, pending, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
-                                                                   null, WriteType.SIMPLE, null, queryStartTime, ideal);
+        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
+                                                                   null, WriteType.SIMPLE, null, requestTime, ideal);
     }
 
     private static Message createDummyMessage(int target)

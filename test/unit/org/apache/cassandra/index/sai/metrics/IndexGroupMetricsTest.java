@@ -20,12 +20,11 @@ package org.apache.cassandra.index.sai.metrics;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.Version;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 
 public class IndexGroupMetricsTest extends AbstractMetricsTest
 {
@@ -45,7 +44,6 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         // create first index
         createTable(CREATE_TABLE_TEMPLATE);
         String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        IndexContext v1IndexContext = createIndexContext(v1IndexName, UTF8Type.instance);
 
         // no open files
         assertEquals(0, getOpenIndexFiles());
@@ -61,7 +59,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         // with 10 sstable
         int indexopenFileCountWithOnlyNumeric = getOpenIndexFiles();
         assertEquals(sstables * (Version.LATEST.onDiskFormat().openFilesPerSSTableIndex(false) +
-                                 Version.LATEST.onDiskFormat().openFilesPerColumnIndex(v1IndexContext)),
+                                 Version.LATEST.onDiskFormat().openFilesPerColumnIndex()),
                      indexopenFileCountWithOnlyNumeric);
 
         long diskUsageWithOnlyNumeric = getDiskUsage();
@@ -71,13 +69,12 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
         compact();
 
         assertEquals(Version.LATEST.onDiskFormat().openFilesPerSSTableIndex(false) +
-                     Version.LATEST.onDiskFormat().openFilesPerColumnIndex(v1IndexContext),
+                     Version.LATEST.onDiskFormat().openFilesPerColumnIndex(),
                      getOpenIndexFiles());
 
         // drop last index, no open index files
         dropIndex("DROP INDEX %s." + v1IndexName);
-        assertEquals(0, getOpenIndexFiles());
-        assertEquals(0, getDiskUsage());
+        assertNull(getCurrentIndexGroup());
     }
 
     protected int getOpenIndexFiles()

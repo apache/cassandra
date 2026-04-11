@@ -22,12 +22,17 @@ package org.apache.cassandra.index.sai.functional;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -39,9 +44,11 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Expression;
 import org.apache.cassandra.inject.Injection;
@@ -60,9 +67,10 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -72,7 +80,8 @@ public class CompactionTest extends SAITester
     public void testAntiCompaction() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        IndexContext numericIndexContext = createIndexContext(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")), Int32Type.instance);
+        IndexIdentifier numericIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+        IndexTermType numericIndexTermType = createIndexTermType(Int32Type.instance);
         verifyNoIndexFiles();
 
         // create 100 rows in 1 sstable
@@ -83,8 +92,8 @@ public class CompactionTest extends SAITester
 
         // verify 1 sstable index
         assertNumRows(num, "SELECT * FROM %%s WHERE v1 >= 0");
-        verifyIndexFiles(numericIndexContext, null, 1, 0);
-        verifySSTableIndexes(numericIndexContext.getIndexName(), 1);
+        verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 1);
+        verifySSTableIndexes(numericIndexIdentifier, 1);
 
         // split sstable into repaired and unrepaired
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
@@ -110,8 +119,8 @@ public class CompactionTest extends SAITester
 
         // verify 2 sstable indexes
         assertNumRows(num, "SELECT * FROM %%s WHERE v1 >= 0");
-        waitForAssert(() -> verifyIndexFiles(numericIndexContext, null, 2, 0));
-        verifySSTableIndexes(numericIndexContext.getIndexName(), 2);
+        waitForAssert(() -> verifyIndexFiles(numericIndexTermType, numericIndexIdentifier, 2));
+        verifySSTableIndexes(numericIndexIdentifier, 2);
 
         // index components are included after anti-compaction
         verifyIndexComponentsIncludedInSSTable();
@@ -121,8 +130,8 @@ public class CompactionTest extends SAITester
     public void testConcurrentQueryWithCompaction()
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexIdentifier numericIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+        IndexIdentifier literalIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")));
         waitForTableIndexesQueryable();
 
         int num = 10;
@@ -149,16 +158,16 @@ public class CompactionTest extends SAITester
 
         compactionTest.start();
 
-        verifySSTableIndexes(v1IndexName, num);
-        verifySSTableIndexes(v2IndexName, num);
+        verifySSTableIndexes(numericIndexIdentifier, num);
+        verifySSTableIndexes(literalIndexIdentifier, num);
     }
 
     @Test
     public void testAbortCompactionWithEarlyOpenSSTables() throws Throwable
     {
         createTable(CREATE_TABLE_TEMPLATE);
-        String v1IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
-        String v2IndexName = createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        IndexIdentifier numericIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1")));
+        IndexIdentifier literalIndexIdentifier = createIndexIdentifier(createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2")));
 
         int sstables = 2;
         int num = 10;
@@ -207,8 +216,8 @@ public class CompactionTest extends SAITester
         // verify indexes are working
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v1=0");
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v2='0'");
-        verifySSTableIndexes(v1IndexName, sstables);
-        verifySSTableIndexes(v2IndexName, sstables);
+        verifySSTableIndexes(numericIndexIdentifier, sstables);
+        verifySSTableIndexes(literalIndexIdentifier, sstables);
     }
 
     @Test
@@ -277,8 +286,8 @@ public class CompactionTest extends SAITester
 
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v1>=0");
         assertNumRows(num, "SELECT id1 FROM %%s WHERE v2='0'");
-        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER), sstables);
-        verifySSTableIndexes(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER), sstables);
+        verifySSTableIndexes(createIndexIdentifier(IndexMetadata.generateDefaultIndexName(currentTable(), V1_COLUMN_IDENTIFIER)), sstables);
+        verifySSTableIndexes(createIndexIdentifier(IndexMetadata.generateDefaultIndexName(currentTable(), V2_COLUMN_IDENTIFIER)), sstables);
     }
 
     @Test
@@ -339,8 +348,7 @@ public class CompactionTest extends SAITester
         }
 
         // verify index group metrics are cleared.
-        assertEquals(0, getOpenIndexFiles());
-        assertEquals(0, getDiskUsage());
+        assertNull(getCurrentIndexGroup());
 
         // verify indexes are dropped
         // verify indexes are dropped
@@ -350,5 +358,54 @@ public class CompactionTest extends SAITester
         assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v2='0'"))
         .isInstanceOf(InvalidQueryException.class)
         .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+    }
+
+    @Test
+    public void testSegmentBuilderFlushWithShardedCompaction() throws Throwable
+    {
+        int shards = 64;
+        String createTable = "CREATE TABLE %s (id1 TEXT PRIMARY KEY, v1 INT, v2 TEXT) WITH compaction = " +
+                             "{'class' : 'UnifiedCompactionStrategy', 'enabled' : false, 'base_shard_count': " + shards + ", 'min_sstable_size': '1KiB' }";
+        createTable(createTable);
+        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v1"));
+        createIndex(String.format(CREATE_INDEX_TEMPLATE, "v2"));
+        disableCompaction(keyspace(), currentTable());
+
+        int rowsPerSSTable = 2000;
+        int numSSTables = 4;
+        int key = 0;
+        for (int s = 0; s < numSSTables; s++)
+        {
+            for (int i = 0; i < rowsPerSSTable; i++)
+            {
+                execute("INSERT INTO %s (id1, v1, v2) VALUES (?, 0, '01e2wefnewirui32e21e21wre')", Integer.toString(key++));
+            }
+            flush();
+        }
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try
+        {
+            Future<?> future = executor.submit(() -> {
+                getCurrentColumnFamilyStore().forceMajorCompaction(false, 1);
+                waitForCompactions();
+            });
+
+            // verify that it's not accumulating segment builders
+            while (!future.isDone())
+            {
+                // ACTIVE_BUILDER_COUNT starts from 0. There are 2 segments for 2 indexes
+                assertThat(SegmentBuilder.getActiveBuilderCount()).isGreaterThanOrEqualTo(0).isLessThanOrEqualTo(2);
+            }
+            future.get(30, TimeUnit.SECONDS);
+
+            // verify results are sharded
+            assertThat(getCurrentColumnFamilyStore().getLiveSSTables()).hasSize(shards);
+        }
+        finally
+        {
+            executor.shutdown();
+            assertThat(executor.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+        }
     }
 }

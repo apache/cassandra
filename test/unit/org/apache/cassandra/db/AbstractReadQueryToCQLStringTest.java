@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLStatement;
@@ -86,6 +87,7 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM %s WHERE v1 > 1 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE v1 <= 1 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE v1 >= 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE v1 BETWEEN 1 AND 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE v1 = 1 AND v2 = 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE k = 0 AND v1 = 1 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE token(k) > 0 AND v1 = 1 ALLOW FILTERING");
@@ -102,8 +104,7 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM %s WHERE v2 = 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE v1 = 1 AND v2 = 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE token(k) > 0 AND v1 = 1");
-        test("SELECT * FROM %s WHERE k = 0 AND v1 = 1",
-             "SELECT * FROM %s WHERE token(k) >= token(0) AND token(k) <= token(0) AND v1 = 1");
+        test("SELECT * FROM %s WHERE k = 0 AND v1 = 1");
 
         // grouped partition-directed queries, maybe producing multiple queries
         test("SELECT * FROM %s WHERE k IN (0)",
@@ -187,8 +188,7 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM %s WHERE token(k1, k2) > 0 AND k2 = 2");
         test("SELECT * FROM %s WHERE token(k1, k2) > 0 AND v1 = 1");
         test("SELECT * FROM %s WHERE token(k1, k2) > 0 AND v2 = 2");
-        test("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND v1 = 1",
-             "SELECT * FROM %s WHERE token(k1, k2) >= token(1, 2) AND token(k1, k2) <= token(1, 2) AND v1 = 1");
+        test("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND v1 = 1");
 
         // grouped partition-directed queries, maybe producing multiple queries
         test("SELECT * FROM %s WHERE k1 IN (1) AND k2 = 2",
@@ -278,10 +278,9 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM %s WHERE v2 = 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE v1 = 1 AND v2 = 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE token(k) > 0 AND v1 = 1");
-        test("SELECT * FROM %s WHERE k = 0 AND v1 = 1",
-             "SELECT * FROM %s WHERE token(k) >= token(0) AND token(k) <= token(0) AND v1 = 1");
+        test("SELECT * FROM %s WHERE k = 0 AND v1 = 1");
         test("SELECT * FROM %s WHERE k = 0 AND v1 = 1 AND c = 1",
-             "SELECT * FROM %s WHERE token(k) >= token(0) AND token(k) <= token(0) AND c = 1 AND v1 = 1 ALLOW FILTERING");
+             "SELECT * FROM %s WHERE k = 0 AND c = 1 AND v1 = 1 ALLOW FILTERING");
 
         // grouped partition-directed queries, maybe producing multiple queries
         test("SELECT * FROM %s WHERE k IN (0)",
@@ -425,10 +424,8 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
              "SELECT * FROM %s WHERE (c1, c2, c3) = (1, 2, 3) ALLOW FILTERING");
         test("SELECT * FROM %s WHERE v1 = 1 AND v2 = 2 ALLOW FILTERING");
         test("SELECT * FROM %s WHERE token(k1, k2) > 0 AND v1 = 1");
-        test("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND v1 = 1",
-             "SELECT * FROM %s WHERE token(k1, k2) >= token(1, 2) AND token(k1, k2) <= token(1, 2) AND v1 = 1");
-        test("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND c1 = 1 AND v1 = 1",
-             "SELECT * FROM %s WHERE token(k1, k2) >= token(1, 2) AND token(k1, k2) <= token(1, 2) AND c1 = 1 AND v1 = 1 ALLOW FILTERING");
+        test("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND v1 = 1");
+        test("SELECT * FROM %s WHERE k1 = 1 AND k2 = 2 AND c1 = 1 AND v1 = 1");
 
         // grouped partition-directed queries, maybe producing multiple queries
         test("SELECT * FROM %s WHERE k1 IN (1) AND k2 IN (2)",
@@ -660,7 +657,8 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM %s WHERE u = {a: 'a', b: 1} ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE l['a'] = 'a' ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE s['a'] = 'a' ALLOW FILTERING");
-        testInvalid("SELECT * FROM %s WHERE m['a'] = 'a' ALLOW FILTERING");
+        // CASSANDRA-18492 Allow filtering works with map[key]
+        test("SELECT * FROM %s WHERE m['a'] = 'a' ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE u.a = 'a' ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE u.b = 0 ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE u.a = 'a' ANd u.b = 0 ALLOW FILTERING");
@@ -717,6 +715,8 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM vk.vt WHERE k = 0 AND c >= 1");
         test("SELECT * FROM vk.vt WHERE k = 0 AND c > 1 AND c <= 2");
         test("SELECT * FROM vk.vt WHERE k = 0 AND c >= 1 AND c < 2");
+        test("SELECT * FROM vk.vt WHERE k = 0 AND c BETWEEN 1 AND 2",
+             "SELECT * FROM vk.vt WHERE k = 0 AND c >= 1 AND c <= 2");
 
         // token restrictions
         test("SELECT * FROM vk.vt WHERE token(k) > 0");
@@ -725,12 +725,15 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM vk.vt WHERE token(k) <= 0");
         test("SELECT * FROM vk.vt WHERE token(k) = 0",
              "SELECT * FROM vk.vt WHERE token(k) >= 0 AND token(k) <= 0");
+        test("SELECT * FROM vk.vt WHERE token(k) BETWEEN 0 AND 0",
+             "SELECT * FROM vk.vt WHERE token(k) >= 0 AND token(k) <= 0");
 
         // row filters
         test("SELECT * FROM vk.vt WHERE c = 1 ALLOW FILTERING");
         test("SELECT * FROM vk.vt WHERE s = 1 ALLOW FILTERING");
         test("SELECT * FROM vk.vt WHERE v = 1 ALLOW FILTERING");
         test("SELECT * FROM vk.vt WHERE k = 0 AND v = 1 ALLOW FILTERING");
+        test("SELECT * FROM vk.vt WHERE k = 0 AND v BETWEEN 1 AND 2 ALLOW FILTERING");
         test("SELECT * FROM vk.vt WHERE k = 0 AND c = 1 AND v = 1 ALLOW FILTERING");
         test("SELECT * FROM vk.vt WHERE token(k) > 0 AND v = 1 ALLOW FILTERING");
         test("SELECT * FROM vk.vt WHERE token(k) > 0 AND c = 1 AND v = 1 ALLOW FILTERING");
@@ -792,7 +795,7 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test(query, query);
     }
 
-    private void test(String query, String... expected) throws Throwable
+    private void test(String query, String... expected)
     {
         List<String> actual = toCQLString(query);
         List<String> fullExpected = Stream.of(expected)

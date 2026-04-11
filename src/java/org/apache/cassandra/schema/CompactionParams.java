@@ -26,6 +26,7 @@ import java.util.Optional;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
 
 public final class CompactionParams
 {
@@ -58,7 +61,7 @@ public final class CompactionParams
         @Override
         public String toString()
         {
-            return name().toLowerCase();
+            return toLowerCaseLocalized(name());
         }
     }
 
@@ -123,8 +126,8 @@ public final class CompactionParams
         boolean isEnabled = options.containsKey(Option.ENABLED.toString())
                           ? Boolean.parseBoolean(options.get(Option.ENABLED.toString()))
                           : DEFAULT_ENABLED;
-        String overlappingTombstoneParm = options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
-                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()).toUpperCase();
+        String overlappingTombstoneParm = toUpperCaseLocalized(options.getOrDefault(Option.PROVIDE_OVERLAPPING_TOMBSTONES.toString(),
+                                                               DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE.toString()));
         Optional<TombstoneOption> tombstoneOptional = TombstoneOption.forName(overlappingTombstoneParm);
         if (!tombstoneOptional.isPresent())
         {

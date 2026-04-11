@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 import com.google.common.collect.Iterables;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -51,7 +52,7 @@ public class AbstractPaxosRepairTest
     {
         public PaxosTestRepair()
         {
-            super(Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1)), null);
+            super(Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1)), null, -1);
         }
 
         public State restart(State state, long waitUntil)

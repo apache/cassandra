@@ -20,8 +20,13 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,6 +35,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.RateLimiter;
+
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.junit.Assert;
 import org.junit.Before;
@@ -37,7 +43,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
 import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
@@ -50,6 +55,8 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 import org.apache.cassandra.utils.Throwables;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
@@ -95,7 +102,6 @@ public class SimpleClientPerfTest
         }
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureSmall() throws Throwable
     {
@@ -103,12 +109,11 @@ public class SimpleClientPerfTest
                  new SizeCaps(10, 20, 5, 10),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(false),
                  version);
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureSmallWithCompression() throws Throwable
     {
@@ -116,12 +121,11 @@ public class SimpleClientPerfTest
                  new SizeCaps(10, 20, 5, 10),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(true),
                  version);
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureLarge() throws Throwable
     {
@@ -129,12 +133,11 @@ public class SimpleClientPerfTest
                  new SizeCaps(1000, 2000, 5, 150),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(false),
                  version);
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureLargeWithCompression() throws Throwable
     {
@@ -142,7 +145,7 @@ public class SimpleClientPerfTest
                  new SizeCaps(1000, 2000, 5, 150),
                  () -> new SimpleClient(address.getHostAddress(),
                                         port, version, true,
-                                        new EncryptionOptions())
+                                        new EncryptionOptions.ClientEncryptionOptions())
                        .connect(true),
                  version);
     }
@@ -163,7 +166,7 @@ public class SimpleClientPerfTest
                                             .withPort(port)
                                             .build();
 
-        ClientMetrics.instance.init(Collections.singleton(server));
+        ClientMetrics.instance.init(server);
         server.start();
 
         Message.Type.QUERY.unsafeSetCodec(new Message.Codec<QueryMessage>()
@@ -173,7 +176,8 @@ public class SimpleClientPerfTest
                 QueryMessage queryMessage = QueryMessage.codec.decode(body, version);
                 return new QueryMessage(queryMessage.query, queryMessage.options)
                 {
-                    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+                    @Override
+                    protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
                     {
                         int idx = Integer.parseInt(queryMessage.query); // unused
                         return generateRows(idx, responseCaps);

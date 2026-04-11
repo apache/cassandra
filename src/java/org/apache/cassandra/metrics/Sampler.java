@@ -24,13 +24,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MonotonicClock;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -97,7 +97,7 @@ public abstract class Sampler<T>
     MonotonicClock clock = MonotonicClock.Global.approxTime;
 
     @VisibleForTesting
-    static final ExecutorPlus samplerExecutor = executorFactory()
+    public static final ExecutorPlus samplerExecutor = executorFactory()
             .withJmxInternal()
             .configureSequential("Sampler")
             .withQueueLimit(1000)
@@ -170,6 +170,7 @@ public abstract class Sampler<T>
      */
     public static class Sample<S> implements Serializable
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         public final S value;
         public final long count;
         public final long error;

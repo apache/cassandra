@@ -19,12 +19,14 @@ package org.apache.cassandra.index.sasi.analyzer;
 
 import java.nio.ByteBuffer;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import org.junit.Assert;
-import org.junit.Test;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Tests for the non-tokenizing analyzer
@@ -45,7 +47,7 @@ public class NonTokenizingAnalyzerTest
         ByteBuffer analyzed = null;
         while (analyzer.hasNext())
             analyzed = analyzer.next();
-        Assert.assertTrue(testString.toLowerCase().equals(ByteBufferUtil.string(analyzed)));
+        Assert.assertTrue(toLowerCaseLocalized(testString).equals(ByteBufferUtil.string(analyzed)));
     }
 
     @Test
@@ -61,7 +63,7 @@ public class NonTokenizingAnalyzerTest
         ByteBuffer analyzed = null;
         while (analyzer.hasNext())
             analyzed = analyzer.next();
-        Assert.assertFalse(testString.toLowerCase().equals(ByteBufferUtil.string(analyzed)));
+        Assert.assertFalse(toLowerCaseLocalized(testString).equals(ByteBufferUtil.string(analyzed)));
     }
 
     @Test

@@ -31,18 +31,28 @@ public class PendingHintsInfo
     public static final String TOTAL_FILES = "total_files";
     public static final String OLDEST_TIMESTAMP = "oldest_timestamp";
     public static final String NEWEST_TIMESTAMP = "newest_timestamp";
+    public static final String TOTAL_SIZE = "total_size";
+    private static final String CORRUPTED_FILES = "corrupted_files";
+    private static final String CORRUPTED_FILES_SIZE = "total_corrupted_files_size";
 
     public final UUID hostId;
     public final int totalFiles;
     public final long oldestTimestamp;
     public final long newestTimestamp;
+    public final long totalSize;
+    public final int corruptedFiles;
+    public final long corruptedFilesSize;
 
-    public PendingHintsInfo(UUID hostId, int totalFiles, long oldestTimestamp, long newestTimestamp)
+    public PendingHintsInfo(UUID hostId, int totalFiles, long oldestTimestamp, long newestTimestamp,
+                            long totalSize, int corruptedFiles, long corruptedFilesSize)
     {
         this.hostId = hostId;
         this.totalFiles = totalFiles;
         this.oldestTimestamp = oldestTimestamp;
         this.newestTimestamp = newestTimestamp;
+        this.totalSize = totalSize;
+        this.corruptedFiles = corruptedFiles;
+        this.corruptedFilesSize = corruptedFilesSize;
     }
 
     public Map<String, String> asMap()
@@ -52,6 +62,9 @@ public class PendingHintsInfo
         ret.put(TOTAL_FILES, String.valueOf(totalFiles));
         ret.put(OLDEST_TIMESTAMP, String.valueOf(oldestTimestamp));
         ret.put(NEWEST_TIMESTAMP, String.valueOf(newestTimestamp));
+        ret.put(TOTAL_SIZE, String.valueOf(totalSize));
+        ret.put(CORRUPTED_FILES, String.valueOf(corruptedFiles));
+        ret.put(CORRUPTED_FILES_SIZE, String.valueOf(corruptedFilesSize));
         return ret;
     }
 
@@ -64,13 +77,17 @@ public class PendingHintsInfo
         return totalFiles == that.totalFiles &&
                oldestTimestamp == that.oldestTimestamp &&
                newestTimestamp == that.newestTimestamp &&
+               totalSize == that.totalSize &&
+               corruptedFiles == that.corruptedFiles &&
+               corruptedFilesSize == that.corruptedFilesSize &&
                Objects.equals(hostId, that.hostId);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(hostId, totalFiles, oldestTimestamp, newestTimestamp);
+        return Objects.hash(hostId, totalFiles, oldestTimestamp, newestTimestamp,
+                            totalSize, corruptedFiles, corruptedFilesSize);
     }
 
     @Override
@@ -81,6 +98,9 @@ public class PendingHintsInfo
                           .add("totalFiles", totalFiles)
                           .add("oldestTimestamp", oldestTimestamp)
                           .add("newestTimestamp", newestTimestamp)
+                          .add("totalSize", totalSize)
+                          .add("corruptedFiles", corruptedFiles)
+                          .add("corruptedFilesSize", corruptedFilesSize)
                           .toString();
     }
 }

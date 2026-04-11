@@ -20,30 +20,22 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableList;
-
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
-
-import static org.junit.Assert.assertEquals;
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
-import org.junit.BeforeClass;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.metrics.CQLMetrics;
 
+import static org.junit.Assert.assertEquals;
+
 public class CQLMetricsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     private void queryAndValidateMetrics(CQLMetrics expectedMetrics) throws Throwable
     {

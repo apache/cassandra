@@ -18,20 +18,32 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests for the {@code GetAuditLog} nodetool command.
+ * @see GetAuditLog
+ */
 public class GetAuditLogTest extends CQLTester
 {
     @BeforeClass
     public static void setup() throws Exception
     {
+        AuditLogOptions options = getBaseAuditLogOptions();
+        DatabaseDescriptor.setAuditLoggingOptions(options);
         requireNetwork();
         startJMXServer();
     }
@@ -100,7 +112,7 @@ public class GetAuditLogTest extends CQLTester
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled true");
         assertThat(output).contains("logger BinAuditLogger");
-        assertThat(output).contains("roll_cycle HOURLY");
+        assertThat(output).contains("roll_cycle FAST_HOURLY");
         assertThat(output).contains("block true");
         assertThat(output).contains("max_log_size 17179869184");
         assertThat(output).contains("max_queue_weight 268435456");
@@ -119,7 +131,7 @@ public class GetAuditLogTest extends CQLTester
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled true");
         assertThat(output).contains("logger BinAuditLogger");
-        assertThat(output).contains("roll_cycle HOURLY");
+        assertThat(output).contains("roll_cycle FAST_HOURLY");
         assertThat(output).contains("block true");
         assertThat(output).contains("max_log_size 17179869184");
         assertThat(output).contains("max_queue_weight 268435456");
@@ -138,7 +150,7 @@ public class GetAuditLogTest extends CQLTester
         final String output = getAuditLogOutput.replaceAll("( )+", " ").trim();
         assertThat(output).startsWith("enabled false");
         assertThat(output).contains("logger BinAuditLogger");
-        assertThat(output).contains("roll_cycle HOURLY");
+        assertThat(output).contains("roll_cycle FAST_HOURLY");
         assertThat(output).contains("block true");
         assertThat(output).contains("max_log_size 17179869184");
         assertThat(output).contains("max_queue_weight 268435456");
@@ -149,5 +161,19 @@ public class GetAuditLogTest extends CQLTester
         assertThat(output).contains("excluded_categories \n");
         assertThat(output).contains("included_users \n");
         assertThat(output).endsWith("excluded_users");
+    }
+
+    /**
+     Create a new AuditLogOptions instance with the log dir set appropriately to a temp dir for unit testing.
+     */
+    private static AuditLogOptions getBaseAuditLogOptions() throws IOException
+    {
+        AuditLogOptions options = new AuditLogOptions();
+
+        // Ensure that we create a new audit log directory to separate outputs
+        Path tmpDir = Files.createTempDirectory("GetAuditLogTest");
+        options.audit_logs_dir = tmpDir.toString();
+
+        return options;
     }
 }

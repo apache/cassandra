@@ -28,6 +28,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,14 +65,14 @@ public class Descriptor
     // to the SSTable naming.
     static final Pattern SSTABLE_DIR_PATTERN = Pattern.compile(".*/(?<keyspace>\\w+)/" +
                                                                "(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/" +
-                                                               "(backups/|snapshots/(?<tag>[\\w-]+)/)?" +
+                                                               "(backups/|snapshots/(?<tag>[^/]+)/)?" +
                                                                "(\\.(?<indexName>[\\w-]+)/)?" +
                                                                "(?<component>[\\w-\\+]+)\\.(?<ext>[\\w]+)$");
 
     // Pre 2.1 SSTable directory format is {keyspace}/{tableName}-{tableId}[/backups|/snapshots/{tag}][/.{indexName}]/{component}.db
     static final Pattern LEGACY_SSTABLE_DIR_PATTERN = Pattern.compile(".*/(?<keyspace>\\w+)/" +
                                                                       "(?<tableName>\\w+)/" +
-                                                                      "(backups/|snapshots/(?<tag>[\\w-]+)/)?" +
+                                                                      "(backups/|snapshots/(?<tag>[^/]+)/)?" +
                                                                       "(\\.(?<indexName>[\\w-]+)/)?" +
                                                                       "(?<component>[\\w-]+)\\.(?<ext>[\\w]+)$");
 

@@ -19,6 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tools.ToolRunner;
 
 public class SjkTest
@@ -26,6 +27,7 @@ public class SjkTest
     @Test
     public void sjkHelpReturnsRc0()
     {
+        DatabaseDescriptor.daemonInitialization();
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("sjk", "--help");
         tool.assertOnExitCode();
     }

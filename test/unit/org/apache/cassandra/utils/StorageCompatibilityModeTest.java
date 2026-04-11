@@ -18,13 +18,13 @@
 */
 package org.apache.cassandra.utils;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
-import org.assertj.core.api.Assertions;
 
 public class StorageCompatibilityModeTest
 {
@@ -40,6 +40,7 @@ public class StorageCompatibilityModeTest
             {
                 case UPGRADING:
                 case NONE:
+                case CASSANDRA_5:
                     mode.validateSstableFormat(big);
                     mode.validateSstableFormat(trie);
                     break;

@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.concurrent;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.WithResources;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 /*
  * This class only knows about Tracing and ClientWarn, so if any different executor locals are added, it must be
@@ -44,7 +45,6 @@ public class ExecutorLocals implements WithResources, Closeable
 
     public static class Impl
     {
-        @SuppressWarnings("resource")
         protected static void set(TraceState traceState, ClientWarn.State clientWarnState)
         {
             if (traceState == null && clientWarnState == null) locals.set(none);
@@ -79,7 +79,6 @@ public class ExecutorLocals implements WithResources, Closeable
         return locals == none ? WithResources.none() : locals;
     }
 
-    @SuppressWarnings("resource")
     public static ExecutorLocals create(TraceState traceState)
     {
         ExecutorLocals current = locals.get();
@@ -94,8 +93,9 @@ public class ExecutorLocals implements WithResources, Closeable
     /**
      * Overwrite current locals, and return the previous ones
      */
-    public Closeable get()
+    public ExecutorLocals get()
     {
+        // TODO (desired): add compareAndSet to save one thread local round trip
         ExecutorLocals old = current();
         if (old != this)
             locals.set(this);

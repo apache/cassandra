@@ -26,10 +26,11 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.utils.Nemesis;
 import org.reflections.Reflections;
 import org.reflections.scanners.FieldAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
+
+import org.apache.cassandra.utils.Nemesis;
 
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.simulator.asm.InterceptClasses.dotsToSlashes;

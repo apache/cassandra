@@ -32,6 +32,7 @@ public enum AuditLogEntryType
     ALTER_KEYSPACE(AuditLogEntryCategory.DDL),
     DROP_KEYSPACE(AuditLogEntryCategory.DDL),
     CREATE_TABLE(AuditLogEntryCategory.DDL),
+    CREATE_TABLE_LIKE(AuditLogEntryCategory.DDL),
     DROP_TABLE(AuditLogEntryCategory.DDL),
     PREPARE_STATEMENT(AuditLogEntryCategory.PREPARE),
     DROP_TRIGGER(AuditLogEntryCategory.DDL),
@@ -62,6 +63,15 @@ public enum AuditLogEntryType
     DROP_IDENTITY(AuditLogEntryCategory.DCL),
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
     DESCRIBE(AuditLogEntryCategory.OTHER),
+    TRANSACTION(AuditLogEntryCategory.TRANSACTION),
+    COMMENT_KEYSPACE(AuditLogEntryCategory.DDL),
+    COMMENT_TABLE(AuditLogEntryCategory.DDL),
+    COMMENT_COLUMN(AuditLogEntryCategory.DDL),
+    COMMENT_TYPE(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_KEYSPACE(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_TABLE(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_COLUMN(AuditLogEntryCategory.DDL),
+    SECURITY_LABEL_TYPE(AuditLogEntryCategory.DDL),
 
     /*
      * Common Audit Log Entry Types
@@ -70,7 +80,9 @@ public enum AuditLogEntryType
     REQUEST_FAILURE(AuditLogEntryCategory.ERROR),
     LOGIN_ERROR(AuditLogEntryCategory.AUTH),
     UNAUTHORIZED_ATTEMPT(AuditLogEntryCategory.AUTH),
-    LOGIN_SUCCESS(AuditLogEntryCategory.AUTH);
+    LOGIN_SUCCESS(AuditLogEntryCategory.AUTH),
+    LIST_SUPERUSERS(AuditLogEntryCategory.DCL),
+    JMX(AuditLogEntryCategory.JMX);
 
     private final AuditLogEntryCategory category;
 

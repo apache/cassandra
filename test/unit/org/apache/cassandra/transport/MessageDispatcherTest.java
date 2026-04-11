@@ -18,27 +18,36 @@
 
 package org.apache.cassandra.transport;
 
-import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
-import io.netty.channel.Channel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.AuthResponse;
 
+import io.netty.channel.Channel;
+
 public class MessageDispatcherTest
 {
     static final Message.Request AUTH_RESPONSE_REQUEST = new AuthResponse(new byte[0])
     {
-        public Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
+        @Override
+        public Connection connection()
+        {
+            return connectionMock();
+        }
+
+        @Override
+        public Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
         {
             return null;
         }
@@ -51,7 +60,7 @@ public class MessageDispatcherTest
     public static void init() throws Exception
     {
         DatabaseDescriptor.daemonInitialization();
-        ClientMetrics.instance.init(Collections.emptyList());
+        ClientMetrics.instance.init(null);
         maxAuthThreadsBeforeTests = DatabaseDescriptor.getNativeTransportMaxAuthThreads();
         dispatch = new AuthTestDispatcher();
     }
@@ -91,7 +100,14 @@ public class MessageDispatcherTest
             long auths = completedAuth();
             long requests = tryAuth(this::completedRequests, new Message.Request(type)
             {
-                public Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
+                @Override
+                public Connection connection()
+                {
+                    return connectionMock();
+                }
+
+                @Override
+                public Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
                 {
                     return null;
                 }
@@ -164,9 +180,18 @@ public class MessageDispatcherTest
                             Message.Request request,
                             FlushItemConverter forFlusher,
                             ClientResourceLimits.Overload backpressure,
-                            long approxStartTimeNanos)
+                            RequestTime requestTime)
         {
             // noop
         }
+    }
+
+    private static Connection connectionMock()
+    {
+        Connection.Tracker tracker = Mockito.mock(Connection.Tracker.class);
+        Mockito.when(tracker.isRunning()).thenAnswer(invocation -> true);
+        Connection c = Mockito.mock(Connection.class);
+        Mockito.when(c.getTracker()).thenAnswer(invocation -> tracker);
+        return c;
     }
 }

@@ -73,6 +73,11 @@ class GlobalMethodTransformer extends MethodVisitor
             transformer.witness(GLOBAL_METHOD);
             super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfGlobalMethods$Global", name, descriptor, false);
         }
+        else if (globalMethods && ((opcode == Opcodes.INVOKEVIRTUAL && owner.equals("java/util/concurrent/TimeUnit") && name.equals("sleep"))))
+        {
+            transformer.witness(GLOBAL_METHOD);
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", name, "(Ljava/lang/Object;J)V", false);
+        }
         else if (globalMethods && ((opcode == Opcodes.INVOKESTATIC && (
                    owner.startsWith("org/apache/cassandra/utils/") && (
                         (owner.equals("org/apache/cassandra/utils/Clock") && name.equals("waitUntil"))
@@ -80,15 +85,20 @@ class GlobalMethodTransformer extends MethodVisitor
                 || !deterministic && owner.equals("java/lang/System") && name.equals("identityHashCode")
                 || owner.equals("java/util/UUID") && name.equals("randomUUID")
                 || owner.equals("com/google/common/util/concurrent/Uninterruptibles") && name.equals("sleepUninterruptibly")
-                || owner.equals("sun/misc/Unsafe") && name.equals("getUnsafe")))
-             || (owner.equals("java/util/concurrent/TimeUnit") && name.equals("sleep")))
+                || owner.equals("sun/misc/Unsafe") && name.equals("getUnsafe"))))
         )
         {
             transformer.witness(GLOBAL_METHOD);
             super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", name, descriptor, false);
         }
+        else if (owner.equals("java/util/concurrent/TimeUnit") && name.equals("sleep"))
+        {
+            transformer.witness(GLOBAL_METHOD);
+            super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "sleep", "(Ljava/util/concurrent/TimeUnit;J)V", false);
+        }
         else if ((globalMethods || deterministic) && opcode == Opcodes.INVOKESTATIC &&
-            owner.equals("java/util/concurrent/ThreadLocalRandom") && (name.equals("getProbe") || name.equals("advanceProbe") || name.equals("localInit"))
+                 ((owner.equals("java/util/concurrent/ThreadLocalRandom") && (name.equals("getProbe") || name.equals("advanceProbe") || name.equals("localInit")))
+                  || (owner.equals("java/util/concurrent/atomic/Striped64") && (name.equals("getProbe") || name.equals("advanceProbe"))))
         )
         {
             transformer.witness(GLOBAL_METHOD);

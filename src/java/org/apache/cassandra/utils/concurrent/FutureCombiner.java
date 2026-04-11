@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.utils.concurrent;
 
-import io.netty.util.concurrent.GenericFutureListener;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +28,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
+
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.GlobalEventExecutor;
 
 /**
  * Netty's PromiseCombiner is not threadsafe, and we combine futures from multiple event executors.
@@ -51,11 +52,12 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     }
 
     /**
-     * Tracks completion; once all futures have completed, invokes {@link Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
+     * Tracks completion; once all futures have completed, invokes {@code Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
      * Never invokes failure on {@link Listener#complete}.
      */
     private static class Listener<T> extends AtomicInteger implements GenericFutureListener<io.netty.util.concurrent.Future<Object>>
     {
+        private static final long serialVersionUID = 0;  // for simulator support
         Supplier<T> onSuccess; // non-final so we can release resources immediately when failing fast
         final FutureCombiner<T> complete;
 
@@ -82,7 +84,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     }
 
     /**
-     * Tracks completion; once all futures have completed, invokes {@link Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
+     * Tracks completion; once all futures have completed, invokes {@code Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
      * If any future fails, immediately propagates this failure and releases associated resources.
      */
     private static class FailFastListener<T> extends Listener<T>
@@ -108,7 +110,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     }
 
     /**
-     * Tracks completion; once all futures have completed, invokes {@link Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
+     * Tracks completion; once all futures have completed, invokes {@code Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
      * If any future fails we propagate this failure, but only once all have completed.
      */
     private static class FailSlowListener<T> extends Listener<T>
@@ -239,6 +241,11 @@ public class FutureCombiner<T> extends AsyncFuture<T>
             return ImmediateFuture.success(Collections.emptyList());
 
         return new FutureCombiner<>(futures, () -> futures.stream().map(f -> f.getNow()).collect(Collectors.toList()), FailFastListener::new);
+    }
+
+    public static <V> Future<List<V>> allOf(io.netty.util.concurrent.Future<? extends V>... futures)
+    {
+        return allOf(Arrays.asList(futures));
     }
 
     /**

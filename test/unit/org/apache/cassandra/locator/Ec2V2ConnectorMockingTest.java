@@ -20,11 +20,12 @@ package org.apache.cassandra.locator;
 
 import java.util.Properties;
 
+import com.github.tomakehurst.wiremock.client.MappingBuilder;
+import com.github.tomakehurst.wiremock.junit.WireMockRule;
+
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.github.tomakehurst.wiremock.client.MappingBuilder;
-import com.github.tomakehurst.wiremock.junit.WireMockRule;
 import org.apache.cassandra.locator.Ec2MetadataServiceConnector.V2Connector;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;

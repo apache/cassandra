@@ -23,6 +23,8 @@ import java.util.Optional;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -42,18 +44,29 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addKeyspace(KeyspaceMetadata keyspace, boolean ignoreIfExists)
     {
-        return schema ->
+        return new SchemaTransformation()
         {
-            KeyspaceMetadata existing = schema.getNullable(keyspace.name);
-            if (existing != null)
+            @Override
+            public Keyspaces apply(ClusterMetadata metadata)
             {
-                if (ignoreIfExists)
-                    return schema;
+                Keyspaces schema = metadata.schema.getKeyspaces();
+                KeyspaceMetadata existing = schema.getNullable(keyspace.name);
+                if (existing != null)
+                {
+                    if (ignoreIfExists)
+                        return schema;
 
-                throw new AlreadyExistsException(keyspace.name);
+                    throw new AlreadyExistsException(keyspace.name);
+                }
+
+                return schema.withAddedOrUpdated(keyspace);
             }
 
-            return schema.withAddedOrUpdated(keyspace);
+            @Override
+            public boolean compatibleWith(ClusterMetadata metadata)
+            {
+                return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+            }
         };
     }
 
@@ -68,81 +81,74 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addTable(TableMetadata table, boolean ignoreIfExists)
     {
-        return schema ->
+        return new SchemaTransformation()
         {
-            KeyspaceMetadata keyspace = schema.getNullable(table.keyspace);
-            if (keyspace == null)
-                throw invalidRequest("Keyspace '%s' doesn't exist", table.keyspace);
-
-            if (keyspace.hasTable(table.name))
+            @Override
+            public Keyspaces apply(ClusterMetadata metadata)
             {
-                if (ignoreIfExists)
-                    return schema;
+                Keyspaces schema = metadata.schema.getKeyspaces();
+                KeyspaceMetadata keyspace = schema.getNullable(table.keyspace);
+                if (keyspace == null)
+                    throw invalidRequest("Keyspace '%s' doesn't exist", table.keyspace);
 
-                throw new AlreadyExistsException(table.keyspace, table.name);
+                if (keyspace.hasTable(table.name))
+                {
+                    if (ignoreIfExists)
+                        return schema;
+
+                    throw new AlreadyExistsException(table.keyspace, table.name);
+                }
+
+                table.validate();
+
+                return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
             }
 
-            table.validate();
-
-            return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.tables.with(table)));
+            @Override
+            public boolean compatibleWith(ClusterMetadata metadata)
+            {
+                return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+            }
         };
     }
 
     public static SchemaTransformation addTypes(Types toAdd, boolean ignoreIfExists)
     {
-        return schema ->
+        return new SchemaTransformation()
         {
-            if (toAdd.isEmpty())
-                return schema;
-
-            String keyspaceName = toAdd.iterator().next().keyspace;
-            KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
-            if (null == keyspace)
-                throw invalidRequest("Keyspace '%s' doesn't exist", keyspaceName);
-
-            Types types = keyspace.types;
-            for (UserType type : toAdd)
+            @Override
+            public Keyspaces apply(ClusterMetadata metadata)
             {
-                if (types.containsType(type.name))
-                {
-                    if (ignoreIfExists)
-                        continue;
-
-                    throw new ConfigurationException("Type " + type + " already exists in " + keyspaceName);
-                }
-
-                types = types.with(type);
-            }
-            return schema.withAddedOrReplaced(keyspace.withSwapped(types));
-        };
-    }
-
-    /**
-     * Creates a schema transformation that adds the provided view.
-     *
-     * @param view           the view to add.
-     * @param ignoreIfExists if {@code true}, the transformation is a no-op if a view of the same name than
-     *                       {@code view} already exists in the schema the transformation is applied on. Otherwise,
-     *                       the transformation throws an {@link AlreadyExistsException} in that case.
-     * @return the created transformation.
-     */
-    public static SchemaTransformation addView(ViewMetadata view, boolean ignoreIfExists)
-    {
-        return schema ->
-        {
-            KeyspaceMetadata keyspace = schema.getNullable(view.keyspace());
-            if (keyspace == null)
-                throw invalidRequest("Cannot add view to non existing keyspace '%s'", view.keyspace());
-
-            if (keyspace.hasView(view.name()))
-            {
-                if (ignoreIfExists)
+                Keyspaces schema = metadata.schema.getKeyspaces();
+                if (toAdd.isEmpty())
                     return schema;
 
-                throw new AlreadyExistsException(view.keyspace(), view.name());
+                String keyspaceName = toAdd.iterator().next().keyspace;
+                KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
+                if (null == keyspace)
+                    throw invalidRequest("Keyspace '%s' doesn't exist", keyspaceName);
+
+                Types types = keyspace.types;
+                for (UserType type : toAdd)
+                {
+                    if (types.containsType(type.name))
+                    {
+                        if (ignoreIfExists)
+                            continue;
+
+                        throw new ConfigurationException("Type " + type + " already exists in " + keyspaceName);
+                    }
+
+                    types = types.with(type);
+                }
+                return schema.withAddedOrReplaced(keyspace.withSwapped(types));
             }
 
-            return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.views.with(view)));
+            @Override
+            public boolean compatibleWith(ClusterMetadata metadata)
+            {
+                return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+            }
         };
     }
 
@@ -169,8 +175,15 @@ public class SchemaTransformations
             }
 
             @Override
-            public Keyspaces apply(Keyspaces schema)
+            public boolean compatibleWith(ClusterMetadata metadata)
             {
+                return metadata.directory.commonSerializationVersion.isAtLeast(Version.V0);
+            }
+
+            @Override
+            public Keyspaces apply(ClusterMetadata metadata)
+            {
+                Keyspaces schema = metadata.schema.getKeyspaces();
                 KeyspaceMetadata updatedKeyspace = keyspace;
                 KeyspaceMetadata curKeyspace = schema.getNullable(keyspace.name);
                 if (curKeyspace != null)

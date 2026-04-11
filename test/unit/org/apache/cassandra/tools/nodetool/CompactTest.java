@@ -19,14 +19,13 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.util.Arrays;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 
@@ -42,8 +41,7 @@ public class CompactTest extends CQLTester
     @Test
     public void keyPresent() throws Throwable
     {
-        long token = 42;
-        long key = Murmur3Partitioner.LongToken.keyForToken(token).getLong();
+        long key = 42;
         createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         cfs.disableAutoCompaction();
@@ -63,8 +61,7 @@ public class CompactTest extends CQLTester
     @Test
     public void keyNotPresent() throws Throwable
     {
-        long token = 42;
-        long key = Murmur3Partitioner.LongToken.keyForToken(token).getLong();
+        long key = 42;
         createTable("CREATE TABLE %s (id bigint, value text, PRIMARY KEY ((id)))");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         cfs.disableAutoCompaction();

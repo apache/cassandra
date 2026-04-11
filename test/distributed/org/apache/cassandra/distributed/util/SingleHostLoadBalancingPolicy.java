@@ -24,13 +24,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import com.google.common.collect.Iterators;
-
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.HostDistance;
 import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
+import com.google.common.collect.Iterators;
 
 /**
  * A CQL driver {@link LoadBalancingPolicy} that only connects to a fixed host.

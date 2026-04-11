@@ -69,7 +69,6 @@ public class IndexSummaryComponent
      * if loaded index summary has different index interval from current value stored in schema,
      * then Summary.db file will be deleted and need to be rebuilt.
      */
-    @SuppressWarnings("resource")
     public static IndexSummaryComponent load(File summaryFile, TableMetadata metadata) throws IOException
     {
         if (!summaryFile.exists())

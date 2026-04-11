@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.cluster.ClusterActionListener.RepairValidator;
+import org.apache.cassandra.simulator.cluster.OnInstanceRepair.RepairType;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
@@ -36,17 +37,15 @@ class OnClusterFullRepair extends Action implements Consumer<Action>
     final Topology topology;
     final boolean force;
     final RepairValidator validator;
-    final boolean repairPaxos;
-    final boolean repairOnlyPaxos;
+    final RepairType repairType;
 
-    public OnClusterFullRepair(KeyspaceActions actions, Topology topology, boolean repairPaxos, boolean repairOnlyPaxos, boolean force)
+    public OnClusterFullRepair(KeyspaceActions actions, Topology topology, RepairType repairType, boolean force)
     {
         super(lazy(() -> "Full Repair on " + Arrays.toString(topology.membersOfRing)), STRICT, RELIABLE_NO_TIMEOUTS);
         this.actions = actions;
         // STRICT to ensure repairs do not run simultaneously, as seems not to be permitted even for non-overlapping ranges?
         this.topology = topology;
-        this.repairPaxos = repairPaxos;
-        this.repairOnlyPaxos = repairOnlyPaxos;
+        this.repairType = repairType;
         this.force = force;
         this.validator = actions.listener.newRepairValidator(this);
         register(runAfterTransitiveClosure(this));
@@ -55,8 +54,8 @@ class OnClusterFullRepair extends Action implements Consumer<Action>
     protected ActionList performSimple()
     {
         actions.validateReplicasForKeys(actions.cluster.get(topology.membersOfQuorum[0]), actions.keyspace, actions.table, topology);
-        validator.before(topology, repairPaxos, repairOnlyPaxos);
-        return actions.on(i -> new OnInstanceRepair(actions, i, repairPaxos, repairOnlyPaxos, force), topology.membersOfRing);
+        validator.before(topology, repairType);
+        return actions.on(i -> new OnInstanceRepair(actions, i, repairType, force), topology.membersOfRing);
     }
 
     public void accept(Action ignore)

@@ -1,81 +1,95 @@
-= Leveled Compaction Strategy
+= Leveled Compaction Strategy (LCS)
 
 [[lcs]]
-The idea of `LeveledCompactionStrategy` (LCS) is that all sstables are
-put into different levels where we guarantee that no overlapping
-sstables are in the same level. By overlapping we mean that the
-first/last token of a single sstable are never overlapping with other
-sstables. This means that for a SELECT we will only have to look for the
-partition key in a single sstable per level. Each level is 10x the size
-of the previous one and each sstable is 160MB by default. L0 is where
-sstables are streamed/flushed - no overlap guarantees are given here.
 
-When picking compaction candidates we have to make sure that the
-compaction does not create overlap in the target level. This is done by
-always including all overlapping sstables in the next level. For example
-if we select an sstable in L3, we need to guarantee that we pick all
-overlapping sstables in L4 and make sure that no currently ongoing
-compactions will create overlap if we start that compaction. We can
-start many parallel compactions in a level if we guarantee that we wont
-create overlap. For L0 -> L1 compactions we almost always need to
-include all L1 sstables since most L0 sstables cover the full range. We
-also can't compact all L0 sstables with all L1 sstables in a single
-compaction since that can use too much memory.
+include::cassandra:partial$ucs-recommend.adoc[]
 
-When deciding which level to compact LCS checks the higher levels first
-(with LCS, a "higher" level is one with a higher number, L0 being the
-lowest one) and if the level is behind a compaction will be started in
-that level.
+The `LeveledCompactionStrategy (LCS)` is recommended for read-heavy workloads, although UCS is the best recommendation for all workloads today.
+It alleviates some of the read operation issues with STCS, while providing reasonable write operations. 
+This strategy works with a series of levels, where each level contains a set of SSTables.
+When data in memtables is flushed, SSTables are written in the first level (L0), where SSTables are not guaranteed to be non-overlapping.
+LCS compaction merges these first SSTables with larger SSTables in level L1.
+Each level is by default 10x the size of the previous one.
+Once an SSTable is written to L1 or higher, the SSTable is guaranteed to be non-overlapping with other SSTables in the same level.
+If a read operation needs to access a row, it will only need to look at one SSTable per level. 
 
-== Major compaction
+To accomplish compaction, all overlapping SSTables are merged into a new SSTable in the next level.
+For L0 -> L1 compactions, we almost always need to include all L1 SSTables since most L0 SSTables cover the full range of partitions. 
+LCS compacts SSTables from one level to the next, writing partitions to fit a defined SSTable size.
+In addition, each level has a prescribed size, so that compaction will be triggered when a level reaches its size limit.
+Creating new SSTables in one level can trigger compaction in the next level, and so on, until all levels have been compacted based on the settings.
 
-It is possible to do a major compaction with LCS - it will currently
-start by filling out L1 and then once L1 is full, it continues with L2
-etc. This is sub optimal and will change to create all the sstables in a
-high level instead, CASSANDRA-11817.
+There is a failsafe if too many SSTables reads are being done in the L0 level. 
+An STCS compaction will be triggered in L0 if there are more than 32 SSTables in L0.
+This compaction quickly merges SSTables out of L0, and into L1, where they will be compacted to non-overlapping SSTables.
+
+LCS is not as disk hungry as STCS, needing only approximately 10% of disk to execute, but it is more IO and CPU intensive. 
+For ongoing minor compactions in a read-heavy workload, the amount of compaction is reasonable.
+It is not a good choice for write-heavy workloads, though, because it will cause a lot of disk IO and CPU usage.
+Major compactions are not recommended for LCS.
 
 == Bootstrapping
 
-During bootstrap sstables are streamed from other nodes. The level of
-the remote sstable is kept to avoid many compactions after the bootstrap
-is done. During bootstrap the new node also takes writes while it is
-streaming the data from a remote node - these writes are flushed to L0
-like all other writes and to avoid those sstables blocking the remote
-sstables from going to the correct level, we only do STCS in L0 until
-the bootstrap is done.
-
-== STCS in L0
-
-If LCS gets very many L0 sstables reads are going to hit all (or most)
-of the L0 sstables since they are likely to be overlapping. To more
-quickly remedy this LCS does STCS compactions in L0 if there are more
-than 32 sstables there. This should improve read performance more
-quickly compared to letting LCS do its L0 -> L1 compactions. If you keep
-getting too many sstables in L0 it is likely that LCS is not the best
-fit for your workload and STCS could work out better.
+During bootstrapping, SSTables are streamed from other nodes. 
+Because many SSTables will be both flushed from the new writes to memtables, as well as streaming from a remote note, the new node will have many SSTables in L0.
+To avoid a collision of the flushing and streaming SSTables, only STCS in L0 is executed until the bootstrapping is complete.
 
 == Starved sstables
 
-If a node ends up with a leveling where there are a few very high level
-sstables that are not getting compacted they might make it impossible
-for lower levels to drop tombstones etc. For example, if there are
-sstables in L6 but there is only enough data to actually get a L4 on the
-node the left over sstables in L6 will get starved and not compacted.
-This can happen if a user changes sstable_size_in_mb from 5MB to 160MB
-for example. To avoid this LCS tries to include those starved high level
-sstables in other compactions if there has been 25 compaction rounds
-where the highest level has not been involved.
+If the leveling is not optimal, LCS can end up with starved sstables.
+High level SSTables can be stranded and not compacted, because SSTables in lower levels are not getting merged and compacted.
+For example, this situation can make it impossible for lower levels to drop tombstones.
+If these starved SSTables are not resolved within a defined number of compaction rounds, they will be included in other compactions.
+This situation generally occurs if a user lowers the `sstable_size` setting.
+
+include::cassandra:partial$default-compaction-strategy.adoc[]
 
 [[lcs_options]]
 == LCS options
 
-`sstable_size_in_mb` (default: 160MB)::
-  The target compressed (if using compression) sstable size - the
-  sstables can end up being larger if there are very large partitions on
-  the node.
-`fanout_size` (default: 10)::
-  The target size of levels increases by this fanout_size multiplier.
-  You can reduce the space amplification by tuning this option.
+[cols="1,2"]
+|===
+| Subproperty	| Description
 
-LCS also support the `cassandra.disable_stcs_in_l0` startup option
-(`-Dcassandra.disable_stcs_in_l0=true`) to avoid doing STCS in L0.
+| enabled	
+| Enables background compaction. 
+Default value: true
+// See Enabling and disabling background compaction.
+
+| tombstone_compaction_interval	
+| The minimum number of seconds after which an SSTable is created before {cassandra} considers the SSTable for tombstone compaction. 
+An SSTable is eligible for tombstone compaction if the table exceeds the `tombstone_threshold` ratio. 
+Default value: 86400
+
+| tombstone_threshold	
+| The ratio of garbage-collectable tombstones to all contained columns. 
+If the ratio exceeds this limit, {cassandra} starts compaction on that table alone, to purge the tombstones. 
+Default value: 0.2
+
+| unchecked_tombstone_compaction	
+| If set to `true`, allows {cassandra} to run tombstone compaction without pre-checking which tables are eligible for this operation. 
+Even without this pre-check, {cassandra} checks an SSTable to make sure it is safe to drop tombstones.
+Default value: false
+
+| log_all	
+| Activates advanced logging for the entire cluster.
+Default value: false
+
+| sstable_size_in_mb
+|The target size for SSTables. 
+Although SSTable sizes should be less or equal to sstable_size_in_mb, it is possible that compaction could produce a larger SSTable during compaction. 
+This occurs when data for a given partition key is exceptionally large. 
+The {cassandra} database does not split the data into two SSTables.
+Default: 160
+
+| fanout_size
+| The target size of levels increases by this `fanout_size` multiplier.
+You can reduce the space amplification by tuning this option.
+Default: 10
+
+| single_sstable_uplevel
+| ???
+Default: true
+|===
+
+LCS also supports a startup option, `-Dcassandra.disable_stcs_in_l0=true` which disables STCS in L0.

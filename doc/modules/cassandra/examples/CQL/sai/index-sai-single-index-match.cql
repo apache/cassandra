@@ -1,3 +1,3 @@
-CREATE CUSTOM INDEX commenter_idx 
+CREATE INDEX commenter_idx 
     ON cycling.comments_vs (commenter) 
-    USING 'StorageAttachedIndex';
+    USING 'sai';

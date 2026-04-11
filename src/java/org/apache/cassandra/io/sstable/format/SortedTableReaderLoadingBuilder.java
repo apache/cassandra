@@ -62,7 +62,7 @@ extends SSTableReaderLoadingBuilder<R, B>
 
         dataFileBuilder.bufferSize(bufferSize);
         dataFileBuilder.withChunkCache(chunkCache);
-        dataFileBuilder.mmapped(ioOptions.defaultDiskAccessMode);
+        dataFileBuilder.withDiskAccessMode(ioOptions.defaultDiskAccessMode);
 
         return dataFileBuilder;
     }

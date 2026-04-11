@@ -29,13 +29,14 @@
     <property environment="env"/>
     <property file="build.properties" />
     <property file="build.properties.default" />
+    <property file="${user.home}/.ant/build.properties"/>
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="5.1"/>
+    <property name="base.version" value="6.0-alpha2"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
-    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git"/>
 
     <!-- JDKs supported.
         All releases are built with the default JDK.
@@ -44,7 +45,7 @@
         The use of both CASSANDRA_USE_JDK11 and use-jdk11 is deprecated.
     -->
     <property name="java.default" value="11" />
-    <property name="java.supported" value="11,17" />
+    <property name="java.supported" value="11,17,21" />
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -58,6 +59,8 @@
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.dir.lib" value="${build.dir}/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
+    <property name="build.test.output.dir" value="${build.test.dir}/output"/>
+    <property name="build.test.report.dir" value="${build.test.dir}/reports" />
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
     <property name="javadoc.dir" value="${build.dir}/javadoc"/>
@@ -86,6 +89,7 @@
     <property name="test.simulator-asm.src" value="${test.dir}/simulator/asm"/>
     <property name="test.simulator-bootstrap.src" value="${test.dir}/simulator/bootstrap"/>
     <property name="test.simulator-test.src" value="${test.dir}/simulator/test"/>
+    <property name="test.harry.src" value="${test.dir}/harry/main"/>
     <property name="test.driver.connection_timeout_ms" value="10000"/>
     <property name="test.driver.read_timeout_ms" value="24000"/>
     <property name="test.jvm.args" value="" />
@@ -96,6 +100,8 @@
          the user specifies the tmp.dir property -->
     <property name="tmp.dir" value="${build.dir}/tmp"/>
 
+    <property name="ant.build.src" value="${basedir}/.build" />
+
     <property name="doc.dir" value="${basedir}/doc"/>
 
     <condition property="version" value="${base.version}">
@@ -105,8 +111,12 @@
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
+    <property name="accord.dir" value="modules/accord" />
+    <!-- The reason not to use ant.project.name is we publish as "cassandra-accord" so the file names won't be named apache-cassandra-accord -->
+    <property name="accord.final.name" value="cassandra-accord-${version}"/>
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
+    <property name="accord.local.repository" value="${local.repository}/org/apache/cassandra/cassandra-accord/${version}" />
 
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
@@ -163,7 +173,7 @@
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
-    <property name="asm.version" value="9.4"/>
+    <property name="asm.version" value="9.5"/>
     <property name="allocation-instrumenter.version" value="3.1.0"/>
 
     <condition property="is.source.artifact">
@@ -172,6 +182,25 @@
 
     <condition property="cassandra.use_nix_recursive_delete" value="false" else="true">
         <os family="windows" />
+    </condition>
+
+    <condition property="withoutMethods">
+        <and>
+            <equals arg1="${test.methods}" arg2=""/>
+            <not>
+                <contains string="${test.name}" substring="*"/>
+            </not>
+        </and>
+    </condition>
+    <condition property="withMethods">
+        <and>
+            <not>
+                <equals arg1="${test.methods}" arg2=""/>
+            </not>
+            <not>
+                <contains string="${test.name}" substring="*"/>
+            </not>
+        </and>
     </condition>
 
     <!-- Check if all tests are being run or just one (check testclasslist target). If it's all tests don't spam the
@@ -196,6 +225,24 @@
     </fail>
     <condition property="is.java.default"><equals arg1="${ant.java.version}" arg2="${java.default}"/></condition>
     <echo unless:true="${is.java.default}" message="Non default JDK version used: ${ant.java.version}"/>
+
+    <condition property="arch_x86">
+      <equals arg1="${os.arch}" arg2="x86" />
+    </condition>
+    <!-- On non-X86 JDK 8 (such as M1 Mac) the smallest allowed Xss is 384k; so need a larger value
+    when on these platforms. -->
+    <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
+      <isset property="arch_x86" />
+    </condition>
+    <condition property="java.version.11">
+      <!-- This includes every JDK other than 8; so JDK 9 is flagged as JDK 11, and JDK 17 is as well... at the moment this is desired behavior
+      and may be relooked at once JDK 8 support is dropped -->
+        <not><isset property="java.version.8"/></not>
+    </condition>
+    <fail message="Unsupported JDK version used: ${ant.java.version}"><condition><not><or>
+        <isset property="java.version.8"/>
+        <isset property="java.version.11"/>
+    </or></not></condition></fail>
 
     <condition property="arch_x86">
       <equals arg1="${os.arch}" arg2="x86" />
@@ -276,12 +323,80 @@
         <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
-
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+
+        <!-- Needed for in-jvm dtests straddling 6.0+ -->
+        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm17_args_concat" refid="_jvm17_arg_items" pathsep=" "/>
     <condition property="java-jvmargs" value="${_jvm17_args_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
+    </condition>
+
+    <resources id="_jvm21_arg_items">
+        <string>-Djdk.attach.allowAttachSelf=true</string>
+
+        <string>-XX:+UseZGC</string>
+        <string>-XX:+ZGenerational</string>
+
+        <!-- Temporary workaround for jamm having incorrect default CompressedOops for JDK21 -->
+        <!-- Without this, memory layout and sizing calculations will be incorrect as jamm assumes compressedOops -->
+        <string>-XX:-UseCompressedOops</string>
+
+        <!-- <string>-XX:+UseLargePages</string> -->
+
+        <!-- Max size ZGC will _attempt_ to stay below -->
+        <!-- <string>-XX:+SoftMaxHeapSize=12G</string> -->
+
+        <!-- Disable returning memory to the OS -->
+        <!-- <string>-XX:-ZUncommit</string> -->
+
+        <!-- Time memory should have been unused before eligible for uncommit in seconds -->
+        <!-- <string>-XX:ZUncommitDelay=300</string> -->
+
+        <!-- Pay the tax up front to pretouch memory to smooth out latency later -->
+        <!-- <string>-XX:+AlwaysPreTouch</string> -->
+
+        <!-- Need to explicitly allow security manager on JDK21; deprecated for removal -->
+        <string>-Djava.security.manager=allow</string>
+
+        <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
+        <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
+        <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-exports java.sql/java.sql=ALL-UNNAMED</string>
+        <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
+        <string>--add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</string>
+        <string>--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED</string>
+
+        <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.math=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
+        <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
+        <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
+        <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+        <string>--add-opens jdk.management/com.sun.management=ALL-UNNAMED</string>
+    </resources>
+    <pathconvert property="_jvm21_args_concat" refid="_jvm21_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm21_args_concat}" else="">
+        <equals arg1="${ant.java.version}" arg2="21"/>
     </condition>
 
     <!--
@@ -297,25 +412,53 @@
       buffer construction (see CASSANDRA-16493)
     -->
     <resources id="_jvm11_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-XX:-CMSClassUnloadingEnabled</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+        <string>-XX:MaxMetaspaceSize=2G</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
+
     <resources id="_jvm17_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+        <!-- Open things up so we don't run into any jamm rejections that'd then go unsafe and crash out on in-jvm dtests -->
+        <string>--add-opens=java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-exports=java.base/jdk.internal.vm.annotation=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
+
+    <resources id="_jvm21_test_arg_items">
+        <string>-XX:+HeapDumpOnOutOfMemoryError</string>
+        <string>-Dnet.bytebuddy.experimental=true</string>
+        <string>-Djava.security.manager=allow</string>
+        <string>-Dio.netty.tryReflectionSetAccessible=true</string>
+
+        <!-- Open things up so we don't run into any jamm rejections that'd then go unsafe and crash out  on in-jvm dtests-->
+        <string>--add-opens=java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-exports=java.base/jdk.internal.vm.annotation=ALL-UNNAMED</string>
+
+        <!-- Revert to pre-JEP-416 Core Reflection implementation (without method handles) -->
+        <!-- without this, FieldUtils cannot overwrite static final fields, breaking some tests -->
+        <!-- removed in 22 (JDK-8309635) so will need a proper fix for 25 -->
+        <string>-Djdk.reflect.useDirectMethodHandle=false</string>
+    </resources>
+    <pathconvert property="_jvm21_test_arg_items_concat" refid="_jvm21_test_arg_items" pathsep=" "/>
+
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}">
-            <equals arg1="${ant.java.version}" arg2="11"/>
+        <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
     <condition property="_std-test-jvmargs" value="${_jvm17_test_arg_items_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
+    </condition>
+    <condition property="_std-test-jvmargs" value="${_jvm21_test_arg_items_concat}">
+        <equals arg1="${ant.java.version}" arg2="21"/>
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
     <!-- needed to compile org.apache.cassandra.utils.memory.BufferPool -->
-    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
+    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED --add-exports java.management/com.sun.jmx.remote.security=ALL-UNNAMED" />
 
     <!--
          Add all the dependencies.
@@ -337,26 +480,38 @@
         </fileset>
     </path>
 
-  <macrodef name="create-javadoc">
-    <attribute name="destdir"/>
-    <element name="filesets"/>
-    <sequential>
-      <javadoc destdir="@{destdir}" author="true" version="true" use="true"
-        windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
-        useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="${jdk11plus-javac-exports}">
-        <filesets/>
-      </javadoc>
-      <fail message="javadoc failed">
-        <condition>
-            <not>
-                <available file="@{destdir}/index-all.html" />
-            </not>
-        </condition>
-      </fail>
-    </sequential>
-  </macrodef>
+    <macrodef name="create-javadoc">
+      <attribute name="destdir"/>
+      <element name="filesets"/>
+      <sequential>
+        <javadoc destdir="@{destdir}" author="true" version="true" use="true"
+          windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
+          bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
+          useexternalfile="yes" encoding="UTF-8" failonerror="false"
+          maxmemory="1024m" additionalparam="${jdk11plus-javac-exports}">
+          <filesets/>
+        </javadoc>
+        <fail message="javadoc failed">
+          <condition>
+              <not>
+                  <available file="@{destdir}/index-all.html" />
+              </not>
+          </condition>
+        </fail>
+      </sequential>
+    </macrodef>
+
+    <!-- filterset to apply to pom templates -->
+    <filterset id="pom-template">
+        <filter token="version" value="${version}"/>
+        <filter token="final.name" value="${final.name}"/>
+        <filter token="jamm.version" value="${jamm.version}"/>
+        <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
+        <filter token="ecj.version" value="${ecj.version}"/>
+        <filter token="asm.version" value="${asm.version}"/>
+        <filter token="jacoco.version" value="${jacoco.version}"/>
+        <filter token="jflex.version" value="${jflex.version}"/>
+    </filterset>
 
     <!--
         Setup the output directories.
@@ -373,6 +528,7 @@
         <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${jacoco.export.dir}"/>
         <mkdir dir="${jacoco.partials.dir}"/>
+        <exec executable="${ant.build.src}/git/install-git-defaults.sh" osfamily="unix" dir="${basedir}" logError="true" failonerror="true" failifexecutionfails="true" />
 
         <!-- Set up jdk specific properties -->
         <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
@@ -402,7 +558,7 @@
 
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
         <delete>
-          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*,puresasl-internal-only-*"/>
+          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*,puresasl-internal-only-*,harry-*"/>
         </delete>
         <delete dir="${build.dir}" />
         <delete dir="${doc.dir}/build" />
@@ -423,9 +579,13 @@
 
     <target name="gen-cql3-grammar" depends="check-gen-cql3-grammar" unless="cql3current">
       <echo>Building Grammar ${build.src.antlr}/Cql.g  ...</echo>
+      <!-- antlr will crash on the first run on JDK21 and subsequently succeed if we don't fork it and execute in a separate JVM... -->
       <java classname="org.antlr.Tool"
             classpathref="cql3-grammar.classpath"
-            failonerror="true">
+            failonerror="true"
+            fork="true"
+            outputproperty="antlr.output"
+            errorproperty="antlr.error">
          <arg value="-Xconversiontimeout" />
          <arg value="10000" />
          <arg value="${build.src.antlr}/Cql.g" />
@@ -446,14 +606,15 @@
     </target>
 
     <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
-        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="gen-asciidoc"/>
         </exec>
     </target>
 
     <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
-        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
+            <arg value="manpages"/>
         </exec>
     </target>
 
@@ -467,13 +628,23 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version">
+    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version,_set-build-date">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
         <entry key="CassandraVersion" value="${version}"/>
         <entry key="GitSHA" value="${git.sha}"/>
+        <entry key="BuildDate" value="${build.date}"/>
       </propertyfile>
+    </target>
+
+    <!-- set ant build date -->
+    <target name="_set-build-date">
+        <tstamp>
+            <format property="build.date" pattern="yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"/>
+        </tstamp>
+        <!-- Include timezone information -->
+        <property name="build.date" value="${build.date}"/>
     </target>
 
     <target name="test-run" depends="jar"
@@ -494,7 +665,8 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
+    <target name="_build_subprojects" depends="_build-accord" description="Builds all subprojects needed for the build" />
+    <target name="build" depends="resolver-retrieve-build,_build_subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -526,7 +698,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,build-test,gen-asciidoc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
@@ -534,6 +706,7 @@
 
     <!-- Stress build file -->
     <property name="stress.build.src" value="${basedir}/tools/stress/src" />
+    <property name="stress.build.resources" value="${basedir}/tools/stress/resources" />
     <property name="stress.test.src" value="${basedir}/tools/stress/test/unit" />
     <property name="stress.build.classes" value="${build.classes}/stress" />
     <property name="stress.test.classes" value="${build.dir}/test/stress-classes" />
@@ -560,13 +733,13 @@
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
                source="${ant.java.version}" target="${ant.java.version}"
                encoding="utf-8" destdir="${stress.build.classes}" includeantruntime="true">
-            <src path="${stress.build.src}" />
+            <src path="${stress.build.src}"/>
             <classpath>
                 <path refid="cassandra.classpath" />
             </classpath>
         </javac>
         <copy todir="${stress.build.classes}">
-            <fileset dir="${stress.build.src}/resources" />
+            <fileset dir="${stress.build.resources}" />
         </copy>
     </target>
 
@@ -582,8 +755,8 @@
     -->
     <target name="stress-test-some" depends="maybe-build-test" description="Runs stress tests">
         <testmacro inputdir="${stress.test.src}" timeout="${test.timeout}">
-          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-          <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+          <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
         </testmacro>
     </target>
 
@@ -685,24 +858,13 @@
     </target>
 
     <target name="write-poms" unless="without.maven">
-        <filterset id="pom-template">
-            <filter token="version" value="${version}"/>
-            <filter token="final.name" value="${final.name}"/>
-            <filter token="jamm.version" value="${jamm.version}"/>
-            <filter token="allocation-instrumenter.version" value="${allocation-instrumenter.version}"/>
-            <filter token="ecj.version" value="${ecj.version}"/>
-            <filter token="asm.version" value="${asm.version}"/>
-            <filter token="jacoco.version" value="${jacoco.version}"/>
-            <filter token="jflex.version" value="${jflex.version}"/>
-        </filterset>
-
-        <copy file=".build/cassandra-deps-template.xml" tofile="${build.dir}/${final.name}.pom">
+        <copy file=".build/cassandra-deps-maven-pom.xml" tofile="${build.dir}/${final.name}.pom">
             <filterset refid="pom-template"/>
         </copy>
-        <copy file=".build/parent-pom-template.xml" tofile="${build.dir}/${final.name}-parent.pom">
+        <copy file=".build/parent-maven-pom.xml" tofile="${build.dir}/${final.name}-parent.pom">
             <filterset refid="pom-template"/>
         </copy>
-        <copy file=".build/cassandra-build-deps-template.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
+        <copy file=".build/cassandra-build-maven-pom.xml" tofile="${build.dir}/tmp-${final.name}-deps.pom">
             <filterset refid="pom-template"/>
         </copy>
     </target>
@@ -711,7 +873,7 @@
         The jar target makes cassandra.jar output.
     -->
     <target name="_main-jar"
-            depends="build"
+            depends="build,_get-git-sha,_set-build-date"
             description="Assemble Cassandra JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <copy file="LICENSE.txt"
@@ -730,6 +892,7 @@
           <attribute name="Implementation-Version" value="${version}"/>
           <attribute name="Implementation-Vendor" value="Apache"/>
           <attribute name="Implementation-Git-SHA" value="${git.sha}"/>
+          <attribute name="Implementation-Build-Date" value="${build.date}"/>
         <!-- </section> -->
         </manifest>
       </jar>
@@ -802,7 +965,7 @@
     </target>
 
     <target name="jar"
-            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,write-poms"
+            depends="_main-jar,build-test,stress-jar,fqltool-jar,simulator-jars,sstableloader-jar,write-poms"
             description="Assemble Cassandra JAR files">
     </target>
 
@@ -831,6 +994,8 @@
     </target>
 
     <target name="_artifacts-init" depends="jar">
+      <!-- gen-doc should be depended on, but it requires antora and pandoc installed,
+            so for now it's seperated to artifacts-with-docs -->
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />
@@ -850,8 +1015,12 @@
         </fileset>
       </copy>
       <copy todir="${dist.dir}/doc/html" failonerror="false">
-        <fileset dir="doc" />
-        <globmapper from="build/html/*" to="*"/>
+        <fileset dir="build/html" />
+      </copy>
+      <copy todir="${dist.dir}/doc/man" failonerror="false">
+        <fileset dir="build/man">
+          <include name="*.gz" />
+        </fileset>
       </copy>
       <copy todir="${dist.dir}/bin">
         <fileset dir="bin"/>
@@ -868,6 +1037,7 @@
       <copy todir="${dist.dir}/">
         <fileset dir="${basedir}">
           <include name="*.txt" />
+          <include name=".snyk" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/tools/bin">
@@ -885,8 +1055,12 @@
       </copy>
     </target>
 
+    <!-- creates release tarballs with documentation -->
+    <target name="artifacts-with-docs" depends="gen-doc,artifacts"
+            description="Create Cassandra tarball and maven artifacts with documentation"/>
+
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,check,gen-doc,sources-jar"
+    <target name="artifacts" depends="_artifacts-init,check,sources-jar,sstableloader-sources-jar"
             description="Create Cassandra tarball and maven artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
@@ -937,6 +1111,10 @@
           <exclude name=".externalToolBuilders/**" />
           <!-- exclude NetBeans files -->
           <exclude name="ide/nbproject/private/**" />
+          <!-- Accord build -->
+          <exclude name="${accord.dir}/*/build/**" />
+          <exclude name="${accord.dir}/**/.gradle/**" />
+          <exclude name=".git-blame-ignore-revs" />
         </tarfileset>
 
         <!-- python driver -->
@@ -955,6 +1133,9 @@
           <exclude name="bin/*.in.sh" />
           <include name="tools/bin/*"/>
           <exclude name="tools/bin/*.in.sh" />
+          <include name=".build/**/*.sh"/>
+          <include name="${accord.dir}/gradlew" />
+          <include name="doc/scripts/process-native-protocol-specs-in-docker.sh"/>
         </tarfileset>
       </tar>
 
@@ -970,6 +1151,33 @@
           <include name="${final.name}-src.tar.gz" />
         </fileset>
       </checksum>
+    </target>
+
+    <target name="bintar" depends="_artifacts-init,check"
+            description="Create Cassandra tarball and maven artifacts">
+      <tar compression="gzip" longfile="gnu"
+        destfile="${build.dir}/${final.name}-bin.tar.gz">
+
+        <!-- Everything but bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="**"/>
+          <exclude name="bin/*" />
+          <exclude name="tools/bin/*"/>
+          <exclude name=".git-blame-ignore-revs" />
+        </tarfileset>
+        <!-- Shell includes in bin/ (default mode) -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}">
+          <include name="bin/*.in.sh" />
+          <include name="tools/bin/*.in.sh" />
+        </tarfileset>
+        <!-- Executable scripts in bin/ -->
+        <tarfileset dir="${dist.dir}" prefix="${final.name}" mode="755">
+          <include name="bin/*"/>
+          <include name="tools/bin/*"/>
+          <exclude name="bin/*.in.sh" />
+          <exclude name="tools/bin/*.in.sh" />
+        </tarfileset>
+      </tar>
     </target>
 
   <!-- Wrapper of build-test without dependencies, so both that target and its dependencies are skipped if the property
@@ -988,7 +1196,7 @@
     <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build-test,sstableloader-build-test,resolver-dist-lib,simulator-jars"
           description="Compile test classes">
     <antcall target="_build-test"/>
     <antcall target="_check-test-names"/>
@@ -1007,6 +1215,7 @@
      <classpath>
         <path refid="cassandra.classpath.test"/>
         <pathelement location="${fqltool.build.classes}"/>
+        <pathelement location="${sstableloader.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
      <!-- needed to compile org.apache.cassandra.utils.memory.BufferPoolTest -->
@@ -1022,6 +1231,7 @@
      <src path="${test.simulator-asm.src}"/>
      <src path="${test.simulator-bootstrap.src}"/>
      <src path="${test.simulator-test.src}"/>
+     <src path="${test.harry.src}"/>
      <compilerarg line="${jdk11plus-javac-exports}"/>
     </javac>
 
@@ -1034,7 +1244,7 @@
     <macrodef name="check-test-names">
         <attribute name="annotationName"/>
         <attribute name="regex"/>
-        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}"/>
+        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}:${sstableloader.test.classes}"/>
         <attribute name="packageName" default="org.apache.cassandra"/>
         <attribute name="expand" default="true"/>
         <attribute name="normalize" default="true"/>
@@ -1046,9 +1256,11 @@
                     <path refid="cassandra.classpath.test"/>
                     <pathelement location="${fqltool.build.classes}"/>
                     <pathelement location="${stress.build.classes}"/>
+                    <pathelement location="${sstableloader.build.classes}"/>
                     <pathelement location="${test.classes}"/>
                     <pathelement location="${fqltool.test.classes}"/>
                     <pathelement location="${stress.test.classes}"/>
+                    <pathelement location="${sstableloader.test.classes}"/>
                 </classpath>
                 <jvmarg line="${java-jvmargs}"/>
                 <jvmarg value="-DscanClassPath=@{scanClassPath}"/>
@@ -1105,6 +1317,7 @@
     <attribute name="testtag" default=""/>
     <attribute name="usejacoco" default="no"/>
     <attribute name="showoutput" default="false"/>
+    <attribute name="maxmemory" default="1024m"/>
 
     <sequential>
       <fail message="testing with build.test.dir (${build.test.dir}) not pointing to 'build/test/' will fail, test configurations are hardcoded.">
@@ -1121,10 +1334,10 @@
         </classpath>
       </taskdef>
       <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
-      <mkdir dir="${build.test.dir}/output/@{testtag}"/>
+      <mkdir dir="${build.test.output.dir}"/>
+      <mkdir dir="${build.test.output.dir}/@{testtag}"/>
       <mkdir dir="${tmp.dir}"/>
-      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
+      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="@{maxmemory}" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1134,6 +1347,8 @@
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
+        <!-- Pull this up for genZGC / JDK21 -->
+        <jvmarg value="-Xms512M"/>
         <jvmarg value="${jvm_xss}"/>
         <!-- When we do classloader manipulation SoftReferences can cause memory leaks
              that can OOM our test runs. The next two settings informs our GC
@@ -1143,6 +1358,7 @@
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
         <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
         <jvmarg value="-XX:HeapDumpPath=${build.test.dir}" />
+        <jvmarg value="-Dcassandra.test.accord.allow_test_modes=true"/>
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1150,7 +1366,7 @@
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}.jdk${ant.java.version}${testtag.extra}"/>
+        <jvmarg value="-Dcassandra.testtag=@{testtag}_jdk${ant.java.version}${testtag.extra}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
@@ -1173,10 +1389,12 @@
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
           <pathelement location="${fqltool.build.classes}"/>
+          <pathelement location="${sstableloader.build.classes}"/>
           <pathelement location="${test.classes}"/>
           <path refid="cassandra.classpath.test" />
           <pathelement location="${stress.test.classes}"/>
           <pathelement location="${fqltool.test.classes}"/>
+          <pathelement location="${sstableloader.test.classes}"/>
           <pathelement location="${test.conf}"/>
           <pathelement path="${java.class.path}"/>
           <path refid="cassandra.classpath" />
@@ -1185,7 +1403,7 @@
               <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output/@{testtag}">
+        <batchtest todir="${build.test.output.dir}/@{testtag}">
             <fileset dir="@{inputdir}" includes="@{filter}" excludes="@{exclude}"/>
             <filelist dir="@{inputdir}" files="@{filelist}"/>
         </batchtest>
@@ -1216,7 +1434,9 @@
   <macrodef name="testlist">
     <attribute name="test.file.list"/>
     <sequential>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}">
+      <!-- CI normally runs in containers, so bumping this value is not always safe; bumping can cause the JVM to crash due to inability to allocate memory! All changes here must be coordinated with CI memory improvements -->
+      <property name="maxMemory" value="1G" />
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}" maxmemory="${maxMemory}">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
@@ -1269,23 +1489,23 @@
     </sequential>
   </macrodef>
 
-    <macrodef name="testlist-trie">
+    <macrodef name="testlist-latest">
         <attribute name="test.file.list" />
         <sequential>
-            <property name="trie_yaml" value="${build.test.dir}/cassandra.trie.yaml"/>
-            <concat destfile="${trie_yaml}">
+            <property name="latest_yaml" value="${build.test.dir}/cassandra.latest.yaml"/>
+            <concat destfile="${latest_yaml}">
                 <fileset file="${test.conf}/cassandra.yaml"/>
-                <fileset file="${test.conf}/trie_memtable.yaml"/>
+                <fileset file="${test.conf}/latest_diff.yaml"/>
                 <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
             </concat>
             <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
-                             exclude="**/*.java" timeout="${test.timeout}" testtag="trie">
+                             exclude="**/*.java" timeout="${test.timeout}" testtag="latest">
                 <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
                 <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
                 <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
                 <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-                <jvmarg value="-Dcassandra.config=file:///${trie_yaml}"/>
-                <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
+                <jvmarg value="-Dcassandra.config=file:///${latest_yaml}"/>
+                <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
                 <jvmarg value="-Dcassandra.skip_sync=true" />
             </testmacrohelper>
         </sequential>
@@ -1299,15 +1519,16 @@
           <fileset file="${test.conf}/cassandra.yaml"/>
           <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
         </concat>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" 
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="oa">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${scm_none_yaml}"/>
-        <jvmarg value="-Dcassandra.junit_storage_compatibility_mode=NONE"/>
+        <jvmarg value="-Dcassandra.test.storage_compatibility_mode=NONE"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dcassandra.cursor_compaction_enabled=false" />
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1349,27 +1570,9 @@
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="maybe-build-test" description="Execute specific unit tests" >
-    <condition property="withoutMethods">
-      <and>
-        <equals arg1="${test.methods}" arg2=""/>
-        <not>
-          <contains string="${test.name}" substring="*"/>
-        </not>
-      </and>
-    </condition>
-    <condition property="withMethods">
-      <and>
-        <not>
-         <equals arg1="${test.methods}" arg2=""/>
-        </not>
-        <not>
-          <contains string="${test.name}" substring="*"/>
-        </not>
-      </and>
-    </condition>
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
@@ -1384,8 +1587,8 @@
   -->
   <target name="long-testsome" depends="maybe-build-test" description="Execute specific long unit tests" >
     <testmacro inputdir="${test.long.src}" timeout="${test.long.timeout}">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
     </testmacro>
@@ -1397,9 +1600,10 @@
   -->
   <target name="burn-testsome" depends="maybe-build-test" description="Execute specific burn unit tests" >
     <testmacro inputdir="${test.burn.src}" timeout="${test.burn.timeout}">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-burntest.xml"/>
+      <jvmarg value="-Dnet.bytebuddy.experimental=true"/>
     </testmacro>
   </target>
 
@@ -1420,12 +1624,12 @@
     <testhelper testdelegate="testlist-cdc" />
   </target>
 
-  <target name="test-trie" depends="maybe-build-test" description="Execute unit tests with trie memtables">
+  <target name="test-latest" depends="maybe-build-test" description="Execute unit tests with configuration matching cassandra_latest.yaml">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testhelper testdelegate="testlist-trie" />
+    <testhelper testdelegate="testlist-latest" />
   </target>
 
   <target name="test-oa" depends="maybe-build-test" description="Test Runner for the oa sstable format">
@@ -1495,7 +1699,7 @@
     <sequential>
       <echo message="running CQL tests"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
+      <mkdir dir="${build.test.output.dir}"/>
       <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1514,7 +1718,7 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <batchtest todir="${build.test.dir}/output">
+        <batchtest todir="${build.test.output.dir}">
             <fileset dir="${test.unit.src}" includes="**/cql3/*Test.java">
                 <contains text="CQLTester" casesensitive="yes"/>
             </fileset>
@@ -1541,7 +1745,7 @@
     <sequential>
       <echo message="running ${test.methods} tests from ${test.name}"/>
       <mkdir dir="${build.test.dir}/cassandra"/>
-      <mkdir dir="${build.test.dir}/output"/>
+      <mkdir dir="${build.test.output.dir}"/>
       <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1560,8 +1764,8 @@
             <include name="**/*.jar" />
           </fileset>
         </classpath>
-        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.dir}/output"/>
-        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.dir}/output"/>
+        <test unless:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" methods="${test.methods}" todir="${build.test.output.dir}"/>
+        <test if:blank="${test.methods}" name="org.apache.cassandra.cql3.${test.name}" todir="${build.test.output.dir}"/>
       </junit>
     </sequential>
   </target>
@@ -1628,12 +1832,14 @@
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
     <attribute name="testtag" default=""/>
+    <attribute name="maxmemory" default="1024m"/>
 
     <sequential>
       <testmacrohelper inputdir="@{inputdir}" timeout="@{timeout}"
                        forkmode="@{forkmode}" filter="@{filter}"
                        exclude="@{exclude}" filelist="@{filelist}"
-                       testtag="@{testtag}" showoutput="false" >
+                       testtag="@{testtag}" showoutput="@{showoutput}"
+                       maxmemory="@{maxmemory}">
           <optjvmargs/>
       </testmacrohelper>
       <fail message="Some test(s) failed.">
@@ -1655,15 +1861,6 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testhelper testdelegate="testlist"/>
-  </target>
-
-  <target name="generate-test-report" description="Generates JUnit's HTML report from results already in build/output">
-      <junitreport todir="${build.test.dir}">
-        <fileset dir="${build.test.dir}/output">
-          <include name="**/TEST-*.xml"/>
-        </fileset>
-        <report format="frames" todir="${build.test.dir}/junitreport"/>
-      </junitreport>
   </target>
 
   <!-- run a list of tests as provided in -Dtest.classlistfile (or default of 'testnames.txt')
@@ -1690,12 +1887,12 @@
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-compression"/>
   </target>
-  <target name="testclasslist-trie" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist-latest" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
     <path id="all-test-classes-path">
         <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testhelper testdelegate="testlist-trie"/>
+    <testhelper testdelegate="testlist-latest"/>
   </target>
   <target name="testclasslist-cdc" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
@@ -1710,6 +1907,13 @@
       </path>
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-system-keyspace-directory"/>
+  </target>
+  <target name="testclasslist-simulator" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+      <path id="all-test-classes-path">
+          <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+      </path>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-simulator"/>
   </target>
 
   <!-- Build a self-contained jar for e.g. remote execution; not currently used for running burn tests with this build script -->
@@ -1761,31 +1965,64 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+      <jvmarg value="-Xmx8G"/>
+    </testmacro>
+  </target>
+
+  <target name="test-jvm-dtest-latest" depends="maybe-build-test" description="Execute in-jvm dtests with latest configuration">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/${test.name}.java">
+      <jvmarg value="-Djvm_dtests.latest=true"/>
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
     </testmacro>
   </target>
 
   <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
-  <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
-    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
-      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
-      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
-      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-      <jvmarg value="-Dcassandra.skip_sync=true" />
-      <jvmarg value="-Dcassandra.debugrefcount=false"/>
-      <jvmarg value="-Dcassandra.test.simulator.determinismcheck=strict"/>
-      <jvmarg value="-Dcassandra.test.simulator.print_asm=${simulator.asm.print}" />
+  <resources id="_simulator_jvmargs_items">
+    <string>-Djdk.attach.allowAttachSelf=true</string>
+    <string>-Dlogback.configurationFile=test/conf/logback-simulator.xml</string>
+    <string>-Dcassandra.ring_delay_ms=10000</string>
+    <string>-Dcassandra.tolerate_sstable_size=true</string>
+    <string>-Dcassandra.skip_sync=true</string>
+    <string>-Dcassandra.debugrefcount=false</string>
+    <string>-Dcassandra.test.simulator.determinismcheck=strict</string>
+    <string>-Dcassandra.test.simulator.print_asm=${simulator.asm.print}</string>
       <!-- Support Simulator Tests -->
-      <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
-      <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
-      <jvmarg line="-XX:ActiveProcessorCount=4"/>
-      <jvmarg line="-XX:-TieredCompilation"/>
-      <jvmarg line="-XX:-BackgroundCompilation"/>
-      <jvmarg line="-XX:CICompilerCount=1"/>
-      <jvmarg line="-XX:Tier4CompileThreshold=1000"/>
-      <jvmarg line="-XX:ReservedCodeCacheSize=256M"/>
-      <jvmarg line="-Xmx8G"/>
+    <string>-javaagent:${test.lib}/jars/simulator-asm.jar</string>
+    <string>-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar</string>
+    <string>-XX:ActiveProcessorCount=4</string>
+    <string>-XX:-TieredCompilation</string>
+    <string>-XX:-BackgroundCompilation</string>
+    <string>-XX:CICompilerCount=1</string>
+    <string>-XX:Tier4CompileThreshold=1000</string>
+    <string>-XX:ReservedCodeCacheSize=256M</string>
+    <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+    <string>-Xmx8G</string>
+    <!-- Harry tests kept failing due to direct memory failures and looks like its undersized... so upping to allow more stable runs -->
+    <string>-XX:MaxDirectMemorySize=8G</string>
+  </resources>
+  <pathconvert property="_simulator.jvmargs_concat" refid="_simulator_jvmargs_items" pathsep=" "/>
+
+  <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
+      <jvmarg line="${_simulator.jvmargs_concat}"/>
     </testmacro>
   </target>
+
+  <macrodef name="testlist-simulator">
+    <attribute name="test.file.list" />
+    <sequential>
+      <testmacrohelper inputdir="${test.simulator-test.src}" timeout="${test.timeout}"
+                       forkmode="perTest" showoutput="true"
+                       exclude="**/*.java" filelist="@{test.file.list}"
+                       maxmemory="8g">
+        <jvmarg line="${_simulator.jvmargs_concat}"/>
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
 
   <!-- To run them you'll need to:
          - `ant dtest-jar` on each version involved, including your current feature branch
@@ -1797,6 +2034,8 @@
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+      <jvmarg value="-Xmx8G"/>
     </testmacro>
   </target>
 
@@ -1806,8 +2045,22 @@
     -->
   <target name="test-jvm-dtest-some" depends="maybe-build-test" description="Execute some in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
+      <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
+      <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
+      <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+      <jvmarg value="-Dcassandra.skip_sync=true" />
+      <!-- total memory must fit within the pod constraints, see comments in .jenkins/Jenkinsfile and dind's container resourceRequestMemory in .jenkins/k8s/jenkins-deployment.yaml -->
+      <jvmarg value="-Xmx8G"/>
+    </testmacro>
+  </target>
+
+  <target name="test-jvm-dtest-latest-some" depends="maybe-build-test" description="Execute some in-jvm dtests with latest configuration">
+    <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.output.dir}/" outfile="TEST-${test.name}"/>
+      <jvmarg value="-Djvm_dtests.latest=true"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
@@ -1815,19 +2068,20 @@
     </testmacro>
   </target>
 
-  <target name="generate-unified-test-report" description="Merge all unit xml files into one, generate html pages, and print summary test numbers">
-      <junitreport todir="${build.dir}">
-          <fileset dir="${build.test.dir}/output">
-              <include name="**/TEST*.xml"/>
-              <include name="**/cqlshlib.xml"/>
-              <include name="**/nosetests.xml"/>
+  <target name="generate-test-report" description="Merge all unit xml files into one, generate html pages, and print summary test numbers">
+      <echo message="Generating Test Summary for test files found under ${build.test.output.dir}" />
+      <mkdir dir="${build.test.report.dir}/unitTestReport"/>
+      <junitreport todir="${build.test.report.dir}/unitTestReport">
+          <fileset dir="${build.test.output.dir}">
+              <include name="**/TEST-*.xml"/>
+              <include name="**/cqlshlib*.xml"/>
+              <include name="**/nosetests*.xml"/>
           </fileset>
-          <!-- FIXME this can easily OOM, need a workaround-->
-          <report todir="${build.test.dir}/html" />
+          <report todir="${build.test.report.dir}/unitTestReport/html" unless:true="${print-summary.skip}" />
       </junitreport>
-      <!-- concat the report through a filter chain to extract what you want -->
-      <concat>
-          <fileset file="${build.test.dir}/html/overview-summary.html" />
+      <!-- concat the report through a filter chain to extract a single line summary -->
+      <concat unless:true="${print-summary.skip}">
+          <fileset file="${build.test.report.dir}/unitTestReport/html/overview-summary.html" />
           <filterchain>
               <linecontainsregexp>
                   <regexp pattern='title="Display all tests"' />
@@ -1838,14 +2092,6 @@
               </tokenfilter>
           </filterchain>
       </concat>
-  </target>
-
-  <target name="microbench" depends="jar">
-    <antcall target="-microbench" inheritrefs="true"/>
-  </target>
-
-  <target name="microbench-with-profiler" depends="jar">
-    <antcall target="-microbench-with-profiler" inheritrefs="true"/>
   </target>
 
   <!-- run arbitrary mains in tests, for example to run the long running memory tests with lots of memory pressure
@@ -1955,7 +2201,7 @@
     </path>
     <pathconvert property="eclipse-libs-list" refid="eclipse-project-libs-path" pathsep="${line.separator}">
         <mapper>
-            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1\" \/&gt;'/>
+            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1" /&gt;'/>
         </mapper>
     </pathconvert>
     <property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
@@ -1977,8 +2223,10 @@
   <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
+  <classpathentry kind="src" path="tools/sstableloader/src"/>
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
   <classpathentry kind="src" output="build/test/fqltool-classes" path="tools/fqltool/test/unit" />
+  <classpathentry kind="src" output="build/test/sstableloader-classes" path="tools/sstableloader/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
   <classpathentry kind="lib" path="test/conf"/>
@@ -2018,6 +2266,7 @@
   <target name="mvn-install"
           depends="jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
+    <!-- This logic does not install cassandra-accord as the accord submodule already did so -->
 
     <!-- the parent -->
     <install pomFile="${build.dir}/${final.name}-parent.pom"
@@ -2037,8 +2286,20 @@
 
   <!-- Publish artifacts to remote Maven repository -->
   <target name="publish"
-          depends="mvn-install,artifacts"
+          depends="mvn-install,sstableloader-mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
+    <!-- Accord -->
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}.pom"
+            packaging="pom"/>
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}.jar" />
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}-javadoc.jar"
+            classifier="javadoc"/>
 
     <!-- the parent -->
     <deploy pomFile="${build.dir}/${final.name}-parent.pom"
@@ -2055,6 +2316,16 @@
             file="${build.dir}/${final.name}-javadoc.jar"
             classifier="javadoc"/>
 
+    <!-- the cassandra-sstableloader jar -->
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/tools/lib/sstableloader.jar"/>
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/${final.name}-sstableloader-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${build.dir}/${final.name}-sstableloader.pom"
+            file="${build.dir}/${final.name}-sstableloader-javadoc.jar"
+            classifier="javadoc"/>
+
     <!-- the distribution -->
     <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
     <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
@@ -2068,4 +2339,7 @@
   <import file="${build.helpers.dir}/build-checkstyle.xml"/>
   <import file="${build.helpers.dir}/build-cqlsh.xml"/>
   <import file="${build.helpers.dir}/build-bench.xml"/>
+  <import file="${build.helpers.dir}/build-sonar.xml"/>
+  <import file="${build.helpers.dir}/build-accord.xml" />
+  <import file="${basedir}/tools/sstableloader/build.xml"/>
 </project>

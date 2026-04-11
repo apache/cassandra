@@ -32,12 +32,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
@@ -51,8 +45,17 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.apache.cassandra.distributed.upgrade.ConfigCompatibilityTestGenerate;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.introspector.Property;
+
+import org.apache.cassandra.distributed.upgrade.ConfigCompatibilityTestGenerate;
+
+import static org.apache.cassandra.db.virtual.SettingsTable.BACKWARDS_COMPATIBLE_NAMES;
 
 /**
  * To create the test files used by this class, run {@link ConfigCompatibilityTestGenerate}.
@@ -91,16 +94,35 @@ public class ConfigCompatibilityTest
 
     private static final Set<String> REMOVED_IN_50 = ImmutableSet.<String>builder()
                                                                  .add("commitlog_sync_batch_window_in_ms")
+                                                                 .add("native_transport_max_negotiable_protocol_version")
+                                                                 .add("concurrent_replicates")
+                                                                 .add("commitlog_periodic_queue_size")
                                                                  .build();
 
-    private static final Set<String> ALLOW_LIST = Sets.union(REMOVED_IN_40, REMOVED_IN_50);
+    private static final Set<String> REMOVED_IN_51 = ImmutableSet.<String>builder()
+                                                                 .add("native_transport_port_ssl")
+                                                                 .build();
+
+    private static final Set<String> ALLOW_LIST = ImmutableSet.<String>builder()
+                                                              .addAll(REMOVED_IN_40)
+                                                              .addAll(REMOVED_IN_50)
+                                                              .addAll(REMOVED_IN_51)
+                                                              .build();
 
     private static final Set<String> EXPECTED_FOR_50 = ImmutableSet.<String>builder()
                                                                    // Switched to a parameterized class that can construct from a bare string
                                                                    .add("internode_authenticator types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
                                                                    .add("authenticator types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
+                                                                   .add("authorizer types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
+                                                                   .add("network_authorizer types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
+                                                                   .add("role_manager types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
                                                                    .add("Property internode_authenticator used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
                                                                    .add("Property authenticator used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("Property authorizer used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("Property role_manager used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("Property network_authorizer used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("require_client_auth types do not match; java.lang.String != java.lang.Boolean")
+                                                                   .add("available_processors types do not match; org.apache.cassandra.config.OptionaldPositiveInt != java.lang.Integer")
                                                                    .build();
 
     /**
@@ -143,6 +165,14 @@ public class ConfigCompatibilityTest
     public void diff_5_0() throws IOException
     {
         diff(TEST_DIR + "/version=5.0-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .addAll(REMOVED_IN_51)
+                                                               .build(), EXPECTED_FOR_50);
+    }
+
+    @Test
+    public void diff_6_0() throws IOException
+    {
+        diff(TEST_DIR + "/version=6.0-alpha1.yml", ImmutableSet.<String>builder()
                                                                .build(), ImmutableSet.of());
     }
 
@@ -154,7 +184,9 @@ public class ConfigCompatibilityTest
         Map<Class<?>, Map<String, Replacement>> replacements = Replacements.getNameReplacements(type);
         Set<String> missing = new HashSet<>();
         Set<String> errors = new HashSet<>();
-        diff(loader, replacements, previous, type, "", missing, errors);
+        Map<String, String> backwardsCompatNames = BACKWARDS_COMPATIBLE_NAMES;
+
+        diff(loader, replacements, previous, type, "", missing, errors, backwardsCompatNames);
         missing = Sets.difference(missing, ignore);
         errors = Sets.difference(errors, expectedErrors);
         StringBuilder msg = new StringBuilder();
@@ -170,7 +202,7 @@ public class ConfigCompatibilityTest
             throw new AssertionError(msg);
     }
 
-    private void diff(Loader loader, Map<Class<?>, Map<String, Replacement>> replacements, ClassTree previous, Class<?> type, String prefix, Set<String> missing, Set<String> errors)
+    private void diff(Loader loader, Map<Class<?>, Map<String, Replacement>> replacements, ClassTree previous, Class<?> type, String prefix, Set<String> missing, Set<String> errors, Map<String, String> backwardsCompatNames)
     {
         Map<String, Replacement> replaces = replacements.getOrDefault(type, Collections.emptyMap());
         Map<String, Property> properties = loader.getProperties(type);
@@ -201,7 +233,7 @@ public class ConfigCompatibilityTest
             if (node instanceof ClassTree)
             {
                 // current is nested type
-                diff(loader, replacements, (ClassTree) node, prop.getType(), prefix + name + ".", missing, errors);
+                diff(loader, replacements, (ClassTree) node, prop.getType(), prefix + name + ".", missing, errors, backwardsCompatNames);
             }
             else
             {
@@ -216,7 +248,19 @@ public class ConfigCompatibilityTest
                     // previous is leaf, is current?
                     Map<String, Property> children = Properties.isPrimitive(prop) || Properties.isCollection(prop) ? Collections.emptyMap() : loader.getProperties(prop.getType());
                     if (!children.isEmpty())
+                    {
                         errors.add(String.format("Property %s used to be a value-type, but now is nested type %s", name, prop.getType()));
+
+                        // Verify SettingsTable maps old name to new nested path for backwards compatibility (e.g., "authenticator" -> "authenticator.class_name")
+                        if (!backwardsCompatNames.containsKey(name))
+                        {
+                            errors.add(String.format(
+                                    "Property %s changed to nested type but is missing from SettingsTable.BACKWARDS_COMPATIBLE_NAMES. " +
+                                            "Add mapping for '%s' to its new nested property path.",
+                                    name, name));
+                        }
+                    }
+
                     typeCheck(null, toString(prop.getType()), ((Leaf) node).type, name, errors);
                 }
             }
@@ -305,7 +349,6 @@ public class ConfigCompatibilityTest
             return List.class;
         return type;
     }
-
     @JsonSerialize(using = NodeSerializer.class)
     @JsonDeserialize(using = NodeDeserializer.class)
     private interface Node

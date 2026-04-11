@@ -1,5 +1,4 @@
 = DROP INDEX
-:page-aliases: cql_reference:cql_commands/cqlDropIndex.adoc
 :description: Removes an index from a table.
 
 Removes an existing index.

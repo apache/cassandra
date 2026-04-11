@@ -21,12 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
 
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Static methods to work on cells.
@@ -36,7 +36,7 @@ public abstract class Cells
     private Cells() {}
 
     /**
-     * Collect statistics ont a given cell.
+     * Collect statistics on a given cell.
      *
      * @param cell the cell for which to collect stats.
      * @param collector the stats collector.
@@ -113,6 +113,16 @@ public abstract class Cells
             // would otherwise always win (unless it had an empty value), until it expired and was translated to a tombstone
             if (leftLocalDeletionTime != rightLocalDeletionTime)
                 return leftLocalDeletionTime > rightLocalDeletionTime ? left : right;
+
+            // Both cells are either tombstones or expiring at the same timestamp. If expiring and the
+            // TTLs differ, write the lower one -- the write is probably from a more recent
+            // UPDATE USING TTL AND TIMESTAMP, so select the most recent one to be deterministic and be
+            // closest to client intent.
+            if (!leftIsTombstone && left.ttl() != right.ttl())
+            {
+                assert !rightIsTombstone;
+                return left.ttl() < right.ttl() ? left : right;
+            }
         }
 
         return compareValues(left, right) >= 0 ? left : right;

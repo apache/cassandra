@@ -27,6 +27,7 @@ import java.util.Random;
 import java.util.UUID;
 
 import com.google.common.collect.Lists;
+
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -121,19 +122,25 @@ public class IndexSummaryTest
     }
 
     /**
-     * Test an index summary whose total size is bigger than 2GiB,
-     * the index summary builder should log an error but it should still
-     * create an index summary, albeit one that does not cover the entire sstable.
+     * Test that the index summary builder truncates (stops adding entries) when the entries buffer
+     * would exceed the max capacity at runtime. The builder doesn't predict the overflow because
+     * defaultExpectedKeySize is smaller than the actual key size, so the constructor guard doesn't
+     * trigger. Instead, the runtime guard in maybeAddEntry detects the overflow and stops accepting
+     * entries, producing a partial summary that covers the beginning of the sstable.
      */
     @Test
-    public void testLargeIndexSummary() throws IOException
+    public void testLargeIndexSummaryTruncatesWhenOverflowDetectedAtRuntime() throws IOException
     {
-        // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
-        Assume.assumeTrue(CIRCLECI.getString() == null);
-
-        final int numKeys = 1000000;
+        final int numKeys = 1000;
         final int keySize = 3000;
         final int minIndexInterval = 1;
+
+        // Use a small max so the test doesn't need GiBs of off-heap memory.
+        // 1000 keys × 3008 bytes/entry = 3,008,000 > 2,000,000, so the runtime guard triggers.
+        // defaultExpectedKeySize (64) gives estimated total of 72,000 < 2,000,000, so the
+        // constructor guard does not trigger and minIndexInterval stays at 1.
+        long oldMaxEntriesSize = IndexSummaryBuilder.maxEntriesSize;
+        IndexSummaryBuilder.maxEntriesSize = 2_000_000;
 
         try (IndexSummaryBuilder builder = new IndexSummaryBuilder(numKeys, minIndexInterval, BASE_SAMPLING_LEVEL))
         {
@@ -152,15 +159,20 @@ public class IndexSummaryTest
                 assertEquals(numKeys + 1, indexSummary.getEstimatedKeyCount());
             }
         }
+        finally
+        {
+            IndexSummaryBuilder.maxEntriesSize = oldMaxEntriesSize;
+        }
     }
 
     /**
-     * Test an index summary whose total size is bigger than 2GiB,
-     * having updated IndexSummaryBuilder.defaultExpectedKeySize to match the size,
-     * the index summary should be downsampled automatically.
+     * Test that the index summary builder downsamples (increases minIndexInterval) when the
+     * estimated total entry size exceeds max capacity at construction time. With defaultExpectedKeySize
+     * matching the actual key size, the constructor detects the overflow upfront and adjusts
+     * minIndexInterval so the summary covers the entire sstable at a coarser interval.
      */
     @Test
-    public void testLargeIndexSummaryWithExpectedSizeMatching() throws IOException
+    public void testLargeIndexSummaryDownsamplesWhenOverflowDetectedAtConstruction() throws IOException
     {
         // On Circle CI we normally don't have enough off-heap memory for this test so ignore it
         Assume.assumeTrue(CIRCLECI.getString() == null);
@@ -248,7 +260,7 @@ public class IndexSummaryTest
     @Test
     public void testAddEmptyKey() throws Exception
     {
-        IPartitioner p = new RandomPartitioner();
+        IPartitioner p = RandomPartitioner.instance;
         try (IndexSummaryBuilder builder = new IndexSummaryBuilder(1, 1, BASE_SAMPLING_LEVEL))
         {
             builder.maybeAddEntry(p.decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER), 0);

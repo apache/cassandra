@@ -20,7 +20,11 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -29,8 +33,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
  * Utility class for the Parser to gather attributes for modification
@@ -46,12 +48,14 @@ public class Attributes
      */
     public static final int MAX_TTL = 20 * 365 * 24 * 60 * 60; // 20 years in seconds
 
+    private static final Attributes NONE = new Attributes(null, null);
+
     private final Term timestamp;
     private final Term timeToLive;
 
     public static Attributes none()
     {
-        return new Attributes(null, null);
+        return NONE;
     }
 
     private Attributes(Term timestamp, Term timeToLive)

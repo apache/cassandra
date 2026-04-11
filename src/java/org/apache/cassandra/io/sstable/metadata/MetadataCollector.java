@@ -25,6 +25,9 @@ import java.util.UUID;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
+
+import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundOrBoundary;
@@ -36,9 +39,13 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.NativeCell;
 import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.io.sstable.ClusteringDescriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -105,7 +112,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
-    // TODO: cound the number of row per partition (either with the number of cells, or instead)
+    // TODO: count the number of row per partition (either with the number of cells, or instead)
     protected EstimatedHistogram estimatedCellPerPartitionCount = defaultCellPerPartitionCountHistogram();
     protected IntervalSet<CommitLogPosition> commitLogIntervals = IntervalSet.empty();
     protected final MinMaxLongTracker timestampTracker = new MinMaxLongTracker();
@@ -122,6 +129,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
      * be a corresponding start bound that is smaller).
      */
     private ClusteringPrefix<?> minClustering = ClusteringBound.MAX_START;
+    private final ClusteringDescriptor minClusteringDescriptor;
+
     /**
      * The largest clustering prefix for any {@link Unfiltered} in the sstable.
      *
@@ -129,6 +138,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
      * be a corresponding end bound that is bigger).
      */
     private ClusteringPrefix<?> maxClustering = ClusteringBound.MIN_END;
+    private final ClusteringDescriptor maxClusteringDescriptor;
 
     protected boolean hasLegacyCounterShards = false;
     private boolean hasPartitionLevelDeletions = false;
@@ -159,6 +169,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
     {
         this.comparator = comparator;
         this.originatingHostId = originatingHostId;
+        AbstractType<?>[] clusteringTypes = comparator.subtypes().toArray(AbstractType[]::new);
+        this.minClusteringDescriptor = new ClusteringDescriptor(clusteringTypes).resetMaxStart();
+        this.maxClusteringDescriptor = new ClusteringDescriptor(clusteringTypes).resetMinEnd();
     }
 
     public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator)
@@ -180,6 +193,14 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public MetadataCollector addKey(ByteBuffer key)
     {
         long hashed = MurmurHash.hash2_64(key, key.position(), key.remaining(), 0);
+        cardinality.offerHashed(hashed);
+        totalTombstones = 0;
+        return this;
+    }
+
+    public MetadataCollector addKey(byte[] key, int offset, int length)
+    {
+        long hashed = MurmurHash.hash2_64(key, offset, length, 0);
         cardinality.offerHashed(hashed);
         totalTombstones = 0;
         return this;
@@ -229,11 +250,49 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public void update(Cell<?> cell)
     {
         ++currentPartitionCells;
-        updateTimestamp(cell.timestamp());
-        updateTTL(cell.ttl());
-        updateLocalDeletionTime(cell.localDeletionTime());
-        if (!cell.isLive(nowInSec))
+        long timestamp;
+        int ttl;
+        long localDeletionTime;
+        // This method may process several implementations of Cell.
+        // To improve inlining of Cell method calls, we split the call sites.
+        // This is a very hot path, invoked for every cell (potentially millions of times per second),
+        // so this micro-optimization is justified.
+        // The type check is executed once per 3 Cell method calls, so it amortized.
+        Class<?> cellClass = cell.getClass();
+        if (cellClass == NativeCell.class)
+        {
+            timestamp = cell.timestamp();
+            ttl = cell.ttl();
+            localDeletionTime = cell.localDeletionTime();
+        }
+        else if (cellClass == ArrayCell.class)
+        {
+            timestamp = cell.timestamp();
+            ttl = cell.ttl();
+            localDeletionTime = cell.localDeletionTime();
+        }
+        else
+        {
+            timestamp = cell.timestamp();
+            ttl = cell.ttl();
+            localDeletionTime = cell.localDeletionTime();
+        }
+        updateTimestamp(timestamp);
+        updateTTL(ttl);
+        updateLocalDeletionTime(localDeletionTime);
+
+        // isLive(nowInSec) is not used to avoid additional non-monomorphic calls of Cell methods
+        if (!cell.isLive(nowInSec, localDeletionTime, ttl))
             updateTombstoneCount();
+    }
+
+    /**
+     * Cell level stats, if we accept that LDT and LET are the same...
+     */
+    public void updateCellLiveness(LivenessInfo newInfo)
+    {
+        ++currentPartitionCells;
+        update(newInfo);
     }
 
     public void updatePartitionDeletion(DeletionTime dt)
@@ -299,6 +358,32 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
+    public void updateClusteringValues(ClusteringDescriptor newClustering) {
+        // In a SSTable, every opening marker will be closed, so the start of a range tombstone marker will never be
+        // the maxClustering (the corresponding close might though) and there is no point in doing the comparison
+        // (and vice-versa for the close). By the same reasoning, a boundary will never be either the min or max
+        // clustering, and we can save on comparisons.
+        if (newClustering == null || newClustering.clusteringKind().isBoundary())
+            return;
+
+        // In case of monotonically growing stream of clusterings, we will usually require only one comparison
+        // because if we detected X is greater than the current MAX, then it cannot be lower than the current MIN
+        // at the same time. The only case when we need to update MIN when the current MAX was detected to be updated
+        // is the case when MIN was not yet initialized and still point the ClusteringBound.MAX_START
+        if (ClusteringComparator.compare(newClustering, maxClusteringDescriptor) > 0)
+        {
+            maxClusteringDescriptor.copy(newClustering);
+            if (minClusteringDescriptor.isMaxStart()) // min is unset
+            {
+                minClusteringDescriptor.copy(newClustering);
+            }
+        }
+        else if (ClusteringComparator.compare(newClustering, minClusteringDescriptor) < 0)
+        {
+            minClusteringDescriptor.copy(newClustering);
+        }
+    }
+
     public void updateClusteringValues(Clustering<?> clustering)
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
@@ -354,6 +439,11 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
+    public long getTotalRows()
+    {
+        return totalRows;
+    }
+
     public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header, ByteBuffer firstKey, ByteBuffer lastKey)
     {
         assert minClustering.kind() == ClusteringPrefix.Kind.CLUSTERING || minClustering.kind().isStart();
@@ -361,6 +451,13 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
+        Slice coveredClustering;
+        if (!minClusteringDescriptor.isMaxStart()) // min is end only if the descriptors are unused
+        {
+            minClustering = minClusteringDescriptor.toClusteringPrefix(comparator.subtypes());
+            maxClustering = maxClusteringDescriptor.toClusteringPrefix(comparator.subtypes());
+        }
+        coveredClustering = Slice.make(minClustering.retainable().asStartBound(), maxClustering.retainable().asEndBound());
         components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,
                                                              estimatedCellPerPartitionCount,
                                                              commitLogIntervals,
@@ -374,7 +471,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
                                                              comparator.subtypes(),
-                                                             Slice.make(minClustering.retainable().asStartBound(), maxClustering.retainable().asEndBound()),
+                                                             coveredClustering,
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,
@@ -419,6 +516,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
             this.defaultMax = defaultMax;
         }
 
+        @Inline
         public void update(long value)
         {
             if (!isSet)
@@ -466,6 +564,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
             this.defaultMax = defaultMax;
         }
 
+        @Inline
         public void update(int value)
         {
             if (!isSet)

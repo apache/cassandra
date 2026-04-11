@@ -1,0 +1,5 @@
+= Quickstarts
+
+// * xref:vector-search/sai-quickstart.adoc[]
+// * xref:vector-search/cql.adoc[]
+* xref:cassandra:getting-started/vector-search-quickstart.adoc[]

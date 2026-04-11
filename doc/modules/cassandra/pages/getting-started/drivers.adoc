@@ -6,16 +6,12 @@ functionality supported by a specific driver.
 
 == Java
 
-* http://achilles.archinnov.info/[Achilles]
-* https://github.com/Netflix/astyanax/wiki/Getting-Started[Astyanax]
-* https://github.com/noorq/casser[Casser]
-* https://github.com/datastax/java-driver[Datastax Java driver]
-* https://github.com/Impetus/kundera[Kundera]
-* https://github.com/deanhiller/playorm[PlayORM]
+* https://github.com/apache/cassandra-java-driver[Java Driver for Apache Cassandra]
 
 == Python
 
 * https://github.com/datastax/python-driver[Datastax Python driver]
+* https://github.com/axonops/async-python-cassandra-client[Async Python Cassandra Client]
 
 == Ruby
 
@@ -23,25 +19,23 @@ functionality supported by a specific driver.
 
 == C# / .NET
 
-* https://github.com/pchalamet/cassandra-sharp[Cassandra Sharp]
 * https://github.com/datastax/csharp-driver[Datastax C# driver]
-* https://github.com/managedfusion/fluentcassandra[Fluent Cassandra]
 
 == Nodejs
 
 * https://github.com/datastax/nodejs-driver[Datastax Nodejs driver]
 
+== JDBC
+
+* https://github.com/ing-bank/cassandra-jdbc-wrapper[Cassandra JDBC Wrapper]
+
 == PHP
 
-* http://code.google.com/a/apache-extras.org/p/cassandra-pdo[CQL | PHP]
 * https://github.com/datastax/php-driver/[Datastax PHP driver]
-* https://github.com/aparkhomenko/php-cassandra[PHP-Cassandra]
-* https://github.com/duoshuo/php-cassandra[PHP Library for Cassandra]
 
 == C++
 
 * https://github.com/datastax/cpp-driver[Datastax C++ driver]
-* http://sourceforge.net/projects/libqtcassandra[libQTCassandra]
 
 == Scala
 
@@ -63,8 +57,6 @@ connector]
 
 == Go
 
-* https://github.com/relops/cqlc[CQLc]
-* https://github.com/hailocab/gocassa[Gocassa]
 * https://github.com/gocql/gocql[GoCQL]
 
 == Haskell
@@ -88,3 +80,7 @@ DBD::Cassandra]
 == Dart
 
 * https://github.com/achilleasa/dart_cassandra_cql[dart_cassandra_cql]
+
+== Swift
+
+* https://github.com/apple/swift-cassandra-client[Swift Driver for Apache Cassandra]

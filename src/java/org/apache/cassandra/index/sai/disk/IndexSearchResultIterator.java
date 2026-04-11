@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.disk;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +30,11 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
+import org.apache.cassandra.index.sai.memory.MemtableIndex;
+import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.plan.QueryViewBuilder;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -39,34 +43,50 @@ public class IndexSearchResultIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSearchResultIterator.class);
 
-    private final QueryContext context;
     private final KeyRangeIterator union;
-    private final Collection<SSTableIndex> referencedIndexes;
 
-    private IndexSearchResultIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    private IndexSearchResultIterator(KeyRangeIterator union, Runnable onClose)
     {
-        super(union.getMinimum(), union.getMaximum(), union.getCount());
-
+        super(union.getMinimum(), union.getMaximum(), union.getMaxKeys(), onClose);
         this.union = union;
-        this.referencedIndexes = referencedIndexes;
-        this.context = queryContext;
     }
 
     /**
      * Builds a new {@link IndexSearchResultIterator} that wraps a {@link KeyRangeUnionIterator} over the
-     * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex} and the {@link SSTableIndex}es.
+     * results of searching the {@link QueryViewBuilder.QueryExpressionView}.
      */
-    @SuppressWarnings({"resource", "RedundantSuppression"})
+    public static IndexSearchResultIterator build(QueryViewBuilder.QueryExpressionView queryView,
+                                                  AbstractBounds<PartitionPosition> keyRange,
+                                                  QueryContext queryContext,
+                                                  boolean includeMemtables,
+                                                  Runnable onClose)
+    {
+        return build(queryView.expression, queryView.memtableIndexes, queryView.sstableIndexes, keyRange, queryContext, includeMemtables, onClose);
+    }
+
+    /**
+     * Builds a new {@link IndexSearchResultIterator} that wraps a {@link KeyRangeUnionIterator} over the
+     * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex}es and the {@link SSTableIndex}es.
+     */
     public static IndexSearchResultIterator build(Expression expression,
+                                                  Collection<MemtableIndex> memtableIndexes,
                                                   Collection<SSTableIndex> sstableIndexes,
                                                   AbstractBounds<PartitionPosition> keyRange,
-                                                  QueryContext queryContext)
+                                                  QueryContext queryContext,
+                                                  boolean includeMemtables,
+                                                  Runnable onClose)
     {
-        List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
+        int size = sstableIndexes.size() + (includeMemtables ? memtableIndexes.size() : 0);
+        List<KeyRangeIterator> subIterators = new ArrayList<>(size);
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange);
-        if (memtableIterator != null)
-            subIterators.add(memtableIterator);
+        if (includeMemtables)
+        {
+            for (MemtableIndex memtableIndex : memtableIndexes)
+            {
+                KeyRangeIterator memtableIterator = memtableIndex.search(queryContext, expression, keyRange);
+                subIterators.add(memtableIterator);
+            }
+        }
 
         for (SSTableIndex sstableIndex : sstableIndexes)
         {
@@ -76,66 +96,57 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                 queryContext.sstablesHit++;
 
                 if (sstableIndex.isReleased())
-                    throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
+                    throw new IllegalStateException(sstableIndex.getIndexIdentifier().logMessage("Index was released from the view during the query"));
 
-                List<KeyRangeIterator> segmentIterators = sstableIndex.search(expression, keyRange, queryContext);
+                List<KeyRangeIterator> indexIterators = sstableIndex.search(expression, keyRange, queryContext);
 
-                if (!segmentIterators.isEmpty())
-                    subIterators.addAll(segmentIterators);
+                if (!indexIterators.isEmpty())
+                    subIterators.addAll(indexIterators);
             }
             catch (Throwable e)
             {
                 if (!(e instanceof QueryCancelledException))
-                    logger.debug(sstableIndex.getIndexContext().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
+                    logger.debug(sstableIndex.getIndexIdentifier().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
 
                 throw Throwables.cleaned(e);
             }
         }
 
-        KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators);
-        return new IndexSearchResultIterator(union, sstableIndexes, queryContext);
+        KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators, () -> {});
+        return new IndexSearchResultIterator(union, onClose);
+    }
+
+    public static IndexSearchResultIterator build(List<KeyRangeIterator> sstableIntersections,
+                                                  List<KeyRangeIterator> memtableResults,
+                                                  Set<SSTableIndex> referencedIndexes,
+                                                  QueryContext queryContext,
+                                                  Runnable onClose)
+    {
+        queryContext.sstablesHit += referencedIndexes
+                                    .stream()
+                                    .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
+        queryContext.checkpoint();
+        KeyRangeIterator union = KeyRangeUnionIterator.builder(sstableIntersections.size() + 1, () -> {})
+                                                      .add(sstableIntersections)
+                                                      .add(memtableResults)
+                                                      .build();
+        return new IndexSearchResultIterator(union, onClose);
     }
 
     protected PrimaryKey computeNext()
     {
-        try
-        {
-            return union.hasNext() ? union.next() : endOfData();
-        }
-        finally
-        {
-            context.checkpoint();
-        }
+        return union.hasNext() ? union.next() : endOfData();
     }
 
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        try
-        {
-            union.skipTo(nextKey);
-        }
-        finally
-        {
-            context.checkpoint();
-        }
+        union.skipTo(nextKey);
     }
 
+    @Override
     public void close()
     {
+        super.close();
         FileUtils.closeQuietly(union);
-        referencedIndexes.forEach(IndexSearchResultIterator::releaseQuietly);
-        referencedIndexes.clear();
-    }
-
-    private static void releaseQuietly(SSTableIndex index)
-    {
-        try
-        {
-            index.release();
-        }
-        catch (Throwable e)
-        {
-            logger.error(index.getIndexContext().logMessage(String.format("Failed to release index on SSTable %s", index.getSSTable())), e);
-        }
     }
 }

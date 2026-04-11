@@ -17,34 +17,72 @@
  */
 package org.apache.cassandra.audit;
 
-import org.junit.After;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.rmi.server.RMISocketFactory;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import javax.management.JMX;
+import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXServiceURL;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
+import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.exceptions.SyntaxError;
+
 import net.openhft.chronicle.queue.RollCycles;
+
+import org.assertj.core.api.Assertions;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.auth.AuthEvents;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.StubAuthorizer;
+import org.apache.cassandra.auth.jmx.AbstractJMXAuthTest;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryEvents;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.JMXServerUtils;
 
+import static com.datastax.driver.core.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
@@ -408,6 +446,27 @@ public class AuditLoggerTest extends CQLTester
     }
 
     @Test
+    public void testTransactionAuditing()
+    {
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, val int) WITH transactional_mode='full'");
+
+        Session session = sessionNet();
+        String fqTableName = KEYSPACE + "." + currentTable();
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM " + fqTableName + " WHERE key = 0);\n" +
+                       "  SELECT a.val;\n" +
+                       "  IF a IS NULL THEN\n" +
+                       "      INSERT INTO " + fqTableName + " (key, val) VALUES (0, 0);\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+        Statement statement = new SimpleStatement(query);
+        statement.setConsistencyLevel(QUORUM);
+        session.execute(statement);
+        AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertLogEntry(query, AuditLogEntryType.TRANSACTION, logEntry, true, null);
+    }
+
+    @Test
     public void testCqlKeyspaceAuditing() throws Throwable
     {
         createTable("CREATE TABLE %s (id int primary key, v1 text, v2 text)");
@@ -526,6 +585,29 @@ public class AuditLoggerTest extends CQLTester
 
         String cql = "DROP TRIGGER IF EXISTS " + triggerName + " ON " + KEYSPACE + "." + tblName;
         executeAndAssert(cql, AuditLogEntryType.DROP_TRIGGER);
+    }
+
+    @Test
+    public void testCqlCreateTableLikeAuditing() throws Throwable
+    {
+        String cql = "CREATE TABLE " + KEYSPACE + "." + createTableName() + " (id int primary key, v1 text, v2 text)";
+        executeAndAssert(cql, AuditLogEntryType.CREATE_TABLE);
+
+        cql = "CREATE TABLE IF NOT EXISTS " + KEYSPACE + "." + createTableName() + " (id int primary key, v1 text, v2 text)";
+        executeAndAssert(cql, AuditLogEntryType.CREATE_TABLE);
+
+        String sourceTable = currentTable();
+
+        cql = "CREATE TABLE " + KEYSPACE + "." + createTableName() + " LIKE " + KEYSPACE + "." + sourceTable;
+        executeAndAssert(cql, AuditLogEntryType.CREATE_TABLE_LIKE);
+
+        cql = "INSERT INTO " + KEYSPACE + '.' + currentTable() + "  (id, v1, v2) VALUES (?, ?, ?)";
+        executeAndAssertWithPrepare(cql, AuditLogEntryType.UPDATE, 1, "insert_audit", "test");
+
+        cql = "SELECT id, v1, v2 FROM " + KEYSPACE + '.' + currentTable() + " WHERE id = ?";
+        ResultSet rs = executeAndAssertWithPrepare(cql, AuditLogEntryType.SELECT, 1);
+
+        assertEquals(1, rs.all().size());
     }
 
     @Test
@@ -673,7 +755,7 @@ public class AuditLoggerTest extends CQLTester
         assertEquals(1, AuthEvents.instance.listenerCount());
 
         Path p = Files.createTempDirectory("fql");
-        StorageService.instance.enableFullQueryLogger(p.toString(), RollCycles.HOURLY.toString(), false, 1000, 1000, null, 0);
+        StorageService.instance.enableFullQueryLogger(p.toString(), RollCycles.FAST_HOURLY.toString(), false, 1000, 1000, null, 0);
         assertEquals(2, QueryEvents.instance.listenerCount());
         assertEquals(1, AuthEvents.instance.listenerCount()); // fql not listening to auth events
         StorageService.instance.resetFullQueryLogger();
@@ -696,7 +778,7 @@ public class AuditLoggerTest extends CQLTester
         {
             assertEquals(1, QueryEvents.instance.listenerCount());
             assertEquals(1, AuthEvents.instance.listenerCount());
-            StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.HOURLY.toString(), false, 1000, 1000, null, 0);
+            StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.FAST_HOURLY.toString(), false, 1000, 1000, null, 0);
             fail("Conflicting directories - should throw exception");
         }
         catch (IllegalStateException e)
@@ -714,7 +796,7 @@ public class AuditLoggerTest extends CQLTester
         disableAuditLogOptions();
         AuditLogOptions options = getBaseAuditLogOptions();
         DatabaseDescriptor.setAuditLoggingOptions(options);
-        StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.HOURLY.toString(), false, 1000, 1000, null, 0);
+        StorageService.instance.enableFullQueryLogger(options.audit_logs_dir, RollCycles.FAST_HOURLY.toString(), false, 1000, 1000, null, 0);
         try
         {
             assertEquals(1, QueryEvents.instance.listenerCount());
@@ -756,6 +838,108 @@ public class AuditLoggerTest extends CQLTester
                                                1000L, 1000, null);
         assertTrue(AuditLogManager.instance.isEnabled());
         assertEquals("/xyz/not/null", AuditLogManager.instance.getAuditLogOptions().archive_command);
+    }
+
+    @Test
+    public void testJMXAuditLogs() throws Throwable
+    {
+        // Need to use distinct ports, otherwise would get RMI registry object ID collision, even with server shutdown between
+        testJMXAuditLogs(false, getAutomaticallyAllocatedPort(InetAddress.getLoopbackAddress()));
+        testJMXAuditLogs(true, getAutomaticallyAllocatedPort(InetAddress.getLoopbackAddress()));
+    }
+
+    private void testJMXAuditLogs(boolean enableAuthorizationProxy, int port) throws Throwable
+    {
+        if (enableAuthorizationProxy)
+        {
+            // Set up JMX; see AbstractJMXAuthTest.setupAuthorizer
+            IAuthorizer authorizer = new StubAuthorizer();
+            Field authorizerField = DatabaseDescriptor.class.getDeclaredField("authorizer");
+            authorizerField.setAccessible(true);
+            authorizerField.set(null, authorizer);
+            DatabaseDescriptor.setPermissionsValidity(0);
+        }
+
+        JMXResource tableMBean = JMXResource.mbean("org.apache.cassandra.db:type=Tables,keyspace=system_auth,table=roles");
+
+        if (enableAuthorizationProxy)
+        {
+            DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER,
+                                                     Permission.ALL,
+                                                     tableMBean,
+                                                     RoleResource.role("test_role"));
+        }
+
+        DatabaseDescriptor.setAuditLoggingOptions(new AuditLogOptions.Builder()
+                                                  .withEnabled(true)
+                                                  .withBlock(true)
+                                                  .withLogger("InMemoryAuditLogger", null)
+                                                  .build());
+
+        if (enableAuthorizationProxy)
+        {
+            String config = Paths.get(ClassLoader.getSystemResource("auth/cassandra-test-jaas.conf").toURI()).toString();
+            COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE.setBoolean(true);
+            JAVA_SECURITY_AUTH_LOGIN_CONFIG.setString(config);
+            CASSANDRA_JMX_REMOTE_LOGIN_CONFIG.setString("TestLogin");
+            CASSANDRA_JMX_AUTHORIZER.setString(AbstractJMXAuthTest.NoSuperUserAuthorizationProxy.class.getName());
+        }
+        CASSANDRA_JMX_LOCAL_PORT.setInt(port);
+        JMXServerOptions options = JMXServerOptions.createParsingSystemProperties();
+        options.jmx_encryption_options.applyConfig();
+        JMXServerUtils.createJMXServer(options, "localhost").start();
+
+        JMXServiceURL jmxUrl = new JMXServiceURL(String.format("service:jmx:rmi:///jndi/rmi://localhost:%d/jmxrmi", port));
+        Map<String, Object> env = new HashMap<>();
+        env.put("com.sun.jndi.rmi.factory.socket", RMISocketFactory.getDefaultSocketFactory());
+        JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, env);
+        MBeanServerConnection connection = jmxc.getMBeanServerConnection();
+
+        // Setting up the connection will cause a few JMX methods to be called, so need to reset to empty
+        Assert.assertThat(((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue, not(emptyCollectionOf(AuditLogEntry.class)));
+        ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.clear();
+
+        // Do an operation that doesn't fail
+        ColumnFamilyStoreMBean proxy = JMX.newMBeanProxy(connection,
+                                                         ObjectName.getInstance(tableMBean.getObjectName()),
+                                                         ColumnFamilyStoreMBean.class);
+        proxy.getTableName();
+        AuditLogEntry logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertEquals(AuditLogEntryType.JMX, logEntry.getType());
+        assertThat(logEntry.getOperation(), containsString("JMX INVOCATION"));
+        if (enableAuthorizationProxy)
+            assertThat(logEntry.getUser(), is("CassandraPrincipal: test_role"));
+        else
+            assertThat(logEntry.getUser(), is("null"));
+        assertEquals(0, ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.size());
+
+        // Do an operation that fails
+        tableMBean = JMXResource.mbean("org.apache.cassandra.db:type=Tables,keyspace=system_auth,table=roles");
+        proxy = JMX.newMBeanProxy(connection,
+                ObjectName.getInstance(tableMBean.getObjectName()),
+                ColumnFamilyStoreMBean.class);
+
+        ColumnFamilyStoreMBean finalProxy = proxy;
+        Assertions.assertThatThrownBy(() -> finalProxy.setMinimumCompactionThreshold(Integer.MAX_VALUE))
+                  .isInstanceOf(RuntimeException.class)
+                  .hasMessageContaining("min_compaction_threshold cannot be larger than the max_compaction_threshold");
+
+        logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertEquals(AuditLogEntryType.JMX, logEntry.getType());
+        assertThat(logEntry.getOperation(), stringContainsInOrder("JMX INVOCATION", "getClassLoaderFor"));
+        assertThat(logEntry.getUser(), containsString("null"));
+
+        // 2 JMX calls are produced, one to search for class, then one to invoke
+        logEntry = ((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue.poll();
+        assertEquals(AuditLogEntryType.JMX, logEntry.getType());
+        assertThat(logEntry.getOperation(), stringContainsInOrder("JMX FAILURE", "setAttribute"));
+        if (enableAuthorizationProxy)
+            assertThat(logEntry.getUser(), is("CassandraPrincipal: test_role"));
+        else
+            assertThat(logEntry.getUser(), is("null"));
+        Assertions.assertThat(((InMemoryAuditLogger) AuditLogManager.instance.getLogger()).inMemQueue).isEmpty();
+
+        AuditLogManager.instance.resetMBeanServerForwarder();
     }
 
     /**

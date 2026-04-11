@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +34,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
@@ -74,22 +74,21 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private final Map<DecoratedKey, AbstractRowIndexEntry> cachedKeys = new HashMap<>();
     private final boolean shouldMigrateKeyCache;
 
-    public BigTableWriter(Builder builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    public BigTableWriter(Builder builder, ILifecycleTransaction txn, SSTable.Owner owner)
     {
-        super(builder, lifecycleNewTracker, owner);
+        super(builder, txn, owner);
 
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
         checkNotNull(this.rowIndexEntrySerializer);
 
         this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
-                                     && lifecycleNewTracker instanceof ILifecycleTransaction
-                                     && !((ILifecycleTransaction) lifecycleNewTracker).isOffline();
+                                     && !txn.isOffline();
     }
 
     @Override
     protected void onStartPartition(DecoratedKey key)
     {
-        notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), indexWriter.writer.position()));
+        notifyObservers(o -> o.startPartition(key, partitionWriter.getPartitionStartPosition(), indexWriter.writer.position()));
     }
 
     @Override
@@ -99,7 +98,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         // serialized size to the index-writer position
         long indexFilePosition = ByteBufferUtil.serializedSizeWithShortLength(key.getKey()) + indexWriter.writer.position();
 
-        RowIndexEntry entry = RowIndexEntry.create(partitionWriter.getInitialPosition(),
+        RowIndexEntry entry = RowIndexEntry.create(partitionWriter.getPartitionStartPosition(),
                                                    indexFilePosition,
                                                    partitionLevelDeletion,
                                                    partitionWriter.getHeaderLength(),
@@ -114,7 +113,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
         if (shouldMigrateKeyCache)
         {
-            for (SSTableReader reader : ((ILifecycleTransaction) lifecycleNewTracker).originals())
+            for (SSTableReader reader : txn.originals())
             {
                 if (reader instanceof KeyCacheSupport<?> && ((KeyCacheSupport<?>) reader).getCachedPosition(key, false) != null)
                 {
@@ -127,7 +126,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         return entry;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
     private BigTableReader openInternal(IndexSummaryBuilder.ReadableBoundary boundary, SSTableReader.OpenReason openReason)
     {
         assert boundary == null || (boundary.indexLength > 0 && boundary.dataLength > 0);
@@ -165,7 +163,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
             builder.setFilter(filter);
             indexSummary = indexWriter.summary.build(metadata().partitioner, boundary);
             builder.setIndexSummary(indexSummary);
-
             long indexFileLength = descriptor.fileFor(Components.PRIMARY_INDEX).length();
             int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / builder.getIndexSummary().size());
             FileHandle.Builder indexFileBuilder = indexWriter.builder;
@@ -233,16 +230,30 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         return openInternal(null, openReason);
     }
 
+    @Override
+    public void setFirst(DecoratedKey key)
+    {
+        super.setFirst(key);
+        indexWriter.first = key;
+    }
+
+    @Override
+    public void setLast(DecoratedKey key)
+    {
+        super.setLast(key);
+        indexWriter.last = key;
+    }
+
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    protected static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
+    public static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
     {
         private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-        final SequentialWriter writer;
+        public final SequentialWriter writer;
         final FileHandle.Builder builder;
-        final IndexSummaryBuilder summary;
+        public final IndexSummaryBuilder summary;
         private DataPosition mark;
         private DecoratedKey first;
         private DecoratedKey last;
@@ -394,7 +405,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
                                                                     getIOOptions().writerOptions,
                                                                     getMetadataCollector(),
                                                                     ensuringInBuildInternalContext(operationType),
-                                                                    getIOOptions().flushCompression);
+                                                                    getIOOptions().flushCompression,
+                                                                    getCompressionDictionaryManager());
             this.dataWriterOpened = true;
             return dataWriter;
         }
@@ -434,14 +446,14 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         }
 
         @Override
-        protected BigTableWriter buildInternal(LifecycleNewTracker lifecycleNewTracker, Owner owner)
+        protected BigTableWriter buildInternal(ILifecycleTransaction txn, Owner owner)
         {
             try
             {
-                this.operationType = lifecycleNewTracker.opType();
+                this.operationType = txn.opType();
                 this.mmappedRegionsCache = new MmappedRegionsCache();
                 this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, getSerializationHeader(), owner != null ? owner.getMetrics() : null);
-                return new BigTableWriter(this, lifecycleNewTracker, owner);
+                return new BigTableWriter(this, txn, owner);
             }
             catch (RuntimeException | Error ex)
             {

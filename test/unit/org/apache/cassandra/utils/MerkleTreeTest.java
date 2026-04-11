@@ -20,11 +20,19 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -42,8 +50,13 @@ import org.apache.cassandra.utils.MerkleTree.TreeRange;
 import org.apache.cassandra.utils.MerkleTree.TreeRangeIterator;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.utils.JavaUtils.parseJavaVersion;
 import static org.apache.cassandra.utils.MerkleTree.RECOMMENDED_DEPTH;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class MerkleTreeTest
 {
@@ -608,8 +621,12 @@ public class MerkleTreeTest
         Assert.assertEquals(12, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
                                                                      1048576, 32));
 
-        // With 100 mebibytes we should get a limit of 19
-        Assert.assertEquals(19, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
+        // With 100 mebibytes we should get a limit of 19 on JDK's < 21, 18 on JDK21
+        // Object size impl details can be expected to change on different JDK's so this impl will be brittle
+        // in the face of future JDK changes.
+        int version = parseJavaVersion(JAVA_VERSION.getString());
+        int expectedLimit = version < 21 ? 19 : 18;
+        Assert.assertEquals(expectedLimit, MerkleTree.estimatedMaxDepthForBytes(Murmur3Partitioner.instance,
                                                                      100 * 1048576, 32));
 
         // With 300 mebibytes we should get the old limit of 20

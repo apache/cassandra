@@ -20,19 +20,21 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.Stopwatch;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.QueryCancelledException;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcherContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
@@ -62,38 +64,37 @@ public class PostingListRangeIterator extends KeyRangeIterator
     private final QueryContext queryContext;
 
     private final PostingList postingList;
-    private final IndexContext indexContext;
+    private final IndexIdentifier indexIdentifier;
     private final PrimaryKeyMap primaryKeyMap;
-    private final IndexSegmentSearcherContext searcherContext;
+    private final long rowIdOffset;
 
     private boolean needsSkipping = false;
-    private PrimaryKey skipToToken = null;
-
+    private PrimaryKey skipToKey = null;
 
     /**
      * Create a direct PostingListRangeIterator where the underlying PostingList is materialised
      * immediately so the posting list size can be used.
      */
-    public PostingListRangeIterator(IndexContext indexContext,
+    public PostingListRangeIterator(IndexIdentifier indexIdentifier,
                                     PrimaryKeyMap primaryKeyMap,
                                     IndexSegmentSearcherContext searcherContext)
     {
-        super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count());
+        super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count(), () -> {});
 
-        this.indexContext = indexContext;
+        this.indexIdentifier = indexIdentifier;
         this.primaryKeyMap = primaryKeyMap;
         this.postingList = searcherContext.postingList;
-        this.searcherContext = searcherContext;
+        this.rowIdOffset = searcherContext.segmentRowIdOffset;
         this.queryContext = searcherContext.context;
     }
 
     @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
-        if (skipToToken != null && skipToToken.compareTo(nextKey) >= 0)
+        if (skipToKey != null && skipToKey.compareTo(nextKey, false) > 0)
             return;
 
-        skipToToken = nextKey;
+        skipToKey = nextKey;
         needsSkipping = true;
     }
 
@@ -117,8 +118,9 @@ public class PostingListRangeIterator extends KeyRangeIterator
         catch (Throwable t)
         {
             if (!(t instanceof QueryCancelledException))
-                logger.error(indexContext.logMessage("Unable to provide next token!"), t);
+                logger.error(indexIdentifier.logMessage("Unable to provide next token!"), t);
 
+            FileUtils.closeQuietly(Arrays.asList(postingList, primaryKeyMap));
             throw Throwables.cleaned(t);
         }
     }
@@ -129,7 +131,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
         if (logger.isTraceEnabled())
         {
             final long exhaustedInMills = timeToExhaust.stop().elapsed(TimeUnit.MILLISECONDS);
-            logger.trace(indexContext.logMessage("PostingListRangeIterator exhausted after {} ms"), exhaustedInMills);
+            logger.trace(indexIdentifier.logMessage("PostingListRangeIterator exhausted after {} ms"), exhaustedInMills);
         }
 
         FileUtils.closeQuietly(Arrays.asList(postingList, primaryKeyMap));
@@ -137,7 +139,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
 
     private boolean exhausted()
     {
-        return needsSkipping && skipToToken.compareTo(getMaximum()) > 0;
+        return needsSkipping && skipToKey.compareTo(getMaximum(), false) > 0;
     }
 
     /**
@@ -148,14 +150,14 @@ public class PostingListRangeIterator extends KeyRangeIterator
         long segmentRowId;
         if (needsSkipping)
         {
-            long targetRowID = primaryKeyMap.rowIdFromPrimaryKey(skipToToken);
+            long targetRowID = primaryKeyMap.rowIdFromPrimaryKey(skipToKey);
             // skipToToken is larger than max token in token file
             if (targetRowID < 0)
             {
                 return PostingList.END_OF_STREAM;
             }
 
-            segmentRowId = postingList.advance(targetRowID - searcherContext.segmentRowIdOffset);
+            segmentRowId = postingList.advance(targetRowID - rowIdOffset);
 
             needsSkipping = false;
         }
@@ -165,7 +167,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
         }
 
         return segmentRowId != PostingList.END_OF_STREAM
-               ? segmentRowId + searcherContext.segmentRowIdOffset
+               ? segmentRowId + rowIdOffset
                : PostingList.END_OF_STREAM;
     }
 }

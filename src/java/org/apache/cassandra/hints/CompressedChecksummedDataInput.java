@@ -26,8 +26,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 public final class CompressedChecksummedDataInput extends ChecksummedDataInput
@@ -158,7 +158,6 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         super.close();
     }
 
-    @SuppressWarnings("resource") // Closing the ChecksummedDataInput will close the underlying channel.
     public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, ICompressor compressor)
     {
         long position = input.getPosition();

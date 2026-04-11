@@ -26,42 +26,51 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
-import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.Notification;
 import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.GlobalEventExecutor;
+import accord.utils.Invariants;
+
 import org.apache.cassandra.Util;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
-import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -70,11 +79,11 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.SystemKeyspaceMigrator41;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionLogger;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.action.GossipHelper;
@@ -90,11 +99,15 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.ThrowingRunnable;
+import org.apache.cassandra.distributed.test.log.TestProcessor;
+import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -103,36 +116,46 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.Sampler;
+import org.apache.cassandra.metrics.ThreadLocalMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.MigrationCoordinator;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.DefaultFSErrorHandler;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
+import org.apache.cassandra.service.DiskErrorsHandlerService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.writes.thresholds.CoordinatorWriteWarnings;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.EpochAwareDebounce;
+import org.apache.cassandra.tcm.RegistrationStatus;
+import org.apache.cassandra.tcm.Startup;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.SystemExitException;
@@ -147,26 +170,32 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
+
+import io.netty.util.concurrent.GlobalEventExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_SETTLE_MIN_WAIT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_SETTLE_POLL_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCassandraInetAddressAndPort;
-import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
+import static org.apache.cassandra.distributed.impl.TestEndpointCache.fromCassandraInetAddressAndPort;
+import static org.apache.cassandra.distributed.impl.TestEndpointCache.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.service.CassandraDaemon.logSystemInfo;
 
 /**
  * This class is instantiated on the relevant classloader, so its methods invoke the correct target classes automatically
@@ -179,8 +208,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private volatile boolean internodeMessagingStarted = false;
     private final AtomicLong startedAt = new AtomicLong();
     private IsolatedJmx isolatedJmx;
+    private static boolean RECEIVE_MESSAGES_ASYNC = false;
+    public static void setReceiveMessagesAsync(boolean v) {RECEIVE_MESSAGES_ASYNC = v; }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17013 */
+    @Deprecated(since = "4.1")
     Instance(IInstanceConfig config, ClassLoader classLoader)
     {
         this(config, classLoader, null);
@@ -193,7 +225,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     Instance(IInstanceConfig config, ClassLoader classLoader, FileSystem fileSystem, ShutdownExecutor shutdownExecutor)
     {
-        super("node" + config.num(), classLoader, executorFactory().pooled("isolatedExecutor", Integer.MAX_VALUE), shutdownExecutor);
+        super("node" + config.num(), classLoader, executorFactory().configurePooled("isolatedExecutor", Integer.MAX_VALUE)
+                                                                   // we report uncaught exceptions on node thread pools, but
+                                                                   // we never reported exceptions from this thread pool, and
+                                                                   // tests deliberately produce a lot so it would be a lot of
+                                                                   // work to whitelist the exceptions - volunteers welcome!
+                                                                   .withUncaughtExceptionHandler(JVMStabilityInspector::uncaughtException).build(), shutdownExecutor);
         this.config = config;
         if (fileSystem != null)
             File.unsafeSetFilesystem(fileSystem);
@@ -252,7 +289,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public IListen listen()
     {
-        return new Listen(this);
+        return new Listen();
     }
 
     @Override
@@ -268,12 +305,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
+        CoordinatorWriteWarnings.init();
         try
         {
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
                                                                      QueryProcessor.makeInternalOptions(prepared.statement, args));
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
 
             if (result != null)
                 result.setWarnings(ClientWarn.instance.getWarnings());
@@ -282,11 +321,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         catch (Exception | Error e)
         {
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
             throw e;
         }
         finally
         {
             CoordinatorWarnings.reset();
+            CoordinatorWriteWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
     }
@@ -331,7 +372,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }).run();
     }
 
-    private void registerMockMessaging(ICluster<?> cluster)
+    protected void registerMockMessaging(ICluster<?> cluster)
     {
         MessagingService.instance().outboundSink.add((message, to) -> {
             if (!internodeMessagingStarted)
@@ -345,7 +386,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
-    private void registerInboundFilter(ICluster<?> cluster)
+    protected void registerInboundFilter(ICluster<?> cluster)
     {
         MessagingService.instance().inboundSink.add(message -> {
             if (!cluster.filters().hasInbound())
@@ -362,24 +403,27 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
-    private void registerOutboundFilter(ICluster cluster)
+    protected void registerOutboundFilter(ICluster cluster)
     {
         MessagingService.instance().outboundSink.add((message, to) -> {
             if (isShutdown())
                 return false; // TODO: Simulator needs this to trigger a failure
-            IMessage serialzied = serializeMessage(message.from(), to, message);
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
             IInstance toInstance = cluster.get(fromCassandraInetAddressAndPort(to));
             if (toInstance == null)
-                return false; // TODO: Simulator needs this to trigger a failure
+                return true; // TODO: Simulator needs this to trigger a failure
+            if (!cluster.filters().hasInbound() && !cluster.filters().hasOutbound())
+                return true; // no filters... nothing to see here
             int toNum = toInstance.config().num();
+            IMessage serialzied = serializeMessage(message.from(), to, message);
             return cluster.filters().permitOutbound(fromNum, toNum, serialzied);
         });
     }
 
+    @Override
     public void uncaughtException(Thread thread, Throwable throwable)
     {
-        sync(JVMStabilityInspector::uncaughtException).accept(thread, throwable);
+        JVMStabilityInspector.uncaughtException(thread, throwable);
     }
 
     public static IMessage serializeMessage(InetAddressAndPort from, InetAddressAndPort to, Message<?> messageOut)
@@ -428,7 +472,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             byte[] bytes = out.toByteArray();
             if (messageOut.serializedSize(toVersion) != bytes.length)
                 throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +
-                                                       "expected %s, actual %s", toVersion, toVersion, messageOut.verb(), Message.serializer.getClass(),
+                                                       "expected %s, actual %s ", toVersion, toVersion, messageOut.verb(), messageOut.verb().serializer().getClass(),
                                                        messageOut.serializedSize(toVersion), bytes.length));
             return new MessageImpl(messageOut.verb().id, bytes, messageOut.id(), toVersion, messageOut.expiresAtNanos(), fromCassandraInetAddressAndPort(from));
         }
@@ -471,10 +515,24 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
+    @VisibleForTesting
+    public static Message.Header deserializeHeader(IMessage message)
+    {
+        try (DataInputBuffer in = new DataInputBuffer(message.bytes()))
+        {
+            return Message.serializer.deserializeHeader(in, toCassandraInetAddressAndPort(message.from()), message.version());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Can not deserialize heaader " + message, t);
+        }
+    }
+
     @Override
     public void receiveMessage(IMessage message)
     {
-        sync(receiveMessageRunnable(message)).accept(false);
+        if (RECEIVE_MESSAGES_ASYNC) async(receiveMessageRunnable(message)).apply(false);
+        else sync(receiveMessageRunnable(message)).accept(false);
     }
 
     @Override
@@ -490,8 +548,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return runOnCaller -> {
             if (!internodeMessagingStarted)
             {
-                inInstancelogger.debug("Dropping inbound message {} to {} as internode messaging has not been started yet",
-                             message, config().broadcastAddress());
+                if (inInstancelogger != null)
+                    inInstancelogger.debug("Dropping inbound message {} to {} as internode messaging has not been started yet",
+                            message, config().broadcastAddress());
                 return;
             }
             if (message.version() > MessagingService.current_version)
@@ -524,6 +583,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     inInstancelogger.warn("Dropping message {} due to stage {} being shutdown", messageIn, header.verb.stage);
                     return;
                 }
+                // This can cause deadlocks when sending messages to self so use Stage.MISC.executor() just to have a
+                // place for it to run
+                if (executor == ImmediateExecutor.INSTANCE)
+                    executor = Stage.MISC.executor();
                 executor.execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn));
             }
         };
@@ -575,6 +638,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return Verb.fromId(verbId).stage.executor();
     }
 
+    @Nullable
+    private DurationSpec startupTimeout()
+    {
+        Object c = config.get(Constants.KEY_DTEST_STARTUP_TIMEOUT);
+        if (c == null) return null;
+        if (c instanceof String)
+            return new DurationSpec.LongNanosecondsBound((String) c);
+        if (c instanceof Number)
+            return new DurationSpec.LongNanosecondsBound(((Number) c).longValue());
+        throw new IllegalArgumentException("Key " + Constants.KEY_DTEST_STARTUP_TIMEOUT + " only allowed to have string/number values, but given " + c + ": " + c.getClass());
+    }
+
     @Override
     public void startup(ICluster cluster)
     {
@@ -582,192 +657,69 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // Otherwise, the instance classloader's logging classes are setup ahead of time and
         // the patterns/file paths are not set correctly. This will be addressed in a subsequent
         // commit to extend the functionality of the @Shared annotation to app classes.
-        assert startedAt.compareAndSet(0L, System.nanoTime()) : "startedAt uninitialized";
+        assert startedAt.compareAndSet(0L, System.nanoTime()) : String.format("startedAt on instance %d expected to be 0, but was %d", config().num(), startedAt.get());
 
-        sync(() -> {
+        Future<?> result = async(() -> {
             inInstancelogger = LoggerFactory.getLogger(Instance.class);
             try
             {
-                // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
-                // so extract it to populate ExecutorFactory.Global
-                ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
-                if (config.has(GOSSIP))
+                boolean isFullStartup = config.get(Constants.KEY_DTEST_FULL_STARTUP) != null && (boolean) config.get(Constants.KEY_DTEST_FULL_STARTUP);
+                if (isFullStartup)
                 {
-                    // TODO: hacky
-                    RING_DELAY.setLong(15000);
-                    CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
-                    CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
-                }
-
-                mkdirs();
-
-                assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
-                                                                                                    config.networkTopology(), config.broadcastAddress());
-                DistributedTestSnitch.assign(config.networkTopology());
-
-                if (config.has(JMX))
-                    startJmx();
-
-                DatabaseDescriptor.daemonInitialization();
-                LoggingSupportFactory.getLoggingSupport().onStartup();
-
-                FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
-                DatabaseDescriptor.createAllDirectories();
-                CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
-                CassandraDaemon.logSystemInfo(inInstancelogger);
-                CommitLog.instance.start();
-
-                CassandraDaemon.getInstanceForTesting().runStartupChecks();
-
-                // We need to persist this as soon as possible after startup checks.
-                // This should be the first write to SystemKeyspace (CASSANDRA-11742)
-                SystemKeyspace.persistLocalMetadata(config::hostId);
-                SystemKeyspaceMigrator41.migrate();
-
-                // Same order to populate tokenMetadata for the first time,
-                // see org.apache.cassandra.service.CassandraDaemon.setup
-                StorageService.instance.populateTokenMetadata();
-
-                try
-                {
-                    // load schema from disk
-                    Schema.instance.loadFromDisk();
-                }
-                catch (Exception e)
-                {
-                    throw e;
-                }
-
-                // Start up virtual table support
-                CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
-
-                // clean up debris in data directories
-                CassandraDaemon.getInstanceForTesting().scrubDataDirectories();
-
-                Keyspace.setInitialized();
-
-                // Replay any CommitLogSegments found on disk
-                try
-                {
-                    CommitLog.instance.recoverSegmentsOnDisk();
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-
-                // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
-                StorageService.instance.populateTokenMetadata();
-
-                try
-                {
-                    PaxosState.maybeRebuildUncommittedState();
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-
-                Verb.HINT_REQ.unsafeSetSerializer(DTestSerializer::new);
-
-                if (config.has(NETWORK))
-                {
-                    MessagingService.instance().listen();
+                    assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
+                                                                                                        config.networkTopology(), config.broadcastAddress());
+                    DistributedTestInitialLocationProvider.assign(config.networkTopology());
+                    CassandraDaemon.getInstanceForTesting().activate(false);
+                    // TODO: filters won't work for the messages dispatched during startup
+                    registerInboundFilter(cluster);
+                    registerOutboundFilter(cluster);
                 }
                 else
                 {
-                    // Even though we don't use MessagingService, access the static SocketFactory
-                    // instance here so that we start the static event loop state
-//                    -- not sure what that means?  SocketFactory.instance.getClass();
-                    registerMockMessaging(cluster);
+                    partialStartup(cluster);
                 }
-                registerInboundFilter(cluster);
-                registerOutboundFilter(cluster);
-                if (!config.has(NETWORK))
-                {
-                    propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
-                }
-                internodeMessagingStarted = true;
-
-                JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
-
-                // TODO: this is more than just gossip
-                StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
-                if (config.has(GOSSIP))
-                {
-                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(nanoTime() - startedAt.get()));
-                    try
-                    {
-                        StorageService.instance.initServer();
-                    }
-                    catch (Exception e)
-                    {
-                        // I am tired of looking up my notes for how to fix this... so why not tell the user?
-                        Throwable cause = com.google.common.base.Throwables.getRootCause(e);
-                        if (cause instanceof BindException && "Can't assign requested address".equals(cause.getMessage()))
-                            throw new RuntimeException("Unable to bind, run the following in a termanl and try again:\nfor subnet in $(seq 0 5); do for id in $(seq 0 5); do sudo ifconfig lo0 alias \"127.0.$subnet.$id\"; done; done;", e);
-                        throw e;
-                    }
-                    StorageService.instance.removeShutdownHook();
-
-                    Gossiper.waitToSettle();
-                }
-                else
-                {
-                    Schema.instance.startSync();
-                    Stream peers = cluster.stream().filter(instance -> ((IInstance) instance).isValid());
-                    SystemKeyspace.setLocalHostId(config.hostId());
-                    if (config.has(BLANK_GOSSIP))
-                        peers.forEach(peer -> GossipHelper.statusToBlank((IInvokableInstance) peer).accept(this));
-                    else if (cluster instanceof Cluster)
-                        peers.forEach(peer -> GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this));
-                    else
-                        peers.forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
-
-                    StorageService.instance.setUpDistributedSystemKeyspaces();
-                    StorageService.instance.setNormalModeUnsafe();
-                    Gossiper.instance.register(StorageService.instance);
-                    StorageService.instance.startSnapshotManager();
-                    StorageService.instance.completeInitialization();
-                }
-
-                // Populate tokenMetadata for the second time,
-                // see org.apache.cassandra.service.CassandraDaemon.setup
-                StorageService.instance.populateTokenMetadata();
-
-                CassandraDaemon.getInstanceForTesting().completeSetup();
-
-                if (config.has(NATIVE_PROTOCOL))
-                {
-                    CassandraDaemon.getInstanceForTesting().initializeClientTransports();
-                    CassandraDaemon.getInstanceForTesting().start();
-                }
-
-                if (!FBUtilities.getBroadcastAddressAndPort().getAddress().equals(broadcastAddress().getAddress()) ||
-                    FBUtilities.getBroadcastAddressAndPort().getPort() != broadcastAddress().getPort())
-                    throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
-
-                ActiveRepairService.instance().start();
-                StreamManager.instance.start();
-
-                PaxosState.startAutoRepairs();
-
-                CassandraDaemon.getInstanceForTesting().completeSetup();
             }
             catch (Throwable t)
             {
+                startedAt.set(0);
                 if (t instanceof RuntimeException)
                     throw (RuntimeException) t;
                 throw new RuntimeException(t);
             }
-        }).run();
+        }).call();
+        DurationSpec timeout = startupTimeout();
+        if (timeout == null)
+        {
+            waitOn(result);
+        }
+        else
+        {
+            try
+            {
+                result.get(timeout.quantity(), timeout.unit());
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (TimeoutException | ExecutionException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
 
         initialized = true;
     }
 
-    private synchronized void startJmx()
+    private synchronized void setupMbeanWrapper()
     {
         this.isolatedJmx = new IsolatedJmx(this, inInstancelogger);
+        this.isolatedJmx.setupMBeanWrapper();
+    }
+
+    private synchronized void startJmx()
+    {
         isolatedJmx.startJmx();
     }
 
@@ -807,21 +759,184 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         });
     }
 
+    protected void partialStartup(ICluster<?> cluster) throws IOException, NoSuchFieldException, IllegalAccessException, ExecutionException, InterruptedException, StartupException
+    {
+        if (config.has(GOSSIP))
+        {
+            // TODO: hacky
+            RING_DELAY.setLong(15000);
+            GOSSIP_SETTLE_MIN_WAIT_MS.setLong(1000);
+            GOSSIP_SETTLE_POLL_INTERVAL_MS.setLong(300);
+            CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+            CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
+        }
+
+        assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
+                                                                                            config.networkTopology(), config.broadcastAddress());
+        DistributedTestInitialLocationProvider.assign(config.networkTopology());
+        if (config.has(JMX))
+            setupMbeanWrapper();
+        DatabaseDescriptor.daemonInitialization();
+        if (config.has(JMX))
+            startJmx();
+        LoggingSupportFactory.getLoggingSupport().onStartup();
+        logSystemInfo(inInstancelogger);
+        Config.log(DatabaseDescriptor.getRawConfig());
+
+        DiskErrorsHandlerService.configure();
+        CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
+
+        CommitLog.instance.start();
+
+        SnapshotManager.instance.start(false);
+        SnapshotManager.instance.clearExpiredSnapshots();
+        SnapshotManager.instance.clearEphemeralSnapshots();
+        SnapshotManager.instance.resumeSnapshotCleanup();
+
+        CassandraDaemon.getInstanceForTesting().runStartupChecks();
+
+        Keyspace.setInitialized(); // TODO: this seems to be superfluous by now
+        if (!config.has(NETWORK))
+        {
+            propagateMessagingVersions(cluster); // fake messaging needs to know messaging version for filters
+        }
+
+        CassandraDaemon.disableAutoCompaction(Schema.instance.localKeyspaces().names());
+        Startup.initialize(DatabaseDescriptor.getSeeds(),
+                           TestProcessor::new,
+                           () -> {
+                                if (config.has(NETWORK))
+                                {
+                                    MessagingService.instance().waitUntilListeningUnchecked();
+                                }
+                                else
+                                {
+                                    // Even though we don't use MessagingService, access the static SocketFactory
+                                    // instance here so that we start the static event loop state
+                                     registerMockMessaging(cluster);
+                                }
+                                internodeMessagingStarted = true;
+                                registerInboundFilter(cluster);
+                                registerOutboundFilter(cluster);
+        });
+        CassandraDaemon.disableAutoCompaction(Schema.instance.distributedKeyspaces().names());
+        QueryProcessor.registerStatementInvalidatingListener();
+        TestChangeListener.register();
+
+        // We need to persist this as soon as possible after startup checks.
+        // This should be the first write to SystemKeyspace (CASSANDRA-11742)
+        SystemKeyspace.persistLocalMetadata();
+
+        // Start up virtual table support
+        CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
+
+        // Replay any CommitLogSegments found on disk
+        try
+        {
+            CommitLog.instance.recoverSegmentsOnDisk();
+            NodeId self = ClusterMetadata.current().myNodeId();
+            if (self != null)
+                AccordService.localStartup(self);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
+        //StorageService.instance.populateTokenMetadata();
+
+        try
+        {
+            PaxosState.maybeRebuildUncommittedState();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        Verb.HINT_REQ.unsafeSetSerializer(DTestSerializer::new);
+
+        JVMStabilityInspector.replaceKiller(new InstanceKiller(Instance.this::shutdown));
+
+        StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
+        if (config.has(GOSSIP))
+        {
+            try
+            {
+                StorageService.instance.initServer();
+            }
+            catch (Exception e)
+            {
+                // I am tired of looking up my notes for how to fix this... so why not tell the user?
+                Throwable cause = com.google.common.base.Throwables.getRootCause(e);
+                if (cause instanceof BindException && "Can't assign requested address".equals(cause.getMessage()))
+                    throw new RuntimeException("Unable to bind, run the following in a termanl and try again:\nfor subnet in $(seq 0 5); do for id in $(seq 0 5); do sudo ifconfig lo0 alias \"127.0.$subnet.$id\"; done; done;", e);
+                throw e;
+            }
+            StorageService.instance.removeShutdownHook();
+        }
+        else
+        {
+            Stream<?> peers = cluster.stream().filter(IInstance::isValid);
+            Schema.instance.saveSystemKeyspace();
+            ClusterMetadataService.instance().processor().fetchLogAndWait();
+            NodeId self = Register.maybeRegister();
+            RegistrationStatus.instance.onRegistration();
+            if (!AccordService.isSetupOrStarting())
+                AccordService.localStartup(self);
+            AccordService.distributedStartup();
+
+            boolean joinRing = config.get(Constants.KEY_DTEST_JOIN_RING) == null || (boolean) config.get(Constants.KEY_DTEST_JOIN_RING);
+            if (ClusterMetadata.current().directory.peerState(self) != NodeState.JOINED && joinRing)
+            {
+                ClusterMetadataService.instance().commit(new UnsafeJoin(self,
+                                                                        new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), FBUtilities.getBroadcastAddressAndPort())),
+                                                                        ClusterMetadataService.instance().placementProvider()));
+
+                SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
+                if (config.has(BLANK_GOSSIP))
+                    peers.forEach(peer -> GossipHelper.statusToBlank((IInvokableInstance) peer).accept(this));
+                else if (cluster instanceof Cluster)
+                    peers.forEach(peer -> GossipHelper.statusToNormal((IInvokableInstance) peer).accept(this));
+                else
+                    peers.forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
+            }
+            Gossiper.instance.register(StorageService.instance);
+            StorageService.instance.unsafeSetInitialized();
+        }
+
+        CassandraDaemon.getInstanceForTesting().completeSetup();
+        CassandraDaemon.enableAutoCompaction(Schema.instance.getKeyspaces());
+
+        AuditLogManager.instance.initialize();
+
+        if (config.has(NATIVE_PROTOCOL))
+        {
+            CassandraDaemon.getInstanceForTesting().initializeClientTransports();
+            CassandraDaemon.getInstanceForTesting().start();
+        }
+
+        if (!FBUtilities.getBroadcastAddressAndPort().getAddress().equals(broadcastAddress().getAddress()) ||
+            FBUtilities.getBroadcastAddressAndPort().getPort() != broadcastAddress().getPort())
+            throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
+
+        ClusterMetadataService.instance().processor().fetchLogAndWait();
+
+
+        ActiveRepairService.instance().start();
+        StreamManager.instance.start();
+        PaxosState.startAutoRepairs();
+        StorageService.instance.doAutoRepairSetup();
+        CassandraDaemon.getInstanceForTesting().completeSetup();
+    }
+
     @Override
     public void postStartup()
     {
         sync(() ->
             StorageService.instance.doAuthSetup(false)
         ).run();
-    }
-
-    private void mkdirs()
-    {
-        new File(config.getString("saved_caches_directory")).tryCreateDirectories();
-        new File(config.getString("hints_directory")).tryCreateDirectories();
-        new File(config.getString("commitlog_directory")).tryCreateDirectories();
-        for (String dir : (String[]) config.get("data_file_directories"))
-            new File(dir).tryCreateDirectories();
     }
 
     private Config loadConfig(IInstanceConfig overrides)
@@ -839,35 +954,49 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public Future<Void> shutdown(boolean graceful)
+    public Future<Void> shutdown(boolean runOnExitThreads)
     {
-        inInstancelogger.info("Shutting down instance {} / {}", config.num(), config.broadcastAddress().getHostString());
+        return shutdown(runOnExitThreads, TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY.getBoolean());
+    }
+
+    public Future<Void> shutdown(boolean runOnExitThreads, boolean shutdownMessagingGracefully)
+    {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
+            inInstancelogger.warn("Shutting down in thread {}", Thread.currentThread().getName());
+
+            error = parallelRun(error, executor, SnapshotManager.instance::close);
+
+            CompactionManager.instance.forceShutdown();
 
             error = parallelRun(error, executor,
                     () -> StorageService.instance.setRpcReady(false),
+                    () -> StorageService.instance.setIsShutdownUnsafeForTests(true),
                     CassandraDaemon.getInstanceForTesting()::destroyClientTransports);
 
             if (config.has(GOSSIP) || config.has(NETWORK))
             {
                 StorageService.instance.shutdownServer();
+                error = parallelRun(error, executor,
+                                    () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES));
+            }
+            else
+            {
+                error = parallelRun(error, executor,
+                                    () -> Gossiper.instance.shutdownAndWait(1L, MINUTES));
             }
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
-            while (CompactionManager.instance.hasOngoingOrPendingTasks() && !Thread.currentThread().isInterrupted())
-            {
-                inInstancelogger.info("Waiting for compactions to finish");
-                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-            }
 
             // trigger init early or else it could try to init and touch a thread pool that got shutdown
             HintsService hints = HintsService.instance;
-            ThrowingRunnable shutdownHints = () -> {
+            ThrowingRunnable shutdownBatchlogAndHints = () -> {
                 // this is to allow shutdown in the case hints were halted already
                 try
                 {
-                    HintsService.instance.shutdownBlocking();
+                    // Batchlog manager can submit tasks to hints executor, so shut it down earlier and in sequence
+                    BatchlogManager.instance.shutdownAndWait(1L, MINUTES);
+                    hints.shutdownBlocking();
                 }
                 catch (IllegalStateException e)
                 {
@@ -875,11 +1004,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                 }
             };
+
             error = parallelRun(error, executor,
-                                () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),
-                                CompactionManager.instance::forceShutdown,
-                                () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
-                                shutdownHints,
+                                shutdownBatchlogAndHints,
                                 () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),
                                 () -> AuthCache.shutdownAllAndWait(1L, MINUTES),
                                 () -> Sampler.shutdownNowAndWait(1L, MINUTES),
@@ -899,13 +1026,20 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
-                                () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
+                                () -> AutoRepair.instance.shutdownBlocking(),
+                                () -> EpochAwareDebounce.instance.close(),
+                                SnapshotManager.instance::close,
+                                () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
+                                DiskErrorsHandlerService::close,
+                                () -> ThreadLocalMetrics.shutdownCleaner(1L, MINUTES)
             );
 
             internodeMessagingStarted = false;
+            error = parallelRun(error, executor, () -> ClusterMetadataService.instance().log().close());
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
             error = parallelRun(error, executor,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
-                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, false, config.has(NETWORK))
+                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, shutdownMessagingGracefully, config.has(NETWORK))
             );
             error = parallelRun(error, executor,
                                 () -> { if (config.has(NETWORK)) { try { GlobalEventExecutor.INSTANCE.awaitInactivity(1L, MINUTES); } catch (IllegalStateException ignore) {} } },
@@ -913,11 +1047,15 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
+            error = parallelRun(error, executor, () -> {
+                if (AccordService.isSetupOrStarting())
+                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
+            });
+
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
             error = parallelRun(error, executor, CommitLog.instance::shutdownBlocking);
             error = parallelRun(error, executor,
-                                () -> PendingRangeCalculatorService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(JMXBroadcastExecutor.executor))
             );
 
@@ -930,7 +1068,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             // Make sure any shutdown hooks registered for DeleteOnExit are released to prevent
             // references to the instance class loaders from being held
-            if (graceful)
+            if (runOnExitThreads)
             {
                 PathUtils.runOnExitThreadsAndClear();
             }
@@ -946,16 +1084,39 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try
             {
                 future.get();
+                ThreadGroup group = Thread.currentThread().getThreadGroup();
+                int active = group.activeCount();
+                Invariants.expect(group.getParent().activeCount() <= active
+                                  || CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.getBoolean());
                 return null;
             }
             finally
             {
                 super.shutdown();
                 startedAt.set(0L);
+                //withThreadLeakCheck();
             }
         });
     }
 
+    private void withThreadLeakCheck()
+    {
+        StringBuilder sb = new StringBuilder();
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        threadSet.stream().filter(t -> t.getContextClassLoader() == classLoader).forEach(t -> {
+            StringBuilder sblocal = new StringBuilder("\nUnterminated thread detected " + t.getName() + " in group " + t.getThreadGroup().getName());
+            if (t instanceof NamedThreadFactory.InspectableFastThreadLocalThread)
+            {
+                sblocal.append("\nCreation Stack Trace:");
+                for (StackTraceElement stackTraceElement : ((NamedThreadFactory.InspectableFastThreadLocalThread) t).creationTrace)
+                    sblocal.append("\n\t\t\t").append(stackTraceElement);
+            }
+            sb.append(sblocal);
+        });
+        String msg = sb.toString();
+        if (!msg.isEmpty())
+            throw new RuntimeException(msg);
+    }
     @Override
     public int liveMemberCount()
     {
@@ -982,22 +1143,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (CapturingOutput output = new CapturingOutput();
                  DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate))
             {
+                SecurityManager before = System.getSecurityManager();
                 // install security manager to get informed about the exit-code
-                System.setSecurityManager(new SecurityManager()
-                {
-                    public void checkExit(int status)
-                    {
-                        throw new SystemExitException(status);
-                    }
+                ClusterUtils.preventSystemExit();
 
-                    public void checkPermission(Permission perm)
-                    {
-                    }
-
-                    public void checkPermission(Permission perm, Object context)
-                    {
-                    }
-                });
                 int rc;
                 try
                 {
@@ -1009,7 +1158,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 finally
                 {
-                    System.setSecurityManager(null);
+                    System.setSecurityManager(before);
                 }
                 return new NodeToolResult(commandAndArgs, rc,
                                           new ArrayList<>(nodetool.notifications.notifications),
@@ -1028,9 +1177,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private static class CapturingOutput implements Closeable
     {
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream outBase = new ByteArrayOutputStream();
-        @SuppressWarnings("resource")
         private final ByteArrayOutputStream errBase = new ByteArrayOutputStream();
 
         public final PrintStream out;
@@ -1074,7 +1221,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         public DTestNodeTool(boolean withNotifications, Output output)
         {
-            super(new InternalNodeProbeFactory(withNotifications), output);
+            super(new InternalNodeProbeFactory(withNotifications, output), output);
             internalNodeProbe = new InternalNodeProbe(withNotifications);
             storageProxy = internalNodeProbe.getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
@@ -1167,6 +1314,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
             }));
         }
+        // This is not used code, but it is here for when you run in a debugger...
+        // When shutdown gets blocked we need to be able to trace down which future is blocked, so this idx
+        // helps map the location... the reason we can't leverage here is the timeout logic is higher up, so
+        // 'idx' really only helps out in a debugger...
+        int idx = 0;
         for (Future<Throwable> future : results)
         {
             try
@@ -1179,6 +1331,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 accumulate = Throwables.merge(accumulate, t);
             }
+            idx++;
         }
         return accumulate;
     }

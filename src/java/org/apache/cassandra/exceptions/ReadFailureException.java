@@ -39,4 +39,16 @@ public class ReadFailureException extends RequestFailureException
         super(ExceptionCode.READ_FAILURE, msg, consistency, received, blockFor, failureReasonByEndpoint);
         this.dataPresent = dataPresent;
     }
+
+    public ReadFailureException(String msg, ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint, Throwable cause)
+    {
+        super(ExceptionCode.READ_FAILURE, msg, consistency, received, blockFor, failureReasonByEndpoint, cause);
+        this.dataPresent = dataPresent;
+    }
+
+    public ReadFailureException(ReadFailureException rfe)
+    {
+        super(ExceptionCode.READ_FAILURE, rfe.getMessage(), rfe.consistency, rfe.received, rfe.blockFor, rfe.failureReasonByEndpoint, rfe);
+        this.dataPresent = rfe.dataPresent;
+    }
 }

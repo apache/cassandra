@@ -18,17 +18,12 @@
 
 package org.apache.cassandra.db.virtual;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -36,6 +31,8 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
 
 /**
  * Virtual table for holding Cassandra logs. Entries to this table are added via log appender.
@@ -50,11 +47,8 @@ import org.apache.cassandra.schema.TableMetadata;
  * @see <a href="https://issues.apache.org/jira/browse/CASSANDRA-18238">CASSANDRA-18238</a>
  * @see org.apache.cassandra.utils.logging.VirtualTableAppender
  */
-public final class LogMessagesTable extends AbstractMutableVirtualTable
+public final class LogMessagesTable extends AbstractLoggerVirtualTable<LoggingEvent>
 {
-    private static final Logger logger = LoggerFactory.getLogger(LogMessagesTable.class);
-
-    public static final int LOGS_VIRTUAL_TABLE_MIN_ROWS = 1000;
     public static final int LOGS_VIRTUAL_TABLE_DEFAULT_ROWS = 50_000;
     public static final int LOGS_VIRTUAL_TABLE_MAX_ROWS = 100_000;
 
@@ -67,11 +61,11 @@ public final class LogMessagesTable extends AbstractMutableVirtualTable
     public static final String LEVEL_COLUMN_NAME = "level";
     public static final String MESSAGE_COLUMN_NAME = "message";
 
-    private final List<LogMessage> buffer;
-
     LogMessagesTable(String keyspace)
     {
-        this(keyspace, resolveBufferSize());
+        this(keyspace, resolveBufferSize(CassandraRelevantProperties.LOGS_VIRTUAL_TABLE_MAX_ROWS.getInt(),
+                                         LOGS_VIRTUAL_TABLE_MAX_ROWS,
+                                         LOGS_VIRTUAL_TABLE_DEFAULT_ROWS));
     }
 
     @VisibleForTesting
@@ -85,10 +79,14 @@ public final class LogMessagesTable extends AbstractMutableVirtualTable
                            .addClusteringColumn(ORDER_IN_MILLISECOND_COLUMN_NAME, Int32Type.instance)
                            .addRegularColumn(LOGGER_COLUMN_NAME, UTF8Type.instance)
                            .addRegularColumn(LEVEL_COLUMN_NAME, UTF8Type.instance)
-                           .addRegularColumn(MESSAGE_COLUMN_NAME, UTF8Type.instance).build());
+                           .addRegularColumn(MESSAGE_COLUMN_NAME, UTF8Type.instance).build(),
+              size);
+    }
 
-        logger.debug("capacity of virtual table {} is set to be at most {} rows", metadata().toString(), size);
-        buffer = BoundedLinkedList.create(size);
+    @Override
+    public List<LoggingEvent> getMessages(LoggingEvent event)
+    {
+        return List.of(event);
     }
 
     @Override
@@ -103,12 +101,12 @@ public final class LogMessagesTable extends AbstractMutableVirtualTable
 
             int index = 0;
 
-            Iterator<LogMessage> iterator = buffer.listIterator();
+            Iterator<LoggingEvent> iterator = buffer.listIterator();
             while (iterator.hasNext())
             {
-                LogMessage log = iterator.next();
+                LoggingEvent log = iterator.next();
 
-                milliSecondsOfCurrentLog = log.timestamp;
+                milliSecondsOfCurrentLog = log.getTimeStamp();
                 if (milliSecondsOfPreviousLog == milliSecondsOfCurrentLog)
                     ++index;
                 else
@@ -116,86 +114,13 @@ public final class LogMessagesTable extends AbstractMutableVirtualTable
 
                 milliSecondsOfPreviousLog = milliSecondsOfCurrentLog;
 
-                result.row(new Date(log.timestamp), index)
-                      .column(LOGGER_COLUMN_NAME, log.logger)
-                      .column(LEVEL_COLUMN_NAME, log.level)
-                      .column(MESSAGE_COLUMN_NAME, log.message);
+                result.row(new Date(milliSecondsOfCurrentLog), index)
+                      .column(LOGGER_COLUMN_NAME, log.getLoggerName())
+                      .column(LEVEL_COLUMN_NAME, log.getLevel().toString())
+                      .column(MESSAGE_COLUMN_NAME, log.getFormattedMessage());
             }
         }
 
         return result;
-    }
-
-    public void add(LoggingEvent event)
-    {
-        buffer.add(new LogMessage(event));
-    }
-
-    @Override
-    public void truncate()
-    {
-        buffer.clear();
-    }
-
-    @Override
-    public boolean allowFilteringImplicitly()
-    {
-        return false;
-    }
-
-    @VisibleForTesting
-    static int resolveBufferSize()
-    {
-        int size = CassandraRelevantProperties.LOGS_VIRTUAL_TABLE_MAX_ROWS.getInt();
-        return (size < LOGS_VIRTUAL_TABLE_MIN_ROWS || size > LOGS_VIRTUAL_TABLE_MAX_ROWS)
-               ? LOGS_VIRTUAL_TABLE_DEFAULT_ROWS : size;
-    }
-
-    @VisibleForTesting
-    public static class LogMessage
-    {
-        public final long timestamp;
-        public final String logger;
-        public final String level;
-        public final String message;
-
-        public LogMessage(LoggingEvent event)
-        {
-            this(event.getTimeStamp(), event.getLoggerName(), event.getLevel().toString(), event.getFormattedMessage());
-        }
-
-        public LogMessage(long timestamp, String logger, String level, String message)
-        {
-            this.timestamp = timestamp;
-            this.logger = logger;
-            this.level = level;
-            this.message = message;
-        }
-    }
-
-    private static final class BoundedLinkedList<T> extends LinkedList<T>
-    {
-        private final int maxSize;
-
-        public static <T> List<T> create(int size)
-        {
-            return Collections.synchronizedList(new BoundedLinkedList<>(size));
-        }
-
-        private BoundedLinkedList(int maxSize)
-        {
-            this.maxSize = maxSize;
-        }
-
-        @Override
-        public boolean add(T t)
-        {
-            if (size() == maxSize)
-                removeLast();
-
-            addFirst(t);
-
-            return true;
-        }
     }
 }

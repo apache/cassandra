@@ -64,7 +64,10 @@ public class NotInterceptedSyncCondition extends Awaitable.AbstractAwaitable imp
         if (wait <= 0)
             return false;
 
-        monitor.wait((wait + 999999) / 1000000);
+        wait = (wait + 999999) / 1000000;
+        if (wait < 0)
+            wait = Long.MAX_VALUE;
+        monitor.wait(wait);
         return true;
     }
 }

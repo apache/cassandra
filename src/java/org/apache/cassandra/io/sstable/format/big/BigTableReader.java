@@ -21,16 +21,17 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +57,7 @@ import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.KeyReader;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
@@ -152,44 +154,41 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     }
 
     @Override
-    public KeyReader keyReader() throws IOException
+    public KeyReader keyReader(boolean detailed) throws IOException
     {
-        return BigTableKeyReader.create(ifile, rowIndexEntrySerializer);
+        return BigTableKeyReader.create(ifile, rowIndexEntrySerializer, detailed);
     }
 
-    /**
-     * Direct I/O SSTableScanner over an iterator of bounds.
-     *
-     * @param boundsIterator the keys to cover
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> boundsIterator)
+    @Override
+    public KeyIterator keyIterator(AbstractBounds<PartitionPosition> range) throws IOException
     {
-        return BigTableScanner.getScanner(this, boundsIterator);
+
+        RandomAccessReader ifileReader = ifile.createReader();
+        ifileReader.seek(getIndexScanPosition(range.left));
+        BigTableKeyReader keyReader = BigTableKeyReader.create(ifileReader, rowIndexEntrySerializer);
+        return new KeyIterator(range, keyReader, getPartitioner(), uncompressedLength(), new ReentrantReadWriteLock());
     }
 
-    /**
-     * Direct I/O SSTableScanner over the full sstable.
-     *
-     * @return A Scanner for reading the full SSTable.
-     */
-    public ISSTableScanner getScanner()
+    @Override
+    public KeyReader keyReader(PartitionPosition key) throws IOException
     {
-        return BigTableScanner.getScanner(this);
-    }
+        FileHandle iFile = ifile.sharedCopy();
+        RandomAccessReader reader = iFile.createReader();
+        reader.seek(getIndexScanPosition(key));
+        KeyReader keys = BigTableKeyReader.create(iFile, reader, rowIndexEntrySerializer);
 
-    /**
-     * Direct I/O SSTableScanner over a defined collection of ranges of tokens.
-     *
-     * @param ranges the range of keys to cover
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
-    {
-        if (ranges != null)
-            return BigTableScanner.getScanner(this, ranges);
-        else
-            return getScanner();
+        boolean hasMoreKeys = true;
+        while (hasMoreKeys)
+        {
+            ByteBuffer indexKey = keys.key();
+            DecoratedKey indexDecoratedKey = decorateKey(indexKey);
+            if (indexDecoratedKey.compareTo(key) >= 0)
+                break;
+
+            // Advance the iterator and check if more keys are available
+            hasMoreKeys = keys.advance();
+        }
+        return keys;
     }
 
     /**
@@ -325,6 +324,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         // of the next interval).
         int i = 0;
         String path = null;
+        ByteBuffer indexKey = null;
         try (FileDataInput in = ifile.createReader(sampledPosition))
         {
             path = in.getPath();
@@ -332,7 +332,13 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
             {
                 i++;
 
-                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+                int length = in.readUnsignedShort();
+                if (indexKey == null || indexKey.capacity() < length)
+                    indexKey = ByteBuffer.allocate(length);
+
+                in.readFully(indexKey.array(), 0, length);
+                indexKey.position(0);
+                indexKey.limit(length);
 
                 boolean opSatisfied; // did we find an appropriate position for the op requested
                 boolean exactMatch; // is the current position an exact match for the key, suitable for caching
@@ -621,7 +627,6 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
      * @param samplingLevel the desired sampling level for the index summary on the new SSTableReader
      * @return a new SSTableReader
      */
-    @SuppressWarnings("resource")
     public BigTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
         assert openReason != OpenReason.EARLY;

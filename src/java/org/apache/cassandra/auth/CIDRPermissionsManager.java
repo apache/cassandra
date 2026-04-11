@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,12 +42,12 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.reads.range.RangeCommands;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Provides functionality to list/update/drop CIDR permissions of a role
@@ -64,11 +65,9 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
         if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
 
-        String getCidrPermissionsOfUserQuery = String.format("SELECT %s FROM %s.%s WHERE %s = ?",
-                                                             AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
+        String getCidrPermissionsOfUserQuery = String.format("SELECT cidr_groups FROM %s.%s WHERE role = ?",
                                                              SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                             AuthKeyspace.CIDR_PERMISSIONS,
-                                                             AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME);
+                                                             AuthKeyspace.CIDR_PERMISSIONS);
         getCidrPermissionsOfUserStatement = (SelectStatement) QueryProcessor.getStatement(getCidrPermissionsOfUserQuery,
                                                                                           ClientState.forInternalCalls());
     }
@@ -76,7 +75,7 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(forInternalCalls(), options, nanoTime());
+        return statement.execute(forInternalCalls(), options, Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @VisibleForTesting
@@ -92,9 +91,9 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
 
         ResultMessage.Rows rows = select(getCidrPermissionsOfUserStatement, options);
         UntypedResultSet result = UntypedResultSet.create(rows.result);
-        if (!result.isEmpty() && result.one().has(AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME))
+        if (!result.isEmpty() && result.one().has("cidr_groups"))
         {
-            return result.one().getFrozenSet(AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME, UTF8Type.instance);
+            return result.one().getFrozenSet("cidr_groups", UTF8Type.instance);
         }
 
         return Collections.emptySet();
@@ -145,12 +144,10 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
      */
     public void setCidrGroupsForRole(RoleResource role, CIDRPermissions cidrPermissions)
     {
-        String query = String.format("UPDATE %s.%s SET %s = %s WHERE %s = '%s'",
+        String query = String.format("UPDATE %s.%s SET cidr_groups = %s WHERE role = '%s'",
                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.CIDR_PERMISSIONS,
-                                     AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
                                      getCidrPermissionsSetString(cidrPermissions),
-                                     AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME,
                                      role.getRoleName());
 
         process(query, CassandraAuthorizer.authWriteConsistencyLevel());
@@ -191,18 +188,16 @@ public class CIDRPermissionsManager implements CIDRPermissionsManagerMBean, Auth
 
             logger.info("Pre-warming CIDR permissions cache from cidr_permissions table");
             Map<RoleResource, CIDRPermissions> entries = new HashMap<>();
-            UntypedResultSet rows = process(String.format("SELECT %s, %s FROM %s.%s",
-                                                          AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME,
-                                                          AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
+            UntypedResultSet rows = process(String.format("SELECT role, cidr_groups FROM %s.%s",
                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
                                                           AuthKeyspace.CIDR_PERMISSIONS),
                                             CassandraAuthorizer.authReadConsistencyLevel());
 
             for (UntypedResultSet.Row row : rows)
             {
-                RoleResource role = RoleResource.role(row.getString(AuthKeyspace.CIDR_PERMISSIONS_TBL_ROLE_COL_NAME));
+                RoleResource role = RoleResource.role(row.getString("role"));
                 CIDRPermissions.Builder builder = new CIDRPermissions.Builder();
-                Set<String> cidrGroups = row.getFrozenSet(AuthKeyspace.CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME,
+                Set<String> cidrGroups = row.getFrozenSet("cidr_groups",
                                                           UTF8Type.instance);
                 for (String cidrGroup : cidrGroups)
                     builder.add(cidrGroup);

@@ -23,9 +23,10 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.LeveledManifest;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 public class MajorLeveledCompactionWriter extends CompactionAwareWriter
 {
@@ -40,17 +41,16 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
 
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         Directories directories,
-                                        LifecycleTransaction txn,
+                                        ILifecycleTransaction txn,
                                         Set<SSTableReader> nonExpiredSSTables,
                                         long maxSSTableSize)
     {
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, false);
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         Directories directories,
-                                        LifecycleTransaction txn,
+                                        ILifecycleTransaction txn,
                                         Set<SSTableReader> nonExpiredSSTables,
                                         long maxSSTableSize,
                                         boolean keepOriginals)
@@ -88,12 +88,12 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    public void switchCompactionWriter(Directories.DataDirectory location, DecoratedKey nextKey)
+    public SSTableWriter switchCompactionWriter(Directories.DataDirectory location, DecoratedKey nextKey)
     {
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
         partitionsWritten = 0;
         sstablesWritten = 0;
-        super.switchCompactionWriter(location, nextKey);
+        return super.switchCompactionWriter(location, nextKey);
     }
 
     protected int sstableLevel()

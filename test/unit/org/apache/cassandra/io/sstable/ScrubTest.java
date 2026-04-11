@@ -39,7 +39,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import net.openhft.chronicle.core.util.ThrowingBiConsumer;
+
 import org.apache.commons.lang3.ArrayUtils;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.Before;
@@ -49,7 +54,6 @@ import org.junit.runner.RunWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -69,7 +73,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -97,8 +101,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -478,7 +480,7 @@ public class ScrubTest
 
         // This test assumes ByteOrderPartitioner to create out-of-order SSTable
         IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
-        DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
+        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
 
         // Create out-of-order SSTable
         File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").parent();
@@ -559,7 +561,7 @@ public class ScrubTest
 
         if (compression)
         { // overwrite with garbage the compression chunks from key1 to key2
-            CompressionMetadata compData = CompressionInfoComponent.load(sstable.descriptor);
+            CompressionMetadata compData = CompressionInfoComponent.load(sstable.descriptor, null);
 
             CompressionMetadata.Chunk chunk1 = compData.chunkFor(
             sstable.getPosition(PartitionPosition.ForKey.get(key1, sstable.getPartitioner()), SSTableReader.Operator.EQ));
@@ -847,9 +849,9 @@ public class ScrubTest
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
     {
-        TestMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
+        TestMultiWriter(SSTableWriter writer, ILifecycleTransaction txn)
         {
-            super(writer, lifecycleNewTracker);
+            super(writer, txn);
         }
     }
 

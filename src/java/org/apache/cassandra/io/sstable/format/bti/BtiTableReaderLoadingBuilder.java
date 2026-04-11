@@ -23,7 +23,9 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.KeyReader;
@@ -38,6 +40,8 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.Throwables;
@@ -68,9 +72,18 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
     {
         checkNotNull(statsMetadata);
 
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tableMetadataRef.id);
+        CompressionDictionaryManager compressionDictionaryManager = null;
+        if (cfs != null)
+        {
+            compressionDictionaryManager = cfs.compressionDictionaryManager();
+        }
+
         try (PartitionIndex index = PartitionIndex.load(partitionIndexFileBuilder(), tableMetadataRef.getLocal().partitioner, false);
-             CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components);
-             FileHandle dFile = dataFileBuilder(statsMetadata).withCompressionMetadata(compressionMetadata).complete();
+             CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components, compressionDictionaryManager);
+             FileHandle dFile = dataFileBuilder(statsMetadata).withCompressionMetadata(compressionMetadata)
+                                                              .withCrcCheckChance(() -> tableMetadataRef.getLocal().params.crcCheckChance)
+                                                              .complete();
              FileHandle riFile = rowIndexFileBuilder().complete())
         {
             return PartitionIterator.create(index,
@@ -101,7 +114,6 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
 
             if (builder.getComponents().contains(Components.PARTITION_INDEX) && builder.getComponents().contains(Components.ROW_INDEX) && rebuildFilter)
             {
-                @SuppressWarnings({ "resource", "RedundantSuppression" })
                 IFilter filter = buildBloomFilter(statsComponent.statsMetadata());
                 builder.setFilter(filter);
                 FilterComponent.save(filter, descriptor, false);
@@ -130,9 +142,12 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
                 }
             }
 
-            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components))
+            try (CompressionMetadata compressionMetadata = CompressionInfoComponent.maybeLoad(descriptor, components, owner == null ? null : owner.compressionDictionaryManager()))
             {
-                builder.setDataFile(dataFileBuilder(builder.getStatsMetadata()).withCompressionMetadata(compressionMetadata).complete());
+                builder.setDataFile(dataFileBuilder(builder.getStatsMetadata())
+                                    .withCompressionMetadata(compressionMetadata)
+                                    .withCrcCheckChance(() -> tableMetadataRef.getLocal().params.crcCheckChance)
+                                    .complete());
             }
         }
         catch (IOException | RuntimeException | Error ex)
@@ -149,11 +164,12 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
 
         try (KeyReader keyReader = createKeyReader(statsMetadata))
         {
-            bf = FilterFactory.getFilter(statsMetadata.totalRows, tableMetadataRef.getLocal().params.bloomFilterFpChance);
+            TableMetadata tableMetadata = tableMetadataRef.getLocal();
+            bf = FilterFactory.getFilter(statsMetadata.totalRows, tableMetadata.params.bloomFilterFpChance);
 
             while (!keyReader.isExhausted())
             {
-                DecoratedKey key = tableMetadataRef.getLocal().partitioner.decorateKey(keyReader.key());
+                DecoratedKey key = tableMetadata.partitioner.decorateKey(keyReader.key());
                 bf.add(key);
 
                 keyReader.advance();
@@ -189,7 +205,9 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
             rowIndexFileBuilder = new FileHandle.Builder(descriptor.fileFor(Components.ROW_INDEX));
 
         rowIndexFileBuilder.withChunkCache(chunkCache);
-        rowIndexFileBuilder.mmapped(ioOptions.indexDiskAccessMode);
+
+        if (ioOptions.indexDiskAccessMode != null)
+            rowIndexFileBuilder.withDiskAccessMode(ioOptions.indexDiskAccessMode);
 
         return rowIndexFileBuilder;
     }
@@ -202,7 +220,9 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
             partitionIndexFileBuilder = new FileHandle.Builder(descriptor.fileFor(Components.PARTITION_INDEX));
 
         partitionIndexFileBuilder.withChunkCache(chunkCache);
-        partitionIndexFileBuilder.mmapped(ioOptions.indexDiskAccessMode);
+
+        if (ioOptions.indexDiskAccessMode != null)
+            partitionIndexFileBuilder.withDiskAccessMode(ioOptions.indexDiskAccessMode);
 
         return partitionIndexFileBuilder;
     }

@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.trie;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.io.tries.SerializationNode;
@@ -44,7 +45,7 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         super(rebufferer, root);
     }
 
-    public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<Long, DataOutputPlus>()
+    public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<>()
     {
         @Override
         public int sizeofNode(SerializationNode<Long> node, long nodePosition)

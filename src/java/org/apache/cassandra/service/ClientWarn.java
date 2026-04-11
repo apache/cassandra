@@ -17,13 +17,12 @@
  */
 package org.apache.cassandra.service;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.utils.FBUtilities;
 
-@SuppressWarnings("resource")
 public class ClientWarn extends ExecutorLocals.Impl
 {
     private static final String TRUNCATED = " [truncated]";
@@ -56,10 +55,29 @@ public class ClientWarn extends ExecutorLocals.Impl
         set(new State());
     }
 
+    /**
+     * Provides an additional control on capturing warnings. When executing SchemaTransformations in the
+     * metadata log follower or when committing on a CMS member, we don't want these to be triggered.
+     * @see org.apache.cassandra.schema.SchemaTransformation#enterExecution()
+     **/
+    public void pauseCapture()
+    {
+        State state = get();
+        if (state != null)
+            state.collecting = false;
+    }
+
+    public void resumeCapture()
+    {
+        State state = get();
+        if (state != null)
+            state.collecting = true;
+    }
+
     public List<String> getWarnings()
     {
         State state = get();
-        if (state == null || state.warnings.isEmpty())
+        if (state == null || state.warnings == null || state.warnings.isEmpty())
             return null;
         return state.warnings;
     }
@@ -71,11 +89,20 @@ public class ClientWarn extends ExecutorLocals.Impl
 
     public static class State
     {
-        private final List<String> warnings = new ArrayList<>();
+        private boolean collecting = true;
+        // This must be a thread-safe list. Even though it's wrapped in a ThreadLocal, it's propagated to each thread
+        // from shared state, so multiple threads can reference the same State.
+        private volatile List<String> warnings;
 
         private void add(String warning)
         {
-            if (warnings.size() < FBUtilities.MAX_UNSIGNED_SHORT)
+            if (warnings == null)
+                synchronized (this) {
+                    if (warnings == null) {
+                        warnings = new CopyOnWriteArrayList<>();
+                    }
+                }
+            if (collecting && warnings.size() < FBUtilities.MAX_UNSIGNED_SHORT)
                 warnings.add(maybeTruncate(warning));
         }
 

@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -40,11 +38,14 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -57,7 +58,7 @@ public class BatchMessage extends Message.Request
             byte type = body.readByte();
             int n = body.readUnsignedShort();
             List<Object> queryOrIds = new ArrayList<>(n);
-            List<List<ByteBuffer>> variables = new ArrayList<>(n);
+            List<byte[][]> variables = new ArrayList<>(n);
             for (int i = 0; i < n; i++)
             {
                 byte kind = body.readByte();
@@ -67,7 +68,7 @@ public class BatchMessage extends Message.Request
                     queryOrIds.add(MD5Digest.wrap(CBUtil.readBytes(body)));
                 else
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
-                variables.add(CBUtil.readValueList(body, version));
+                variables.add(CBUtil.readValueListAsByteArrays(body, version));
             }
             QueryOptions options = QueryOptions.codec.decode(body, version);
 
@@ -90,7 +91,7 @@ public class BatchMessage extends Message.Request
                 else
                     CBUtil.writeBytes(((MD5Digest)q).bytes, dest);
 
-                CBUtil.writeValueList(msg.values.get(i), dest);
+                CBUtil.writeValueListOfByteArrays(msg.values.get(i), dest);
             }
 
             if (version.isSmallerThan(ProtocolVersion.V3))
@@ -109,7 +110,7 @@ public class BatchMessage extends Message.Request
                              ? CBUtil.sizeOfLongString((String)q)
                              : CBUtil.sizeOfBytes(((MD5Digest)q).bytes));
 
-                size += CBUtil.sizeOfValueList(msg.values.get(i));
+                size += CBUtil.sizeOfValueListOfByteArrays(msg.values.get(i));
             }
             size += version.isSmallerThan(ProtocolVersion.V3)
                   ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
@@ -144,10 +145,10 @@ public class BatchMessage extends Message.Request
 
     public final BatchStatement.Type batchType;
     public final List<Object> queryOrIdList;
-    public final List<List<ByteBuffer>> values;
+    public final List<byte[][]> values;
     public final QueryOptions options;
 
-    public BatchMessage(BatchStatement.Type type, List<Object> queryOrIdList, List<List<ByteBuffer>> values, QueryOptions options)
+    public BatchMessage(BatchStatement.Type type, List<Object> queryOrIdList, List<byte[][]> values, QueryOptions options)
     {
         super(Message.Type.BATCH);
         this.batchType = type;
@@ -169,7 +170,7 @@ public class BatchMessage extends Message.Request
     }
 
     @Override
-    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
         List<QueryHandler.Prepared> prepared = null;
         try
@@ -187,7 +188,7 @@ public class BatchMessage extends Message.Request
                 {
                     p = QueryProcessor.parseAndPrepare((String) query,
                                                        state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()),
-                                                       false);
+                                                       false, false);
                 }
                 else
                 {
@@ -196,11 +197,11 @@ public class BatchMessage extends Message.Request
                         throw new PreparedQueryNotFoundException((MD5Digest)query);
                 }
 
-                List<ByteBuffer> queryValues = values.get(i);
-                if (queryValues.size() != p.statement.getBindVariables().size())
+                byte[][] queryValues = values.get(i);
+                if (queryValues.length != p.statement.getBindVariables().size())
                     throw new InvalidRequestException(String.format("There were %d markers(?) in CQL but %d bound variables",
                                                                     p.statement.getBindVariables().size(),
-                                                                    queryValues.size()));
+                                                                    queryValues.length));
 
                 prepared.add(p);
             }
@@ -226,7 +227,7 @@ public class BatchMessage extends Message.Request
             BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
 
             long queryTime = currentTimeMillis();
-            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
+            Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), requestTime);
             if (queries != null)
                 QueryEvents.instance.notifyBatchSuccess(batchType, statements, queries, values, options, state, queryTime, response);
             return response;
@@ -259,7 +260,7 @@ public class BatchMessage extends Message.Request
         for (int i = 0; i < queryOrIdList.size(); i++)
         {
             if (i > 0) sb.append(", ");
-            sb.append(queryOrIdList.get(i)).append(" with ").append(values.get(i).size()).append(" values");
+            sb.append(queryOrIdList.get(i)).append(" with ").append(values.get(i).length).append(" values");
         }
         sb.append("] at consistency ").append(options.getConsistency());
         return sb.toString();

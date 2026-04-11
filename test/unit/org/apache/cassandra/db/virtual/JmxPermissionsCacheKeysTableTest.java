@@ -21,9 +21,11 @@ package org.apache.cassandra.db.virtual;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+
 import javax.security.auth.Subject;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -55,11 +57,10 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
 
     // this method is intentionally not called "setUpClass" to let it throw exception brought by startJMXServer method 
     @BeforeClass
-    public static void setup() throws Exception {
+    public static void setupAuth() throws Exception {
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
 
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

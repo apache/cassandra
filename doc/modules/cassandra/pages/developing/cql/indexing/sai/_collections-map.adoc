@@ -6,7 +6,9 @@ This example uses the following table and indexes:
 [source,sql]
 ----
 include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=mapColumn]
-include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[]
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[tag=keysidx]
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[tag=entriesidx]
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[tag=valuesidx]
 ----
 
 Indexes created on the map column `teams` in the `cyclist_career_teams` table target the keys, values, and full entries of the column data.

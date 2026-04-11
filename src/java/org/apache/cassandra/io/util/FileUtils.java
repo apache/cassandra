@@ -21,10 +21,6 @@ import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
@@ -44,22 +40,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
+import com.sun.nio.file.ExtendedOpenOption;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.FSErrorHandler;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -78,40 +72,6 @@ public final class FileUtils
     public static final long ONE_TIB = 1024 * ONE_GIB;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
-    private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
-
-    private static final Class clsDirectBuffer;
-    private static final MethodHandle mhDirectBufferCleaner;
-    private static final MethodHandle mhCleanerClean;
-
-    static
-    {
-        try
-        {
-            clsDirectBuffer = Class.forName("sun.nio.ch.DirectBuffer");
-            Method mDirectBufferCleaner = clsDirectBuffer.getMethod("cleaner");
-            mhDirectBufferCleaner = MethodHandles.lookup().unreflect(mDirectBufferCleaner);
-            Method mCleanerClean = mDirectBufferCleaner.getReturnType().getMethod("clean");
-            mhCleanerClean = MethodHandles.lookup().unreflect(mCleanerClean);
-
-            ByteBuffer buf = ByteBuffer.allocateDirect(1);
-            clean(buf);
-        }
-        catch (IllegalAccessException e)
-        {
-            logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
-                "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
-                "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
-                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options", e);
-            throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
-        }
-        catch (Throwable t)
-        {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator.", t);
-            JVMStabilityInspector.inspectThrowable(t);
-            throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
-        }
-    }
 
     private static final File tempDir = new File(JAVA_IO_TMPDIR.getString());
     private static final AtomicLong tempFileNum = new AtomicLong();
@@ -171,7 +131,7 @@ public final class FileUtils
     public static void createHardLink(File from, File to)
     {
         if (to.exists())
-            throw new RuntimeException("Tried to create duplicate hard link to " + to);
+            throw new DuplicateHardlinkException("Tried to create duplicate hard link from " + from + " to " + to);
         if (!from.exists())
             throw new RuntimeException("Tried to hard link to file that does not exist " + from);
 
@@ -200,6 +160,10 @@ public final class FileUtils
         {
             throw ex;
         }
+        catch (DuplicateHardlinkException ex)
+        {
+            throw new RuntimeException(ex.getMessage());
+        }
         catch (Throwable t)
         {
             throw new RuntimeException(String.format("Unable to hardlink from %s to %s", from, to), t);
@@ -220,7 +184,7 @@ public final class FileUtils
         catch (FSWriteError fse)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Could not hardlink file " + from + " to " + to, fse);
+                logger.trace("Could not hardlink file {} to {}", from, to, fse);
         }
     }
 
@@ -238,7 +202,7 @@ public final class FileUtils
         catch (IOException e)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Could not copy file" + from + " to " + to, e);
+                logger.trace("Could not copy file {} to {}", from, to, e);
         }
     }
 
@@ -359,34 +323,6 @@ public final class FileUtils
         return folder.isAncestorOf(file);
     }
 
-    public static void clean(ByteBuffer buffer)
-    {
-        if (buffer == null || !buffer.isDirect())
-            return;
-
-        // TODO Once we can get rid of Java 8, it's simpler to call sun.misc.Unsafe.invokeCleaner(ByteBuffer),
-        // but need to take care of the attachment handling (i.e. whether 'buf' is a duplicate or slice) - that
-        // is different in sun.misc.Unsafe.invokeCleaner and this implementation.
-
-        try
-        {
-            Object cleaner = mhDirectBufferCleaner.bindTo(buffer).invoke();
-            if (cleaner != null)
-            {
-                // ((DirectBuffer) buf).cleaner().clean();
-                mhCleanerClean.bindTo(cleaner).invoke();
-            }
-        }
-        catch (RuntimeException e)
-        {
-            throw e;
-        }
-        catch (Throwable e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static long parseFileSize(String value)
     {
         long result;
@@ -426,6 +362,14 @@ public final class FileUtils
         }
     }
 
+    public static String stringifyFileSize(long bytes, boolean humanReadable)
+    {
+        if (humanReadable)
+            return stringifyFileSize(bytes);
+        else
+            return Long.toString(bytes);
+    }
+
     public static String stringifyFileSize(double value)
     {
         double d;
@@ -458,21 +402,6 @@ public final class FileUtils
             String val = df.format(value);
             return val + " bytes";
         }
-    }
-
-    public static void handleCorruptSSTable(CorruptSSTableException e)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleCorruptSSTable(e));
-    }
-
-    public static void handleFSError(FSError e)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleFSError(e));
-    }
-
-    public static void handleStartupFSError(Throwable t)
-    {
-        fsErrorHandler.get().ifPresent(handler -> handler.handleStartupFSError(t));
     }
 
     /**
@@ -618,30 +547,29 @@ public final class FileUtils
         }
     }
 
-    public static void setFSErrorHandler(FSErrorHandler handler)
-    {
-        fsErrorHandler.getAndSet(Optional.ofNullable(handler));
-    }
-
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void createDirectory(String directory)
     {
         createDirectory(new File(directory));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void createDirectory(File directory)
     {
         PathUtils.createDirectoriesIfNotExists(directory.toPath());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static boolean delete(String file)
     {
         return new File(file).tryDelete();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void delete(File... files)
     {
         for (File file : files)
@@ -652,8 +580,10 @@ public final class FileUtils
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
+     *
+     * @deprecated See CASSANDRA-16926
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public static void deleteRecursiveWithThrottle(File dir, RateLimiter rateLimiter)
     {
         dir.deleteRecursive(rateLimiter);
@@ -663,8 +593,10 @@ public final class FileUtils
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
+     *
+     * @deprecated See CASSANDRA-16926
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public static void deleteRecursive(File dir)
     {
         dir.deleteRecursive();
@@ -673,56 +605,66 @@ public final class FileUtils
     /**
      * Schedules deletion of all file and subdirectories under "dir" on JVM shutdown.
      * @param dir Directory to be deleted
+     *
+     * @deprecated See CASSANDRA-16926
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public static void deleteRecursiveOnExit(File dir)
     {
         dir.deleteRecursiveOnExit();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static boolean isSubDirectory(File parent, File child)
     {
         return parent.isAncestorOf(child);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static Throwable deleteWithConfirm(File file, Throwable accumulate)
     {
         return file.delete(accumulate, null);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static Throwable deleteWithConfirm(File file, Throwable accumulate, RateLimiter rateLimiter)
     {
         return file.delete(accumulate, rateLimiter);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void deleteWithConfirm(String file)
     {
         deleteWithConfirm(new File(file));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void deleteWithConfirm(File file)
     {
         file.delete();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void renameWithOutConfirm(String from, String to)
     {
         new File(from).tryMove(new File(to));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void renameWithConfirm(String from, String to)
     {
         renameWithConfirm(new File(from), new File(to));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16926 */
+    @Deprecated(since = "4.1")
     public static void renameWithConfirm(File from, File to)
     {
         from.move(to);
@@ -796,6 +738,80 @@ public final class FileUtils
 
                 logger.warn("Cannot delete the directory {} as it is not empty. (Content: {})", path, content);
             }
+        }
+    }
+
+    public static boolean isDirectIOSupported(File file)
+    {
+        File testFile = null;
+        try
+        {
+            File dir = file.isDirectory() ? file : file.parent();
+            testFile = createTempFile("direct-io-test", ".tmp", dir);
+
+            // Direct IO requires knowing the block size for buffer alignment
+            if (blockSize(testFile) <= 0)
+                return false;
+
+            try (FileChannel channel = FileChannel.open(testFile.toPath(),
+                                                        StandardOpenOption.READ,
+                                                        ExtendedOpenOption.DIRECT))
+            {
+                return true;
+            }
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+        finally
+        {
+            if (testFile != null)
+                testFile.tryDelete();
+        }
+    }
+
+    public static int getFileBlockSize(File file)
+    {
+        try
+        {
+            return blockSize(file);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Failed to get file block size in " + file, e);
+        }
+    }
+
+    public static int getBlockSize(File directory)
+    {
+        File f = FileUtils.createTempFile("block-size-test", ".tmp", directory);
+        try
+        {
+            return blockSize(f);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Failed to get file block size in " + directory, e);
+        }
+        finally
+        {
+            f.tryDelete();
+        }
+    }
+
+    private static int blockSize(File file) throws IOException
+    {
+        long bs = Files.getFileStore(file.toPath()).getBlockSize();
+        assert bs >= 0 && bs <= Integer.MAX_VALUE;
+        return (int) bs;
+    }
+
+    public static class DuplicateHardlinkException extends RuntimeException
+    {
+        public DuplicateHardlinkException(String message)
+        {
+            super(message);
         }
     }
 }

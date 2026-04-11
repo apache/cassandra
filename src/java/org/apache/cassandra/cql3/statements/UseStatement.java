@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -25,14 +28,12 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class UseStatement extends CQLStatement.Raw implements CQLStatement
 {
@@ -59,7 +60,8 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
         checkTrue(DatabaseDescriptor.getUseStatementsEnabled(), "USE statements prohibited. (see use_statements_enabled in cassandra.yaml)");
     }
 
-    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws InvalidRequestException
+    @Override
+    public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime) throws InvalidRequestException
     {
         QueryProcessor.metrics.useStatementsExecuted.inc();
         state.getClientState().setKeyspace(keyspace);
@@ -70,7 +72,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
     {
         // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
-        return execute(state, options, nanoTime());
+        return execute(state, options, Dispatcher.RequestTime.forImmediateExecution());
     }
     
     @Override

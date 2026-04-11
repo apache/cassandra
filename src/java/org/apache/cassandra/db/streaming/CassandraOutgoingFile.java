@@ -49,6 +49,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final boolean shouldStreamEntireSSTable;
     private final StreamOperation operation;
     private final CassandraStreamHeader header;
+    private final List<Range<Token>> ranges;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
@@ -60,6 +61,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
+        this.ranges = normalizedRanges;
 
         SSTableReader sstable = ref.get();
 
@@ -132,6 +134,12 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @Override
+    public List<Range<Token>> ranges()
+    {
+        return ranges;
+    }
+
+    @Override
     public long getRepairedAt()
     {
         return ref.get().getRepairedAt();
@@ -180,8 +188,11 @@ public class CassandraOutgoingFile implements OutgoingStream
     @VisibleForTesting
     public boolean computeShouldStreamEntireSSTables()
     {
-        // don't stream if full sstable transfers are disabled or legacy counter shards are present
-        if (!DatabaseDescriptor.streamEntireSSTables() || ref.get().getSSTableMetadata().hasLegacyCounterShards)
+        // don't stream if full sstable transfers are disabled, legacy counter shards are present,
+        // or sstable uses old bloom filter format (pre-4.0) which is incompatible with zero-copy streaming
+        if (!DatabaseDescriptor.streamEntireSSTables() ||
+            ref.get().getSSTableMetadata().hasLegacyCounterShards ||
+            ref.get().descriptor.version.hasOldBfFormat())
             return false;
 
         return contained(sections, ref.get());

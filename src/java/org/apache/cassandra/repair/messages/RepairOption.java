@@ -17,10 +17,16 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,8 +34,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.streaming.PreviewKind;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Repair options.
@@ -51,8 +60,11 @@ public class RepairOption
     public static final String PREVIEW = "previewKind";
     public static final String OPTIMISE_STREAMS_KEY = "optimiseStreams";
     public static final String IGNORE_UNREPLICATED_KS = "ignoreUnreplicatedKeyspaces";
+    public static final String REPAIR_DATA_KEY = "repairData";
     public static final String REPAIR_PAXOS_KEY = "repairPaxos";
-    public static final String PAXOS_ONLY_KEY = "paxosOnly";
+    public static final String NO_TOMBSTONE_PURGING = "nopurge";
+    public static final String REPAIR_ACCORD_KEY = "repairAccord";
+    public static final String PERMIT_NO_QUORUM_KEY = "permitNoQuorum";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -83,6 +95,7 @@ public class RepairOption
         }
         return ranges;
     }
+
     /**
      * Construct RepairOptions object from given map of Strings.
      * <p>
@@ -164,6 +177,12 @@ public class RepairOption
      *             ranges to the same host multiple times</td>
      *             <td>false</td>
      *         </tr>
+     *         <tr>
+     *             <td>accordRepair</td>
+     *             <td>"true" if the repair should be of Accord in flight transactions. Will ensure
+     *             that once repair completes all Accord transactions are replicated at quorum</td>
+     *             <td>false</td>
+     *         </tr>
      *     </tbody>
      * </table>
      *
@@ -182,13 +201,22 @@ public class RepairOption
         boolean force = Boolean.parseBoolean(options.get(FORCE_REPAIR_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
         boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
+        // Default to true because historically it was a default and some tests were written to expect it
+        boolean repairData = Boolean.parseBoolean(options.getOrDefault(REPAIR_DATA_KEY, "true"));
         boolean repairPaxos = Boolean.parseBoolean(options.get(REPAIR_PAXOS_KEY));
-        boolean paxosOnly = Boolean.parseBoolean(options.get(PAXOS_ONLY_KEY));
+        boolean dontPurgeTombstones = Boolean.parseBoolean(options.get(NO_TOMBSTONE_PURGING));
+        boolean repairAccord = Boolean.parseBoolean(options.get(REPAIR_ACCORD_KEY));
+        if (repairAccord && !DatabaseDescriptor.getAccordTransactionsEnabled())
+        {
+            logger.info("Overriding and disabling Accord repair because Accord is not enabled");
+            repairAccord = false;
+        }
+        boolean permitNoQuorum = Boolean.parseBoolean(options.get(PERMIT_NO_QUORUM_KEY));
 
         if (previewKind != PreviewKind.NONE)
         {
-            Preconditions.checkArgument(!repairPaxos, "repairPaxos must be set to false for preview repairs");
-            Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for preview repairs");
+            checkArgument(!repairPaxos, "repairPaxos must be set to false for preview repairs");
+            checkArgument(!repairAccord, "repairAccord must be set to false for preview repairs");
         }
 
         int jobThreads = 1;
@@ -202,11 +230,13 @@ public class RepairOption
         }
 
         // ranges
-        Set<Range<Token>> ranges = parseRanges(options.get(RANGES_KEY), partitioner);
+        Set<Range<Token>> ranges = partitioner == MetaStrategy.partitioner
+                                   ? Collections.singleton(MetaStrategy.entireRange)
+                                   : parseRanges(options.get(RANGES_KEY), partitioner);
 
         boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairPaxos, paxosOnly);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces, repairData, repairPaxos, dontPurgeTombstones, repairAccord, permitNoQuorum);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -280,37 +310,41 @@ public class RepairOption
     private final boolean incremental;
     private final boolean trace;
     private final int jobThreads;
-    private final boolean isSubrangeRepair;
     private final boolean pullRepair;
     private final boolean forceRepair;
     private final PreviewKind previewKind;
     private final boolean optimiseStreams;
     private final boolean ignoreUnreplicatedKeyspaces;
+    private final boolean repairData;
     private final boolean repairPaxos;
-    private final boolean paxosOnly;
+    private final boolean dontPurgeTombstones;
+    private final boolean repairAccord;
+    private final boolean permitNoQuorum; // has an effect only for Accord at present
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairPaxos, boolean paxosOnly)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces, boolean repairData, boolean repairPaxos, boolean dontPurgeTombstones, boolean repairAccord, boolean permitNoQuorum)
     {
-
+        checkArgument(repairData || repairAccord || repairPaxos, "Repair needs to repair at least one of data, Paxos, or Accord");
         this.parallelism = parallelism;
         this.primaryRange = primaryRange;
         this.incremental = incremental;
         this.trace = trace;
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
-        this.isSubrangeRepair = isSubrangeRepair;
         this.pullRepair = pullRepair;
         this.forceRepair = forceRepair;
         this.previewKind = previewKind;
         this.optimiseStreams = optimiseStreams;
         this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
+        this.repairData = repairData;
         this.repairPaxos = repairPaxos;
-        this.paxosOnly = paxosOnly;
+        this.dontPurgeTombstones = dontPurgeTombstones;
+        this.repairAccord = repairAccord;
+        this.permitNoQuorum = permitNoQuorum;
     }
 
     public RepairParallelism getParallelism()
@@ -373,11 +407,6 @@ public class RepairOption
         return dataCenters.isEmpty() && hosts.isEmpty();
     }
 
-    public boolean isSubrangeRepair()
-    {
-        return isSubrangeRepair;
-    }
-
     public PreviewKind getPreviewKind()
     {
         return previewKind;
@@ -416,6 +445,11 @@ public class RepairOption
         return ignoreUnreplicatedKeyspaces;
     }
 
+    public boolean repairData()
+    {
+        return repairData;
+    }
+
     public boolean repairPaxos()
     {
         return repairPaxos;
@@ -423,7 +457,27 @@ public class RepairOption
 
     public boolean paxosOnly()
     {
-        return paxosOnly;
+        return !repairAccord && !repairData && repairPaxos;
+    }
+
+    public boolean repairAccord()
+    {
+        return repairAccord;
+    }
+
+    public boolean permitNoQuorum()
+    {
+        return repairAccord;
+    }
+
+    public boolean dontPurgeTombstones()
+    {
+        return dontPurgeTombstones;
+    }
+
+    public boolean accordOnly()
+    {
+        return !repairPaxos && !repairData && repairAccord;
     }
 
     @Override
@@ -443,8 +497,10 @@ public class RepairOption
                ", force repair: " + forceRepair +
                ", optimise streams: "+ optimiseStreams() +
                ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
+               ", repairData: " + repairData +
                ", repairPaxos: " + repairPaxos +
-               ", paxosOnly: " + paxosOnly +
+               ", dontPurgeTombstones: " + dontPurgeTombstones +
+               ", repairAccord: " + repairAccord +
                ')';
     }
 
@@ -458,15 +514,17 @@ public class RepairOption
         options.put(COLUMNFAMILIES_KEY, Joiner.on(",").join(columnFamilies));
         options.put(DATACENTERS_KEY, Joiner.on(",").join(dataCenters));
         options.put(HOSTS_KEY, Joiner.on(",").join(hosts));
-        options.put(SUB_RANGE_REPAIR_KEY, Boolean.toString(isSubrangeRepair));
         options.put(TRACE_KEY, Boolean.toString(trace));
         options.put(RANGES_KEY, Joiner.on(",").join(ranges));
         options.put(PULL_REPAIR_KEY, Boolean.toString(pullRepair));
         options.put(FORCE_REPAIR_KEY, Boolean.toString(forceRepair));
         options.put(PREVIEW, previewKind.toString());
         options.put(OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
+        options.put(REPAIR_DATA_KEY, Boolean.toString(repairData));
         options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
-        options.put(PAXOS_ONLY_KEY, Boolean.toString(paxosOnly));
+        options.put(NO_TOMBSTONE_PURGING, Boolean.toString(dontPurgeTombstones));
+        options.put(REPAIR_ACCORD_KEY, Boolean.toString(repairAccord));
+        options.put(PERMIT_NO_QUORUM_KEY, Boolean.toString(permitNoQuorum));
         return options;
     }
 }

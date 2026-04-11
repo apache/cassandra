@@ -24,22 +24,40 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
-import com.google.common.net.HostAndPort;
-
-import com.datastax.driver.core.*;
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.BoundStatement;
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.ConsistencyLevel;
+import com.datastax.driver.core.Host;
+import com.datastax.driver.core.HostDistance;
+import com.datastax.driver.core.Metadata;
+import com.datastax.driver.core.PoolingOptions;
+import com.datastax.driver.core.PreparedStatement;
+import com.datastax.driver.core.ProtocolOptions;
+import com.datastax.driver.core.ProtocolVersion;
+import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
 import com.datastax.driver.core.policies.WhiteListPolicy;
 import com.datastax.shaded.netty.channel.socket.SocketChannel;
-import io.netty.util.internal.logging.InternalLoggerFactory;
-import io.netty.util.internal.logging.Slf4JLoggerFactory;
+import com.google.common.net.HostAndPort;
+
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.stress.settings.StressSettings;
+
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.Slf4JLoggerFactory;
+
+import static org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions.ClientAuth.REQUIRED;
 
 public class JavaDriverClient
 {
@@ -58,7 +76,7 @@ public class JavaDriverClient
     public final int connectionsPerHost;
 
     private final ProtocolVersion protocolVersion;
-    private final EncryptionOptions encryptionOptions;
+    private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private Cluster cluster;
     private Session session;
     private final LoadBalancingPolicy loadBalancingPolicy;
@@ -67,15 +85,15 @@ public class JavaDriverClient
 
     public JavaDriverClient(StressSettings settings, String host, int port)
     {
-        this(settings, Collections.singletonList(host), port, new EncryptionOptions());
+        this(settings, Collections.singletonList(host), port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
     public JavaDriverClient(StressSettings settings, List<String> hosts, int port)
     {
-        this(settings, hosts, port, new EncryptionOptions());
+        this(settings, hosts, port, new EncryptionOptions.ClientEncryptionOptions());
     }
 
-    public JavaDriverClient(StressSettings settings, List<String> hosts, int port, EncryptionOptions encryptionOptions)
+    public JavaDriverClient(StressSettings settings, List<String> hosts, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
         this.protocolVersion = settings.mode.protocolVersion;
         this.hosts = hosts;
@@ -83,7 +101,7 @@ public class JavaDriverClient
         this.username = settings.mode.username;
         this.password = settings.mode.password;
         this.authProvider = settings.mode.authProvider;
-        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
+        this.encryptionOptions = new EncryptionOptions.ClientEncryptionOptions(encryptionOptions).applyConfig();
         this.loadBalancingPolicy = loadBalancingPolicy(settings);
         this.connectionsPerHost = settings.mode.connectionsPerHost == null ? 8 : settings.mode.connectionsPerHost;
 
@@ -161,7 +179,7 @@ public class JavaDriverClient
         if (encryptionOptions.getEnabled())
         {
             SSLContext sslContext;
-            sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
+            sslContext = SSLFactory.createSSLContext(encryptionOptions, REQUIRED);
 
             // Temporarily override newSSLEngine to set accepted protocols until it is added to
             // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.

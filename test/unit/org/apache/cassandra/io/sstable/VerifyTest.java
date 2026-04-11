@@ -30,6 +30,7 @@ import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
 import com.google.common.base.Charsets;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -43,6 +44,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -50,7 +52,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -68,10 +70,9 @@ import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.range.TokenUpdater;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -108,6 +109,7 @@ public class VerifyTest
     public static final String COUNTER_CF4 = "Counter4";
     public static final String CORRUPT_CF = "Corrupt1";
     public static final String CORRUPT_CF2 = "Corrupt2";
+    public static final String CORRUPT_CF3 = "Corrupt3";
     public static final String CORRUPTCOUNTER_CF = "CounterCorrupt1";
     public static final String CORRUPTCOUNTER_CF2 = "CounterCorrupt2";
 
@@ -130,6 +132,7 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, CF4),
                        standardCFMD(KEYSPACE, CORRUPT_CF),
                        standardCFMD(KEYSPACE, CORRUPT_CF2),
+                       standardCFMD(KEYSPACE, CORRUPT_CF3),
                        counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF3),
@@ -140,6 +143,10 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, BF_ALWAYS_PRESENT).bloomFilterFpChance(1.0));
     }
 
+    protected IVerifier getVerifier(SSTableReader sstable, ColumnFamilyStore cfs, IVerifier.Options.Builder verifierOptions)
+    {
+        return sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, verifierOptions.build());
+    }
 
     @Test
     public void testVerifyCorrect()
@@ -152,7 +159,7 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
@@ -172,7 +179,7 @@ public class VerifyTest
         fillCounterCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
@@ -192,7 +199,7 @@ public class VerifyTest
         fillCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
@@ -213,7 +220,7 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).extendedVerification(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true).extendedVerification(true)))
         {
             verifier.verify();
         }
@@ -234,7 +241,7 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
@@ -255,7 +262,7 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
@@ -276,7 +283,7 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().extendedVerification(true).invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().extendedVerification(true).invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
@@ -297,12 +304,13 @@ public class VerifyTest
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().extendedVerification(true).invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().extendedVerification(true).invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
         }
         catch (CorruptSSTableException err)
         {
+            err.printStackTrace();
             fail("Unexpected CorruptSSTableException");
         }
     }
@@ -329,7 +337,7 @@ public class VerifyTest
             writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Components.DIGEST));
         }
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -338,7 +346,7 @@ public class VerifyTest
         {
         }
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(false).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(false)))
         {
             verifier.verify();
             fail("Expected a RuntimeException to be thrown");
@@ -378,7 +386,7 @@ public class VerifyTest
         // Update the Digest to have the right Checksum
         writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.fileFor(Components.DIGEST));
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             // First a simple verify checking digest, which should succeed
             try
@@ -391,7 +399,7 @@ public class VerifyTest
                 fail("Simple verify should have succeeded as digest matched");
             }
         }
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).extendedVerification(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true).extendedVerification(true)))
         {
             // Now try extended verify
             try
@@ -423,7 +431,7 @@ public class VerifyTest
         file.position(0);
         file.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
         file.close();
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -431,7 +439,7 @@ public class VerifyTest
         catch (CorruptSSTableException expected)
         {
         }
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(false).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(false)))
         {
             verifier.verify();
             fail("Expected a RuntimeException to be thrown");
@@ -468,7 +476,7 @@ public class VerifyTest
             correctChecksum = file.readLong();
         }
         writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Components.DIGEST));
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().mutateRepairStatus(false).invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().mutateRepairStatus(false).invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -480,7 +488,7 @@ public class VerifyTest
         assertTrue(sstable.isRepaired());
 
         // now the repair status should be changed:
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().mutateRepairStatus(true).invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().mutateRepairStatus(true).invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -497,21 +505,17 @@ public class VerifyTest
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         fillCF(cfs, 100);
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        new TokenUpdater().withTokens(InetAddressAndPort.getByName("127.0.0.1"), new BytesToken(tk1))
+                          .withTokens(InetAddressAndPort.getByName("127.0.0.2"), new BytesToken(tk2))
+                          .update();
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().checkOwnsTokens(true).extendedVerification(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().checkOwnsTokens(true).extendedVerification(true)))
         {
             verifier.verify();
-        }
-        finally
-        {
-            StorageService.instance.getTokenMetadata().clearUnsafe();
         }
     }
 
@@ -520,7 +524,7 @@ public class VerifyTest
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF3);
 
         fillCF(cfs, 2);
 
@@ -538,7 +542,7 @@ public class VerifyTest
             correctChecksum = file.readLong();
         }
         writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Components.DIGEST));
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true)))
         {
             verifier.verify();
             fail("should be corrupt");
@@ -583,7 +587,7 @@ public class VerifyTest
         fillCF(cfs, 2);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options()))
         {
             verifier.verify(); //still not corrupt, should pass
         }
@@ -592,7 +596,7 @@ public class VerifyTest
             fileChannel.truncate(3);
         }
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("should throw exception");
@@ -624,7 +628,7 @@ public class VerifyTest
             writeChecksum(++correctChecksum, sstable.descriptor.fileFor(Components.DIGEST));
         }
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -633,12 +637,12 @@ public class VerifyTest
         {
         }
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).quick(true).build())) // with quick = true we don't verify the digest
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true).quick(true))) // with quick = true we don't verify the digest
         {
             verifier.verify();
         }
 
-        try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().invokeDiskFailurePolicy(true).build()))
+        try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().invokeDiskFailurePolicy(true)))
         {
             verifier.verify();
             fail("Expected a RuntimeException to be thrown");
@@ -729,12 +733,11 @@ public class VerifyTest
     @Test
     public void testVerifyLocalPartitioner() throws UnknownHostException
     {
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+//        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+//        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
         // write some bogus to a localpartitioner table
         Batch bogus = Batch.createLocal(nextTimeUUID(), 0, Collections.emptyList());
         BatchlogManager.store(bogus);
@@ -743,7 +746,7 @@ public class VerifyTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
 
-            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().checkOwnsTokens(true).build()))
+            try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options().checkOwnsTokens(true)))
             {
                 verifier.verify();
             }
@@ -762,13 +765,30 @@ public class VerifyTest
         {
             File f = sstable.descriptor.fileFor(Components.FILTER);
             assertFalse(f.exists());
-            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().build()))
+            try (IVerifier verifier = getVerifier(sstable, cfs, IVerifier.options()))
             {
                 verifier.verify();
             }
         }
     }
 
+    @Test
+    public void testVerifyReversedPartitioner()
+    {
+        for (long i = 0; i < 10; i++)
+            QueryProcessor.executeInternal("insert into system.local_metadata_log (epoch) values (?)", i);
+        ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("local_metadata_log");
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        assertFalse(cfs.getLiveSSTables().isEmpty());
+        for (SSTableReader sstable : cfs.getLiveSSTables())
+        {
+            try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options()
+                                                                                                              .checkOwnsTokens(true).build()))
+            {
+                verifier.verify();
+            }
+        }
+    }
 
     private DecoratedKey dk(long l)
     {

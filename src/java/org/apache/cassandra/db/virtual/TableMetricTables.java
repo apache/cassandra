@@ -22,15 +22,16 @@ import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.commons.math3.util.Precision;
-
 import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metered;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Sampling;
 import com.codahale.metrics.Snapshot;
+import com.google.common.collect.ImmutableList;
+
+import org.apache.commons.math3.util.Precision;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -75,6 +76,7 @@ public class TableMetricTables
             new LatencyTableMetric(name, "local_write_latency", t -> t.writeLatency.latency),
             new LatencyTableMetric(name, "coordinator_write_latency", t -> t.coordinatorWriteLatency),
             new HistogramTableMetric(name, "tombstones_per_read", t -> t.tombstoneScannedHistogram.cf),
+            new HistogramTableMetric(name, "purgeable_tombstones_per_read", t -> t.purgeableTombstoneScannedHistogram.cf),
             new HistogramTableMetric(name, "rows_per_read", t -> t.liveScannedHistogram.cf),
             new StorageTableMetric(name, "disk_usage", (TableMetrics t) -> t.totalDiskSpaceUsed),
             new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),

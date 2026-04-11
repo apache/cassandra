@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -73,6 +74,11 @@ public class DecoratedKeyByteSourceTest
             byte[] keyBytes = DecoratedKey.keyFromByteSource(src, version, ByteOrderedPartitioner.instance);
             Assert.assertEquals(ByteSource.END_OF_STREAM, src.next());
             Assert.assertArrayEquals(initialBuffer.getKey().array(), keyBytes);
+
+            ByteSource.Peekable srcCount = ByteSource.peekable(initialBuffer.asComparableBytes(version));
+            int keyBytesCount = DecoratedKey.keySizeFromByteSource(srcCount, version, ByteOrderedPartitioner.instance);
+            Assert.assertEquals(ByteSource.END_OF_STREAM, srcCount.next());
+            Assert.assertEquals(keyBytes.length, keyBytesCount);
         }
     }
 

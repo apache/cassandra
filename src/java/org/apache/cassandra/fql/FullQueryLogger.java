@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.fql;
 
-import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,19 +28,19 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.io.util.File;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.netty.buffer.ByteBuf;
 import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.wire.ValueOut;
 import net.openhft.chronicle.wire.WireOut;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
@@ -50,6 +49,8 @@ import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+
+import io.netty.buffer.ByteBuf;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -268,7 +269,7 @@ public class FullQueryLogger implements QueryEvents.Listener
     public void batchSuccess(BatchStatement.Type type,
                              List<? extends CQLStatement> statements,
                              List<String> queries,
-                             List<List<ByteBuffer>> values,
+                             List<byte[][]> values,
                              QueryOptions queryOptions,
                              QueryState queryState,
                              long batchTimeMillis,
@@ -383,11 +384,11 @@ public class FullQueryLogger implements QueryEvents.Listener
         private final int weight;
         private final BatchStatement.Type batchType;
         private final List<String> queries;
-        private final List<List<ByteBuffer>> values;
+        private final List<byte[][]> values;
 
         public Batch(BatchStatement.Type batchType,
                      List<String> queries,
-                     List<List<ByteBuffer>> values,
+                     List<byte[][]> values,
                      QueryOptions queryOptions,
                      QueryState queryState,
                      long batchTimeMillis)
@@ -406,11 +407,11 @@ public class FullQueryLogger implements QueryEvents.Listener
                 queriesSize += ObjectSizes.sizeOf(checkNotNull(query));
 
             long valuesSize = EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(values.size());
-            for (List<ByteBuffer> subValues : values)
+            for (byte[][] subValues : values)
             {
-                valuesSize += EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(subValues.size());
-                for (ByteBuffer subValue : subValues)
-                    valuesSize += ObjectSizes.sizeOnHeapOf(subValue);
+                valuesSize += EMPTY_LIST_SIZE + ObjectSizes.sizeOfReferenceArray(subValues.length);
+                for (byte[] subValue : subValues)
+                    valuesSize += ObjectSizes.sizeOfArray(subValue);
             }
 
             // No need to add the batch type which is an enum.
@@ -450,13 +451,11 @@ public class FullQueryLogger implements QueryEvents.Listener
             }
             valueOut = wire.write(VALUES);
             valueOut.int32(values.size());
-            for (List<ByteBuffer> subValues : values)
+            for (byte[][] subValues : values)
             {
-                valueOut.int32(subValues.size());
-                for (ByteBuffer value : subValues)
-                {
-                    valueOut.bytes(BytesStore.wrap(value));
-                }
+                valueOut.int32(subValues.length);
+                for (byte[] value : subValues)
+                    valueOut.bytes(value == null ? null : BytesStore.wrap(value));
             }
         }
 

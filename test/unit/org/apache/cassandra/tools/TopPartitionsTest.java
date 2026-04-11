@@ -35,18 +35,18 @@ import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.Sampler;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.Util;
-
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -56,14 +56,14 @@ import static org.junit.Assert.assertTrue;
  */
 public class TopPartitionsTest
 {
-    public static String KEYSPACE = TopPartitionsTest.class.getSimpleName().toLowerCase();
+    public static String KEYSPACE = toLowerCaseLocalized(TopPartitionsTest.class.getSimpleName());
     public static String TABLE = "test";
 
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1));
+        ServerTestUtils.prepareServerNoRegister();
+        executeInternal(format("CREATE KEYSPACE %s WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}", KEYSPACE));
         executeInternal(format("CREATE TABLE %s.%s (k text, c text, v text, PRIMARY KEY (k, c))", KEYSPACE, TABLE));
     }
 
@@ -93,10 +93,16 @@ public class TopPartitionsTest
     @Test
     public void testServiceTopPartitionsSingleTable() throws Exception
     {
-        ColumnFamilyStore.getIfExists("system", "local").beginLocalSampling("READS", 5, 240000);
+        ColumnFamilyStore columnFamilyStore = ColumnFamilyStore.getIfExists("system", "local");
+        String samplerName = "READS";
+        long executedBefore = Sampler.samplerExecutor.getCompletedTaskCount();
+        columnFamilyStore.beginLocalSampling(samplerName, 5, 240_000);
+
         String req = "SELECT * FROM system.%s WHERE key='%s'";
         executeInternal(format(req, SystemKeyspace.LOCAL, SystemKeyspace.LOCAL));
-        List<CompositeData> result = ColumnFamilyStore.getIfExists("system", "local").finishLocalSampling("READS", 5);
+        ensureThatSamplerExecutorProcessedAllSamples(executedBefore);
+
+        List<CompositeData> result = columnFamilyStore.finishLocalSampling(samplerName, 5);
         assertEquals("If this failed you probably have to raise the beginLocalSampling duration", 1, result.size());
     }
 
@@ -119,13 +125,14 @@ public class TopPartitionsTest
         executeInternal(format("DELETE FROM %s.%s WHERE k='a' AND c='a'", KEYSPACE, TABLE));
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
+        long executedBefore = Sampler.samplerExecutor.getCompletedTaskCount();
         // test multi-partition read
         cfs.beginLocalSampling("READ_ROW_COUNT", count, 240000);
         cfs.beginLocalSampling("READ_TOMBSTONE_COUNT", count, 240000);
         cfs.beginLocalSampling("READ_SSTABLE_COUNT", count, 240000);
 
         executeInternal(format("SELECT * FROM %s.%s", KEYSPACE, TABLE));
-        Thread.sleep(2000); // simulate waiting before finishing sampling
+        ensureThatSamplerExecutorProcessedAllSamples(executedBefore);
 
         List<CompositeData> rowCounts = cfs.finishLocalSampling("READ_ROW_COUNT", count);
         List<CompositeData> tsCounts = cfs.finishLocalSampling("READ_TOMBSTONE_COUNT", count);
@@ -152,6 +159,7 @@ public class TopPartitionsTest
         assertEquals("a", tsCounts.get(0).get("value"));
         assertEquals(1, (long) tsCounts.get(0).get("count"));
 
+        executedBefore = Sampler.samplerExecutor.getCompletedTaskCount();
         // test single partition read
         cfs.beginLocalSampling("READ_ROW_COUNT", count, 240000);
         cfs.beginLocalSampling("READ_TOMBSTONE_COUNT", count, 240000);
@@ -160,7 +168,7 @@ public class TopPartitionsTest
         executeInternal(format("SELECT * FROM %s.%s WHERE k='a'", KEYSPACE, TABLE));
         executeInternal(format("SELECT * FROM %s.%s WHERE k='b'", KEYSPACE, TABLE));
         executeInternal(format("SELECT * FROM %s.%s WHERE k='c'", KEYSPACE, TABLE));
-        Thread.sleep(2000); // simulate waiting before finishing sampling
+        ensureThatSamplerExecutorProcessedAllSamples(executedBefore);
 
         rowCounts = cfs.finishLocalSampling("READ_ROW_COUNT", count);
         tsCounts = cfs.finishLocalSampling("READ_TOMBSTONE_COUNT", count);
@@ -222,5 +230,24 @@ public class TopPartitionsTest
 
         assertTrue("When nothing is scheduled, you should be able to stop all scheduled sampling tasks",
                    ss.stopSamplingPartitions(null, null));
+    }
+
+    private static void ensureThatSamplerExecutorProcessedAllSamples(long executedBefore)
+    {
+        Util.spinAssertEquals("samplerExecutor should not have pending tasks",
+                              0,
+                              Sampler.samplerExecutor::getPendingTaskCount,
+                              60,
+                              TimeUnit.SECONDS);
+        Util.spinAssertEquals("samplerExecutor should not have active tasks",
+                              0,
+                              Sampler.samplerExecutor::getActiveTaskCount,
+                              60,
+                              TimeUnit.SECONDS);
+        Util.spinAssert("samplerExecutor has not completed any new tasks after beginLocalSampling",
+                        greaterThan(executedBefore),
+                        Sampler.samplerExecutor::getCompletedTaskCount,
+                        60,
+                        TimeUnit.SECONDS);
     }
 }

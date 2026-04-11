@@ -38,15 +38,17 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
+import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS;
@@ -189,10 +191,14 @@ public class PaxosUncommittedTracker
         return tableStates.get(tableId);
     }
 
-    @SuppressWarnings("resource")
     public CloseableIterator<UncommittedPaxosKey> uncommittedKeyIterator(TableId tableId, Collection<Range<Token>> ranges)
     {
-        ranges = (ranges == null || ranges.isEmpty()) ? Collections.singleton(FULL_RANGE) : Range.normalize(ranges);
+        TableMetadata table = Schema.instance.getTableMetadata(tableId);
+        if (table == null || table.partitioner != IPartitioner.global())
+            ranges = Collections.singleton(FULL_RANGE);
+        else
+            ranges = (ranges == null || ranges.isEmpty()) ? Collections.singleton(FULL_RANGE) : Range.normalize(ranges);
+
         CloseableIterator<PaxosKeyState> updates = updateSupplier.repairIterator(tableId, ranges);
 
         try
@@ -323,7 +329,7 @@ public class PaxosUncommittedTracker
     {
         runAndLogException("file consolidation", this::consolidateFiles);
         runAndLogException("schedule auto repairs", this::schedulePaxosAutoRepairs);
-        runAndLogException("evict hung repairs", PaxosTableRepairs::evictHungRepairs);
+        runAndLogException("evict hung repairs", PaxosRepairState.instance()::evictHungRepairs);
     }
 
     public synchronized void startAutoRepairs()

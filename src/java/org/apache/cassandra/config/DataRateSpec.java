@@ -27,6 +27,7 @@ import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
 
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Represents a data rate type used for cassandra configuration. It supports the opportunity for the users to be able to
@@ -76,7 +77,7 @@ public abstract class DataRateSpec
         // negatives are not allowed by the regex pattern
         if (minUnit.convert(quantity, unit) >= max)
             throw new IllegalArgumentException("Invalid data rate: " + value + ". It shouldn't be more than " +
-                                             (max - 1) + " in " + minUnit.name().toLowerCase());
+                                             (max - 1) + " in " + toLowerCaseLocalized(minUnit.name()));
     }
 
     private static void validateQuantity(double quantity, DataRateUnit unit, DataRateUnit minUnit, long max)
@@ -86,8 +87,8 @@ public abstract class DataRateSpec
 
         if (minUnit.convert(quantity, unit) >= max)
             throw new IllegalArgumentException(String.format("Invalid data rate: %s %s. It shouldn't be more than %d in %s",
-                                                       quantity, unit.name().toLowerCase(),
-                                                       max - 1, minUnit.name().toLowerCase()));
+                                                       quantity, toLowerCaseLocalized(unit.name()),
+                                                       max - 1, toLowerCaseLocalized(minUnit.name())));
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
@@ -255,7 +256,8 @@ public abstract class DataRateSpec
 
         // this one should be used only for backward compatibility for stream_throughput_outbound and inter_dc_stream_throughput_outbound
         // which were in megabits per second in 4.0. Do not start using it for any new properties
-        @Deprecated
+        /** @deprecated See CASSANDRA-17225 */
+        @Deprecated(since = "4.1")
         public static LongBytesPerSecondBound megabitsPerSecondInBytesPerSecond(long megabitsPerSecond)
         {
             final long BYTES_PER_MEGABIT = 125_000;

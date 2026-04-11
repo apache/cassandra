@@ -23,9 +23,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
-import io.netty.channel.FileRegion;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.Shared;
+
+import io.netty.channel.FileRegion;
 
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;

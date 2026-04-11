@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.Supplier;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**

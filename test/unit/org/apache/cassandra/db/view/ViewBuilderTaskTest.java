@@ -60,7 +60,7 @@ public class ViewBuilderTaskTest extends CQLTester
                                                   "PRIMARY KEY (v, k, c)", viewName));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        View view = cfs.keyspace.viewManager.forTable(cfs.metadata().id).iterator().next();
+        View view = cfs.keyspace.viewManager.forTable(cfs.metadata()).iterator().next();
 
         // Insert the dataset
         for (int k = 0; k < 100; k++)

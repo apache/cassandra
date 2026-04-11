@@ -22,8 +22,8 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.junit.Test;
 
+import org.junit.Test;
 import org.yaml.snakeyaml.introspector.Property;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,8 +40,10 @@ public class PropertiesTest
         Config config = new Config();
         Set<String> keys = ImmutableSet.of("server_encryption_options.enabled",
                                            "client_encryption_options.enabled",
+                                           "jmx_encryption_options.enabled",
                                            "server_encryption_options.optional",
-                                           "client_encryption_options.optional");
+                                           "client_encryption_options.optional",
+                                           "jmx_encryption_options.optional");
         for (Property prop : ps.values())
         {
             // skip these properties as they don't allow get/set within the context of this test

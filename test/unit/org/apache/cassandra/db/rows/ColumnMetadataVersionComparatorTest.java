@@ -24,7 +24,19 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.schema.ColumnMetadata;
 
 import static java.util.Arrays.asList;
@@ -194,8 +206,8 @@ public class ColumnMetadataVersionComparatorTest
 
     private static int compare(AbstractType<?> left, AbstractType<?> right)
     {
-        ColumnMetadata v1 = ColumnMetadata.regularColumn("ks", "t", "c", left);
-        ColumnMetadata v2 = ColumnMetadata.regularColumn("ks", "t", "c", right);
+        ColumnMetadata v1 = ColumnMetadata.regularColumn("ks", "t", "c", left, ColumnMetadata.NO_UNIQUE_ID);
+        ColumnMetadata v2 = ColumnMetadata.regularColumn("ks", "t", "c", right, ColumnMetadata.NO_UNIQUE_ID);
         return ColumnMetadataVersionComparator.INSTANCE.compare(v1, v2);
     }
 }

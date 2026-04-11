@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.db.ReadCommand.PotentialTxnConflicts;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -36,12 +37,11 @@ public interface PartitionRangeReadQuery extends ReadQuery
                             ColumnFilter columnFilter,
                             RowFilter rowFilter,
                             DataLimits limits,
-                            DataRange dataRange)
+                            DataRange dataRange,
+                            PotentialTxnConflicts potentialTxnConflicts)
     {
-        return PartitionRangeReadCommand.create(table, nowInSec, columnFilter, rowFilter, limits, dataRange);
+        return PartitionRangeReadCommand.create(table, nowInSec, columnFilter, rowFilter, limits, dataRange, potentialTxnConflicts);
     }
-
-    DataRange dataRange();
 
     /**
      * Creates a new {@code PartitionRangeReadQuery} with the updated limits.

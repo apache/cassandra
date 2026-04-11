@@ -19,11 +19,10 @@ package org.apache.cassandra.metrics;
 
 import java.util.EnumMap;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.net.Verb;
 
@@ -35,7 +34,7 @@ import static org.apache.cassandra.metrics.DefaultNameFactory.createMetricName;
  */
 public class DroppedMessageMetrics
 {
-    private static final String TYPE = "DroppedMessage";
+    public static final String TYPE = "DroppedMessage";
 
     // backward compatibility for request metrics which names have changed in 4.0 as part of CASSANDRA-15066
     private static final ImmutableMap<Verb, String> REQUEST_VERB_ALIAS;

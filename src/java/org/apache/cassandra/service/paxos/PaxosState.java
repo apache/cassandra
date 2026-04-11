@@ -30,36 +30,56 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.metrics.PaxosMetrics;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.metrics.PaxosMetrics;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Nemesis;
 
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_DISABLE_COORDINATOR_LOCKING;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.gc_grace;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
-import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.*;
+import static org.apache.cassandra.service.paxos.Commit.Accepted;
 import static org.apache.cassandra.service.paxos.Commit.Accepted.latestAccepted;
+import static org.apache.cassandra.service.paxos.Commit.AcceptedWithTTL;
+import static org.apache.cassandra.service.paxos.Commit.Agreed;
+import static org.apache.cassandra.service.paxos.Commit.Committed;
 import static org.apache.cassandra.service.paxos.Commit.Committed.latestCommitted;
+import static org.apache.cassandra.service.paxos.Commit.CommittedWithTTL;
+import static org.apache.cassandra.service.paxos.Commit.Proposal;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
+import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.paxos.PaxosState.AcceptResult.SUCCESS;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PERMIT_READ;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * We save to memory the result of each operation before persisting to disk, however each operation that performs
@@ -67,6 +87,9 @@ import static org.apache.cassandra.service.paxos.Commit.isAfter;
  */
 public class PaxosState implements PaxosOperationLock
 {
+    @SuppressWarnings("unused")
+    private static final Logger logger = LoggerFactory.getLogger(PaxosState.class.getName());
+
     private static volatile boolean DISABLE_COORDINATOR_LOCKING = PAXOS_DISABLE_COORDINATOR_LOCKING.getBoolean();
     public static final ConcurrentHashMap<Key, PaxosState> ACTIVE = new ConcurrentHashMap<>();
     public static final Map<Key, Snapshot> RECENT = Caffeine.newBuilder()
@@ -114,7 +137,7 @@ public class PaxosState implements PaxosOperationLock
 
     public static void initializeTrackers()
     {
-        Preconditions.checkState(TrackerHandle.tracker != null);
+        checkState(TrackerHandle.tracker != null);
         PaxosMetrics.initialize();
     }
 
@@ -621,7 +644,7 @@ public class PaxosState implements PaxosOperationLock
     /**
      * Record an acceptance of the proposal if there is no newer promise; otherwise inform the caller of the newer ballot
      */
-    public Ballot acceptIfLatest(Proposal proposal)
+    public AcceptResult acceptIfLatest(Proposal proposal)
     {
         if (paxosStatePurging() == legacy && !(proposal instanceof AcceptedWithTTL))
             proposal = AcceptedWithTTL.withDefaultTTL(proposal);
@@ -638,11 +661,12 @@ public class PaxosState implements PaxosOperationLock
             if (!proposal.isSameOrAfter(latest))
             {
                 Tracing.trace("Rejecting proposal {}; latest is now {}", proposal.ballot, latest);
-                return latest;
+                return new AcceptResult(latest);
             }
 
-            if (proposal.hasSameBallot(before.committed)) // TODO: consider not answering
-                return null; // no need to save anything, or indeed answer at all
+            // TODO: Consider not answering in the committed ballot case where there is no need to save anything or answer at all
+            if (proposal.hasSameBallot(before.committed))
+                return null;
 
             after = new Snapshot(realBefore.promised, realBefore.promisedWrite, proposal.accepted(), realBefore.committed);
             if (currentUpdater.compareAndSet(this, realBefore, after))
@@ -659,7 +683,7 @@ public class PaxosState implements PaxosOperationLock
         // though this
         Tracing.trace("Accepting proposal {}", proposal);
         SystemKeyspace.savePaxosProposal(proposal);
-        return null;
+        return SUCCESS;
     }
 
     public void commit(Agreed commit)
@@ -781,6 +805,8 @@ public class PaxosState implements PaxosOperationLock
                     boolean accept = proposal.isSameOrAfter(before.latestWitnessedOrLowBound());
                     if (accept)
                     {
+                        PartitionUpdate partitionUpdate = proposal.update;
+                        checkState(ConsensusKeyMigrationState.getKeyMigrationState(partitionUpdate.metadata().id, partitionUpdate.partitionKey()).tableMigrationState == null, "Using PaxosV1 while consensus migration is in progress is not supported");
                         if (proposal.hasSameBallot(before.committed) ||
                             currentUpdater.compareAndSet(unsafeState, realBefore,
                                                          new Snapshot(realBefore.promised, realBefore.promisedWrite,
@@ -812,12 +838,36 @@ public class PaxosState implements PaxosOperationLock
         ballotTracker().truncate();
     }
 
-    @SuppressWarnings("resource")
     public static Snapshot unsafeGetIfPresent(DecoratedKey partitionKey, TableMetadata metadata)
     {
         Key key = new Key(partitionKey, metadata);
         PaxosState cur = ACTIVE.get(key);
         if (cur != null) return cur.current;
         return RECENT.get(key);
+    }
+
+    /**
+     * The response to a proposal, indicating success (if {@code supersededBy == null},
+     * or failure, alongside the ballot that beat us
+     */
+    public static class AcceptResult
+    {
+        static final AcceptResult SUCCESS = new AcceptResult();
+
+        @Nullable
+        public final Ballot supersededBy;
+
+        public AcceptResult(@Nullable  Ballot supersededBy)
+        {
+            this.supersededBy = supersededBy;
+        }
+
+        // Success result
+        private AcceptResult()
+        {
+            supersededBy = null;
+        }
+
+        public String toString() { return supersededBy == null ? "Accept" : "RejectProposal(supersededBy=" + supersededBy + ')'; }
     }
 }

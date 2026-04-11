@@ -27,9 +27,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 
 import static java.lang.String.format;
@@ -111,17 +113,32 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
 
     private void assertInvalidProperty(Set<String> properties, Set<String> rejected)
     {
-        String message = "Invalid value for %s: '%s' do not parse as valid table properties";
+        String message = GuardrailsOptions.invalidValueMessage(WARNED_PROPERTY_NAME, rejected, "table");
         assertInvalidProperty(Guardrails::setTablePropertiesWarned, properties, message, WARNED_PROPERTY_NAME, rejected);
+
+        message = GuardrailsOptions.invalidValueMessage(IGNORED_PROPERTY_NAME, rejected, "table");
         assertInvalidProperty(Guardrails::setTablePropertiesIgnored, properties, message, IGNORED_PROPERTY_NAME, rejected);
+
+        message = GuardrailsOptions.invalidValueMessage(DISALLOWED_PROPERTY_NAME, rejected, "table");
         assertInvalidProperty(Guardrails::setTablePropertiesDisallowed, properties, message, DISALLOWED_PROPERTY_NAME, rejected);
     }
 
     private void assertInvalidPropertyCSV(String properties, String rejected)
     {
-        String message = "Invalid value for %s: '%s' do not parse as valid table properties";
+        // Parse the rejected string to extract individual properties
+        // Expected format is "[prop1, prop2]" so we need to extract the properties inside brackets
+        String cleanRejected = rejected.substring(1, rejected.length() - 1); // Remove brackets
+        Set<String> rejectedSet = Arrays.stream(cleanRejected.split(","))
+                                        .map(String::trim)
+                                        .collect(Collectors.toSet());
+
+        String message = GuardrailsOptions.invalidValueMessage(WARNED_PROPERTY_NAME, rejectedSet, "table");
         assertInvalidProperty(Guardrails::setTablePropertiesWarnedCSV, properties, message, WARNED_PROPERTY_NAME, rejected);
+
+        message = GuardrailsOptions.invalidValueMessage(IGNORED_PROPERTY_NAME, rejectedSet, "table");
         assertInvalidProperty(Guardrails::setTablePropertiesIgnoredCSV, properties, message, IGNORED_PROPERTY_NAME, rejected);
+
+        message = GuardrailsOptions.invalidValueMessage(DISALLOWED_PROPERTY_NAME, rejectedSet, "table");
         assertInvalidProperty(Guardrails::setTablePropertiesDisallowedCSV, properties, message, DISALLOWED_PROPERTY_NAME, rejected);
     }
 

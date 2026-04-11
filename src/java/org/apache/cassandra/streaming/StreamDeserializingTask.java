@@ -19,12 +19,14 @@
 package org.apache.cassandra.streaming;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.guardrails.GuardrailViolatedException;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -53,11 +55,10 @@ public class StreamDeserializingTask implements Runnable
     @Override
     public void run()
     {
-        @SuppressWarnings("resource") // closed in finally
         StreamingDataInputPlus input = channel.in();
+        StreamMessage message = null;
         try
         {
-            StreamMessage message;
             while (null != (message = StreamMessage.deserialize(input, messagingVersion)))
             {
                 // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
@@ -94,6 +95,8 @@ public class StreamDeserializingTask implements Runnable
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
+            if ((session == null || session.isFailedOrAborted()) && message instanceof IncomingStreamMessage)
+                t = ((IncomingStreamMessage) message).stream.abort(t);
             if (session != null)
             {
                 session.onError(t);

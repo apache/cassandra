@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.utils.Closeable;
@@ -39,6 +40,7 @@ public class SlowMessageFuzzTest extends FuzzTestBase
         // to avoid unlucky timing issues, retry until success; given enough retries we should eventually become success
         DatabaseDescriptor.getRepairRetrySpec().maxAttempts = new RetrySpec.MaxAttempt(Integer.MAX_VALUE);
         qt().withPure(false).withExamples(10).check(rs -> {
+            cleanupRepairTables();
             Cluster cluster = new Cluster(rs);
             enableMessageFaults(cluster);
 

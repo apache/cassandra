@@ -18,19 +18,21 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
  * Tests for {@link PartialMaskingFunction}.
@@ -46,7 +48,7 @@ public class PartialMaskingFunctionTest extends MaskingFunctionTester
 
     protected void testMaskingOnColumn(PartialMaskingFunction.Kind masker, String name, CQL3Type type, Object value) throws Throwable
     {
-        String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + masker.name().toLowerCase();
+        String functionName = SchemaConstants.SYSTEM_KEYSPACE_NAME + ".mask_" + toLowerCaseLocalized(masker.name());
 
         if (type.getType() instanceof StringType)
         {

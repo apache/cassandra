@@ -1,0 +1,28 @@
+NAME
+        nodetool history - Print previously executed nodetool commands
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] history
+                [(-n <commands> | --number-of-commands <commands>)]
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -n <commands>, --num <commands>, --number-of-commands <commands>
+            Number of commands to print, defaults to 1000.
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username

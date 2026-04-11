@@ -20,6 +20,7 @@ package org.apache.cassandra.audit;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +29,7 @@ final class AuditLogFilter
 {
     private static final Logger logger = LoggerFactory.getLogger(AuditLogFilter.class);
 
-    private static ImmutableSet<String> EMPTY_FILTERS = ImmutableSet.of();
+    private static final ImmutableSet<String> EMPTY_FILTERS = ImmutableSet.of();
 
     final ImmutableSet<String> excludedKeyspaces;
     final ImmutableSet<String> includedKeyspaces;
@@ -127,7 +128,21 @@ final class AuditLogFilter
     }
 
     /**
-     * Checks whether a give AuditLog Entry is filtered or not
+     * Checks whether a given AuditLogEntryCategory is filtered or not.
+     *
+     * This is useful when creating an audit log entry might be expensive, and checking the category before formatting
+     * is less costly.
+     *
+     * @param category AuditLogEntryCategory to verify
+     * @return true if it is filtered, false otherwise
+     */
+    boolean isFiltered(AuditLogEntryCategory category)
+    {
+        return isFiltered(category.toString(), includedCategories, excludedCategories);
+    }
+
+    /**
+     * Checks whether a given AuditLog Entry is filtered or not
      *
      * @param auditLogEntry AuditLogEntry to verify
      * @return true if it is filtered, false otherwise
@@ -137,6 +152,17 @@ final class AuditLogFilter
         return isFiltered(auditLogEntry.getKeyspace(), includedKeyspaces, excludedKeyspaces)
                || isFiltered(auditLogEntry.getType().getCategory().toString(), includedCategories, excludedCategories)
                || isFiltered(auditLogEntry.getUser(), includedUsers, excludedUsers);
+    }
+
+    boolean isFiltered(AuditLogContext auditLogContext)
+    {
+        return isFiltered(auditLogContext.keyspace, includedKeyspaces, excludedKeyspaces)
+               || isFiltered(auditLogContext.auditLogEntryType.getCategory().toString(), includedCategories, excludedCategories);
+    }
+
+    boolean isFiltered(AuditLogEntryType auditLogEntryType)
+    {
+        return isFiltered(auditLogEntryType.getCategory().toString(), includedCategories, excludedCategories);
     }
 
     /**

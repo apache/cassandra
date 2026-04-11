@@ -1,0 +1,56 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Antora playbook for building single-version documentation locally
+# This builds only the current version from the local repository
+# Compatible with cassandra-website build (Antora 2.3)
+site:
+  title: Apache Cassandra Documentation
+  url: https://cassandra.apache.org/
+  start_page: Cassandra::index.adoc
+
+content:
+  sources:
+  - url: ..
+    start_path: doc
+    branches: HEAD
+    # use when antora 3.2+ and remove git commit hack in doc/Makefile
+    #worktrees: true
+
+ui:
+  bundle:
+    url: https://github.com/apache/cassandra-website/raw/trunk/site-ui/build/ui-bundle.zip
+    snapshot: true
+
+asciidoc:
+  attributes:
+    idprefix: ''
+    idseparator: '-'
+    experimental: ''
+    source-language: asciidoc
+    example-caption: ~
+    hide-uri-scheme: ''
+    linkattrs: ''
+    table-caption: ~
+    tabs: tabs
+    page-pagination: true
+    local-build: true
+  extensions:
+  - ./lib/tabs-block.js
+  - '@djencks/asciidoctor-openblock'
+
+output:
+  dir: ../build/html

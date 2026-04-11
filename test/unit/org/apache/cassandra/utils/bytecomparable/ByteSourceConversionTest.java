@@ -20,7 +20,17 @@ package org.apache.cassandra.utils.bytecomparable;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -29,6 +39,7 @@ import java.util.function.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -39,7 +50,41 @@ import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.DateType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.DynamicCompositeType;
+import org.apache.cassandra.db.marshal.DynamicCompositeTypeTest;
+import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LexicalUUIDType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.SimpleDateType;
+import org.apache.cassandra.db.marshal.TimeType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -341,7 +386,7 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
 
     void assertClusteringPairConvertsSame(AbstractType t1, AbstractType t2, Object o1, Object o2)
     {
-        for (ValueAccessor<?> accessor : ValueAccessors.ACCESSORS)
+        for (ValueAccessor<?> accessor : ValueAccessors.FACTORY_SUPPORTED_ACCESSORS)
             assertClusteringPairConvertsSame(accessor, t1, t2, o1, o2, AbstractType::decompose);
     }
 
@@ -439,19 +484,13 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
         TupleType tt = new TupleType(ImmutableList.of(UTF8Type.instance, Int32Type.instance));
         List<ByteBuffer> tests = ImmutableList.of
             (
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, ""),
-                                 decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), decomposeAndRandomPad(Int32Type.instance, 0)),
             // Note: a decomposed null (e.g. decomposeAndRandomPad(Int32Type.instance, null)) should not reach a tuple
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, ""),
-                                 null),
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 null,
-                                 decomposeAndRandomPad(Int32Type.instance, 0)),
-            TupleType.buildValue(ByteBufferAccessor.instance, decomposeAndRandomPad(UTF8Type.instance, "")),
-            TupleType.buildValue(ByteBufferAccessor.instance, (ByteBuffer) null),
-            TupleType.buildValue(ByteBufferAccessor.instance)
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), null),
+            tt.pack((ByteBuffer) null, decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, "")),
+            tt.pack((ByteBuffer) null),
+            tt.pack()
             );
         testBuffers(tt, tests);
     }
@@ -459,9 +498,7 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
     void assertTupleConvertsSame(AbstractType t1, AbstractType t2, Object o1, Object o2)
     {
         TupleType tt = new TupleType(ImmutableList.of(t1, t2));
-        ByteBuffer b1 = TupleType.buildValue(ByteBufferAccessor.instance,
-                                             decomposeForTuple(t1, o1),
-                                             decomposeForTuple(t2, o2));
+        ByteBuffer b1 = tt.pack(decomposeForTuple(t1, o1), decomposeForTuple(t2, o2));
         assertConvertsSameBuffers(tt, b1);
     }
 

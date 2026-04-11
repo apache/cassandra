@@ -26,10 +26,10 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import org.apache.cassandra.repair.messages.RepairOption;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import org.apache.cassandra.repair.messages.RepairOption;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -78,7 +78,9 @@ public class NodeToolCommandTest
     public void repairCommandTest() throws IOException
     {
         Map<String, String> options = testRepairCommand(0, "--paxos-only", "ks");
-        Assert.assertEquals(options.get(RepairOption.PAXOS_ONLY_KEY), Boolean.toString(true));
+        Assert.assertEquals(options.get(RepairOption.REPAIR_DATA_KEY), Boolean.toString(false));
+        Assert.assertEquals(options.get(RepairOption.REPAIR_PAXOS_KEY), Boolean.toString(true));
+        Assert.assertEquals(options.get(RepairOption.REPAIR_ACCORD_KEY), Boolean.toString(false));
         Assert.assertEquals(options.get(RepairOption.INCREMENTAL_KEY), Boolean.toString(false));
     }
 

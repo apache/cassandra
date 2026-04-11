@@ -21,15 +21,16 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;

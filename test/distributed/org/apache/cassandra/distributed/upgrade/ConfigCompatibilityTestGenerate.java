@@ -20,9 +20,10 @@ package org.apache.cassandra.distributed.upgrade;
 import java.io.File;
 import java.util.Arrays;
 
+import com.vdurmont.semver4j.Semver;
+
 import org.apache.commons.lang3.ArrayUtils;
 
-import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -33,8 +34,6 @@ import org.apache.cassandra.distributed.shared.Versions;
 import static org.apache.cassandra.config.ConfigCompatibilityTest.TEST_DIR;
 import static org.apache.cassandra.config.ConfigCompatibilityTest.dump;
 import static org.apache.cassandra.config.ConfigCompatibilityTest.toTree;
-import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v30;
-import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v3X;
 import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v40;
 import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v41;
 import static org.apache.cassandra.distributed.upgrade.UpgradeTestBase.v50;
@@ -48,7 +47,7 @@ public class ConfigCompatibilityTestGenerate
     {
         ICluster.setup();
         Versions versions = Versions.find();
-        for (Semver version : Arrays.asList(v30, v3X, v40, v41, v50))
+        for (Semver version : Arrays.asList(v40, v41, v50))
         {
             File path = new File(TEST_DIR, "version=" + version + ".yml");
             path.getParentFile().mkdirs();

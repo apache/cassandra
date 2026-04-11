@@ -24,6 +24,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class DenylistMetrics
 {
+    public static final String TYPE_NAME = "StorageProxy";
     private final Meter writesRejected;
     private final Meter readsRejected;
     private final Meter rangeReadsRejected;
@@ -31,7 +32,7 @@ public class DenylistMetrics
 
     public DenylistMetrics()
     {
-        final MetricNameFactory factory = new DefaultNameFactory("StorageProxy", "PartitionDenylist");
+        final MetricNameFactory factory = new DefaultNameFactory(TYPE_NAME, "PartitionDenylist");
         writesRejected = Metrics.meter(factory.createMetricName("WriteRejected"));
         readsRejected = Metrics.meter(factory.createMetricName("ReadRejected"));
         rangeReadsRejected = Metrics.meter(factory.createMetricName("RangeReadRejected"));

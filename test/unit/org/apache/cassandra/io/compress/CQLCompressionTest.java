@@ -39,10 +39,8 @@ public class CQLCompressionTest extends CQLTester
     private static Config.FlushCompression defaultFlush;
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpCompressionClass()
     {
-        CQLTester.setUpClass();
-
         defaultFlush = DatabaseDescriptor.getFlushCompression();
     }
 
@@ -83,11 +81,11 @@ public class CQLCompressionTest extends CQLTester
     {
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'ZstdCompressor', 'compression_level':-22}");
         assertTrue(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).getClass().equals(ZstdCompressor.class));
-        assertEquals(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).getCompressionLevel(), -22);
+        assertEquals(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel(), -22);
 
         createTable("create table %s (id int primary key, uh text) with compression = {'class':'ZstdCompressor'}");
         assertTrue(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).getClass().equals(ZstdCompressor.class));
-        assertEquals(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).getCompressionLevel(), ZstdCompressor.DEFAULT_COMPRESSION_LEVEL);
+        assertEquals(((ZstdCompressor)getCurrentColumnFamilyStore().metadata().params.compression.getSstableCompressor()).compressionLevel(), ZstdCompressor.DEFAULT_COMPRESSION_LEVEL);
     }
 
     @Test(expected = ConfigurationException.class)

@@ -23,16 +23,16 @@ import java.util.Map;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.tombstoneAbortMessage;
-
 public class TombstoneAbortException extends ReadAbortException
 {
     public final int nodes;
     public final long tombstones;
 
-    public TombstoneAbortException(int nodes, long tombstones, String cql, boolean dataPresent, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    public TombstoneAbortException(String message, int nodes, long tombstones, boolean dataPresent,
+                                   ConsistencyLevel consistency, int received, int blockFor,
+                                   Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super(tombstoneAbortMessage(nodes, tombstones, cql), consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
+        super(message, consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
         this.nodes = nodes;
         this.tombstones = tombstones;
     }

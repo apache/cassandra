@@ -22,10 +22,10 @@ import java.net.InetAddress;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Preconditions;
-
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;

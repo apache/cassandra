@@ -23,14 +23,14 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 import static org.apache.cassandra.db.AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY;
@@ -133,7 +133,7 @@ public interface Clustering<V> extends ClusteringPrefix<V>, IMeasurableMemory
     /**
      * Serializer for Clustering object.
      * <p>
-     * Because every clustering in a given table must have the same size (ant that size cannot actually change once the table
+     * Because every clustering in a given table must have the same size (and that size cannot actually change once the table
      * has been defined), we don't record that size.
      */
     public static class Serializer
@@ -190,4 +190,11 @@ public interface Clustering<V> extends ClusteringPrefix<V>, IMeasurableMemory
             }
         }
     }
+
+    /**
+     * @return a Clustering with the same values but using an implementation
+     *  which supports ValueAccessor.factory() logic
+     */
+
+    Clustering<?> ensureAccessorFactorySupport();
 }

@@ -1,0 +1,7 @@
+ cyclist_name | expense_id | balance | amount | description | paid
+--------------+------------+---------+--------+-------------+------
+  Vera ADRIAN |          1 |       0 |   7.95 |   Breakfast | True
+  Vera ADRIAN |          2 |       0 |  13.44 |       Lunch | True
+  Vera ADRIAN |          3 |       0 |     25 |      Dinner | True
+
+(3 rows)

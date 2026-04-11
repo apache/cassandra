@@ -27,22 +27,23 @@ WORKSPACE=$1
 
 [ "x${WORKSPACE}" != "x" ] || WORKSPACE="$(readlink -f $(dirname "$0")/..)"
 [ "x${BUILD_DIR}" != "x" ] || BUILD_DIR="${WORKSPACE}/build"
+[ "x${DIST_DIR}" != "x" ] || DIST_DIR="${WORKSPACE}/build"
 
+export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
 export PYTHONIOENCODING="utf-8"
 export PYTHONUNBUFFERED=true
 export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="2048M"
 export CCM_HEAP_NEWSIZE="200M"
-export CCM_CONFIG_DIR=${BUILD_DIR}/.ccm
+export CCM_CONFIG_DIR="${TMPDIR}/.ccm"
 export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
-export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
 
 java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 version=$(grep 'property\s*name=\"base.version\"' ${CASSANDRA_DIR}/build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
 
-python_version="3.6"
+python_version="3.8"
 command -v python3 >/dev/null 2>&1 && python_version="$(python3 -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
 
 export TESTSUITE_NAME="cqlshlib.python${python_version}.jdk${java_version}"
@@ -58,7 +59,7 @@ set -e # enable immediate exit if venv setup fails
 # fresh virtualenv and test logs results everytime
 rm -fr ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
 
-# re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu2004_test docker image
+# re-use when possible the pre-installed virtualenv found in the cassandra12004_test docker image
 virtualenv-clone ${BUILD_HOME}/env${python_version} ${BUILD_DIR}/venv || virtualenv --python=python3 ${BUILD_DIR}/venv
 source ${BUILD_DIR}/venv/bin/activate
 
@@ -74,6 +75,7 @@ if [ "$cython" = "yes" ]; then
 else
     TESTSUITE_NAME="${TESTSUITE_NAME}.no_cython"
 fi
+TESTSUITE_NAME="${TESTSUITE_NAME}.$(uname -m)"
 
 ################################
 #
@@ -99,7 +101,7 @@ sed -r "s/<[\/]?testsuites>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cql
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 
 # don't do inline sed for linux+mac compat
-sed "s/testsuite errors=\(\".*\"\) failures=\(\".*\"\) hostname=\(\".*\"\) name=\"pytest\"/testsuite errors=\1 failures=\2 hostname=\3 name=\"${TESTSUITE_NAME}\"/g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+sed "s/testsuite name=\"pytest\"/testsuite name=\"${TESTSUITE_NAME}\"/g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 sed "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml

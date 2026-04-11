@@ -29,13 +29,13 @@ public class LatencyMetricsTest
 {
     private final MetricNameFactory factory = new TestMetricsNameFactory();
 
-    private class TestMetricsNameFactory implements MetricNameFactory
+    private static class TestMetricsNameFactory implements MetricNameFactory
     {
 
         @Override
         public CassandraMetricsRegistry.MetricName createMetricName(String metricName)
         {
-            return new CassandraMetricsRegistry.MetricName(TestMetricsNameFactory.class, metricName);
+            return new CassandraMetricsRegistry.MetricName(DefaultNameFactory.GROUP_NAME, ClientRequestMetrics.TYPE_NAME, metricName);
         }
     }
 
@@ -45,7 +45,7 @@ public class LatencyMetricsTest
     @Test
     public void testGetRecentLatency()
     {
-        final LatencyMetrics l = new LatencyMetrics("test", "test");
+        final LatencyMetrics l = new LatencyMetrics(ClientRequestMetrics.TYPE_NAME, "test");
         Runnable r = () -> {
             for (int i = 0; i < 10000; i++)
             {
@@ -67,7 +67,7 @@ public class LatencyMetricsTest
     @Test
     public void testReadMerging()
     {
-        final LatencyMetrics parent = new LatencyMetrics("testMerge", "testMerge");
+        final LatencyMetrics parent = new LatencyMetrics(ClientRequestMetrics.TYPE_NAME, "testMerge");
         final LatencyMetrics child = new LatencyMetrics(factory, "testChild", parent);
 
         for (int i = 0; i < 100; i++)
@@ -86,7 +86,7 @@ public class LatencyMetricsTest
     @Test
     public void testRelease()
     {
-        final LatencyMetrics parent = new LatencyMetrics("testRelease", "testRelease");
+        final LatencyMetrics parent = new LatencyMetrics(ClientRequestMetrics.TYPE_NAME, "testRelease");
         final LatencyMetrics child = new LatencyMetrics(factory, "testChildRelease", parent);
 
         for (int i = 0; i < 100; i++)

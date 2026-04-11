@@ -29,6 +29,7 @@ import java.util.TreeMap;
 import java.util.concurrent.Callable;
 
 import com.googlecode.concurrenttrees.common.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -43,7 +44,7 @@ import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -76,6 +77,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -186,7 +188,7 @@ public class SASIIndex implements Index, INotificationConsumer
     @Override
     public void register(IndexRegistry registry)
     {
-        registry.registerIndex(this, this, () -> new SASIIndexGroup(this));
+        registry.registerIndex(this, new Group.Key(this), () -> new SASIIndexGroup(this));
     }
 
     public IndexMetadata getIndexMetadata()
@@ -266,8 +268,15 @@ public class SASIIndex implements Index, INotificationConsumer
         return Long.MIN_VALUE;
     }
 
-    public void validate(PartitionUpdate update) throws InvalidRequestException
+    @Override
+    public void validate(PartitionUpdate update, ClientState state) throws InvalidRequestException
     {}
+
+    @Override
+    public boolean notifyIndexerAboutRowsInFullyExpiredSSTables()
+    {
+        return false;
+    }
 
     @Override
     public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, long nowInSec, WriteContext context, IndexTransaction.Type transactionType, Memtable memtable)
@@ -321,9 +330,9 @@ public class SASIIndex implements Index, INotificationConsumer
         return new SASIIndexSearcher(cfs, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS));
     }
 
-    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
+    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, ILifecycleTransaction txn)
     {
-        return newWriter(baseCfs.metadata().partitionKeyType, descriptor, Collections.singletonMap(index.getDefinition(), index), tracker.opType());
+        return newWriter(baseCfs.metadata().partitionKeyType, descriptor, Collections.singletonMap(index.getDefinition(), index), txn.opType());
     }
 
     public IndexBuildingSupport getBuildTaskSupport()
@@ -350,7 +359,7 @@ public class SASIIndex implements Index, INotificationConsumer
         }
         else if (notification instanceof MemtableSwitchedNotification)
         {
-            index.switchMemtable(((MemtableSwitchedNotification) notification).memtable);
+            index.switchMemtable(((MemtableSwitchedNotification) notification).previous);
         }
         else if (notification instanceof MemtableDiscardedNotification)
         {

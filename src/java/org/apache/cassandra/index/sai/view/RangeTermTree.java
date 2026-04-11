@@ -21,16 +21,16 @@ package org.apache.cassandra.index.sai.view;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.base.MoreObjects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
@@ -39,68 +39,64 @@ public class RangeTermTree
     private static final Logger logger = LoggerFactory.getLogger(RangeTermTree.class);
 
     protected final ByteBuffer min, max;
-    protected final AbstractType<?> comparator;
+    protected final IndexTermType indexTermType;
     
     private final IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> rangeTree;
 
-    private RangeTermTree(ByteBuffer min, ByteBuffer max, IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> rangeTree, AbstractType<?> comparator)
+    private RangeTermTree(ByteBuffer min, ByteBuffer max, IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> rangeTree, IndexTermType indexTermType)
     {
         this.min = min;
         this.max = max;
         this.rangeTree = rangeTree;
-        this.comparator = comparator;
+        this.indexTermType = indexTermType;
     }
 
     public List<SSTableIndex> search(Expression e)
     {
-        ByteBuffer minTerm = e.lower == null ? min : e.lower.value.encoded;
-        ByteBuffer maxTerm = e.upper == null ? max : e.upper.value.encoded;
+        ByteBuffer minTerm = e.lower() == null ? min : e.lower().value.encoded;
+        ByteBuffer maxTerm = e.upper() == null ? max : e.upper().value.encoded;
 
-        return rangeTree.search(Interval.create(new Term(minTerm, comparator),
-                                                new Term(maxTerm, comparator),
+        return rangeTree.search(Interval.create(new Term(minTerm, indexTermType),
+                                                new Term(maxTerm, indexTermType),
                                                 null));
     }
 
     static class Builder
     {
-        private final AbstractType<?> comparator;
+        private final IndexTermType indexTermType;
         private ByteBuffer min, max;
 
         final List<Interval<Term, SSTableIndex>> intervals = new ArrayList<>();
 
-        protected Builder(AbstractType<?> comparator)
+        protected Builder(IndexTermType indexTermType)
         {
-            this.comparator = comparator;
+            this.indexTermType = indexTermType;
         }
 
         public final void add(SSTableIndex index)
         {
-            addIndex(index);
+            assert !indexTermType.isVector();
 
-            min = min == null || TypeUtil.compare(min, index.minTerm(), comparator) > 0 ? index.minTerm() : min;
-            max = max == null || TypeUtil.compare(max, index.maxTerm(), comparator) < 0 ? index.maxTerm() : max;
-        }
-
-        public void addIndex(SSTableIndex index)
-        {
             Interval<Term, SSTableIndex> interval =
-                    Interval.create(new Term(index.minTerm(), comparator), new Term(index.maxTerm(), comparator), index);
+                    Interval.create(new Term(index.minTerm(), indexTermType), new Term(index.maxTerm(), indexTermType), index);
 
             if (logger.isTraceEnabled())
             {
-                IndexContext context = index.getIndexContext();
-                logger.trace(context.logMessage("Adding index for SSTable {} with minTerm={} and maxTerm={}..."), 
-                                                index.getSSTable().descriptor, 
-                                                comparator.compose(index.minTerm()), 
-                                                comparator.compose(index.maxTerm()));
+                logger.trace(index.getIndexIdentifier().logMessage("Adding index for SSTable {} with minTerm={} and maxTerm={}..."),
+                                                                   index.getSSTable().descriptor,
+                                                                   index.minTerm() != null ? indexTermType.indexType().compose(index.minTerm()) : null,
+                                                                   index.maxTerm() != null ? indexTermType.indexType().compose(index.maxTerm()) : null);
             }
 
             intervals.add(interval);
+
+            min = min == null || index.getIndexTermType().compare(min, index.minTerm()) > 0 ? index.minTerm() : min;
+            max = max == null || index.getIndexTermType().compare(max, index.maxTerm()) < 0 ? index.maxTerm() : max;
         }
 
         public RangeTermTree build()
         {
-            return new RangeTermTree(min, max, IntervalTree.build(intervals), comparator);
+            return new RangeTermTree(min, max, IntervalTree.build(intervals), indexTermType);
         }
     }
 
@@ -111,24 +107,38 @@ public class RangeTermTree
     protected static class Term implements Comparable<Term>
     {
         private final ByteBuffer term;
-        private final AbstractType<?> comparator;
+        private final IndexTermType indexTermType;
 
-        Term(ByteBuffer term, AbstractType<?> comparator)
+        Term(ByteBuffer term, IndexTermType indexTermType)
         {
             this.term = term;
-            this.comparator = comparator;
+            this.indexTermType = indexTermType;
         }
 
         @Override
         public int compareTo(Term o)
         {
-            return TypeUtil.compare(term, o.term, comparator);
+            return indexTermType.compare(term, o.term);
         }
 
         @Override
         public String toString()
         {
-            return MoreObjects.toStringHelper(this).add("term", comparator.getString(term)).toString();
+            return MoreObjects.toStringHelper(this).add("term", indexTermType.asString(term)).toString();
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (other == null || getClass() != other.getClass()) return false;
+            Term otherTerm = (Term) other;
+            return Objects.equals(term, otherTerm.term) && Objects.equals(indexTermType, otherTerm.indexTermType);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(term, indexTermType);
         }
     }
 }

@@ -18,17 +18,17 @@
 package org.apache.cassandra.index.sasi.memory;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
-import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 
 public class SkipListMemIndex extends MemIndex
 {
@@ -63,7 +63,6 @@ public class SkipListMemIndex extends MemIndex
         return overhead;
     }
 
-    @SuppressWarnings("resource")
     public RangeIterator<Long, Token> search(Expression expression)
     {
         ByteBuffer min = expression.lower == null ? null : expression.lower.value;

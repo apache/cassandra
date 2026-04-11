@@ -36,6 +36,12 @@ public class FinalizeCommit extends RepairMessage
         this.sessionID = sessionID;
     }
 
+    @Override
+    public TimeUUID parentRepairSession()
+    {
+        return sessionID;
+    }
+
     public boolean equals(Object o)
     {
         if (this == o) return true;

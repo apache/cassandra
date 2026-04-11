@@ -25,6 +25,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.AbstractIterator;
 
 public final class QueryResults
 {
@@ -67,6 +72,34 @@ public final class QueryResults
     public static QueryResult filter(QueryResult result, Predicate<Row> fn)
     {
         return new FilterQueryResult(result, fn);
+    }
+
+    public static Iterable<List<String>> stringify(SimpleQueryResult qr)
+    {
+        return stringify(qr, -1);
+    }
+
+    public static Iterable<List<String>> stringify(SimpleQueryResult qr, int maxColumnSize)
+    {
+        Preconditions.checkArgument(maxColumnSize == -1 || maxColumnSize > 0, "max column size must be positive or -1 (disabled); given %s", maxColumnSize);
+        qr.mark();
+        return () -> {
+            qr.reset();
+            return new AbstractIterator<>()
+            {
+                @Override
+                protected List<String> computeNext()
+                {
+                    if (!qr.hasNext())
+                        return endOfData();
+                    Row next = qr.next();
+                    Stream<String> stream = Stream.of(next.toObjectArray()).map(Objects::toString);
+                    if (maxColumnSize != -1)
+                        stream = stream.map(s -> s.length() > maxColumnSize ? s.substring(0, maxColumnSize) + "..." : s);
+                    return stream.collect(Collectors.toList());
+                }
+            };
+        };
     }
 
     public static Builder builder()

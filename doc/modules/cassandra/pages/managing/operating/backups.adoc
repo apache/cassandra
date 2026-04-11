@@ -312,6 +312,63 @@ results in
 include::cassandra:example$RESULTS/nodetool_list_snapshots.result[]
 ----
 
+It is also possible to list all snaphots including so-called _ephemeral_ snapshots. These are
+technical snapshots internal to Cassandra which are normally deleted after a particular operation is done.
+
+If `-e` flag is used when listing snapshots, a new column will be added to the output telling if a snapshot is
+ephemeral or not:
+
+[source, bash]
+----
+include::cassandra:example$RESULTS/nodetool_list_snapshots_ephemeral.result[]
+----
+
+[NOTE]
+====
+You can not manually remove ephemeral snapshots.
+====
+
+It is also possible to list snapshots via `system_views.snapshots` virtual table:
+
+[source, cql]
+----
+include::cassandra:example$RESULTS/cqlsh_list_snapshots.result[]
+----
+
+=== Expiring snapshots
+
+It is possible to set a time-to-live (TTL) for a created snapshot using the `--ttl` option, causing that snapshot
+to be automatically cleaned up when the TTL expires. TTL can be specified in minutes (m), seconds (s), hours (h)
+and days (d). The example below shows the creation of a snapshot for all tables in the `catalogkeyspace`
+and `cqlkeyspace` keyspaces with a TTL of 3 minutes:
+
+[source,bash]
+----
+include::cassandra:example$RESULTS/nodetool_snapshot_take_ttl.result[]
+----
+
+now let's display information about snapshots:
+
+[source,bash]
+----
+include::cassandra:example$RESULTS/nodetool_snapshot_list_ttl_snapshots.result[]
+----
+
+We see creation and expiration time. Let's wait a couple of minutes and try again:
+
+[source,bash]
+----
+include::cassandra:example$RESULTS/nodetool_list_snapshot_empty.result[]
+----
+
+Finally, these snapshots have expired.
+
+[NOTE]
+====
+If you take a snapshot with TTL and stop Cassandra node and you start it again by the
+time that snapshot would be expired, Cassandra will automatically delete it upon its start.
+====
+
 === Finding Snapshots Directories
 
 The `snapshots` directories may be listed with `find –name snapshots`
@@ -363,7 +420,7 @@ include::cassandra:example$RESULTS/snapshot_files.result[]
 === Clearing Snapshots
 
 Snapshots may be cleared or deleted with the `nodetool clearsnapshot`
-command. Either a specific snapshot name must be specified or the `–all`
+command. Either a specific snapshot name must be specified or the `--all`
 option must be specified.
 
 For example, delete a snapshot called `magazine` from keyspace `cqlkeyspace`:
@@ -373,7 +430,7 @@ For example, delete a snapshot called `magazine` from keyspace `cqlkeyspace`:
 include::cassandra:example$BASH/nodetool_clearsnapshot.sh[]
 ----
 
-or delete all snapshots from `cqlkeyspace` with the –all option:
+or delete all snapshots from `cqlkeyspace` with the `--all` option:
 
 [source,bash]
 ----

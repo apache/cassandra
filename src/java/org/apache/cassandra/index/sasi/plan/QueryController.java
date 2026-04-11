@@ -17,22 +17,32 @@
  */
 package org.apache.cassandra.index.sasi.plan;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.TermIterator;
@@ -57,11 +67,11 @@ public class QueryController
     private final long executionStart;
 
     private final ColumnFamilyStore cfs;
-    private final PartitionRangeReadCommand command;
+    private final ReadCommand command;
     private final DataRange range;
     private final Map<Collection<Expression>, List<RangeIterator<Long, Token>>> resources = new HashMap<>();
 
-    public QueryController(ColumnFamilyStore cfs, PartitionRangeReadCommand command, long timeQuotaMs)
+    public QueryController(ColumnFamilyStore cfs, ReadCommand command, long timeQuotaMs)
     {
         this.cfs = cfs;
         this.command = command;
@@ -90,12 +100,13 @@ public class QueryController
         return cfs.metadata().partitionKeyType;
     }
 
+    @Nullable
     public ColumnIndex getIndex(RowFilter.Expression expression)
     {
-        Optional<Index> index = cfs.indexManager.getBestIndexFor(expression);
-        return index.isPresent() ? ((SASIIndex) index.get()).getIndex() : null;
+        IndexHints hints = command.rowFilter().indexHints;
+        Optional<SASIIndex> index = cfs.indexManager.getBestIndexFor(expression, SASIIndex.class, hints);
+        return index.map(SASIIndex::getIndex).orElse(null);
     }
-
 
     public UnfilteredRowIterator getPartition(DecoratedKey key, ReadExecutionController executionController)
     {
@@ -143,7 +154,6 @@ public class QueryController
 
         for (Map.Entry<Expression, Set<SSTableIndex>> e : view)
         {
-            @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
             RangeIterator<Long, Token> index = TermIterator.build(e.getKey(), e.getValue());
 
             builder.add(index);
