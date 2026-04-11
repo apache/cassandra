@@ -284,7 +284,8 @@ class Shell(cmd.Cmd):
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
                  is_subshell=False,
                  auth_provider=None,
-                 disable_history=False):
+                 disable_history=False,
+                 interactive=False):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -353,6 +354,7 @@ class Shell(cmd.Cmd):
         self.tty = tty
         self.encoding = encoding
         self.elapsed_enabled = elapsed_enabled
+        self.interactive = interactive
 
         self.output_codec = codecs.lookup(encoding)
 
@@ -716,7 +718,10 @@ class Shell(cmd.Cmd):
             self.lastcmd = self.stdin.readline()
             line = self.lastcmd
             if not len(line):
-                raise EOFError
+                if self.interactive:
+                    self.tty = True
+                else :
+                    raise EOFError
         self.lineno += 1
         return line
 
@@ -737,11 +742,16 @@ class Shell(cmd.Cmd):
         cmd.Cmd.cmdloop() to tell the difference between "EOF" showing up in
         input and an actual EOF.
         """
-        with self.prepare_loop():
-            while not self.stop:
+        while not self.stop:
+            with self.prepare_loop():
                 try:
                     if self.single_statement:
                         line = self.single_statement
+                        if self.interactive:
+                            self.single_statement = None
+                            self.tty = True
+                        else:
+                            self.stop = True
                         self.stop = True
                     else:
                         line = self.get_input_line(self.prompt)
@@ -2059,6 +2069,7 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     argvalues.insecure_password_without_warning = False
     argvalues.disable_history = option_with_default(configs.getboolean, 'history', 'disabled', False)
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
+    argvalues.interactive = False
 
     # Credentials from cqlshrc will be expanded,
     # credentials from the command line are also expanded if there is a space...
@@ -2132,10 +2143,10 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     if argvalues.color in (True, False):
         options.color = argvalues.color
     else:
-        if options.file is not None:
-            options.color = False
-        else:
+        if options.tty:
             options.color = should_use_color()
+        else:
+            options.color = False
 
     try:
         port = int(port)
@@ -2230,7 +2241,7 @@ def main(cmdline, pkgpath):
                         help='Force tty mode (command prompt).')
     parser.add_argument('--disable-history', default=False, action='store_true',
                         help='Disable saving of history (existing history will still be loaded)')
-
+    parser.add_argument("-i", "--interactive", action='store_true', help="With -f or -e become interactive instead of exiting")
     # This is a hidden option to suppress the warning when the -p/--password command line option is used.
     # Power users may use this option if they know no other people has access to the system where cqlsh is run or don't care about security.
     # Use of this option in scripting is discouraged. Please use a (temporary) credentials file where possible.
@@ -2367,7 +2378,8 @@ def main(cmdline, pkgpath):
                           cred_file=options.credentials,
                           username=options.username,
                           password=options.password),
-                      disable_history=options.disable_history)
+                      disable_history=options.disable_history,
+                      interactive=options.interactive)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:

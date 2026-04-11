@@ -120,6 +120,8 @@ Options:
   Force tty mode (command prompt).
 `-v` `--v`::
   Print the current version of cqlsh.
+`-i` `--interactive`::
+  With -f or -e become interactive instead of exiting
 
 == Special Commands
 
