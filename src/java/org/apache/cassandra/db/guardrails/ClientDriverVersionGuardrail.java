@@ -39,6 +39,10 @@ import org.apache.cassandra.service.ClientState;
  * <p>
  * Version comparison uses semantic versioning via {@link Semver} with loose parsing
  * to handle non-standard version strings reported by drivers.
+ * <p>
+ * This guadrail also reacts on "unknown: 0.0.0" and "unset: 0.0.0" entries in the configuration map.
+ * When either is set, when a driver does not set its driver id or driver id is not among explicitly enumerated
+ * in the configuration map, the connection will fail / will be warned respectively.
  */
 public class ClientDriverVersionGuardrail extends Predicates<String>
 {
@@ -58,64 +62,77 @@ public class ClientDriverVersionGuardrail extends Predicates<String>
         if (!enabled(state))
             return;
 
+        Map<String, String> disallowed = disallowVersions.apply(state);
+        Map<String, String> warned = warnVersions.apply(state);
+
         String sanitizedDriverId = driverName == null ? null : driverName.trim();
         if (sanitizedDriverId == null || sanitizedDriverId.isBlank())
         {
-            logger.debug("minimum_client_driver_versions guardrail identified empty driver " +
-                         "id to check the minimum version of, such connections will be allowed but " +
-                         "an operator should check what kind of clients are connecting to the cluster.");
+            logger.debug("minimum_client_driver_versions guardrail identified empty driver id to check the minimum version of");
+            if (disallowed != null && disallowed.containsKey("unset"))
+            {
+                fail("Connections with unset driver id's are forbidden.", state);
+                return;
+            }
+
+            if (warned != null && warned.containsKey("unset"))
+            {
+                warn("Connection with unset driver id was detected.");
+            }
             return;
         }
 
         String sanitizedDriverVersion = GuardrailsOptions.sanitizeVersion(driverVersion);
         if (sanitizedDriverVersion == null)
         {
-            logger.debug("minimum_client_driver_versions guardrail identified empty driver " +
-                         "version to check the minimum version of, such connections will be allowed but " +
-                         "an operator should check what kind of clients are connecting to the cluster.");
-            return;
+            sanitizedDriverVersion = "unset";
+            logger.debug("minimum_client_driver_versions guardrail identified empty driver version to check the minimum version of");
         }
-
-        if (!GuardrailsOptions.isValidVersion(sanitizedDriverVersion))
+        else if (!GuardrailsOptions.isValidVersion(sanitizedDriverVersion))
         {
-            logger.debug("minimum_client_driver_versions guardrail identified driver " +
-                         "version which is not compliant semver version, such connections will be allowed but " +
-                         "an operator should check what kind of clients are connecting to the cluster.");
+            logger.debug("minimum_client_driver_versions guardrail identified driver version which is not compliant semver version");
             return;
         }
 
-        Map<String, String> disallowed = disallowVersions.apply(state);
         if (disallowed != null && !disallowed.isEmpty())
         {
             String minimumVersionFail = disallowed.get(sanitizedDriverId);
-            if (minimumVersionFail != null && isBelowMinimum(sanitizedDriverVersion, minimumVersionFail))
+            if (minimumVersionFail != null && (sanitizedDriverVersion.equals("unset") || isBelowMinimum(sanitizedDriverVersion, minimumVersionFail)))
             {
-                fail(String.format("Client driver %s is below required minimum version %s, connection rejected",
-                                   sanitizedDriverId, minimumVersionFail), state);
+                fail(String.format("Client driver %s, version %s is below required minimum version %s, connection rejected",
+                                   sanitizedDriverId,
+                                   sanitizedDriverVersion,
+                                   minimumVersionFail),
+                     state);
+                return;
+            }
+            else if (minimumVersionFail == null && disallowed.containsKey("unknown"))
+            {
+                fail(String.format("Detected unknown driver id: %s.", sanitizedDriverId), state);
                 return;
             }
         }
 
-        Map<String, String> warned = warnVersions.apply(state);
         if (warned != null && !warned.isEmpty())
         {
             String minimumVersionWarn = warned.get(sanitizedDriverId);
-            if (minimumVersionWarn != null && isBelowMinimum(sanitizedDriverVersion, minimumVersionWarn))
+            if (minimumVersionWarn != null && (sanitizedDriverVersion.equals("unset") || isBelowMinimum(sanitizedDriverVersion, minimumVersionWarn)))
             {
-                warn(String.format("Client driver %s is below recommended minimum version %s",
-                                   sanitizedDriverId, minimumVersionWarn));
+                warn(String.format("Client driver %s, version %s is below recommended minimum version %s",
+                                   sanitizedDriverId,
+                                   sanitizedDriverVersion,
+                                   minimumVersionWarn));
+            }
+            else if (minimumVersionWarn == null && warned.containsKey("unknown"))
+            {
+                warn(String.format("Detected unknown driver id: %s", sanitizedDriverId));
             }
         }
     }
 
     /**
-     * Driver id should be in the format "driver:version". It will be parsed and
-     * {@link #guard(String, String, ClientState)} called.
-     * <p>
-     * This method is not expected to be called in normal circumstances, it is just that we
-     * would need to pass it with colon separator from StartupMessage as guard method
-     * expects one string as a value to check, just so that we would break it apart in turn to get
-     * driver id and version again.
+     * This method should not be used in normal circumstances as {@link #guard(String, String, ClientState)}
+     * should be called directly instead.
      *
      * @param rawDriverId the value to check, driver name and version delimited by a colon.
      * @param state       client state
@@ -124,21 +141,25 @@ public class ClientDriverVersionGuardrail extends Predicates<String>
     public void guard(String rawDriverId, @Nullable ClientState state)
     {
         if (rawDriverId == null)
-            return;
+        {
+            guard(null, null, state);
+        }
+        else
+        {
+            String[] pair = rawDriverId.trim().split(":");
+            if (pair.length != 2)
+                return;
 
-        String[] pair = rawDriverId.trim().split(":");
-        if (pair.length != 2)
-            return;
+            String sanitizedDriverName = pair[0].trim();
+            if (sanitizedDriverName.isBlank())
+                return;
 
-        String sanitizedDriverName = pair[0].trim();
-        if (sanitizedDriverName.isBlank())
-            return;
+            String sanitizedDriverVersion = pair[1].trim();
+            if (sanitizedDriverVersion.isBlank())
+                return;
 
-        String sanitizedDriverVersion = pair[1].trim();
-        if (sanitizedDriverVersion.isBlank())
-            return;
-
-        guard(sanitizedDriverName, sanitizedDriverVersion, state);
+            guard(sanitizedDriverName, sanitizedDriverVersion, state);
+        }
     }
 
     /**

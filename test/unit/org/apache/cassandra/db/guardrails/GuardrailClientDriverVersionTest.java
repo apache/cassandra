@@ -92,9 +92,9 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
 
         // below minimum — warn
         assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("driver", "v2.0.0", userClientState),
-                    "Client driver driver is below recommended minimum version 2.0.1");
+                    "Client driver driver, version 2.0.0 is below recommended minimum version 2.0.1");
         assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("driver", "2.0.0", userClientState),
-                    "Client driver driver is below recommended minimum version 2.0.1");
+                    "Client driver driver, version 2.0.0 is below recommended minimum version 2.0.1");
     }
 
     @Test
@@ -116,7 +116,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
     }
 
     @Test
-    public void testGuardrailNotTriggeredForUnknownDriver() throws Throwable
+    public void testGuardrailNotTriggeredForNotEnumeratedDriver() throws Throwable
     {
         guardrails().setMinimumClientDriverVersionsWarned("{\"DataStax Java Driver\":\"4.18.0\"}");
         guardrails().setMinimumClientDriverVersionsDisallowed("{\"DataStax Java Driver\":\"4.0.0\"}");
@@ -135,7 +135,8 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
     public void testGuardrailNotTriggeredForNullDriverVersion() throws Throwable
     {
         guardrails().setMinimumClientDriverVersionsWarned("{\"DataStax Java Driver\":\"4.18.0\"}");
-        assertValid(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", null, userClientState));
+        assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", null, userClientState),
+                    "Client driver DataStax Java Driver, version unset is below recommended minimum version 4.18.0");
     }
 
     @Test
@@ -155,12 +156,14 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
     }
 
     @Test
-    public void testGuardrailNotTriggeredForEmptyDriverVersion() throws Throwable
+    public void testGuardrailTriggeredForEmptyDriverVersion() throws Throwable
     {
         guardrails().setMinimumClientDriverVersionsWarned("{\"DataStax Java Driver\":\"4.18.0\"}");
 
-        assertValid(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "", userClientState));
-        assertValid(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "  ", userClientState));
+        assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "", userClientState),
+                    "Client driver DataStax Java Driver, version unset is below recommended minimum version 4.18.0");
+        assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "  ", userClientState),
+                    "Client driver DataStax Java Driver, version unset is below recommended minimum version 4.18.0");
     }
 
     @Test
@@ -170,7 +173,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsDisallowed("{}");
 
         assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "4.15.0", userClientState),
-                    "Client driver DataStax Java Driver is below recommended minimum version 4.18.0");
+                    "Client driver DataStax Java Driver, version 4.15.0 is below recommended minimum version 4.18.0");
     }
 
     @Test
@@ -180,7 +183,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsDisallowed("{\"DataStax Java Driver\":\"4.0.0\"}");
 
         assertFails(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "3.11.0", userClientState),
-                    "Client driver DataStax Java Driver is below required minimum version 4.0.0, connection rejected");
+                    "Client driver DataStax Java Driver, version 3.11.0 is below required minimum version 4.0.0, connection rejected");
     }
 
     @Test
@@ -190,7 +193,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsDisallowed("{\"DataStax Java Driver\":\"4.0.0\"}");
 
         assertFails(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "3.11.0", userClientState),
-                    "Client driver DataStax Java Driver is below required minimum version 4.0.0, connection rejected");
+                    "Client driver DataStax Java Driver, version 3.11.0 is below required minimum version 4.0.0, connection rejected");
     }
 
     @Test
@@ -200,7 +203,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsDisallowed("{\"DataStax Java Driver\":\"4.0.0\"}");
 
         assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "4.15.0", userClientState),
-                    "Client driver DataStax Java Driver is below recommended minimum version 4.18.0");
+                    "Client driver DataStax Java Driver, version 4.15.0 is below recommended minimum version 4.18.0");
     }
 
     @Test
@@ -210,7 +213,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsDisallowed("{}");
 
         assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", "v4.15.0", userClientState),
-                    "Client driver DataStax Java Driver is below recommended minimum version 4.18.0");
+                    "Client driver DataStax Java Driver, version 4.15.0 is below recommended minimum version 4.18.0");
     }
 
     @Test
@@ -220,7 +223,7 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsDisallowed("{}");
 
         assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver:4.15.0", userClientState),
-                    "Client driver DataStax Java Driver is below recommended minimum version 4.18.0");
+                    "Client driver DataStax Java Driver, version 4.15.0 is below recommended minimum version 4.18.0");
     }
 
     @Test
@@ -237,6 +240,42 @@ public class GuardrailClientDriverVersionTest extends GuardrailTester
         guardrails().setMinimumClientDriverVersionsWarned("{\"DataStax Java Driver\":\"4.18.0\"}");
 
         assertValid(() -> Guardrails.minimumClientDriverVersion.guard("DataStax Java Driver", userClientState));
+    }
+
+    @Test
+    public void testWarnUnsetDriverId() throws Throwable
+    {
+        guardrails().setMinimumClientDriverVersionsWarned("{\"unset\":\"0.0.0\"}");
+        assertWarns(() -> Guardrails.minimumClientDriverVersion.guard(null, null, userClientState),
+                    "Connection with unset driver id was detected.");
+    }
+
+    @Test
+    public void testFailUnsetDriverId() throws Throwable
+    {
+        guardrails().setMinimumClientDriverVersionsDisallowed("{\"unset\":\"0.0.0\"}");
+        assertFails(() -> Guardrails.minimumClientDriverVersion.guard(null, null, userClientState),
+                    "Connections with unset driver id's are forbidden.");
+    }
+
+    @Test
+    public void testWarnUnknownDriverId() throws Throwable
+    {
+        guardrails().setMinimumClientDriverVersionsWarned("{\"unknown\":\"0.0.0\"}");
+        assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("whatever driver name", "1.2.3", userClientState),
+                    "Detected unknown driver id: whatever driver name");
+        assertWarns(() -> Guardrails.minimumClientDriverVersion.guard("whatever driver name", null, userClientState),
+                    "Detected unknown driver id: whatever driver name");
+    }
+
+    @Test
+    public void testFailUnknownDriverId() throws Throwable
+    {
+        guardrails().setMinimumClientDriverVersionsDisallowed("{\"unknown\":\"0.0.0\"}");
+        assertFails(() -> Guardrails.minimumClientDriverVersion.guard("whatever driver name", "1.2.3", userClientState),
+                    "Detected unknown driver id: whatever driver name");
+        assertFails(() -> Guardrails.minimumClientDriverVersion.guard("whatever driver name", null, userClientState),
+                    "Detected unknown driver id: whatever driver name");
     }
 
     @Test
