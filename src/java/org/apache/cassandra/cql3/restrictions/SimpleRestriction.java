@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
 
 /**
  * A simple predicate on a columns expression (e.g. columnA = X).
@@ -394,7 +395,7 @@ public final class SimpleRestriction implements SingleRestriction
                     RowFilter.SimpleExpression expression = filter.add(column, pattern.kind().operator(), pattern.value());
                     Optional<Index> index = indexRegistry.getBestIndexFor(expression, indexHints);
                     if(!index.isPresent() && !allowFiltering)
-                        throw invalidRequest("%s is only supported on properly indexed columns or with ALLOW FILTERING", expression);
+                        throw invalidRequest("%s is only supported on properly indexed columns or with " + ALLOW_FILTERING, expression);
                 }
                 else
                 {

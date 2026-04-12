@@ -67,6 +67,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.cql3.statements.SelectStatement.ALLOW_FILTERING;
+
 /**
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
  * user permissions internally in C* using the system_auth.role_permissions
@@ -399,7 +401,7 @@ public class CassandraAuthorizer implements IAuthorizer
             query += " WHERE " + StringUtils.join(conditions, " AND ");
 
         if (resource != null && grantee == null)
-            query += " ALLOW FILTERING";
+            query += ' ' + ALLOW_FILTERING;
 
         return String.format(query, vars.toArray());
     }
