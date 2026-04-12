@@ -1115,6 +1115,9 @@
           <exclude name="${accord.dir}/*/build/**" />
           <exclude name="${accord.dir}/**/.gradle/**" />
           <exclude name=".git-blame-ignore-revs" />
+          <!-- AI stuff -->
+          <exclude name="AGENTS.md" />
+          <exclude name="CLAUDE.md" />
         </tarfileset>
 
         <!-- python driver -->
@@ -1164,6 +1167,9 @@
           <exclude name="bin/*" />
           <exclude name="tools/bin/*"/>
           <exclude name=".git-blame-ignore-revs" />
+          <!-- AI stuff -->
+          <exclude name="AGENTS.md" />
+          <exclude name="CLAUDE.md" />
         </tarfileset>
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
