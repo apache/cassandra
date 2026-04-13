@@ -889,6 +889,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      *  A transformation used for simulating slow queries by tests.
      */
+    @VisibleForTesting
     private static class DelayInjector extends Transformation<UnfilteredRowIterator>
     {
         @Override

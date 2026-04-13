@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -2761,7 +2762,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     logger.debug("Query cancelled (timeout)", e);
                     response = null;
-                    assert !command.isCompleted() : "Local read marked as completed despite being aborted by timeout to table " + command.metadata();
+                    Preconditions.checkState(!command.isCompleted(), "Local read marked as completed despite being aborted by timeout to table %s", command.metadata());
                 }
 
                 if (command.complete())
