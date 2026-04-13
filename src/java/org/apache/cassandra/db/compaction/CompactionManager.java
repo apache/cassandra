@@ -651,7 +651,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     private static interface OneSSTableOperation
     {
-
         Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction);
         void execute(LifecycleTransaction input) throws IOException;
         default boolean incompleteOperation() {
