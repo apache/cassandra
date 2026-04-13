@@ -20,8 +20,12 @@ package org.apache.cassandra.distributed.test;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -43,9 +47,11 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CHECK_DATA
 import static org.apache.cassandra.config.StartupChecksConfiguration.ENABLED_PROPERTY;
 import static org.apache.cassandra.distributed.Cluster.build;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
-import static org.apache.cassandra.service.DataResurrectionCheck.DEFAULT_HEARTBEAT_FILE;
+import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.service.DataResurrectionCheck.EXCLUDED_KEYSPACES_CONFIG_PROPERTY;
 import static org.apache.cassandra.service.DataResurrectionCheck.EXCLUDED_TABLES_CONFIG_PROPERTY;
+import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
+import static org.apache.cassandra.service.DataResurrectionCheck.MINIMUM_THRESHOLD_CONFIG_PROPERTY;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertNotNull;
@@ -55,6 +61,20 @@ import static org.junit.Assert.assertTrue;
 
 public class DataResurrectionCheckTest extends TestBaseImpl
 {
+    public File heartbeatFile;
+
+    @Before
+    public void setupTest()
+    {
+        heartbeatFile = createTempFile("cassandra-heartbeat-" + UUID.randomUUID(), "");
+    }
+
+    @After
+    public void teardownTest()
+    {
+        heartbeatFile.delete();
+    }
+
     @Test
     public void testDataResurrectionCheck() throws Exception
     {
@@ -64,15 +84,15 @@ public class DataResurrectionCheckTest extends TestBaseImpl
             // start the node with the check enabled, it will just pass fine as there are not any user tables yet
             // and system tables are young enough
             try (Cluster cluster = build().withNodes(1)
-                                          .withDataDirCount(3) // we will expect heartbeat to be in the first data dir
                                           .withConfig(config -> config.with(NATIVE_PROTOCOL)
                                                                       .set("startup_checks",
-                                                                           getStartupChecksConfig(ENABLED_PROPERTY, "true")))
+                                                                           getStartupChecksConfig(ENABLED_PROPERTY, "true",
+                                                                                                  HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath())))
                                           .start())
             {
                 IInvokableInstance instance = cluster.get(1);
 
-                checkHeartbeat(instance);
+                checkHeartbeat();
 
                 for (String ks : new String[]{ "ks1", "ks2", "ks3" })
                 {
@@ -88,7 +108,8 @@ public class DataResurrectionCheckTest extends TestBaseImpl
                 await().timeout(1, MINUTES)
                        .pollInterval(5, SECONDS)
                        .until(() -> {
-                           Throwable t = executeChecksOnInstance(instance);
+                           Throwable t = executeChecksOnInstance(instance,
+                                                                 HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
                            if (t == null)
                                return false;
                            String message = t.getMessage();
@@ -108,14 +129,20 @@ public class DataResurrectionCheckTest extends TestBaseImpl
                 assertThat(throwable.get().getMessage(), containsString("ks3.tb1"));
 
                 // exclude failing keyspaces which already expired on their gc_grace_seconds, so we will pass the check
-                assertNull(executeChecksOnInstance(instance, EXCLUDED_KEYSPACES_CONFIG_PROPERTY, "ks1,ks2,ks3"));
+                assertNull(executeChecksOnInstance(instance,
+                                                   EXCLUDED_KEYSPACES_CONFIG_PROPERTY, "ks1,ks2,ks3",
+                                                   HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath()));
 
                 // exclude failing tables which already expired on their gc_grace_seconds, so we will pass the check
-                assertNull(executeChecksOnInstance(instance, EXCLUDED_TABLES_CONFIG_PROPERTY, "ks1.tb1,ks2.tb1,ks3.tb1"));
+                assertNull(executeChecksOnInstance(instance,
+                                                   EXCLUDED_TABLES_CONFIG_PROPERTY, "ks1.tb1,ks2.tb1,ks3.tb1",
+                                                   HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath()));
 
                 // exclude failing tables, but not all of them,
                 // so check detects only one table violates the check
-                Throwable t = executeChecksOnInstance(instance, EXCLUDED_TABLES_CONFIG_PROPERTY, "ks1.tb1,ks2.tb1");
+                Throwable t = executeChecksOnInstance(instance,
+                                                      EXCLUDED_TABLES_CONFIG_PROPERTY, "ks1.tb1,ks2.tb1",
+                                                      HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath());
 
                 assertNotNull(t);
                 assertThat(t.getMessage(), containsString("Invalid tables: ks3.tb1"));
@@ -123,7 +150,50 @@ public class DataResurrectionCheckTest extends TestBaseImpl
                 // shadow table exclusion with keyspace exclusion, we have not excluded ks3.tb1, but we excluded whole ks3
                 assertNull(executeChecksOnInstance(instance,
                                                    EXCLUDED_TABLES_CONFIG_PROPERTY, "ks1.tb1,ks2.tb1",
-                                                   EXCLUDED_KEYSPACES_CONFIG_PROPERTY, "ks3"));
+                                                   EXCLUDED_KEYSPACES_CONFIG_PROPERTY, "ks3",
+                                                   HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath()));
+            }
+        }
+    }
+
+    @Test
+    public void testMinimumThreshold() throws Exception
+    {
+        // set it to 1 second so check will be updated very frequently
+        // but when gc_grace_seconds is very low, that will still not fail the check,
+        // because the minimum threshold is way bigger
+        try (WithProperties properties = new WithProperties().set(CHECK_DATA_RESURRECTION_HEARTBEAT_PERIOD, 1000))
+        {
+            try (Cluster cluster = build().withNodes(1)
+                                          .withConfig(config -> config.with(NATIVE_PROTOCOL)
+                                                                      .set("startup_checks",
+                                                                           getStartupChecksConfig(ENABLED_PROPERTY, "true",
+                                                                                                  // set it to 1h to not fail even gc_grace_seconds is 0
+                                                                                                  // and heartbeating period is 1 second
+                                                                                                  MINIMUM_THRESHOLD_CONFIG_PROPERTY, "1h",
+                                                                                                  HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath())))
+                                          .start())
+            {
+                IInvokableInstance instance = cluster.get(1);
+
+                checkHeartbeat();
+
+                cluster.schemaChange("CREATE KEYSPACE ks1 WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
+                cluster.schemaChange("CREATE TABLE ks1.tb1 (pk text PRIMARY KEY) WITH gc_grace_seconds = 0");
+
+                // just check 5 times with some poll that we will not get any
+                // violations, even gc_grace_seconds is 0.
+                // that is thanks to setting minimum_threshold to higher value, e.g. 1h
+
+                for (int i = 0; i < 5; i++)
+                {
+                    // we do not get any exceptions / violations during whole time
+                    // even heartbeating is going on and gc_grace_seconds is 0
+                    Assert.assertNull(executeChecksOnInstance(instance,
+                                                              MINIMUM_THRESHOLD_CONFIG_PROPERTY, "1h",
+                                                              HEARTBEAT_FILE_CONFIG_PROPERTY, heartbeatFile.absolutePath()));
+                    Thread.sleep(5000); // sleep 5s
+                }
             }
         }
     }
@@ -172,10 +242,8 @@ public class DataResurrectionCheckTest extends TestBaseImpl
         }};
     }
 
-    private void checkHeartbeat(IInvokableInstance instance) throws Exception
+    private void checkHeartbeat() throws Exception
     {
-        File heartbeatFile = new File(((String[]) instance.config().get("data_file_directories"))[0],
-                                      DEFAULT_HEARTBEAT_FILE);
         assertTrue(heartbeatFile.exists());
         Heartbeat heartbeat = Heartbeat.deserializeFromJsonFile(heartbeatFile);
         assertNotNull(heartbeat.lastHeartbeat);
