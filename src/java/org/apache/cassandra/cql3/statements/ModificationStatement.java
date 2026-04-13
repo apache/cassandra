@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -96,6 +97,7 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Token;
@@ -1006,9 +1008,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return fragments;
     }
 
-    public List<RowKey> getRowKeys(List<TxnWrite.Fragment> writeFragments)
+    public Set<RowKey> getRowKeys(List<TxnWrite.Fragment> writeFragments)
     {
-        List<RowKey> rowKeys = new ArrayList<>();
+        Set<RowKey> rowKeys = new HashSet<>();
 
         for (TxnWrite.Fragment writeFragment : writeFragments)
         {
@@ -1016,6 +1018,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             List<Clustering<?>> clusteringColumns = writeFragment.referenceOps.getClusterings();
             for (Clustering<?> clustering : clusteringColumns)
                 rowKeys.add(new RowKey(key, clustering));
+            for (Iterator<Row> it = writeFragment.baseUpdate.iterator(); it.hasNext();)
+            {
+                Row row = it.next();
+                if (!clusteringColumns.contains(row.clustering()))
+                    rowKeys.add(new RowKey(key, row.clustering()));
+            }
         }
         return rowKeys;
     }

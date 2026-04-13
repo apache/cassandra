@@ -390,7 +390,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private static void validateOnlyModifyPrimaryKeyColumnPairOnce(HashMap<RowKey, Columns> seenRegularColumns, HashMap<DecoratedKey, Columns> seenStaticColumns,
                                                   ModificationStatement statement, List<TxnWrite.Fragment> writeFragments)
     {
-        List<RowKey> rowKeys = statement.getRowKeys(writeFragments);
+        Set<RowKey> rowKeys = statement.getRowKeys(writeFragments);
         Columns regularColumns = statement.updatedColumns().columns(false);
         Columns staticColumns = statement.updatedColumns().columns(true);
 
