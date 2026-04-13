@@ -27,10 +27,11 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.LockSupport;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -48,7 +49,6 @@ import accord.utils.Invariants;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
-import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -59,6 +59,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Crc;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Simulate;
@@ -71,7 +72,6 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.NO
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.SYNCHRONIZED;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
-import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
@@ -89,7 +89,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
               must be fixed-size and byte-order comparable
  */
 @Simulate(with=MONITORS)
-public class Journal<K, V> implements Shutdownable
+public class Journal<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(Journal.class);
 
@@ -104,10 +104,10 @@ public class Journal<K, V> implements Shutdownable
 
     final Flusher<K, V> flusher;
     final Compactor<K, V> compactor;
+    final AllocateRunnable allocateRunnable = new AllocateRunnable();
     Interruptible allocator;
     SequentialExecutorPlus closer, releaser;
 
-    volatile long replayLimit;
     final AtomicLong nextSegmentId = new AtomicLong();
 
     private volatile ActiveSegment<K, V> currentSegment = null;
@@ -117,12 +117,11 @@ public class Journal<K, V> implements Shutdownable
 
     private final AtomicReference<Segments<K, V>> segments = new AtomicReference<>();
 
-    final AtomicReference<State> state = new AtomicReference<>(State.UNINITIALIZED);
+    private volatile State state = State.UNINITIALIZED;
+    private static final AtomicReferenceFieldUpdater<Journal, State> stateUpdater = AtomicReferenceFieldUpdater.newUpdater(Journal.class, State.class, "state");
 
-    // TODO (expected): we do not need wait queues here, we can just wait on a signal on a segment while its byte buffer is being allocated
     private final WaitQueue segmentPrepared = newWaitQueue();
-    private final WaitQueue allocatorThreadWaitQueue = newWaitQueue();
-    private final BooleanSupplier allocatorThreadWaitCondition = () -> (availableSegment == null);
+    private volatile Thread waitingAllocatorThread;
 
     private final FlusherCallbacks flusherCallbacks;
 
@@ -199,36 +198,52 @@ public class Journal<K, V> implements Shutdownable
         this.compactor = new Compactor<>(this, segmentCompactor);
     }
 
+    public long peekSegmentId()
+    {
+        return nextSegmentId.get();
+    }
+
     public void onDurable(RecordPointer recordPointer, Runnable runnable)
     {
         flusherCallbacks.submit(recordPointer, runnable);
     }
 
-    public void start()
+    public void open()
     {
-        Invariants.require(state.compareAndSet(State.UNINITIALIZED, State.INITIALIZING),
-                              "Unexpected journal state during initialization", state);
-        metrics.register(flusher);
+        Invariants.require(stateUpdater.compareAndSet(this, State.UNINITIALIZED, State.OPENING),
+                           "Unexpected journal state before opening", state);
 
         deleteTmpFiles();
-
         List<Descriptor> descriptors = Descriptor.list(directory);
-        // find the largest existing timestamp
-        descriptors.sort(null);
-        long maxTimestamp = descriptors.isEmpty()
-                          ? Long.MIN_VALUE
-                          : descriptors.get(descriptors.size() - 1).timestamp;
-        nextSegmentId.set(replayLimit = Math.max(currentTimeMillis(), maxTimestamp + 1));
-
         segments.set(Segments.of(StaticSegment.open(descriptors, keySupport)));
+
+        Invariants.require(stateUpdater.compareAndSet(this, State.OPENING, State.OPEN_READABLE),
+                           "Unexpected journal state once opened", state);
+    }
+
+    public void start(long maxTableDescriptor)
+    {
+        if (state == State.UNINITIALIZED)
+            open();
+
+        Invariants.require(stateUpdater.compareAndSet(this, State.OPEN_READABLE, State.STARTING),
+                              "Unexpected journal state before starting", state);
+
+        nextSegmentId.set(Math.max(currentTimeMillis(), Math.max(maxDescriptor(), maxTableDescriptor) + 1));
+
         closer = executorFactory().sequential(name + "-closer");
         releaser = executorFactory().sequential(name + "-releaser");
-        allocator = executorFactory().infiniteLoop(name + "-allocator", new AllocateRunnable(), SAFE, NON_DAEMON, SYNCHRONIZED);
+        allocator = executorFactory().infiniteLoop(name + "-allocator", allocateRunnable, SAFE, NON_DAEMON, SYNCHRONIZED);
+
+        // we use these metrics when advancing segments, so must register first
+        metrics.register(flusher);
         advanceSegment(null);
-        Invariants.require(state.compareAndSet(State.INITIALIZING, State.NORMAL),
-                              "Unexpected journal state after initialization", state);
+
         flusher.start();
         compactor.start();
+
+        Invariants.require(stateUpdater.compareAndSet(this, State.STARTING, State.WRITEABLE),
+                           "Unexpected journal state once started", state);
 
         final int maxSegments = 100;
         if (segments.get().count(Segment::isStatic) > maxSegments)
@@ -252,6 +267,29 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
+    public long maxDescriptor()
+    {
+        List<Segment<K, V>> existingSegments = segments.get().allSorted(false);
+        return existingSegments.isEmpty() ? 0 : existingSegments.get(0).descriptor.timestamp;
+    }
+
+    public State getState()
+    {
+        return state;
+    }
+
+    public boolean isReadable()
+    {
+        State state = this.state;
+        return state.compareTo(State.OPEN_READABLE) >= 0 && state.compareTo(State.STOPPED_READABLE) <= 0;
+    }
+
+    private boolean isNotStopped()
+    {
+        State state = this.state;
+        return state.compareTo(State.STARTING) >= 0 && state.compareTo(State.STOPPING) <= 0;
+    }
+
     @VisibleForTesting
     public void runCompactorForTesting()
     {
@@ -272,58 +310,64 @@ public class Journal<K, V> implements Shutdownable
             tmpFile.delete();
     }
 
-    @Override
+    public boolean hasBeenOpened()
+    {
+        return state.compareTo(State.OPEN_READABLE) >= 0;
+    }
+
     public boolean isTerminated()
     {
-        return state.get() == State.TERMINATED;
+        return state == State.STOPPED_READABLE;
     }
 
-    public void shutdown()
+    // return the last segment that was written to
+    public Descriptor stop()
     {
-        try
+        logger.info("Stopping journal");
+        logger.debug("Shutting down " + allocator);
+        boolean stop;
+        synchronized (allocateRunnable)
         {
-            Invariants.require(state.compareAndSet(State.NORMAL, State.SHUTDOWN),
-                                  "Unexpected journal state while trying to shut down", state);
-            logger.debug("Shutting down " + allocator + " and awaiting termination");
-            allocator.shutdown();
-            wakeAllocator(); // Wake allocator to force it into shutdown
-            // TODO (expected): why are we awaitingTermination here when we have a separate method for it?
-            allocator.awaitTermination(1, TimeUnit.MINUTES);
-            segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
-            compactor.shutdown();
-            compactor.awaitTermination(1, TimeUnit.MINUTES);
-            flusher.shutdown();
-            closeAllSegments();
-            logger.debug("Shutting down " + releaser + " and " + closer + " and awaiting termination");
-            releaser.shutdown();
-            closer.shutdown();
-            closer.awaitTermination(1, TimeUnit.MINUTES);
-            releaser.awaitTermination(1, TimeUnit.MINUTES);
-            metrics.deregister();
-            Invariants.require(state.compareAndSet(State.SHUTDOWN, State.TERMINATED),
-                                  "Unexpected journal state while trying to shut down", state);
+            // we synchronize on allocateRunnable to ensure it witnesses this change before the next attempt to allocate a segment
+            stop = stateUpdater.compareAndSet(this, State.WRITEABLE, State.STOPPING);
         }
-        catch (InterruptedException e)
-        {
-            logger.error("Could not shutdown journal", e);
-        }
+        Invariants.require(stop, "Unexpected journal state before stopping", state);
+
+        // ensure prompt shutdown, though the above state change suffices semantically
+        allocator.shutdown();
+        wakeAllocator();
+        discardAvailableSegment();
+        segmentPrepared.signalAll(); // Wake up all threads waiting on the new segment
+
+        compactor.shutdownNow();
+
+        currentSegment.discardUnusedTail();
+        flusher.requestExtraFlush();
+
+        Descriptor lastSegment = finaliseSegments(); // this flushes any pending writes
+
+        flusher.shutdown();
+        logger.debug("Shutting down " + releaser + " and " + closer);
+        releaser.shutdown();
+        closer.shutdown();
+        metrics.deregister();
+        Invariants.require(stateUpdater.compareAndSet(this, State.STOPPING, State.STOPPED_READABLE),
+                           "Unexpected journal state after stopping", state);
+        return lastSegment;
     }
 
-    @Override
-    public Object shutdownNow()
+    public void close()
     {
-        shutdown();
-        return null;
+        logger.info("Closing journal");
+        stateUpdater.compareAndSet(this, State.STOPPED_READABLE, State.CLOSING);
+        closeAllSegments();
+        stateUpdater.compareAndSet(this, State.CLOSING, State.CLOSED);
     }
 
-    @Override
-    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    public void awaitTerminationUntil(long deadlineNanos) throws InterruptedException, TimeoutException
     {
-        boolean r = true;
-        r &= allocator.awaitTermination(timeout, units);
-        r &= closer.awaitTermination(timeout, units);
-        r &= releaser.awaitTermination(timeout, units);
-        return r;
+        ExecutorUtils.awaitTerminationUntil(deadlineNanos, Arrays.asList(allocator, compactor, closer, releaser));
+        ExecutorUtils.awaitTerminationUntil(deadlineNanos, flusher.executors());
     }
 
     /**
@@ -470,9 +514,6 @@ public class Journal<K, V> implements Shutdownable
     {
         for (Segment<K, V> segment : segments.allSorted(false))
         {
-            if (!segment.index().mayContainId(id))
-                continue;
-
             if (segment.readLast(id, consumer))
                 return true;
         }
@@ -542,7 +583,6 @@ public class Journal<K, V> implements Shutdownable
 
     private ActiveSegment<K, V>.Allocation allocate(int entrySize)
     {
-
         ActiveSegment<K, V> segment = currentSegment;
         ActiveSegment<K, V>.Allocation alloc;
         while (null == (alloc = segment.allocate(entrySize)))
@@ -598,12 +638,12 @@ public class Journal<K, V> implements Shutdownable
             WaitQueue.Signal prepared = segmentPrepared.register(metrics.waitingOnSegmentAllocation.time(), Context::stop);
             if (availableSegment == null && currentSegment == currentActiveSegment)
             {
-                prepared.awaitThrowUncheckedOnInterrupt();
-
                 // In case we woke up due to shutdown signal or interrupt, check mode
-                State state = this.state.get();
-                if (state.ordinal() > State.NORMAL.ordinal())
+                State state = this.state;
+                if (state.ordinal() > State.WRITEABLE.ordinal())
                     throw new IllegalStateException("Can not obtain allocated segment due to shutdown " + state);
+
+                prepared.awaitThrowUncheckedOnInterrupt();
             }
             else
                 prepared.cancel();
@@ -613,7 +653,9 @@ public class Journal<K, V> implements Shutdownable
 
     private void wakeAllocator()
     {
-        allocatorThreadWaitQueue.signalAll();
+        Thread wake = waitingAllocatorThread;
+        if (wake != null)
+            LockSupport.unpark(wake);
     }
 
     private void discardAvailableSegment()
@@ -635,13 +677,10 @@ public class Journal<K, V> implements Shutdownable
         {
             if (state == NORMAL)
                 runNormal();
-            else if (state == SHUTTING_DOWN)
-                shutDown();
         }
 
         private void runNormal() throws InterruptedException
         {
-            boolean interrupted = false;
             try
             {
                 if (availableSegment != null)
@@ -649,14 +688,19 @@ public class Journal<K, V> implements Shutdownable
 
                 // synchronized to prevent thread interrupts while performing IO operations and also
                 // clear interrupted status to prevent ClosedByInterruptException in createSegment()
+                boolean interrupted;
                 synchronized (this)
                 {
+                    if (state.compareTo(State.STOPPING) >= 0)
+                        throw new TerminateException();
+
                     interrupted = Thread.interrupted();
                     availableSegment = createSegment();
-
-                    segmentPrepared.signalAll();
-                    Thread.yield();
                 }
+
+                segmentPrepared.signalAll();
+                if (interrupted) throw new InterruptedException();
+                else Thread.yield();
             }
             catch (JournalWriteError e)
             {
@@ -673,41 +717,18 @@ public class Journal<K, V> implements Shutdownable
                 TimeUnit.SECONDS.sleep(1L); // sleep for a second to avoid log spam
             }
 
-            interrupted = interrupted || Thread.interrupted();
-            if (!interrupted)
+            // If we offered a segment, wait for it to be taken before reentering the loop.
+            // There could be a new segment in next not offered, but only on failure to discard it while
+            // shutting down-- nothing more can or needs to be done in that case.
+            if (availableSegment != null)
             {
-                try
-                {
-                    // If we offered a segment, wait for it to be taken before reentering the loop.
-                    // There could be a new segment in next not offered, but only on failure to discard it while
-                    // shutting down-- nothing more can or needs to be done in that case.
-                    WaitQueue.waitOnCondition(allocatorThreadWaitCondition, allocatorThreadWaitQueue);
-                }
-                catch (InterruptedException e)
-                {
-                    interrupted = true;
-                }
-            }
-
-            if (interrupted)
-            {
-                discardAvailableSegment();
-                throw new InterruptedException();
-            }
-        }
-
-        private void shutDown() throws InterruptedException
-        {
-            try
-            {
-                // if shutdown() started and finished during segment creation, we'll be left with a
-                // segment that no one will consume; discard it
-                discardAvailableSegment();
-            }
-            catch (Throwable t)
-            {
-                handleError("Failed shutting down segment allocator", t);
-                throw new TerminateException();
+                waitingAllocatorThread = Thread.currentThread();
+                boolean interrupted = false;
+                while (availableSegment != null && !(interrupted = Thread.interrupted()))
+                    LockSupport.park();
+                waitingAllocatorThread = null;
+                if (interrupted)
+                    throw new InterruptedException();
             }
         }
     }
@@ -722,13 +743,32 @@ public class Journal<K, V> implements Shutdownable
     {
         Segments<K, V> segments = swapSegments(ignore -> Segments.none());
 
-        for (Segment<K, V> segment : segments.all())
+        List<Segment<K, V>> all = segments.allSorted(false);
+        for (Segment<K, V> segment : all)
         {
             if (segment.isActive())
                 ((ActiveSegment<K, V>) segment).closeAndIfEmptyDiscard(this);
             else
                 segment.close(this);
         }
+    }
+
+    private Descriptor finaliseSegments()
+    {
+        while (true)
+        {
+            ActiveSegment<K, V> oldestActive = oldestActiveSegment();
+            oldestActive.discardUnusedTail();
+            flusher.awaitFsync(oldestActive, oldestActive.writtenToAtLeast());
+            if (oldestActive == currentSegment)
+                break;
+        }
+
+        currentSegment.persistComponents();
+        List<Segment<K, V>> all = segments().allSorted(false);
+        if (all.isEmpty())
+            return null;
+        return all.get(0).descriptor;
     }
 
     @SuppressWarnings("unused")
@@ -761,27 +801,26 @@ public class Journal<K, V> implements Shutdownable
 
     private void addNewActiveSegment(ActiveSegment<K, V> activeSegment)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withNewActiveSegment(activeSegment));
     }
 
     private void removeEmptySegment(ActiveSegment<K, V> activeSegment)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withoutEmptySegment(activeSegment));
     }
 
     private void replaceCompletedSegment(ActiveSegment<K, V> activeSegment, StaticSegment<K, V> staticSegment)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
     }
 
     void replaceCompactedSegments(Collection<StaticSegment<K, V>> oldSegments, Collection<StaticSegment<K, V>> compactedSegments)
     {
+        Invariants.require(isNotStopped());
         swapSegments(current -> current.withCompactedSegments(oldSegments, compactedSegments));
-    }
-
-    void selectSegmentToFlush(Collection<ActiveSegment<K, V>> into)
-    {
-        segments().selectActive(currentSegment.descriptor.timestamp, into);
     }
 
     ActiveSegment<K, V> oldestActiveSegment()
@@ -950,6 +989,7 @@ public class Journal<K, V> implements Shutdownable
     @VisibleForTesting
     public void truncateForTesting()
     {
+        Invariants.require(isNotStopped());
         ActiveSegment<?, ?> discarding = currentSegment;
         if (!discarding.isEmpty()) // if there is no data in the segement then ignore it
         {
@@ -1158,12 +1198,16 @@ public class Journal<K, V> implements Shutdownable
         }
     }
 
-    enum State
+    public enum State
     {
         UNINITIALIZED,
-        INITIALIZING,
-        NORMAL,
-        SHUTDOWN,
-        TERMINATED
+        OPENING,
+        OPEN_READABLE,
+        STARTING,
+        WRITEABLE,
+        STOPPING,
+        STOPPED_READABLE,
+        CLOSING,
+        CLOSED
     }
 }

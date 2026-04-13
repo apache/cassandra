@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -71,6 +72,7 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.AccordExecutorMetrics;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
+import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayingHistogram;
 import org.apache.cassandra.metrics.ShardedDecayingHistograms;
@@ -376,6 +378,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 // we have too much in memory already, and we have work waiting to run, so let that complete before queueing more
                 if (!loading.isEmpty() || !waitingToRun.isEmpty())
                 {
+                    AccordSystemMetrics.metrics.pausedExecutorLoading.inc();
                     hasPausedLoading = true;
                     return;
                 }
@@ -597,7 +600,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         enqueueLoadsExclusive();
     }
 
-    void submitExclusive(Runnable runnable)
+    public void submitExclusive(Runnable runnable)
     {
         submitPlainExclusive(new PlainRunnable(null, runnable));
     }
@@ -708,7 +711,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 finally { completeTaskExclusive(task); }
                 break;
 
-            case FAILING:
             case RUNNING:
             case PERSISTING:
             case FINISHED:
@@ -939,6 +941,16 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         abstract void submitExclusive(AccordExecutor owner);
     }
 
+    // run the task even on a stopped commandStore
+    public interface Unstoppable extends PreLoadContext.Empty
+    {
+    }
+
+    // run the task even on a termimated commandStore
+    public interface Unterminatable extends Unstoppable
+    {
+    }
+
     static class SequentialQueueTask extends Task
     {
         private final SequentialExecutor queue;
@@ -989,6 +1001,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         private Task task;
         private volatile Thread owner, waiting;
         private boolean running;
+        private boolean stopped;
+        private volatile boolean visibleStopped;
+        private boolean terminated;
 
         SequentialExecutor()
         {
@@ -1019,7 +1034,21 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                     LockSupport.park();
                 waiting = null;
             }
-            task.runInternal();
+
+            if (stopped && reject(task))
+                task.fail(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + ((AccordTask<?>) task).preLoadContext()));
+            else
+                task.runInternal();
+        }
+
+        private boolean reject(Task task)
+        {
+            if (!(task instanceof AccordTask<?>))
+                return true;
+
+            PreLoadContext context = ((AccordTask<?>) task).preLoadContext();
+
+            return !(terminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
         }
 
         void failTask(Throwable t)
@@ -1101,6 +1130,24 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public boolean inExecutor()
         {
             return owner == Thread.currentThread();
+        }
+
+        public boolean stopped()
+        {
+            return visibleStopped;
+        }
+
+        void stop()
+        {
+            Invariants.require(inExecutor());
+            this.stopped = true;
+            this.visibleStopped = true;
+        }
+
+        void terminate()
+        {
+            Invariants.require(inExecutor());
+            this.visibleStopped = this.terminated = this.stopped = true;
         }
 
         @Override
@@ -1605,8 +1652,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             }
             catch (Throwable t)
             {
+                // shouldn't throw exceptions
                 agent.onException(t);
-                return;
             }
         }
 
@@ -1722,6 +1769,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             if (task instanceof AccordTask)
                 return ((AccordTask<?>) task).preLoadContext();
+            if (task instanceof WrappedIOTask && ((WrappedIOTask) task).wrapped instanceof AccordTask.RangeTxnScanner)
+                return ((AccordTask<?>.RangeTxnScanner) ((WrappedIOTask) task).wrapped).preLoadContext();
             return null;
         }
 
@@ -1753,14 +1802,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
         result.sort(TaskInfo::compareTo);
         return result;
-    }
-
-    private static List<Task> toSimpleSnapshotList(TaskQueue<?> queue)
-    {
-        List<Task> list = new ArrayList<>();
-        for (int i = 0 ; i < queue.size() ; i++)
-            list.add(queue.get(i));
-        return list;
     }
 
     private static void addToSnapshot(List<TaskInfo> snapshot, TaskQueue<?> queue, TaskInfo.Status ifCurrent, TaskInfo.Status ifQueued)

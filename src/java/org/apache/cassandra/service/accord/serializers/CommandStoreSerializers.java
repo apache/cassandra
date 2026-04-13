@@ -21,18 +21,31 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 
+import accord.api.LocalListeners.TxnListener;
 import accord.api.RoutingKey;
+import accord.impl.cfr.IdEntry;
+import accord.impl.cfr.IdMultiEntry;
+import accord.impl.cfr.IdSingleEntry;
+import accord.impl.progresslog.TxnState;
+import accord.local.CommandStores;
 import accord.local.DurableBefore;
+import accord.local.MaxConflicts;
+import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
+import accord.local.RejectBefore;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.SaveStatus;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.BTreeReducingIntervalMap;
+import accord.utils.BTreeReducingIntervalMap.AbstractBoundariesBuilder;
+import accord.utils.BTreeReducingRangeMap;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
-import accord.utils.TriFunction;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -47,74 +60,143 @@ import static org.apache.cassandra.service.accord.serializers.CommandSerializers
 
 public class CommandStoreSerializers
 {
+    public static final UnversionedSerializer<DurableBefore.Entry> durableBeforeEntry = new DurableBeforeEntrySerializer();
+    public static final UnversionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(durableBeforeEntry), DurableBefore.Entry[]::new, DurableBefore.SerializerSupport::create, DurableBefore.EMPTY);
+    public static final UnversionedSerializer<MaxConflicts> maxConflicts = new MaxConflictsSerializer();
+    public static final UnversionedSerializer<MaxDecidedRX> maxDecidedRX = new ReducingRangeMapSerializer<>(new DecidedRXSerializer(), MaxDecidedRX.DecidedRX[]::new, MaxDecidedRX.SerializerSupport::create, MaxDecidedRX.EMPTY);
+    public static final UnversionedSerializer<RedundantBefore.Bounds> redundantBeforeShortBounds = new RedundantBeforeShortBoundsSerializer();
+    public static final UnversionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(redundantBeforeShortBounds, RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create, RedundantBefore.EMPTY);
+    public static final UnversionedSerializer<RejectBefore> rejectBefore = new ReducingRangeMapSerializer<>(CommandSerializers.timestamp, Timestamp[]::new, RejectBefore.SerializerSupport::create, RejectBefore.EMPTY);
+    public static final UnversionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesMapSerializer<>(CommandSerializers.txnId);
+    public static final UnversionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesMapSerializer<>(CommandSerializers.timestamp);
+    public static final UnversionedSerializer<TxnListener> txnListener = new TxnListenerSerializer();
+    public static final UnversionedSerializer<TxnState> progressLogState = new ProgressLogStateSerializer();
+    public static final UnversionedSerializer<IdEntry> rangeIndexIdEntry = new RangeIndexIdEntrySerializer();
+    public static final UnversionedSerializer<CommandStores.RangesForEpoch> rangesForEpoch = new RangesForEpochSerializer();
+
     private CommandStoreSerializers() {}
 
-    public static class ReducingRangeMapSerializer<T, R extends ReducingRangeMap<T>> implements UnversionedSerializer<R>
+    // TODO (expected): use flags to switch to bitset encoding for nulls
+    private static abstract class AbstractReducingRangeMapSerializer<V, Map extends ReducingRangeMap<V>> implements UnversionedSerializer<Map>
     {
-        final UnversionedSerializer<T> valueSerializer;
-        final IntFunction<T[]> newValueArray;
-        final TriFunction<Boolean, RoutingKey[], T[], R> constructor;
+        // note: originally we redundantly encoded a value of 1 because we were encoding inclusiveEnds as a boolean
+        private static final int RESERVED_FLAG_BITS = 3;
+        final IntFunction<V[]> newValueArray;
+        final BiFunction<RoutingKey[], V[], Map> constructor;
+        final Map empty;
 
-        public ReducingRangeMapSerializer(UnversionedSerializer<T> valueSerializer, IntFunction<T[]> newValueArray, TriFunction<Boolean, RoutingKey[], T[], R> constructor)
+        public AbstractReducingRangeMapSerializer(IntFunction<V[]> newValueArray, BiFunction<RoutingKey[], V[], Map> constructor, Map empty)
         {
-            this.valueSerializer = valueSerializer;
             this.newValueArray = newValueArray;
             this.constructor = constructor;
+            this.empty = empty;
+        }
+
+        protected abstract int flags(Map map);
+        protected abstract UnversionedSerializer<V> valueSerializer(int flags);
+
+        private int safeFlags(Map map)
+        {
+            int flags = flags(map);
+            Invariants.require((flags & ((1 << RESERVED_FLAG_BITS) - 1)) == 0);
+            // encoded flags supersede writeBoolean(true), so we default to setting the lowest bit, so we can interpret 0 as a flag bit
+            return flags | 1;
         }
 
         @Override
-        public void serialize(R map, DataOutputPlus out) throws IOException
+        public void serialize(Map map, DataOutputPlus out) throws IOException
         {
-            out.writeBoolean(map.inclusiveEnds());
+            int flags = safeFlags(map);
             int mapSize = map.size();
+            out.writeUnsignedVInt32(flags);
             out.writeUnsignedVInt32(mapSize);
+
+            if (mapSize == 0)
+                return;
+
+            UnversionedSerializer<V> valueSerializer = valueSerializer(flags);
 
             for (int i=0; i<mapSize; i++)
             {
                 KeySerializers.routingKey.serialize(map.startAt(i), out);
                 valueSerializer.serialize(map.valueAt(i), out);
             }
-            if (mapSize > 0)
-                KeySerializers.routingKey.serialize(map.startAt(mapSize), out);
+            KeySerializers.routingKey.serialize(map.startAt(mapSize), out);
         }
 
         @Override
-        public R deserialize(DataInputPlus in) throws IOException
+        public Map deserialize(DataInputPlus in) throws IOException
         {
-            boolean inclusiveEnds = in.readBoolean();
+            int flags = in.readUnsignedVInt32();
             int mapSize = in.readUnsignedVInt32();
+
+            if (mapSize == 0)
+                return empty;
+
             RoutingKey[] keys = new RoutingKey[mapSize + 1];
-            T[] values = newValueArray.apply(mapSize);
+            V[] values = newValueArray.apply(mapSize);
+            UnversionedSerializer<V> valueSerializer = valueSerializer(flags);
             for (int i=0; i<mapSize; i++)
             {
                 keys[i] = KeySerializers.routingKey.deserialize(in);
                 values[i] = valueSerializer.deserialize(in);
             }
-            if (mapSize > 0)
-                keys[mapSize] = KeySerializers.routingKey.deserialize(in);
-            return constructor.apply(inclusiveEnds, keys, values);
+            keys[mapSize] = KeySerializers.routingKey.deserialize(in);
+
+            return constructor.apply(keys, values);
         }
 
         @Override
-        public long serializedSize(R map)
+        public long serializedSize(Map map)
         {
-            long size = TypeSizes.BOOL_SIZE;
+            int flags = safeFlags(map);
             int mapSize = map.size();
+
+            long size = 0;
+            size += TypeSizes.sizeofUnsignedVInt(flags);
             size += TypeSizes.sizeofUnsignedVInt(mapSize);
+
+            if (mapSize == 0)
+                return size;
+
+            UnversionedSerializer<V> valueSerializer = valueSerializer(flags);
             for (int i=0; i<mapSize; i++)
             {
                 size += KeySerializers.routingKey.serializedSize(map.startAt(i));
                 size += valueSerializer.serializedSize(map.valueAt(i));
             }
-            if (mapSize > 0)
-                size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize));
-
+            size += KeySerializers.routingKey.serializedSize(map.startAt(mapSize));
             return size;
         }
     }
 
-    public static UnversionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new UnversionedSerializer<>()
+    private static class ReducingRangeMapSerializer<T, Map extends ReducingRangeMap<T>> extends AbstractReducingRangeMapSerializer<T, Map> implements UnversionedSerializer<Map>
     {
+        final UnversionedSerializer<T> defaultValueSerializer;
+
+        public ReducingRangeMapSerializer(UnversionedSerializer<T> defaultValueSerializer, IntFunction<T[]> newValueArray, BiFunction<RoutingKey[], T[], Map> constructor, Map empty)
+        {
+            super(newValueArray, constructor, empty);
+            this.defaultValueSerializer = defaultValueSerializer;
+        }
+
+        @Override
+        protected int flags(Map map)
+        {
+            return 0;
+        }
+
+        @Override
+        protected UnversionedSerializer<T> valueSerializer(int flags)
+        {
+            return defaultValueSerializer;
+        }
+    }
+
+    private static final class DurableBeforeEntrySerializer implements UnversionedSerializer<DurableBefore.Entry>
+    {
+        private DurableBeforeEntrySerializer() {}
+
         @Override
         public void serialize(DurableBefore.Entry t, DataOutputPlus out) throws IOException
         {
@@ -133,16 +215,65 @@ public class CommandStoreSerializers
         @Override
         public long serializedSize(DurableBefore.Entry t)
         {
-            return   CommandSerializers.txnId.serializedSize(t.quorumBefore)
+            return CommandSerializers.txnId.serializedSize(t.quorumBefore)
                    + CommandSerializers.txnId.serializedSize(t.universalBefore);
         }
-    }), DurableBefore.Entry[]::new, DurableBefore.SerializerSupport::create);
+    }
 
-    public static final UnversionedSerializer<RedundantBefore.Bounds> redundantBeforeEntry = new UnversionedSerializer<>()
+    private static final class DecidedRXSerializer implements UnversionedSerializer<MaxDecidedRX.DecidedRX>
     {
+        private DecidedRXSerializer() {}
+
+        @Override
+        public void serialize(MaxDecidedRX.DecidedRX t, DataOutputPlus out) throws IOException
+        {
+            if (t == null)
+            {
+                CommandSerializers.txnId.serialize(null, out);
+            }
+            else
+            {
+                CommandSerializers.txnId.serialize(t.any, out);
+                CommandSerializers.txnId.serialize(t.hlcBound, out);
+            }
+        }
+
+        @Override
+        public MaxDecidedRX.DecidedRX deserialize(DataInputPlus in) throws IOException
+        {
+            TxnId any = CommandSerializers.txnId.deserialize(in);
+            if (any == null)
+                return null;
+            TxnId hlcBound = CommandSerializers.txnId.deserialize(in);
+            return new MaxDecidedRX.DecidedRX(any, hlcBound);
+        }
+
+        @Override
+        public long serializedSize(MaxDecidedRX.DecidedRX t)
+        {
+            if (t == null)
+                return CommandSerializers.txnId.serializedSize(null);
+
+            return CommandSerializers.txnId.serializedSize(t.any)
+                   + CommandSerializers.txnId.serializedSize(t.hlcBound);
+        }
+    }
+
+    private static class RedundantBeforeShortBoundsSerializer implements UnversionedSerializer<RedundantBefore.Bounds>
+    {
+        private RedundantBeforeShortBoundsSerializer() {}
+
         @Override
         public void serialize(RedundantBefore.Bounds b, DataOutputPlus out) throws IOException
         {
+            // was previously wrapped in NullableSerializer; inlined logic here so we can convert to flags in future and save bytes
+            if (b == null)
+            {
+                out.writeByte(0);
+                return;
+            }
+            out.writeByte(1);
+
             KeySerializers.range.serialize(b.range, out);
             Invariants.require(b.startEpoch <= b.endEpoch);
             out.writeUnsignedVInt(b.startEpoch);
@@ -164,13 +295,16 @@ public class CommandStoreSerializers
         private short cast(long v)
         {
             if ((v & ~0xFFFF) != 0)
-                throw new IllegalStateException("Cannot serialize RedundantStatus larger than 0xFFFF. Requires serialization version bump.");
+                throw new IllegalStateException("Cannot serialize RedundantStatus larger than 0xFFFF. Requires serialization changes.");
             return (short)v;
         }
 
         @Override
         public RedundantBefore.Bounds deserialize(DataInputPlus in) throws IOException
         {
+            if (in.readByte() == 0)
+                return null;
+
             Range range = KeySerializers.range.deserialize(in);
             long startEpoch = in.readUnsignedVInt();
             long endEpoch = in.readUnsignedVInt();
@@ -192,7 +326,10 @@ public class CommandStoreSerializers
         @Override
         public long serializedSize(RedundantBefore.Bounds b)
         {
-            long size = KeySerializers.range.serializedSize(b.range);
+            if (b == null)
+                return 1;
+
+            long size = 1 + KeySerializers.range.serializedSize(b.range);
             size += TypeSizes.sizeofUnsignedVInt(b.startEpoch);
             size += TypeSizes.sizeofUnsignedVInt(b.endEpoch == Long.MAX_VALUE ? 0 : 1 + b.endEpoch - b.startEpoch);
             size += serializedNullableSize(b.staleUntilAtLeast);
@@ -204,14 +341,13 @@ public class CommandStoreSerializers
             size += 2L * 2 * b.bounds.length;
             return size;
         }
-    };
-    public static UnversionedSerializer<RedundantBefore> redundantBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(redundantBeforeEntry), RedundantBefore.Bounds[]::new, RedundantBefore.SerializerSupport::create);
+    }
 
-    private static class TimestampToRangesSerializer<T extends Timestamp> implements UnversionedSerializer<NavigableMap<T, Ranges>>
+    private static class TimestampToRangesMapSerializer<T extends Timestamp> implements UnversionedSerializer<NavigableMap<T, Ranges>>
     {
         private final UnversionedSerializer<T> timestampSerializer;
 
-        public TimestampToRangesSerializer(UnversionedSerializer<T> timestampSerializer)
+        public TimestampToRangesMapSerializer(UnversionedSerializer<T> timestampSerializer)
         {
             this.timestampSerializer = timestampSerializer;
         }
@@ -236,6 +372,267 @@ public class CommandStoreSerializers
         }
     }
 
-    public static final UnversionedSerializer<NavigableMap<TxnId, Ranges>> bootstrapBeganAt = new TimestampToRangesSerializer<>(CommandSerializers.txnId);
-    public static final UnversionedSerializer<NavigableMap<Timestamp, Ranges>> safeToRead = new TimestampToRangesSerializer<>(CommandSerializers.timestamp);
+    private static class BTreeReducingRangeMapSerializer<V, Map extends BTreeReducingRangeMap<V>> implements UnversionedSerializer<Map>
+    {
+        final UnversionedSerializer<V> valueSerializer;
+        final Map empty;
+        final IntFunction<AbstractBoundariesBuilder<RoutingKey, V, Map>> builderFactory;
+
+        public BTreeReducingRangeMapSerializer(UnversionedSerializer<V> valueSerializer,
+                                               Map empty,
+                                               IntFunction<AbstractBoundariesBuilder<RoutingKey, V, Map>> builderFactory)
+        {
+            this.valueSerializer = valueSerializer;
+            this.empty = empty;
+            this.builderFactory = builderFactory;
+        }
+
+        @Override
+        public void serialize(Map map, DataOutputPlus out) throws IOException
+        {
+            int flags = 0;
+            int mapSize = map.size();
+            out.writeUnsignedVInt32(flags);
+            out.writeUnsignedVInt32(mapSize);
+
+            if (mapSize == 0)
+                return;
+
+            BTreeReducingIntervalMap.WithBoundsIterator<RoutingKey, V> iter = map.withBoundsIterator(false);
+            RoutingKey end = null;
+            while (iter.advance())
+            {
+                KeySerializers.routingKey.serialize(iter.start(), out);
+                valueSerializer.serialize(iter.value(), out);
+                end = iter.end();
+            }
+            KeySerializers.routingKey.serialize(end, out);
+        }
+
+        @Override
+        public Map deserialize(DataInputPlus in) throws IOException
+        {
+            int flags = in.readUnsignedVInt32();
+            Invariants.expect(flags == 0);
+            int mapSize = in.readUnsignedVInt32();
+
+            if (mapSize == 0)
+                return empty;
+
+            AbstractBoundariesBuilder<RoutingKey, V, Map> builder = builderFactory.apply(mapSize);
+            while (mapSize-- > 0)
+            {
+                RoutingKey key = KeySerializers.routingKey.deserialize(in);
+                V value = valueSerializer.deserialize(in);
+                builder.append(key, value, (a, b) -> { throw new IllegalStateException(); });
+            }
+            RoutingKey key = KeySerializers.routingKey.deserialize(in);
+            builder.append(key, null, (a, b) -> { throw new IllegalStateException(); });
+
+            return builder.build();
+        }
+
+        @Override
+        public long serializedSize(Map map)
+        {
+            int flags = 0;
+            int mapSize = map.size();
+            long size = TypeSizes.sizeofUnsignedVInt(flags);
+            size += TypeSizes.sizeofUnsignedVInt(mapSize);
+
+            if (mapSize == 0)
+                return size;
+
+            BTreeReducingIntervalMap.WithBoundsIterator<RoutingKey, V> iter = map.withBoundsIterator(false);
+            RoutingKey end = null;
+            while (iter.advance())
+            {
+                size += KeySerializers.routingKey.serializedSize(iter.start());
+                size += valueSerializer.serializedSize(iter.value());
+                end = iter.end();
+            }
+            size += KeySerializers.routingKey.serializedSize(end);
+
+            return size;
+        }
+    }
+
+    private static final class MaxConflictsSerializer extends BTreeReducingRangeMapSerializer<Timestamp, MaxConflicts>
+    {
+        private MaxConflictsSerializer()
+        {
+            super(CommandSerializers.timestamp, MaxConflicts.EMPTY, MaxConflicts.Builder::new);
+        }
+    }
+
+    private static final class TxnListenerSerializer implements UnversionedSerializer<TxnListener>
+    {
+        private TxnListenerSerializer() {}
+
+        @Override
+        public void serialize(TxnListener t, DataOutputPlus out) throws IOException
+        {
+            if (t == null)
+            {
+                CommandSerializers.txnId.serialize(null, out);
+            }
+            else
+            {
+                CommandSerializers.txnId.serialize(t.waiter, out);
+                CommandSerializers.txnId.serialize(t.waitingOn, out);
+                CommandSerializers.saveStatus.serialize(t.awaitingStatus, out);
+            }
+        }
+
+        @Override
+        public TxnListener deserialize(DataInputPlus in) throws IOException
+        {
+            TxnId waiter = CommandSerializers.txnId.deserialize(in);
+            if (waiter == null)
+                return null;
+            TxnId waitingOn = CommandSerializers.txnId.deserialize(in);
+            SaveStatus awaitingStatus = CommandSerializers.saveStatus.deserialize(in);
+            return new TxnListener(waiter, waitingOn, awaitingStatus);
+        }
+
+        @Override
+        public long serializedSize(TxnListener t)
+        {
+            if (t == null)
+                return CommandSerializers.txnId.serializedSize(null);
+
+            return CommandSerializers.txnId.serializedSize(t.waiter)
+                   + CommandSerializers.txnId.serializedSize(t.waitingOn)
+                   + CommandSerializers.saveStatus.serializedSize(t.awaitingStatus);
+        }
+    }
+
+    private static final class ProgressLogStateSerializer implements UnversionedSerializer<TxnState>
+    {
+        private ProgressLogStateSerializer() {}
+
+        @Override
+        public void serialize(TxnState t, DataOutputPlus out) throws IOException
+        {
+            if (t == null)
+            {
+                CommandSerializers.txnId.serialize(null, out);
+            }
+            else
+            {
+                CommandSerializers.txnId.serialize(t.txnId, out);
+                out.writeLong(t.encodedState());
+            }
+        }
+
+        @Override
+        public TxnState deserialize(DataInputPlus in) throws IOException
+        {
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            if (txnId == null)
+                return null;
+            long encodedState = in.readLong();
+            return TxnState.SerializationSupport.create(txnId, encodedState);
+        }
+
+        @Override
+        public long serializedSize(TxnState t)
+        {
+            if (t == null)
+                return CommandSerializers.txnId.serializedSize(null);
+
+            return CommandSerializers.txnId.serializedSize(t.txnId) + TypeSizes.LONG_SIZE;
+        }
+    }
+
+    private static final class RangeIndexIdEntrySerializer implements UnversionedSerializer<IdEntry>
+    {
+        private RangeIndexIdEntrySerializer() {}
+
+        @Override
+        public void serialize(IdEntry t, DataOutputPlus out) throws IOException
+        {
+            byte flags = (byte) ((t.getClass() == IdSingleEntry.class) ? 0 : 1);
+            out.writeByte(flags);
+            CommandSerializers.txnId.serialize(t, out);
+            out.writeUnsignedVInt32(t.encoded());
+            if (flags == 0)
+            {
+                IdSingleEntry e = (IdSingleEntry) t;
+                KeySerializers.range.serialize(e.range, out);
+            }
+            else
+            {
+                IdMultiEntry e = (IdMultiEntry) t;
+                KeySerializers.ranges.serialize(e.ranges, out);
+            }
+        }
+
+        @Override
+        public IdEntry deserialize(DataInputPlus in) throws IOException
+        {
+            byte flags = in.readByte();
+            TxnId txnId = CommandSerializers.txnId.deserialize(in);
+            int encoded = in.readUnsignedVInt32();
+            if (flags == 0)
+            {
+                Range range = KeySerializers.range.deserialize(in);
+                return IdEntry.SerializerSupport.create(txnId, encoded, range);
+            }
+            else
+            {
+                Ranges ranges = KeySerializers.ranges.deserialize(in);
+                return IdEntry.SerializerSupport.create(txnId, encoded, ranges);
+            }
+        }
+
+        @Override
+        public long serializedSize(IdEntry t)
+        {
+            return 1 + CommandSerializers.txnId.serializedSize(t)
+                   + (t.getClass() == IdSingleEntry.class ? KeySerializers.range.serializedSize(((IdSingleEntry)t).range)
+                                                          : KeySerializers.ranges.serializedSize(((IdMultiEntry)t).ranges));
+        }
+    }
+
+    static class RangesForEpochSerializer implements UnversionedSerializer<CommandStores.RangesForEpoch>
+    {
+        @Override
+        public void serialize(CommandStores.RangesForEpoch from, DataOutputPlus out) throws IOException
+        {
+            out.writeUnsignedVInt32(from.size());
+            for (int i = 0; i < from.size(); i++)
+            {
+                out.writeLong(from.epochAtIndex(i));
+                KeySerializers.ranges.serialize(from.rangesAtIndex(i), out);
+            }
+        }
+
+        @Override
+        public CommandStores.RangesForEpoch deserialize(DataInputPlus in) throws IOException
+        {
+            int size = in.readUnsignedVInt32();
+            Ranges[] ranges = new Ranges[size];
+            long[] epochs = new long[size];
+            for (int i = 0; i < ranges.length; i++)
+            {
+                epochs[i] = in.readLong();
+                ranges[i] = KeySerializers.ranges.deserialize(in);
+            }
+            return new CommandStores.RangesForEpoch(epochs, ranges);
+        }
+
+        @Override
+        public long serializedSize(CommandStores.RangesForEpoch from)
+        {
+            long size = TypeSizes.sizeofUnsignedVInt(from.size());
+            for (int i = 0; i < from.size(); i++)
+            {
+                size += TypeSizes.LONG_SIZE;
+                size += KeySerializers.ranges.serializedSize(from.rangesAtIndex(i));
+            }
+            return size;
+        }
+    }
+
 }

@@ -83,7 +83,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.FetchTopologies;
+import org.apache.cassandra.service.accord.topology.FetchTopologies;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;

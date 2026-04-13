@@ -38,6 +38,7 @@ import accord.api.ReplicaEventListener;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
+import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.local.Command;
 import accord.local.Node;
@@ -73,7 +74,7 @@ import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTracing;
+import org.apache.cassandra.service.accord.debug.AccordTracing;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -204,9 +205,11 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
-            return;
-        JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout || t instanceof Preempted)
+            // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
+            noSpamLogger.warn("", t);
+        else
+            JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
     @Override

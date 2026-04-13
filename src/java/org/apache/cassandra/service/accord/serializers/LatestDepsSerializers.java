@@ -91,7 +91,7 @@ public class LatestDepsSerializers
             }
             starts[size] = KeySerializers.routingKey.deserialize(in);
 
-            return LatestDeps.SerializerSupport.create(true, starts, values);
+            return LatestDeps.SerializerSupport.create(starts, values);
         }
 
         @Override

@@ -24,7 +24,6 @@ public interface Params
     enum FlushMode { BATCH, GROUP, PERIODIC }
 
     enum FailurePolicy { STOP, STOP_JOURNAL, IGNORE, ALLOW_UNSAFE_STARTUP, DIE }
-    enum ReplayMode { RESET, ALL, ONLY_NON_DURABLE }
 
     /**
      * @return maximum segment size
@@ -45,8 +44,6 @@ public interface Params
      * @return journal flush (sync) mode
      */
     FlushMode flushMode();
-
-    ReplayMode replayMode();
 
     boolean enableCompaction();
 

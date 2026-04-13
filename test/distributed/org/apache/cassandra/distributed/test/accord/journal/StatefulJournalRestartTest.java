@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.durability.DurabilityService;
 import accord.primitives.Ranges;
-import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.utils.Property;
 import accord.utils.Property.SimpleCommand;
 
@@ -73,7 +73,7 @@ import static org.apache.cassandra.service.accord.AccordService.getBlocking;
  * 	at accord.utils.Invariants.createIllegalState(Invariants.java:77)
  * 	at accord.utils.Invariants.illegalState(Invariants.java:82)
  * 	at accord.utils.Invariants.require(Invariants.java:272)
- * 	at org.apache.cassandra.service.accord.AccordJournal.replay(AccordJournal.java:452)
+ * 	at org.apache.cassandra.service.accord.journal.AccordJournal.replay(AccordJournal.java:452)
  * 	at org.apache.cassandra.service.accord.AccordService.replayJournal(AccordService.java:246)
  * 	at org.apache.cassandra.service.accord.AccordService.startup(AccordService.java:235)
  * 	at org.apache.cassandra.distributed.impl.Instance.partialStartup(Instance.java:878)
@@ -120,8 +120,7 @@ public class StatefulJournalRestartTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                getBlocking(accord.sync(null, Timestamp.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 10L, TimeUnit.MINUTES));
-
+                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 1L, TimeUnit.MINUTES));
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();
             }

@@ -47,6 +47,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
@@ -60,9 +61,12 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.topology.AccordTopologyService;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -83,8 +87,8 @@ public interface IAccordService
     IVerbHandler<? extends Request> requestHandler();
     IVerbHandler<? extends Reply> responseHandler();
 
-    AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
-    AsyncChain<Void> sync(@Nullable Timestamp minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
+    AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
+    AsyncChain<Void> sync(@Nullable TxnId minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
     AsyncChain<Timestamp> maxConflict(Ranges ranges);
 
     @Nonnull
@@ -121,7 +125,7 @@ public interface IAccordService
     void localStartup();
 
     Future<Void> flushCaches();
-    void markShuttingDown();
+    void stop();
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
     AccordScheduler scheduler();
@@ -215,13 +219,13 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -288,7 +292,7 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
         }
 
@@ -405,13 +409,13 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote);
         }
@@ -497,9 +501,9 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
-            delegate.markShuttingDown();
+            delegate.stop();
         }
 
         @Override

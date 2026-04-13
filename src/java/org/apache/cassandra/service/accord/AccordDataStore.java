@@ -26,15 +26,13 @@ import accord.local.CommandStore;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
-import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SyncPoint;
 import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 
 public class AccordDataStore implements DataStore
 {
@@ -45,48 +43,27 @@ public class AccordDataStore implements DataStore
      * Ensures data for the intersecting ranges is flushed to sstable before calling back with reportOnSuccess.
      * This is used to gate journal cleanup, since we skip the CommitLog for applying to the data table.
      */
-    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess)
+    @Override
+    public void ensureDurable(CommandStore commandStore, Ranges ranges, RedundantBefore reportOnSuccess, int flags)
     {
-        if (commandStore.node().isReplaying())
+        if (commandStore.node().isReplaying() || ranges.isEmpty())
             return;
 
-        logger.debug("{} awaiting local data durability of {}", commandStore, ranges);
-        ColumnFamilyStore prev = null;
-        for (Range range : ranges)
-        {
-            ColumnFamilyStore cfs;
-            if (prev != null && prev.metadata().id.equals(range.prefix())) cfs = prev;
-            else cfs = Schema.instance.getColumnFamilyStoreInstance((TableId) range.prefix());
-            if (cfs == null)
-            {
-                // TODO (expected): should we record this as durable?
-                continue;
-            }
+        logger.debug("{} awaiting local data durability for {}", commandStore, ranges);
+        ensureDurableInternal(commandStore, reportOnSuccess, flags);
+    }
 
-            while (true)
-            {
-                Memtable memtable = cfs.getCurrentMemtable();
-                // If RX came when after a quiet period or if it raced with a previous memtable flush
-                if (memtable.isClean())
-                {
-                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
-                    break;
-                }
+    @Override
+    public void ensureDurable(CommandStore commandStore, RedundantBefore reportOnSuccess, int flags)
+    {
+        logger.debug("{} awaiting full local data durability", commandStore);
+        ensureDurableInternal(commandStore, reportOnSuccess, flags);
+    }
 
-                AccordDurableOnFlush onFlush = memtable.ensureFlushListener(FlushListenerKey.KEY, AccordDurableOnFlush::new);
-                if (onFlush != null && onFlush.add(commandStore.id(), reportOnSuccess))
-                    break;
-
-                if (cfs == prev)
-                {
-                    // we must already have a successful notify, so just propagate
-                    AccordDurableOnFlush.notify(cfs.metadata(), commandStore, reportOnSuccess);
-                    break;
-                }
-            }
-
-            prev = cfs;
-        }
+    private void ensureDurableInternal(CommandStore commandStore, RedundantBefore redundantBefore, int flags)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(((AccordCommandStore)commandStore).tableId());
+        AccordDurableOnFlush.notifyOnDurable(cfs, commandStore, ReportDurable.of(redundantBefore, flags));
     }
 
     @Override

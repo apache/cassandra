@@ -90,7 +90,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
     public static void check()
     {
-        State.journal.start();
+        State.journal.start(0L);
         try
         {
             final int count = 100;
@@ -118,7 +118,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         }
         finally
         {
-            State.journal.shutdown();
+            State.journal.stop();
 
             if (!State.thrown.isEmpty())
             {

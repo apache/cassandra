@@ -145,7 +145,7 @@ public class AccordCommandTest
             builder.add(key.toUnseekable(), txnId2);
             deps = builder.build();
         }
-        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, SLOW, Ballot.ZERO, executeAt, deps, false);
+        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, SLOW, Ballot.ZERO, executeAt, deps, 0);
 
         getBlocking(commandStore.execute(accept, safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();

@@ -42,6 +42,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -109,8 +111,8 @@ public class CommandChangeTest
                             out.clear();
                             Command orig = cmdBuilder.build(saveStatus);
 
-                            AccordJournal.Writer.make(null, orig).write(out, version);
-                            AccordJournal.Builder builder = new AccordJournal.Builder(orig.txnId(), Load.ALL);
+                            CommandChangeWriter.make(null, orig).write(out, version);
+                            CommandChanges builder = new CommandChanges(orig.txnId(), Load.ALL);
                             builder.deserializeNext(new DataInputBuffer(out.unsafeGetBufferAndFlip(), false), version);
                             // We are not persisting the result, so force it for strict equality
                             builder.forceResult(orig.result());

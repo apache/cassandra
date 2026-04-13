@@ -79,7 +79,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.accord.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;

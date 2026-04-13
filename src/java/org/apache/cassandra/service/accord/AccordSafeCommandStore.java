@@ -33,12 +33,15 @@ import accord.api.Journal.FieldUpdates;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.impl.AbstractSafeCommandStore;
+import accord.local.Command;
 import accord.local.CommandStores;
+import accord.local.CommandSummaries;
 import accord.local.NodeCommandStoreService;
+import accord.local.RedundantBefore;
 import accord.local.cfk.CommandsForKey;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
+import accord.primitives.Txn.Kind.Kinds;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
@@ -46,6 +49,7 @@ import accord.utils.Invariants;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCommandStore.ExclusiveCaches;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeRedundantBefore;
+import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
 import org.apache.cassandra.service.paxos.PaxosState;
 
 import static accord.utils.Invariants.illegalState;
@@ -53,11 +57,11 @@ import static accord.utils.Invariants.illegalState;
 public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeCommand, AccordSafeCommandsForKey, AccordCommandStore.ExclusiveCaches>
 {
     final AccordTask<?> task;
-    private final @Nullable CommandsForRanges commandsForRanges;
+    private final @Nullable CommandSummaries commandsForRanges;
     private final AccordCommandStore commandStore;
 
     private AccordSafeCommandStore(AccordTask<?> task,
-                                   @Nullable CommandsForRanges commandsForRanges,
+                                   @Nullable CommandSummaries commandsForRanges,
                                    AccordCommandStore commandStore)
     {
         super(task.preLoadContext(), commandStore);
@@ -78,7 +82,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     public static AccordSafeCommandStore create(AccordTask<?> operation,
-                                                @Nullable CommandsForRanges commandsForRanges,
+                                                @Nullable CommandSummaries commandsForRanges,
                                                 AccordCommandStore commandStore)
     {
         return new AccordSafeCommandStore(operation, commandsForRanges, commandStore);
@@ -182,6 +186,19 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
+    public void updateCommandsForRanges(Command prev, Command updated, boolean force)
+    {
+        commandStore().rangeIndex().update(prev, updated, force);
+    }
+
+    @Override
+    public void reportDurable(RedundantBefore addRedundantBefore, int flags)
+    {
+        upsertRedundantBefore(addRedundantBefore);
+        commandStore.maybeTerminated(ReportDurable.isCommandStoreFlush(flags), ReportDurable.isDataStoreFlush(flags));
+    }
+
+    @Override
     public AccordCommandStore commandStore()
     {
         return commandStore;
@@ -242,7 +259,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Txn.Kind.Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
+    public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kinds testKind, ActiveCommandVisitor<P1, P2> visitor, P1 p1, P2 p2)
     {
         visitForKey(keysOrRanges, cfk -> { cfk.visit(startedBefore, testKind, visitor, p1, p2); return true; });
         if (commandsForRanges != null)
@@ -250,15 +267,15 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Txn.Kind.Kinds testKind, TestStartedAt testStartedAt, Timestamp testStartedAtTimestamp, ComputeIsDep computeIsDep, AllCommandVisitor visit)
+    public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kinds testKind, SupersedingCommandVisitor visit)
     {
-        return visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, testStartedAt, testStartedAtTimestamp, computeIsDep, null, visit))
-               && (commandsForRanges == null || commandsForRanges.visit(keysOrRanges, testTxnId, testKind, testStartedAt, testStartedAtTimestamp, computeIsDep, visit));
+        return visitForKey(keysOrRanges, cfk -> cfk.visit(testTxnId, testKind, visit))
+               && (commandsForRanges == null || commandsForRanges.visit(keysOrRanges, testTxnId, testKind, visit));
     }
 
     @Override
     public String toString()
     {
-        return "AccordSafeCommandStore(id=" + commandStore().id() + ")";
+        return "AccordSafeCommandStore(id=" + commandStore().id() + ')';
     }
 }
