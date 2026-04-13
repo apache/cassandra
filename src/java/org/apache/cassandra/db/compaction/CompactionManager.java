@@ -33,7 +33,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -826,7 +825,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
-            final AtomicBoolean incompleteOperation = new AtomicBoolean(false);
+            boolean incompleteOperation = false;
 
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
@@ -868,15 +867,14 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
-                boolean incompleteOperation = doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, noLongerOwnedRangesInUseByAccord);
-                if (!this.incompleteOperation.get() && incompleteOperation)
-                    this.incompleteOperation.set(true);
+                if (doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, noLongerOwnedRangesInUseByAccord))
+                    this.incompleteOperation = true;
             }
 
             @Override
             public boolean incompleteOperation()
             {
-                return this.incompleteOperation.get();
+                return this.incompleteOperation;
             }
         }, jobs, OperationType.CLEANUP);
     }
