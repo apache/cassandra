@@ -123,7 +123,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
 
     public interface CompletedIndexPartitionRead<Match extends IndexMatch>
     {
-        UnfilteredRowIterator matchingRows(CloseablePeekingIterator<Match> matchIterator);
+        UnfilteredRowIterator matchingRows(PeekingIterator<Match> matchIterator);
     }
 
     public interface CompletedIndexRead<Match extends IndexMatch> extends CompletedRead
@@ -183,7 +183,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         }
 
         @Override
-        public UnfilteredRowIterator matchingRows(CloseablePeekingIterator<Match> matchIterator)
+        public UnfilteredRowIterator matchingRows(PeekingIterator<Match> matchIterator)
         {
             Preconditions.checkState(matchIterator.hasNext());
             Preconditions.checkState(matchIterator.peek().key().equals(key));
@@ -372,7 +372,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
         }
 
         @Override
-        public UnfilteredRowIterator matchingRows(CloseablePeekingIterator<Match> matchIterator)
+        public UnfilteredRowIterator matchingRows(PeekingIterator<Match> matchIterator)
         {
             Preconditions.checkArgument(matchIterator.hasNext());
             Preconditions.checkArgument(matchIterator.peek().key().equals(partitionKey));
@@ -776,9 +776,9 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
 
         private class UnfilteredResultIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
         {
-            private final CloseablePeekingIterator<Match> matchIter;
+            private final PeekingIterator<Match> matchIter;
 
-            public UnfilteredResultIterator(CloseablePeekingIterator<Match> matchIter)
+            public UnfilteredResultIterator(PeekingIterator<Match> matchIter)
             {
                 this.matchIter = matchIter;
             }
@@ -815,7 +815,7 @@ public class PartialTrackedIndexRead<Match extends IndexMatch, Searcher extends 
             @Override
             public void close()
             {
-                matchIter.close();
+                // match iterator will be closed by FilteringCompletedIndexRead
             }
         }
 
