@@ -21,8 +21,10 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -87,6 +89,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspace.BootstrapState;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -1176,9 +1179,27 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public List<Ranges> getInUseRanges()
+    public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
     {
-        return getBlocking(node.commandStores().getInUseRanges());
+        Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> tableToRangeMap = new HashMap<>();
+        List<Ranges> globalRanges = getBlocking(node.commandStores().getInUseRanges());
+
+        for (Ranges ranges : globalRanges)
+        {
+            ranges.stream().forEach(r -> {
+                TokenRange tokenRange = (TokenRange) r;
+                if (tableToRangeMap.containsKey(tokenRange.table()))
+                {
+                    tableToRangeMap.get(tokenRange.table()).add(((TokenRange) r).toKeyspaceRange());
+                }
+                else
+                {
+                    tableToRangeMap.put(tokenRange.table(), new HashSet<>());
+                }
+            });
+        }
+
+        return tableToRangeMap;
     }
 
     public Params journalConfiguration()

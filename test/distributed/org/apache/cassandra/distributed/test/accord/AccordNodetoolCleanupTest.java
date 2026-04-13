@@ -22,6 +22,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.StorageService;
@@ -30,7 +31,6 @@ import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import org.junit.Test;
 
 public class AccordNodetoolCleanupTest extends TestBaseImpl
@@ -64,11 +64,12 @@ public class AccordNodetoolCleanupTest extends TestBaseImpl
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
+            // Cluster 1 no longer owns token
             cluster.get(1).runOnInstance(() -> {
                 StorageService.instance.move(Long.toString(token - 1000));
             });
 
-            // Wait until Accord retires range
+            // Wait until Accord retires range, so it no longer has ownership of token
             try
             {
                 Thread.sleep(20000);
@@ -112,25 +113,20 @@ public class AccordNodetoolCleanupTest extends TestBaseImpl
             long token1 = (Long) result1.toObjectArrays()[0][0];
             long token2 = (Long) result2.toObjectArrays()[0][0];
 
-            assertTrue(token2 < token1 && token1 < Long.parseLong(originalToken));
+            assertTrue((token2 < (token1 - 1000)) && token1 < Long.parseLong(originalToken));
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
+            // Cluster 1 now only owns token2
             cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(Long.toString(token1 - 1));
+                StorageService.instance.move(Long.toString(token1 - 1000));
             });
 
-            // Wait until Accord retires range
-            try
-            {
-                Thread.sleep(20000);
-            }
-            catch (InterruptedException e)
-            {
-                fail();
-            }
+            assertEquals(cluster.get(1).callOnInstance(() -> Long.parseLong(getOnlyElement(StorageService.instance.getTokens()))), token1 - 1000);
 
-            cluster.get(1).nodetool("cleanup", KEYSPACE, tableName);
+            NodeToolResult result = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
+
+            assertTrue(result.getStdout().contains("Partially cleaned up SSTables for ranges that are no longer owned in keyspace " + KEYSPACE));
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
         }
@@ -143,10 +139,8 @@ public class AccordNodetoolCleanupTest extends TestBaseImpl
         String qualifiedTableName = KEYSPACE + '.' + tableName;
         try (Cluster cluster = init(builder().withNodes(2).withoutVNodes().withConfig((config) ->
                                                                                       config
-                                                                                      .set("accord.shard_durability_target_splits", "1")
-                                                                                      .set("accord.shard_durability_cycle", "20s")
-                                                                                      .with(Feature.NETWORK, Feature.GOSSIP)).start())) {
-
+                                                                                      .with(Feature.NETWORK, Feature.GOSSIP)).start()))
+        {
             cluster.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE);
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
             cluster.schemaChange("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'");
@@ -169,6 +163,7 @@ public class AccordNodetoolCleanupTest extends TestBaseImpl
 
             cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
+            // Cluster 1 no longer owns token, however Accord still needs it so it is no cleaned up
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
         }
     }

@@ -192,7 +192,9 @@ public class Validator implements Runnable
         if (rowHash != null)
         {
             if(topPartitionCollector != null)
+            {
                 topPartitionCollector.trackPartitionSize(partition.partitionKey(), rowHash.size);
+            }
             range.addHash(rowHash);
         }
     }
