@@ -1188,14 +1188,10 @@ public class AccordService implements IAccordService, Shutdownable
         {
             ranges.stream().forEach(r -> {
                 TokenRange tokenRange = (TokenRange) r;
-                if (tableToRangeMap.containsKey(tokenRange.table()))
-                {
-                    tableToRangeMap.get(tokenRange.table()).add(((TokenRange) r).toKeyspaceRange());
-                }
-                else
-                {
+                if (!tableToRangeMap.containsKey(tokenRange.table()))
                     tableToRangeMap.put(tokenRange.table(), new HashSet<>());
-                }
+
+                tableToRangeMap.get(tokenRange.table()).add(tokenRange.toKeyspaceRange());
             });
         }
 

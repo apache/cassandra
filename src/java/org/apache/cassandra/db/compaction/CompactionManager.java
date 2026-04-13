@@ -1680,12 +1680,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      *
      * @throws IOException
      */
-    private boolean doCleanupOne(final ColumnFamilyStore cfs,
+    private void doCleanupOne(final ColumnFamilyStore cfs,
                                  LifecycleTransaction txn,
                                  CleanupStrategy cleanupStrategy,
                                  Collection<Range<Token>> allRanges,
-                                 boolean hasIndexes
-                                 ) throws IOException
+                                 boolean hasIndexes) throws IOException
     {
         assert !cfs.isIndex();
 
@@ -1697,10 +1696,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             txn.obsoleteOriginals();
             txn.finish();
             logger.info("SSTable {} ([{}, {}]) does not intersect the owned ranges ({}), dropping it", sstable, sstable.getFirst().getToken(), sstable.getLast().getToken(), allRanges);
-            return false;
+            return;
         }
 
-        boolean incomplete = false;
         long start = nanoTime();
 
         long totalkeysWritten = 0;
@@ -1768,8 +1766,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             logger.info(String.format(format, finished.get(0).getFilename(), FBUtilities.prettyPrintMemory(startsize),
                                       FBUtilities.prettyPrintMemory(endsize), (int) (ratio * 100), totalkeysWritten, dTime));
         }
-
-        return incomplete;
 
     }
 
