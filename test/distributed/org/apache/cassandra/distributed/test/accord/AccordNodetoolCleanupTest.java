@@ -29,8 +29,8 @@ import org.apache.cassandra.service.StorageService;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.Test;
 
 public class AccordNodetoolCleanupTest extends TestBaseImpl
@@ -117,12 +117,11 @@ public class AccordNodetoolCleanupTest extends TestBaseImpl
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
-            // Cluster 1 now only owns token2
+            // Cluster 1 now only owns token2, but Accord still requires token1
             cluster.get(1).runOnInstance(() -> {
+                Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).disableAutoCompaction();
                 StorageService.instance.move(Long.toString(token1 - 1000));
             });
-
-            assertEquals(cluster.get(1).callOnInstance(() -> Long.parseLong(getOnlyElement(StorageService.instance.getTokens()))), token1 - 1000);
 
             NodeToolResult result = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 

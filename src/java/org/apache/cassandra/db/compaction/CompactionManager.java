@@ -33,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -582,16 +583,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
                 if (Iterables.isEmpty(sstables))
                 {
-                    if (operation.incompleteOperation())
-                    {
-                        logger.info("Operation incomplete for {}.{}", keyspace, table);
-                        return AllSSTableOpStatus.INCOMPLETE;
-                    }
-                    else
-                    {
-                        logger.info("No sstables to {} for {}.{}", operationName, keyspace, table);
-                        return AllSSTableOpStatus.SUCCESSFUL;
-                    }
+                    logger.info("No sstables to {} for {}.{}", operationName, keyspace, table);
+                    return AllSSTableOpStatus.SUCCESSFUL;
                 }
 
                 for (final SSTableReader sstable : sstables)
@@ -829,11 +822,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         final Set<Range<Token>> allRanges = Stream.concat(localWrites.ranges().stream(), noLongerOwnedRangesInUseByAccord.stream()).collect(Collectors.toSet());
         final Set<Range<Token>> transientRanges = new HashSet<>(localWrites.onlyTransient().ranges());
-        final Set<Range<Token>> fullRanges = Stream.concat(localWrites.onlyFull().ranges().stream(), noLongerOwnedRangesInUseByAccord.stream()).collect(Collectors.toSet());
+        final Set<Range<Token>> fullRanges = new HashSet<>(localWrites.onlyFull().ranges());
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
-            boolean incompleteOperation;
+            final AtomicBoolean incompleteOperation = new AtomicBoolean(false);
 
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
@@ -863,15 +856,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                         transaction.cancel(sstable);
                         skippedSStables++;
                     }
-
-                    for (Range<Token> range : noLongerOwnedRangesInUseByAccord)
-                    {
-                        if (range.intersects(new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken())))
-                        {
-                            this.incompleteOperation = true;
-                            break;
-                        }
-                    }
                 }
 
                 logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
@@ -884,13 +868,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
-                doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes);
+                boolean incompleteOperation = doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, noLongerOwnedRangesInUseByAccord);
+                if (!this.incompleteOperation.get() && incompleteOperation)
+                    this.incompleteOperation.set(true);
             }
 
             @Override
             public boolean incompleteOperation()
             {
-                return incompleteOperation;
+                return this.incompleteOperation.get();
             }
         }, jobs, OperationType.CLEANUP);
     }
@@ -1480,7 +1466,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
                 {
-                    doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes);
+                    doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes, noLongerOwnedRangesInUseByAccord);
                 }
                 catch (IOException e)
                 {
@@ -1680,13 +1666,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      *
      * @throws IOException
      */
-    private void doCleanupOne(final ColumnFamilyStore cfs,
-                                 LifecycleTransaction txn,
-                                 CleanupStrategy cleanupStrategy,
-                                 Collection<Range<Token>> allRanges,
-                                 boolean hasIndexes) throws IOException
+    private boolean doCleanupOne(final ColumnFamilyStore cfs,
+                              LifecycleTransaction txn,
+                              CleanupStrategy cleanupStrategy,
+                              Collection<Range<Token>> allRanges,
+                              boolean hasIndexes,
+                              Collection<Range<Token>> noLongerOwnedRangesInUseByAccord) throws IOException
     {
         assert !cfs.isIndex();
+        boolean incompleteOperation = false;
 
         SSTableReader sstable = txn.onlyOne();
 
@@ -1696,7 +1684,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             txn.obsoleteOriginals();
             txn.finish();
             logger.info("SSTable {} ([{}, {}]) does not intersect the owned ranges ({}), dropping it", sstable, sstable.getFirst().getToken(), sstable.getLast().getToken(), allRanges);
-            return;
+            return incompleteOperation;
         }
 
         long start = nanoTime();
@@ -1737,6 +1725,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                     if (notCleaned == null)
                         continue;
 
+                    if (Range.isInRanges(partition.partitionKey().getToken(), noLongerOwnedRangesInUseByAccord))
+                        incompleteOperation = true;
+
                     if (writer.append(notCleaned) != null)
                         totalkeysWritten++;
 
@@ -1767,6 +1758,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                       FBUtilities.prettyPrintMemory(endsize), (int) (ratio * 100), totalkeysWritten, dTime));
         }
 
+        return incompleteOperation;
     }
 
     protected void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
