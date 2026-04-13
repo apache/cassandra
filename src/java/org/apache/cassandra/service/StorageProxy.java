@@ -2180,7 +2180,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     logger.debug("Query cancelled (timeout)", e);
                     response = null;
-                    assert !command.isCompleted() : "Local read marked as completed despite being aborted by timeout to table " + command.metadata();
+                    Preconditions.checkState(!command.isCompleted(), "Local read marked as completed despite being aborted by timeout to table %s", command.metadata());
                 }
 
                 if (command.complete())
