@@ -821,7 +821,7 @@ public class PartitionUpdate extends AbstractBTreePartition implements Commitabl
         {
             TableId tableId = TableId.deserialize(in);
             Epoch remoteVersion = null;
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.VERSION_60)
                 remoteVersion = Epoch.serializer.deserialize(in);
             TableMetadata tableMetadata = getTableMetadata(tableId, remoteVersion);
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);
@@ -836,7 +836,7 @@ public class PartitionUpdate extends AbstractBTreePartition implements Commitabl
         {
             TableId tableId = TableId.deserialize(in);
             Epoch remoteVersion = null;
-            if (version >= MessagingService.VERSION_61)
+            if (version >= MessagingService.VERSION_60)
                 remoteVersion = Epoch.serializer.deserialize(in);
             TableMetadata tableMetadata = getTableMetadata(tableId, remoteVersion);
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);
