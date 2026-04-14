@@ -480,6 +480,9 @@ public class NodeProbe implements AutoCloseable
             case 2:
                 out.printf("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n", ks);
                 throw new RuntimeException(String.format("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n", ks));
+            case 3:
+                out.printf("Partially cleaned up SSTables for ranges that are no longer owned in keyspace %s, check server logs for more information.\n", ks);
+                throw new RuntimeException(String.format("Partially cleaned up SSTables for ranges that are no longer owned in keyspace %s, check server logs for more information.\n", ks));
         }
     }
 

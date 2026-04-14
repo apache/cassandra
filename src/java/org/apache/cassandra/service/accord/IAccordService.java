@@ -20,7 +20,10 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
@@ -56,6 +59,8 @@ import accord.utils.async.AsyncResult;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.net.IVerbHandler;
@@ -183,6 +188,8 @@ public interface IAccordService
     long minEpoch();
 
     void awaitDone(TableId id, long epoch);
+
+    Map<TableId, Set<Range<Token>>> getInUseRanges();
 
     AccordEndpointMapper endpointMapper();
 
@@ -351,6 +358,12 @@ public interface IAccordService
         public void awaitDone(TableId id, long epoch)
         {
 
+        }
+
+        @Override
+        public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
+        {
+            return new HashMap<>();
         }
 
         @Override
@@ -561,6 +574,12 @@ public interface IAccordService
         public void awaitDone(TableId id, long epoch)
         {
             delegate.awaitDone(id, epoch);
+        }
+
+        @Override
+        public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
+        {
+            return delegate.getInUseRanges();
         }
 
         @Override
