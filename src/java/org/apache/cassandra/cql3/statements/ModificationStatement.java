@@ -1018,12 +1018,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             List<Clustering<?>> clusteringColumns = writeFragment.referenceOps.getClusterings();
             for (Clustering<?> clustering : clusteringColumns)
                 rowKeys.add(new RowKey(key, clustering));
-            for (Iterator<Row> it = writeFragment.baseUpdate.iterator(); it.hasNext();)
-            {
-                Row row = it.next();
-                if (!clusteringColumns.contains(row.clustering()))
-                    rowKeys.add(new RowKey(key, row.clustering()));
-            }
+            for (Row row : writeFragment.baseUpdate)
+                rowKeys.add(new RowKey(key, row.clustering()));
         }
         return rowKeys;
     }
