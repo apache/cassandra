@@ -281,6 +281,19 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
+    public void testAcceptTransactionWithSameStaticColumnUpdatedWithInClause() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, j int STATIC, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, j, v) VALUES (?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2, 2);
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET j = 2, v = 1 WHERE k = 1 AND c IN (1, 2);\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
     public void testCounterCreateTableTransactionalModeFails() throws Exception
     {
         try
