@@ -478,8 +478,15 @@ public abstract class LocalLog implements Closeable
 
             ClusterMetadata prev = committed.get();
             // ForceSnapshot + Bootstrap entries can "jump" epoch
-            boolean isPreInit = pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS;
-            boolean isSnapshot = pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT;
+            Transformation.Kind kind = pendingEntry.transform.kind();
+            boolean isPreInit = kind == Transformation.Kind.PRE_INITIALIZE_CMS;
+            boolean isInit = kind == Transformation.Kind.INITIALIZE_CMS;
+            boolean isSnapshot = kind == Transformation.Kind.FORCE_SNAPSHOT ;
+            // only a PRE_INITIALIZE_CMS or a snapshot is allowed to skip over gaps.
+            // Note: INITIALIZE_CMS is not allowed to do this as during upgrades it can allow us to jump over the
+            // PRE_INITIALIZE_CMS entry if the INITIALIZE_CMS is received first. This then creates a gap at Epoch.FIRST
+            // which can never be resolved. In turn, that makes it impossible to build a LogState for replay purposes
+            // with a correct and consecutive set of entries if the node is bounced before applying a later snapshot.
             if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
                 || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
             {
@@ -515,7 +522,7 @@ public abstract class LocalLog implements Closeable
                     if (replayComplete.get() && pendingEntry.transform.kind() != Transformation.Kind.FORCE_SNAPSHOT)
                         storage.append(pendingEntry.maybeUnwrapExecuted());
 
-                    notifyPreCommit(prev, next, isSnapshot);
+                    notifyPreCommit(prev, next, isSnapshot || isInit);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -531,7 +538,7 @@ public abstract class LocalLog implements Closeable
                                                                       next.epoch, prev.epoch, metadata().epoch));
                     }
 
-                    notifyPostCommit(prev, next, isSnapshot);
+                    notifyPostCommit(prev, next, isSnapshot || isInit);
                 }
                 catch (StopProcessingException t)
                 {

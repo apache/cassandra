@@ -41,6 +41,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -73,8 +74,12 @@ public class LegacyStateListener implements ChangeListener
         Set<NodeId> changed = new HashSet<>();
         for (NodeId node : next.directory.peerIds())
         {
-            if (directoryEntryChangedFor(node, prev.directory, next.directory) || !prev.tokenMap.tokens(node).equals(next.tokenMap.tokens(node)))
+            if (prev.epoch.isEqualOrBefore(Epoch.FIRST)
+                || directoryEntryChangedFor(node, prev.directory, next.directory)
+                || !prev.tokenMap.tokens(node).equals(next.tokenMap.tokens(node)))
+            {
                 changed.add(node);
+            }
         }
 
         // next.myNodeId() can be null during replay (before we have registered) but if it is present and
