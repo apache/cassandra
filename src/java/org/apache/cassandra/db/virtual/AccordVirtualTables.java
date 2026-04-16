@@ -85,7 +85,7 @@ public class AccordVirtualTables
                                   "  ready boolean,\n" +
                                   ")")
                   .partitioner(new LocalPartitioner(ReversedType.getInstance(LongType.instance)))
-                  .comment("Exposes the epoch ready state for recieved epochs in Accord")
+                  .comment("Exposes the epoch ready state for received epochs in Accord")
                   .build());
         }
 
