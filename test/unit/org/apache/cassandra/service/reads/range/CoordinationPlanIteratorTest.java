@@ -168,12 +168,12 @@ public class CoordinationPlanIteratorTest
         try (CoordinationPlanIterator iterator = new CoordinationPlanIterator(queryRange, null, keyspace, TABLE_ID, ConsistencyLevel.ANY))
         {
             List<AbstractBounds<PartitionPosition>> restrictedRanges = new ArrayList<>(expected.length);
+            assertEquals(expected.length, iterator.size());
             while (iterator.hasNext())
                 restrictedRanges.add(iterator.next().replicas().range());
 
             // verify range counts
             assertEquals(expected.length, restrictedRanges.size());
-            assertEquals(expected.length, iterator.size());
 
             // verify the ranges
             for (int i = 0; i < expected.length; i++)

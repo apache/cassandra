@@ -42,6 +42,7 @@ import org.apache.cassandra.tcm.transformations.AccordMarkHardRemoved;
 import org.apache.cassandra.tcm.transformations.AccordMarkRejoining;
 import org.apache.cassandra.tcm.transformations.AccordMarkStale;
 import org.apache.cassandra.tcm.transformations.AdvanceMutationTrackingMigration;
+import org.apache.cassandra.tcm.transformations.AdvanceSatelliteFailoverState;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.AlterTopology;
 import org.apache.cassandra.tcm.transformations.Assassinate;
@@ -275,6 +276,7 @@ public interface Transformation
         FINISH_DROP_ACCORD_TABLE(42, Version.MIN_ACCORD_VERSION, () -> FinishDropAccordTable.serializer),
         ACCORD_MARK_HARD_REMOVED(43, Version.MIN_ACCORD_VERSION, () -> AccordMarkHardRemoved.serializer),
         ADVANCE_MUTATION_TRACKING_MIGRATION(44, Version.MIN_MUTATION_TRACKING_VERSION, () -> AdvanceMutationTrackingMigration.serializer),
+        ADVANCE_SATELLITE_FAILOVER_STATE(45, Version.MIN_MUTATION_TRACKING_VERSION, () -> AdvanceSatelliteFailoverState.serializer),
         ;
 
         /**

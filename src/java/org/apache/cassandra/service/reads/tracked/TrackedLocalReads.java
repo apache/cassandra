@@ -29,21 +29,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.replication.ExpiredStatePurger;
 import org.apache.cassandra.replication.Log2OffsetsMap;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.ShortMutationId;
-import org.apache.cassandra.service.reads.ReadCoordinator;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -80,42 +73,23 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         Dispatcher.RequestTime requestTime,
         TrackedLocalReads.Completer completer)
     {
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
-        SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
-        ReplicaPlan.AbstractForRead<?, ?> replicaPlan;
-
-        if (command instanceof SinglePartitionReadCommand)
-        {
-            replicaPlan = ReplicaPlans.forRead(metadata,
-                                               keyspace,
-                                               command.metadata().id,
-                                               ((SinglePartitionReadCommand) command).partitionKey().getToken(),
-                                               command.indexQueryPlan(),
-                                               consistencyLevel,
-                                               retry,
-                                               ReadCoordinator.DEFAULT);
-        }
-        else
-        {
-            // TODO: confirm range we're reading doesn't span multiple replica sets
-            replicaPlan = ReplicaPlans.forRangeRead(keyspace,
-                                                    command.metadata().id,
-                                                    command.indexQueryPlan(),
-                                                    consistencyLevel,
-                                                    command.dataRange().keyRange(),
-                                                    1);
-        }
-        // TODO: confirm all summaryNodes are present in the replica plan
+        // Note: no replica plan is built here. This is the replica side of a tracked read; the coordinator
+        // has already selected the contacts and validated availability for the consistency level. Building a
+        // plan locally would re-run the coordinator's liveness checks against the local node's own DC, which
+        // isn't meaningful here and produces spurious UnavailableExceptions for replication strategies whose
+        // per-DC quorums aren't expressed by ConsistencyLevel.blockFor (e.g. SatelliteReplicationStrategy,
+        // where LOCAL_QUORUM falls back to a quorum of the aggregate RF across all full DCs).
+        // TODO: confirm range we're reading doesn't span multiple replica sets
+        // TODO: confirm all summaryNodes replicate this token/range
         AsyncPromise<TrackedDataResponse> promise = new AsyncPromise<>();
-        beginReadInternal(readId, command, replicaPlan, summaryNodes, requestTime, promise, completer);
+        beginReadInternal(readId, command, consistencyLevel, summaryNodes, requestTime, promise, completer);
         return promise;
     }
 
     // TODO (expected): skip local summaries and reconcile when summaryNodes is empty (e.g. for CL.ONE)
     private void beginReadInternal(TrackedRead.Id readId,
                                    ReadCommand command,
-                                   ReplicaPlan.AbstractForRead<?, ?> replicaPlan,
+                                   ConsistencyLevel consistencyLevel,
                                    int[] summaryNodes,
                                    Dispatcher.RequestTime requestTime,
                                    AsyncPromise<TrackedDataResponse> promise,
@@ -130,7 +104,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         try
         {
             read = command.beginTrackedRead(controller);
-            read.setFollowUpReadContext(replicaPlan.consistencyLevel(), requestTime);
+            read.setFollowUpReadContext(consistencyLevel, requestTime);
             // Create another summary once initial data has been read fully. We do this to catch
             // any mutations that may have arrived during initial read execution.
             secondarySummary = command.createMutationSummary(true);
@@ -147,7 +121,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
             throw e;
         }
 
-        Coordinator coordinator = new Coordinator(readId, promise, read, replicaPlan.consistencyLevel(), requestTime, completer);
+        Coordinator coordinator = new Coordinator(readId, promise, read, consistencyLevel, requestTime, completer);
         coordinators.put(readId, coordinator);
 
         // TODO (expected): reconsider the approach to tracked mutation metrics

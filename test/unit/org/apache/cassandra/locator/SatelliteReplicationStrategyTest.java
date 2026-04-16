@@ -18,20 +18,27 @@
 package org.apache.cassandra.locator;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.ReplicaGroups;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -234,6 +241,49 @@ public class SatelliteReplicationStrategyTest extends SatelliteReplicationStrate
 
         assertEquals(3, fullCount);
         assertEquals(3, witnessCount);
+    }
+
+    private static ReplicaGroups readPlacement(String keyspace)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        KeyspaceMetadata ksm = metadata.schema.getKeyspaces().getNullable(keyspace);
+        return metadata.placements.get(ksm.params.replication).reads;
+    }
+
+    @Test
+    public void testDataPlacementCoversWholeRing() throws Exception
+    {
+        createDualDCKeyspace("dc1");
+
+        ClusterMetadata metadata = ClusterMetadata.current();
+        SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
+        List<Range<Token>> ranges = metadata.tokenMap.toRanges();
+        ReplicaGroups placement = readPlacement(DUAL_DC_KEYSPACE);
+
+        assertEquals(ranges.size(), placement.size());
+        for (Range<Token> range : ranges)
+        {
+            VersionedEndpoints.ForRange group = placement.forRange(range);
+            assertNotNull("No replica group for range " + range + " in " + placement, group);
+            assertEquals("Replica group for " + range + " is labelled with the wrong range", range, group.range());
+            assertEquals("Mismatched replicas for " + range,
+                         strategy.calculateNaturalReplicas(range.right, metadata).endpoints(),
+                         group.get().endpoints());
+        }
+    }
+
+    @Test
+    public void testDataPlacementForTokenAtRingBoundaries() throws Exception
+    {
+        createDualDCKeyspace("dc1");
+
+        ReplicaGroups placement = readPlacement(DUAL_DC_KEYSPACE);
+
+        for (Token token : ClusterMetadata.current().tokenMap.tokens())
+        {
+            for (Token probe : List.of(token.decreaseSlightly(), token, token.increaseSlightly()))
+                assertFalse("No replicas for token " + probe, placement.forToken(probe).get().isEmpty());
+        }
     }
 
     @Test

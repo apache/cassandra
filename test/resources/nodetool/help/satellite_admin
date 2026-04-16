@@ -1,0 +1,58 @@
+NAME
+        nodetool satellite_admin - Manage satellite datacenter failover
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] satellite_admin <command>
+                [<args>]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] satellite_admin status [--]
+                <keyspace>
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] satellite_admin advance
+                [--ack] [--barrier] [--force] [(-r <rangesStr> | --ranges <rangesStr>)]
+                [--] <keyspace>
+
+OPTIONS
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+COMMANDS
+        With no arguments, Display help information
+
+        status
+            Show satellite failover status for a keyspace
+        advance
+            Advance satellite failover for a keyspace
+
+            With --ranges option, Token ranges to process (format: start:end,start:
+            end). Defaults to local ranges if not specified.
+
+            With --ack option, Only advance through epoch ack and paxos repair
+            (TRANSITION_ACK -> TRANSITION)
+
+            With --barrier option, Only process MT barrier for TRANSITION ranges
+            (TRANSITION -> NORMAL)
+
+            With --force option, Skip gate evaluation and commit state transitions
+            directly

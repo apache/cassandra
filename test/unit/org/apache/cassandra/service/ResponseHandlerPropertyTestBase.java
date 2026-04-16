@@ -32,10 +32,12 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import org.junit.BeforeClass;
+import org.quicktheories.core.Gen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
@@ -51,7 +53,6 @@ import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.quicktheories.core.Gen;
 
 import static org.quicktheories.generators.SourceDSL.arbitrary;
 import static org.quicktheories.generators.SourceDSL.booleans;
@@ -69,7 +70,7 @@ public abstract class ResponseHandlerPropertyTestBase
     public static void setUpClass() throws Throwable
     {
         // Set partitioner system property BEFORE DatabaseDescriptor initialization
-        System.setProperty("cassandra.partitioner", Murmur3Partitioner.class.getName());
+        CassandraRelevantProperties.PARTITIONER.setString(Murmur3Partitioner.class.getName());
 
         SchemaLoader.loadSchema();
 

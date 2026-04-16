@@ -428,6 +428,9 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     {
         if (future != null)
         {
+            // the callback below reads the augmentedCommit field, so setting it twice would leave both callbacks
+            // reporting to whichever instance is current, breaking AugmentedCommit's single-report invariant
+            checkState(augmentedCommit == null, "augmented commit future already set");
             augmentedCommit = new AugmentedCommit<>(onDone);
             future.addCallback((result, failure) -> {
                 if (failure != null)
@@ -461,21 +464,20 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         boolean localExecutedSynchronously = false;
         InetAddressAndPort localEndpoint = FBUtilities.getBroadcastAddressAndPort();
 
-        // Set up additional commit work from the replication strategy (e.g., satellite writes for SRS).
-        // This needs to happen before executeOnSelf() can trigger onPaxosDecision(), so that
-        // additionalCommitFuture is set before it's read. The base strategy returns an
-        // already-completed future, so this is a no-op for non-SRS keyspaces.
-        // For SRS, satellite messages are sent here (in parallel with local execution below).
-        // MutationTrackingService.retryFailedWrite for down satellite endpoints schedules async retries,
-        // which will find the mutation in the journal after executeOnSelf() completes below.
         if (isTrackedKeyspace)
         {
+            // Set up additional commit work from the replication strategy (e.g., satellite writes for SRS).
+            // This must happen before executeOnSelf() below, which can trigger onPaxosDecision(), so that
+            // augmentedCommit is set before it's read. The base strategy returns an already-completed future, so
+            // this is a no-op for non-SRS keyspaces. Needs to be called exactly once — setAugmentedCommitFuture replaces
+            // augmentedCommit, so a second call both re-sends the satellite mutations and leaves two callbacks
+            // reporting onMutationComplete to the same instance.
+            // For SRS, satellite messages are sent here (in parallel with local execution below).
+            // MutationTrackingService.retryFailedWrite for down satellite endpoints schedules async retries,
+            // which will find the mutation in the journal after executeOnSelf() completes below.
             AbstractReplicationStrategy strategy = Keyspace.open(commit.metadata().keyspace).getReplicationStrategy();
             setAugmentedCommitFuture(strategy.sendPaxosCommitMutations(commit, isUrgent));
-        }
 
-        if (isTrackedKeyspace)
-        {
             // For tracked keyspaces, we MUST execute locally synchronously, regardless of USE_SELF_EXECUTION setting.
             // This is critical because retries are scheduled on the local ActiveLogReconciler and look up mutations
             // in the local MutationJournal. If we don't execute synchronously first, a fast remote failure could
@@ -510,16 +512,6 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
                 executeOnSelf();
                 localExecutedSynchronously = true;
             }
-
-            // Set up additional commit work from the replication strategy (e.g., satellite writes for SRS).
-            // This needs to happen before executeOnSelf() can trigger onPaxosDecision(), so that
-            // additionalCommitFuture is set before it's read. The base strategy returns an
-            // already-completed future, so this is a no-op for non-SRS keyspaces.
-            // For SRS, satellite messages are sent here (in parallel with local execution below).
-            // MutationTrackingService.retryFailedWrite for down satellite endpoints schedules async retries,
-            // which will find the mutation in the journal after executeOnSelf() completes below.
-            AbstractReplicationStrategy strategy = Keyspace.open(commit.metadata().keyspace).getReplicationStrategy();
-            setAugmentedCommitFuture(strategy.sendPaxosCommitMutations(commit, isUrgent));
         }
 
         // Now send to remote replicas in the electorate (and record local execution for non-tracked keyspaces)

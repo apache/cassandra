@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -48,6 +49,9 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.SatelliteReplicationStrategy;
+import org.apache.cassandra.locator.satellites.KeyspaceFailoverState;
+import org.apache.cassandra.locator.satellites.SatelliteFailoverProcessState;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
@@ -259,6 +263,7 @@ public class AlterSchema implements Transformation
         }
         next = maybeUpdateConsensusMigrationState(prev.consensusMigrationState, next, diff.altered, diff.dropped);
         next = maybeUpdateMutationTrackingMigrationState(nextEpoch, prev.mutationTrackingMigrationState, next, diff.altered, diff.dropped);
+        next = maybeUpdateSatelliteFailoverState(prev.satelliteFailoverState, next, diff.altered, diff.dropped);
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
@@ -397,6 +402,104 @@ public class AlterSchema implements Transformation
 
         if (migrationState != prev)
             next = next.with(migrationState);
+
+        return next;
+    }
+
+    /**
+     * Detect primary DC changes in satellite replication keyspaces and initialize failover state.
+     * Also cleans up failover state for dropped keyspaces or keyspaces that changed away from SRS.
+     * Validates that no concurrent transfer is in progress and that the source DC has a satellite.
+     */
+    public static Transformer maybeUpdateSatelliteFailoverState(SatelliteFailoverProcessState prev,
+                                                                Transformer next,
+                                                                ImmutableList<KeyspaceDiff> altered,
+                                                                Keyspaces dropped)
+    {
+        SatelliteFailoverProcessState failoverState = prev;
+
+        // Clean up failover state for dropped keyspaces
+        for (KeyspaceMetadata ks : dropped)
+        {
+            if (failoverState.hasActiveTransfer(ks.name))
+            {
+                logger.info("Cleaning up satellite failover state for dropped keyspace {}", ks.name);
+                failoverState = failoverState.withoutKeyspace(ks.name);
+            }
+        }
+
+        for (KeyspaceDiff diff : altered)
+        {
+            // If strategy changed away from SRS, clean up any orphaned failover state
+            if (diff.before.params.replication.klass == SatelliteReplicationStrategy.class
+                && diff.after.params.replication.klass != SatelliteReplicationStrategy.class)
+            {
+                if (failoverState.hasActiveTransfer(diff.before.name))
+                {
+                    logger.info("Cleaning up satellite failover state for keyspace {} (strategy changed away from SRS)", diff.before.name);
+                    failoverState = failoverState.withoutKeyspace(diff.before.name);
+                }
+                continue;
+            }
+
+            // Only applies to SatelliteReplicationStrategy keyspaces
+            if (diff.after.params.replication.klass != SatelliteReplicationStrategy.class)
+                continue;
+
+            // An in-progress transfer reconciles the source DC's tracked data (held on its satellite) to the new
+            // primary, scoping every failover plan -- paxos repair, barrier, epoch check -- to that source DC
+            // (fromDC) and its satellite. Removing fromDC or its satellite mid-transfer strands those plans against
+            // a topology that no longer exists, wedging the affected ranges (paxos is rejected during TRANSITION_ACK
+            // and the advance pipeline can no longer make progress). Reject it. This is independent of the primary DC
+            // (a primary DC *change* on an active transfer is rejected below); an operator wanting to abandon the
+            // failover can move the keyspace off SatelliteReplicationStrategy or drop it -- both clean the state up above.
+            KeyspaceFailoverState activeTransfer = failoverState.getKeyspaceState(diff.after.name);
+            if (activeTransfer != null)
+            {
+                String fromDC = activeTransfer.fromDC;
+                SatelliteReplicationStrategy afterSrs = (SatelliteReplicationStrategy) diff.after.replicationStrategy;
+                if (afterSrs.getReplicationFactor(fromDC).allReplicas == 0)
+                    throw new InvalidRequestException("Cannot remove datacenter " + fromDC + " from keyspace " +
+                                                      diff.after.name + " while a satellite failover from it is in progress");
+                if (afterSrs.getSatelliteForDC(fromDC) == null)
+                    throw new InvalidRequestException("Cannot remove the satellite of datacenter " + fromDC +
+                                                      " from keyspace " + diff.after.name +
+                                                      " while a satellite failover from it is in progress");
+            }
+
+            String oldPrimary = diff.before.params.replication.options.get("primary");
+            String newPrimary = diff.after.params.replication.options.get("primary");
+
+            if (oldPrimary == null || oldPrimary.equals(newPrimary))
+                continue;
+
+            // don't stomp on in progress transition
+            if (failoverState.hasActiveTransfer(diff.before.name))
+                throw new InvalidRequestException("Cannot change primary DC while failover is in progress for keyspace " + diff.before.name);
+
+            // The failover pipeline reconciles the source DC's mutation-tracked data (held on its satellite)
+            // to the new primary. Failing over from a DC with no satellite has nothing to reconcile from, so
+            // reject it rather than driving the ring into TRANSITION_ACK for a topology the pipeline can't handle.
+            // Check the source DC's satellite in the topology being left (diff.before): the primary change may
+            // legitimately drop the source DC's other options in the same alter.
+            SatelliteReplicationStrategy srs = (SatelliteReplicationStrategy) diff.before.replicationStrategy;
+            if (srs.getSatelliteForDC(oldPrimary) == null)
+                throw new InvalidRequestException("Cannot change primary DC for keyspace " + diff.after.name +
+                                                  ": source datacenter " + oldPrimary + " has no satellite");
+
+            // Initialize failover: full token range into TRANSITION_ACK
+            Token minToken = DatabaseDescriptor.getPartitioner().getMinimumToken();
+            NormalizedRanges<Token> fullRange = NormalizedRanges.normalizedRanges(
+                Collections.singleton(new Range<>(minToken, minToken)));
+
+            failoverState = failoverState.withFailoverInitiated(diff.after.name, oldPrimary, next.epoch(), fullRange);
+
+            logger.info("Initiating satellite failover for keyspace {}: primary {} -> {}",
+                        diff.after.name, oldPrimary, newPrimary);
+        }
+
+        if (failoverState != prev)
+            next = next.with(failoverState);
 
         return next;
     }

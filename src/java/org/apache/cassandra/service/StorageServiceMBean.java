@@ -1170,6 +1170,31 @@ public interface StorageServiceMBean extends NotificationEmitter
     List<String> getAccordManagedKeyspaces();
     List<String> getAccordManagedTables();
 
+    /**
+     * Advance satellite failover for the specified keyspace.
+     * Creates and starts a SatelliteFailoverProcess and blocks until completion.
+     *
+     * @param keyspace keyspace name (required)
+     * @param rangesStr comma-separated "start:end" token ranges, or null for local ranges
+     * @param ackOnly if true, stop after advancing TRANSITION_ACK → TRANSITION
+     * @param barrierOnly if true, only process TRANSITION ranges
+     * @param force if true, skip prerequisite operations and commit the updated state directly
+     * @return result
+     */
+    String advanceSatelliteFailover(@Nonnull String keyspace,
+                                    @Nullable String rangesStr,
+                                    boolean ackOnly,
+                                    boolean barrierOnly,
+                                    boolean force);
+
+    /**
+     * Get the current satellite failover status for a keyspace.
+     *
+     * @param keyspace keyspace name (required)
+     * @return formatted status string showing per-range failover state breakdown
+     */
+    String getSatelliteFailoverStatus(@Nonnull String keyspace);
+
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable
     {

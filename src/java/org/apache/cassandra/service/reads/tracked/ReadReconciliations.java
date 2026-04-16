@@ -383,7 +383,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             return updateRemaining(mutationsDelta, summariesDelta, syncAcksDelta) == 0 && complete();
         }
 
-        private boolean complete()
+        boolean complete()
         {
             if (isDataNode())
                 MutationTrackingService.instance().localReads().acknowledgeReconcile(id, augmentingOffsets());

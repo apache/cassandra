@@ -32,7 +32,6 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -61,6 +60,8 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexStatusManager;
+import org.apache.cassandra.locator.satellites.KeyspaceFailoverState;
+import org.apache.cassandra.locator.satellites.SatelliteFailover;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -79,6 +80,7 @@ import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.SatellitePaxosParticipants;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
@@ -141,17 +143,6 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
     private final Set<String> disabledDCs;
 
     private final ReplicationFactor aggregateRf;
-
-    /**
-     * Per-range failover state.
-     * Volatile for visibility across threads.
-     *
-     * NOTE: In-memory for initial implementation. Future work will pull this
-     * from TCM (Transactional Cluster Metadata) for persistence and coordination.
-     *
-     * Initialized to NORMAL state for all ranges.
-     */
-    private volatile SatelliteFailoverState.FailoverStateMap failoverState;
 
     private static class SatelliteInfo
     {
@@ -315,9 +306,6 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
         this.aggregateRf = ReplicationFactor.withTransient(totalReplicas, totalTransient);
 
-        this.failoverState = SatelliteFailoverState.FailoverStateMap.allRanges(
-        SatelliteFailoverState.FailoverInfo.normal());
-
         if (disabledDCs.isEmpty())
             logger.info("Configured satellite datacenter replication for keyspace {} with full datacenters {} (primary: {}), satellites {}",
                         keyspaceName, fullDCs, primaryDC, satellites);
@@ -368,7 +356,11 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
         for (Range<Token> range : ranges)
         {
-            EndpointsForRange endpointsForRange = calculateNaturalReplicas(range.right, metadata);
+            EndpointsForRange endpointsForRange = NetworkTopologyStrategy.calculateNaturalReplicas(range.right,
+                                                                                                   range,
+                                                                                                   metadata.directory,
+                                                                                                   metadata.tokenMap,
+                                                                                                   allDCs);
             builder.withReplicaGroup(VersionedEndpoints.forRange(epoch, endpointsForRange));
         }
 
@@ -576,8 +568,8 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         // Reject paxos operations during TRANSITION_ACK to prevent conflicting paxos operations
         // across different full DCs. The temporary gap in paxos availability ensures that the old
         // primary has no in-flight proposals before the new primary begins serving paxos operations.
-        SatelliteFailoverState.FailoverInfo failoverInfo = getFailoverInfo(token, metadata);
-        if (failoverInfo.getState() == SatelliteFailoverState.State.TRANSITION_ACK)
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        if (failoverInfo.stateForToken(token) == SatelliteFailover.State.TRANSITION_ACK)
             throw UnavailableException.create(consistencyForConsensus, 1, 0);
 
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
@@ -600,7 +592,12 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         };
         EndpointsForToken satelliteEndpoints = liveAndDownLayout.all().filter(isParticipatingNonPrimary);
 
-        EndpointsForToken live = liveAndDownLayout.all().filter(isReplicaAlive);
+        // Scope the live set to the primary DC. Paxos.Participants uses this as the set of nodes to send the commit
+        // to, so an unfiltered live set would send PAXOS_COMMIT_REQ to satellite and secondary DC replicas, which
+        // reject it (see #shouldRejectPaxos). Those rejections would then be counted against the primary DC
+        // electorate and fail the commit. Non-primary DCs receive the committed mutation via
+        // #sendPaxosCommitMutations instead.
+        EndpointsForToken live = primaryAll.all().filter(isReplicaAlive);
 
         return new SatellitePaxosParticipants(metadata.epoch,
                                               Keyspace.open(table.keyspace),
@@ -610,6 +607,45 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                                               live,
                                               (cm) -> Paxos.Participants.get(cm, table, token, consistencyForConsensus),
                                               satelliteEndpoints);
+    }
+
+    /**
+     * Resolve paxos participants for repair. During TRANSITION_ACK, returns participants scoped
+     * to the old primary DC's electorate (using fromDC from failover state) instead of throwing
+     * UnavailableException. This allows paxos repair to complete in-flight committed operations
+     * on the old primary before transferring to the new primary.
+     *
+     * Outside of TRANSITION_ACK, delegates to {@link #paxosParticipants}.
+     */
+    @Override
+    public Paxos.Participants paxosParticipantsForRepair(ClusterMetadata metadata,
+                                                          TableMetadata table,
+                                                          Token token,
+                                                          ConsistencyLevel consistencyForConsensus,
+                                                          Predicate<Replica> isReplicaAlive)
+    {
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        if (failoverInfo.stateForToken(token) != SatelliteFailover.State.TRANSITION_ACK)
+            return paxosParticipants(metadata, table, token, consistencyForConsensus, isReplicaAlive);
+
+        // During TRANSITION_ACK, use the old primary DC as the electorate for repair
+        String fromDC = failoverInfo.getFromDC();
+        KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
+        ReplicaLayout.ForTokenWrite fullLayout = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspaceMetadata, token);
+
+        // Electorate is the old primary DC only (no satellite -- satellites have no paxos state)
+        Predicate<Replica> inFromDC = rp -> metadata.locator.location(rp.endpoint()).datacenter.equals(fromDC);
+        ReplicaLayout.ForTokenWrite fromDCAll = fullLayout.filter(inFromDC);
+
+        EndpointsForToken inFromDCLive = fullLayout.all().filter(inFromDC.and(isReplicaAlive));
+
+        return new Paxos.Participants(metadata.epoch,
+                                      Keyspace.open(table.keyspace),
+                                      consistencyForConsensus,
+                                      fromDCAll,
+                                      fromDCAll,
+                                      inFromDCLive,
+                                      (cm) -> paxosParticipantsForRepair(cm, table, token, consistencyForConsensus, isReplicaAlive));
     }
 
     @Override
@@ -1558,6 +1594,77 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         return new CoordinationPlan.ForWrite(planner.createReplicaPlan(), planner.createResponseTracker());
     }
 
+    public CoordinationPlan.ForWrite planForFailoverPaxosRepair(ClusterMetadata metadata, Keyspace keyspace, Range<Token> range)
+    {
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        checkFailoverStep(failoverInfo, range, SatelliteFailover.State.TRANSITION_ACK);
+
+        ReplicaLayout.ForTokenWrite layout = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace, range.right);
+        String fromDC = failoverInfo.getFromDC();
+        CoordinationPlanner.ForWrite planner = new CoordinationPlanner.ForWrite(metadata,
+                                                                                keyspace,
+                                                                                ConsistencyLevel.QUORUM,
+                                                                                this,
+                                                                                fromDC,
+                                                                                layout,
+                                                                                ReplicaPlans.writeAll) {
+
+            @Override
+            List<String> createDcList()
+            {
+                return List.of(fromDC);
+            }
+        };
+
+        return new CoordinationPlan.ForWrite(planner.createReplicaPlan(), planner.createResponseTracker());
+    }
+
+    /**
+     * Validate that a failover step expecting {@code expected} may be planned for {@code range}.
+     *
+     * A range can be partially advanced by a concurrent driver on another replica node, so we can't require that
+     * it is exactly at {@code expected} — only that no part of it is behind (state advancement is monotonic, so a
+     * range behind the expected state would have to have regressed). We also require an active transfer, since the
+     * failover plans coordinate against {@link SatelliteFailover.Info#getFromDC()}, which is null once the
+     * keyspace's transfer completes.
+     */
+    private static void checkFailoverStep(SatelliteFailover.Info failoverInfo, Range<Token> range, SatelliteFailover.State expected)
+    {
+        Preconditions.checkState(failoverInfo.getFromDC() != null, "No active failover transfer");
+        SatelliteFailover.State least = failoverInfo.leastAdvancedState(range);
+        Preconditions.checkState(least.failoverProgress() >= expected.failoverProgress(),
+                                 "Range %s is in state %s, expected at least %s", range, least, expected);
+    }
+
+    public CoordinationPlan.ForTokenRead planForFailoverBarrierInternal(ClusterMetadata metadata, SatelliteFailover.Info failoverInfo, Keyspace keyspace, Range<Token> range)
+    {
+        return planForTokenReadPrimary(metadata,
+                                       failoverInfo.getFromDC(),
+                                       keyspace,
+                                       null,
+                                       range.right,
+                                       null,
+                                       ConsistencyLevel.QUORUM,
+                                       NeverSpeculativeRetryPolicy.INSTANCE,
+                                       ReadCoordinator.DEFAULT);
+    }
+
+    public CoordinationPlan.ForTokenRead planForFailoverEpochCheck(ClusterMetadata metadata, Keyspace keyspace, Range<Token> range)
+    {
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+
+        checkFailoverStep(failoverInfo, range, SatelliteFailover.State.TRANSITION_ACK);
+        return planForFailoverBarrierInternal(metadata, failoverInfo, keyspace, range);
+    }
+
+    public CoordinationPlan.ForTokenRead planForFailoverBarrier(ClusterMetadata metadata, Keyspace keyspace, Range<Token> range)
+    {
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        checkFailoverStep(failoverInfo, range, SatelliteFailover.State.TRANSITION);
+        return planForFailoverBarrierInternal(metadata, failoverInfo, keyspace, range);
+    }
+
+
     /**
      * Holds the information needed to send satellite commit mutations alongside a paxos commit.
      * The tracker has the primary DC pre-completed, so only satellite/secondary DC quorums
@@ -1621,8 +1728,8 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
         // Reject satellite commit writes during TRANSITION_ACK. Paxos operations should not be
         // in progress during this state, but check defensively to avoid propagating stale commits.
-        SatelliteFailoverState.FailoverInfo failoverInfo = getFailoverInfo(token, metadata);
-        if (failoverInfo.getState() == SatelliteFailoverState.State.TRANSITION_ACK)
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        if (failoverInfo.stateForToken(token) == SatelliteFailover.State.TRANSITION_ACK)
             throw new UnavailableException("Paxos commit rejected during TRANSITION_ACK failover state",
                                            ConsistencyLevel.SERIAL, 1, 0);
 
@@ -1726,8 +1833,8 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
     {
         CoordinationPlan.ForTokenRead primaryPlan = planForTokenReadPrimary(metadata, primaryDC, keyspace, tableId, token, indexQueryPlan, consistencyLevel, retry, coordinator);
 
-        SatelliteFailoverState.FailoverInfo failoverInfo = getFailoverInfo(token, metadata);
-        if (!failoverInfo.isTransitioning())
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        if (!failoverInfo.stateForToken(token).isTransitioning())
             return primaryPlan;
 
         CoordinationPlan.ForTokenRead previousPlan = planForTokenReadPrimary(metadata, failoverInfo.getFromDC(), keyspace, tableId, token, indexQueryPlan, consistencyLevel, retry, coordinator);
@@ -1799,8 +1906,8 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
     {
         CoordinationPlan.ForRangeRead primaryPlan = planForRangeReadPrimary(metadata, primaryDC, keyspace, tableId, range, vnodeCount, indexQueryPlan, consistencyLevel);
 
-        SatelliteFailoverState.FailoverInfo failoverInfo = getFailoverInfo(range, metadata);
-        if (!failoverInfo.isTransitioning())
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        if (!failoverInfo.stateForPartitionPosition(range.right).isTransitioning())
             return primaryPlan;
 
         CoordinationPlan.ForRangeRead previousPlan = planForRangeReadPrimary(metadata, failoverInfo.getFromDC(), keyspace, tableId, range, vnodeCount, indexQueryPlan, consistencyLevel);
@@ -1856,7 +1963,10 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         return null;
     }
 
-    private String getSatelliteForDC(String dc)
+    /**
+     * Returns the satellite DC name associated with the given full DC, or null if none exists.
+     */
+    public String getSatelliteForDC(String dc)
     {
         for (SatelliteInfo sat : satellites.values())
             if (sat.parentDC.equals(dc))
@@ -1864,7 +1974,10 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         return null;
     }
 
-    private int calculateQuorum(String dc)
+    /**
+     * Returns the quorum threshold for the given DC (full or satellite).
+     */
+    public int calculateQuorum(String dc)
     {
         ReplicationFactor rf = fullDCs.get(dc);
         if (rf != null)
@@ -1874,16 +1987,20 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         return sat != null ? sat.rf.allReplicas / 2 + 1 : 0;
     }
 
-    public SatelliteFailoverState.FailoverInfo getFailoverInfo(Token token, ClusterMetadata metadata)
+    public Set<String> getFullDCNames()
     {
-        Range<Token> range = TokenRingUtils.getRange(
-            metadata.tokenMap.tokens(), token);
-        return failoverState.getFailoverInfo(range);
+        return fullDCs.keySet();
     }
 
-    public SatelliteFailoverState.FailoverInfo getFailoverInfo(AbstractBounds<PartitionPosition> range, ClusterMetadata metadata)
+    public Set<String> getDisabledDCs()
     {
-        return failoverState.getFailoverInfo(range.right.getToken());
+        return disabledDCs;
+    }
+
+    public SatelliteFailover.Info getFailoverInfo(ClusterMetadata metadata)
+    {
+        KeyspaceFailoverState ksState = metadata.satelliteFailoverState.getKeyspaceState(keyspaceName);
+        return ksState != null ? ksState : SatelliteFailover.Info.NORMAL;
     }
 
     /**
@@ -1898,17 +2015,12 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
     {
         ClusterMetadata metadata = ClusterMetadata.current();
 
-        SatelliteFailoverState.FailoverInfo failoverInfo = getFailoverInfo(token, metadata);
-        if (failoverInfo.getState() == SatelliteFailoverState.State.TRANSITION_ACK)
+        SatelliteFailover.Info failoverInfo = getFailoverInfo(metadata);
+        if (failoverInfo.stateForToken(token) == SatelliteFailover.State.TRANSITION_ACK)
             return true;
 
         String localDC = metadata.locator.location(FBUtilities.getBroadcastAddressAndPort()).datacenter;
         return !primaryDC.equals(localDC);
     }
 
-    @VisibleForTesting
-    void setFailoverState(SatelliteFailoverState.FailoverStateMap state)
-    {
-        this.failoverState = state;
-    }
 }

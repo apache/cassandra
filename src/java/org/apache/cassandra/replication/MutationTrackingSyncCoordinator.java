@@ -47,6 +47,7 @@ import org.apache.cassandra.repair.messages.MutationTrackingSyncResponse;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -352,6 +353,11 @@ public class MutationTrackingSyncCoordinator
     {
         if (completionFuture.tryFailure(new TimeoutException("Mutation tracking sync timed out")))
             MutationTrackingService.instance().unregisterSyncCoordinator(this);
+    }
+
+    public Future<Void> future()
+    {
+        return completionFuture;
     }
 
     /**

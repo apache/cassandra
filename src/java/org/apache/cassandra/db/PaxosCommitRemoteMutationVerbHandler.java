@@ -22,8 +22,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.SatelliteFailoverState;
 import org.apache.cassandra.locator.SatelliteReplicationStrategy;
+import org.apache.cassandra.locator.satellites.SatelliteFailover;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -35,7 +35,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
  *
  * PAXOS2_COMMIT_REMOTE_REQ sends a normal {@link Mutation} that doesn't indicate it came from a paxos commit
  * so the standard MutationVerbHandler has no awareness that it originated from a paxos commit. This wrapper
- * rejects mutations during {@link SatelliteFailoverState.State#TRANSITION_ACK} to prevent stale paxos commits
+ * rejects mutations during {@link SatelliteFailover.State#TRANSITION_ACK} to prevent stale paxos commits
  * from being applied to satellite/secondary DCs during failover.
  */
 public class PaxosCommitRemoteMutationVerbHandler implements IVerbHandler<Mutation>
@@ -54,8 +54,8 @@ public class PaxosCommitRemoteMutationVerbHandler implements IVerbHandler<Mutati
         {
             SatelliteReplicationStrategy srs = (SatelliteReplicationStrategy) strategy;
             ClusterMetadata metadata = ClusterMetadata.current();
-            SatelliteFailoverState.FailoverInfo failoverInfo = srs.getFailoverInfo(mutation.key().getToken(), metadata);
-            if (failoverInfo.getState() == SatelliteFailoverState.State.TRANSITION_ACK)
+            SatelliteFailover.Info failoverInfo = srs.getFailoverInfo(metadata);
+            if (failoverInfo.stateForToken(mutation.key().getToken()) == SatelliteFailover.State.TRANSITION_ACK)
             {
                 logger.debug("Rejecting PAXOS2_COMMIT_REMOTE_REQ for {} during TRANSITION_ACK", mutation.getKeyspaceName());
                 MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);

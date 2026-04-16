@@ -18,8 +18,10 @@
 
 package org.apache.cassandra.service.reads.range;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 
@@ -32,10 +34,15 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.RangeSplitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.SatelliteReplicationStrategy;
+import org.apache.cassandra.locator.satellites.KeyspaceFailoverState;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -49,9 +56,8 @@ class CoordinationPlanIterator extends AbstractIterator<CoordinationPlan.ForRang
     private final ConsistencyLevel consistency;
     private final TableId tableId;
     private final Index.QueryPlan indexQueryPlan;
-    @VisibleForTesting
-    final Iterator<? extends AbstractBounds<PartitionPosition>> ranges;
-    private final int rangeCount;
+
+    private final Deque<AbstractBounds<PartitionPosition>> ranges;
 
     CoordinationPlanIterator(AbstractBounds<PartitionPosition> keyRange,
                              @Nullable Index.QueryPlan indexQueryPlan,
@@ -68,8 +74,7 @@ class CoordinationPlanIterator extends AbstractIterator<CoordinationPlan.ForRang
         List<? extends AbstractBounds<PartitionPosition>> l = replication.isLocal() || replication.isMeta()
                                                               ? keyRange.unwrap()
                                                               : getRestrictedRanges(keyRange);
-        this.ranges = l.iterator();
-        this.rangeCount = l.size();
+        this.ranges = new ArrayDeque<>(l);
     }
 
     /**
@@ -77,16 +82,31 @@ class CoordinationPlanIterator extends AbstractIterator<CoordinationPlan.ForRang
      */
     int size()
     {
-        return rangeCount;
+        return ranges.size();
     }
 
     @Override
     protected CoordinationPlan.ForRangeRead computeNext()
     {
-        if (!ranges.hasNext())
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        if (ranges.isEmpty())
             return endOfData();
 
-        return CoordinationPlan.forRangeRead(ClusterMetadata.current(), keyspace, tableId, indexQueryPlan, consistency, ranges.next(), 1);
+        AbstractBounds<PartitionPosition> vnodeRange = ranges.poll();
+
+        List<AbstractBounds<PartitionPosition>> subRanges = splitAtFailoverBoundaries(vnodeRange, keyspace, metadata);
+
+        if (subRanges == null)
+        {
+            return CoordinationPlan.forRangeRead(metadata, keyspace, tableId, indexQueryPlan, consistency, vnodeRange, 1);
+        }
+
+        // if the range was split, return a plan for the first range, and put the other ranges at the head of the queue
+        for (int i = subRanges.size() - 1; i >= 1; i--)
+            ranges.addFirst(subRanges.get(i));
+
+        return CoordinationPlan.forRangeRead(metadata, keyspace, tableId, indexQueryPlan, consistency, subRanges.get(0), 1);
     }
 
     /**
@@ -132,5 +152,43 @@ class CoordinationPlanIterator extends AbstractIterator<CoordinationPlan.ForRang
         ranges.add(remainder);
 
         return ranges;
+    }
+
+    /**
+     * Split a single vnode range at failover state boundaries so that each sub-range is in a uniform
+     * failover state. Returns null if no splitting is needed (non-SRS keyspace, no active transfer,
+     * or range doesn't cross any state boundaries).
+     *
+     * <p>Uses the provided ClusterMetadata instance so the caller can use the same instance for
+     * plan creation, ensuring consistency between split boundaries and coordination plans.
+     *
+     * <p>Follows the MigrationRouter.splitRangeByPendingRanges() pattern via shared {@link RangeSplitter}.
+     */
+    @VisibleForTesting
+    static List<AbstractBounds<PartitionPosition>> splitAtFailoverBoundaries(AbstractBounds<PartitionPosition> range,
+                                                                             Keyspace keyspace,
+                                                                             ClusterMetadata metadata)
+    {
+        AbstractReplicationStrategy strategy = keyspace.getReplicationStrategy();
+        if (!(strategy instanceof SatelliteReplicationStrategy))
+            return null;
+
+        KeyspaceFailoverState ksState = metadata.satelliteFailoverState.getKeyspaceState(keyspace.getName());
+        if (ksState == null || ksState.isComplete())
+            return null;
+
+        // Collect all non-NORMAL ranges as state boundaries for splitting
+        List<Range<Token>> stateBoundaries = new ArrayList<>();
+        ksState.forEachRange((r, state) -> stateBoundaries.add(r));
+        if (stateBoundaries.isEmpty())
+            return null;
+
+        List<AbstractBounds<PartitionPosition>> result = RangeSplitter.splitAtBoundaries(range, stateBoundaries);
+
+        // No split occurred -- single sub-range is the original
+        if (result.size() <= 1)
+            return null;
+
+        return result;
     }
 }

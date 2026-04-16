@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -27,14 +28,24 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.locator.satellites.SatelliteFailover;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.transformations.AdvanceSatelliteFailoverState;
+import org.apache.cassandra.tcm.transformations.AlterSchema;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -44,6 +55,35 @@ import static org.junit.Assert.fail;
 @RunWith(Parameterized.class)
 public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
 {
+    private static class MockFailoverInfo implements SatelliteFailover.Info
+    {
+        final String fromDc;
+        final SatelliteFailover.State state;
+
+        public MockFailoverInfo(String fromDc, SatelliteFailover.State state)
+        {
+            this.fromDc = fromDc;
+            this.state = state;
+        }
+
+        @Override
+        public SatelliteFailover.State stateForToken(Token token)
+        {
+            return state;
+        }
+
+        @Override
+        public SatelliteFailover.State leastAdvancedState(Range<Token> range)
+        {
+            return state;
+        }
+
+        @Override
+        public String getFromDC()
+        {
+            return fromDc;
+        }
+    }
     enum ReadType
     {
         TOKEN, RANGE
@@ -53,19 +93,19 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
     public static Collection<Object[]> params()
     {
         return Arrays.asList(new Object[][] {
-            { ReadType.TOKEN, SatelliteFailoverState.State.NORMAL },
-            { ReadType.TOKEN, SatelliteFailoverState.State.TRANSITION_ACK },
-            { ReadType.TOKEN, SatelliteFailoverState.State.TRANSITION },
-            { ReadType.RANGE, SatelliteFailoverState.State.NORMAL },
-            { ReadType.RANGE, SatelliteFailoverState.State.TRANSITION_ACK },
-            { ReadType.RANGE, SatelliteFailoverState.State.TRANSITION },
+            { ReadType.TOKEN, SatelliteFailover.State.NORMAL },
+            { ReadType.TOKEN, SatelliteFailover.State.TRANSITION_ACK },
+            { ReadType.TOKEN, SatelliteFailover.State.TRANSITION },
+            { ReadType.RANGE, SatelliteFailover.State.NORMAL },
+            { ReadType.RANGE, SatelliteFailover.State.TRANSITION_ACK },
+            { ReadType.RANGE, SatelliteFailover.State.TRANSITION },
         });
     }
 
     private final ReadType readType;
-    private final SatelliteFailoverState.State failoverState;
+    private final SatelliteFailover.State failoverState;
 
-    public SatelliteReadPlanTest(ReadType readType, SatelliteFailoverState.State failoverState)
+    public SatelliteReadPlanTest(ReadType readType, SatelliteFailover.State failoverState)
     {
         this.readType = readType;
         this.failoverState = failoverState;
@@ -73,17 +113,52 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
 
     private boolean isTransition()
     {
-        return failoverState != SatelliteFailoverState.State.NORMAL;
+        return failoverState != SatelliteFailover.State.NORMAL;
     }
 
-    private SatelliteFailoverState.FailoverInfo failoverInfo()
+    private SatelliteFailover.Info failoverInfo()
     {
         switch (failoverState)
         {
-            case TRANSITION_ACK: return SatelliteFailoverState.FailoverInfo.transitionAck("dc1");
-            case TRANSITION: return SatelliteFailoverState.FailoverInfo.transition("dc1");
+            case TRANSITION_ACK:
+            case TRANSITION:
+                return new MockFailoverInfo("dc1", failoverState);
+
             default: throw new IllegalStateException("No failover info for NORMAL");
         }
+    }
+
+    private void applyFailoverState(String keyspace) throws Exception
+    {
+        if (!isTransition())
+            return;
+
+        // ALTER to dc2 triggers failover from dc1 (all ranges in TRANSITION_ACK)
+        alterKeyspacePrimary(keyspace, "dc2");
+
+        if (failoverState == SatelliteFailover.State.TRANSITION)
+        {
+            Token min = DatabaseDescriptor.getPartitioner().getMinimumToken();
+            NormalizedRanges<Token> fullRange = NormalizedRanges.normalizedRanges(
+                Collections.singleton(new Range<>(min, min)));
+            ClusterMetadataTestHelper.commit(new AdvanceSatelliteFailoverState(
+            keyspace, fullRange, AdvanceSatelliteFailoverState.TargetState.TRANSITION));
+        }
+    }
+
+    private void alterKeyspacePrimary(String keyspace, String newPrimary) throws Exception
+    {
+        String cql = "ALTER KEYSPACE " + keyspace + " WITH replication = {" +
+                     "'class': 'SatelliteReplicationStrategy', " +
+                     "'dc1': '3', " +
+                     "'dc1.satellite.sat1': '3/3', " +
+                     "'dc2': '3', " +
+                     "'dc2.satellite.sat2': '3/3', " +
+                     "'primary': '" + newPrimary + "'" +
+                     "} AND replication_type = 'tracked'";
+        AlterSchemaStatement stmt = (AlterSchemaStatement) QueryProcessor.parseStatement(cql)
+            .prepare(ClientState.forInternalCalls());
+        ClusterMetadataTestHelper.commit(new AlterSchema(stmt));
     }
 
     private CoordinationPlan.ForRead<?, ?> createPlan(SatelliteReplicationStrategy strategy, String keyspaceName) throws Exception
@@ -127,12 +202,10 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
     @Test
     public void testReadPlanDualDC() throws Exception
     {
-        createDualDCKeyspace(isTransition() ? "dc2" : "dc1");
+        createDualDCKeyspace("dc1");
+        applyFailoverState(DUAL_DC_KEYSPACE);
         SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
         ClusterMetadata metadata = ClusterMetadata.current();
-
-        if (isTransition())
-            strategy.setFailoverState(SatelliteFailoverState.FailoverStateMap.allRanges(failoverInfo()));
 
         CoordinationPlan.ForRead<?, ?> plan = createPlan(strategy, DUAL_DC_KEYSPACE);
 
@@ -185,12 +258,10 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
     @Test
     public void testReadPlanPrimaryDCFirst() throws Exception
     {
-        createDualDCKeyspace(isTransition() ? "dc2" : "dc1");
+        createDualDCKeyspace("dc1");
+        applyFailoverState(DUAL_DC_KEYSPACE);
         SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
         ClusterMetadata metadata = ClusterMetadata.current();
-
-        if (isTransition())
-            strategy.setFailoverState(SatelliteFailoverState.FailoverStateMap.allRanges(failoverInfo()));
 
         CoordinationPlan.ForRead<?, ?> plan = createPlan(strategy, DUAL_DC_KEYSPACE);
 
@@ -232,11 +303,10 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
     {
         Assume.assumeTrue(isTransition());
 
-        createDualDCKeyspace("dc2");
+        createDualDCKeyspace("dc1");
+        applyFailoverState(DUAL_DC_KEYSPACE);
         SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
         ClusterMetadata metadata = ClusterMetadata.current();
-
-        strategy.setFailoverState(SatelliteFailoverState.FailoverStateMap.allRanges(failoverInfo()));
 
         CoordinationPlan.ForRead<?, ?> plan = createPlan(strategy, DUAL_DC_KEYSPACE);
 
@@ -254,10 +324,9 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
     {
         Assume.assumeTrue(isTransition());
 
-        createDualDCKeyspace("dc2");
+        createDualDCKeyspace("dc1");
+        applyFailoverState(DUAL_DC_KEYSPACE);
         SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
-
-        strategy.setFailoverState(SatelliteFailoverState.FailoverStateMap.allRanges(failoverInfo()));
 
         CoordinationPlan.ForRead<?, ?> plan = createPlan(strategy, DUAL_DC_KEYSPACE);
         ReplicaPlan.ForRead<?, ?> replicas = replicas(plan);
@@ -272,15 +341,16 @@ public class SatelliteReadPlanTest extends SatelliteReplicationStrategyTestBase
     {
         Assume.assumeTrue(isTransition());
 
-        createDualDCKeyspace("dc2");
+        createDualDCKeyspace("dc1");
         SatelliteReplicationStrategy strategy = getSRS(DUAL_DC_KEYSPACE);
 
-        // Get the individual plan quorum before merging
+        // Get the individual plan quorum before failover
         CoordinationPlan.ForRead<?, ?> primaryOnly = createPlan(strategy, DUAL_DC_KEYSPACE);
         int primaryQuorum = replicas(primaryOnly).readQuorum();
 
-        // Now set transition state and get merged plan
-        strategy.setFailoverState(SatelliteFailoverState.FailoverStateMap.allRanges(failoverInfo()));
+        // Apply failover state and get merged plan
+        applyFailoverState(DUAL_DC_KEYSPACE);
+        strategy = getSRS(DUAL_DC_KEYSPACE);
 
         CoordinationPlan.ForRead<?, ?> merged = createPlan(strategy, DUAL_DC_KEYSPACE);
         int mergedQuorum = replicas(merged).readQuorum();

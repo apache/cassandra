@@ -50,6 +50,7 @@ import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.satellites.SatelliteFailoverProcessState;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -304,6 +305,7 @@ public class GossipHelper
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    MutationTrackingMigrationState.EMPTY,
+                                   SatelliteFailoverProcessState.EMPTY,
                                    Collections.emptyMap(),
                                    AccordStaleReplicas.EMPTY);
     }
@@ -395,6 +397,7 @@ public class GossipHelper
                                                                       InProgressSequences.EMPTY,
                                                                       ConsensusMigrationState.EMPTY,
                                                                       MutationTrackingMigrationState.EMPTY,
+                                                                      SatelliteFailoverProcessState.EMPTY,
                                                                       extensions,
                                                                       AccordStaleReplicas.EMPTY);
         DataPlacements placements = new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP,
@@ -411,6 +414,7 @@ public class GossipHelper
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    MutationTrackingMigrationState.EMPTY,
+                                   SatelliteFailoverProcessState.EMPTY,
                                    extensions,
                                    AccordStaleReplicas.EMPTY);
     }

@@ -23,9 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlans;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,7 +31,10 @@ import org.apache.cassandra.db.SimpleBuilders;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Dispatcher;

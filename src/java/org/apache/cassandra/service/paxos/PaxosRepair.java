@@ -465,7 +465,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         if (isResult(state))
             return state;
 
-        participants = Participants.get(table, partitionKey(), paxosConsistency);
+        participants = Participants.getForRepair(table, partitionKey(), paxosConsistency);
 
         if (waitUntil > Long.MIN_VALUE && waitUntil - startedNanos() > retryTimeoutNanos)
             return new Failure(null);
@@ -717,7 +717,7 @@ public class PaxosRepair extends AbstractPaxosRepair
 
     static boolean validatePeerCompatibility(SharedContext ctx, ClusterMetadata metadata, TableMetadata table, Range<Token> range)
     {
-        Participants participants = Participants.get(metadata, table, range.right, ConsistencyLevel.SERIAL, r -> ctx.failureDetector().isAlive(r.endpoint()));
+        Participants participants = Participants.getForRepair(metadata, table, range.right, ConsistencyLevel.SERIAL, r -> ctx.failureDetector().isAlive(r.endpoint()));
         return Iterables.all(participants.all, (participant) -> validatePeerCompatibility(metadata, participant));
     }
 

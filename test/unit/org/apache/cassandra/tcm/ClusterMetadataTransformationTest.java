@@ -61,6 +61,7 @@ import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
 import static org.apache.cassandra.tcm.MetadataKeys.LOCKED_RANGES;
 import static org.apache.cassandra.tcm.MetadataKeys.MUTATION_TRACKING_MIGRATION_STATE;
 import static org.apache.cassandra.tcm.MetadataKeys.NODE_DIRECTORY;
+import static org.apache.cassandra.tcm.MetadataKeys.SATELLITE_FAILOVER_STATE;
 import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
 import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
@@ -323,6 +324,8 @@ public class ClusterMetadataTransformationTest
             return metadata.accordStaleReplicas;
         else if (key == MUTATION_TRACKING_MIGRATION_STATE)
             return metadata.mutationTrackingMigrationState;
+        else if (key == SATELLITE_FAILOVER_STATE)
+            return metadata.satelliteFailoverState;
 
         throw new IllegalArgumentException("Unknown metadata key " + key);
     }

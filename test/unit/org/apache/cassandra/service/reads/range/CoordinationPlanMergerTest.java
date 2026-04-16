@@ -419,13 +419,15 @@ public class CoordinationPlanMergerTest
         try (CoordinationPlanIterator originals = new CoordinationPlanIterator(queryRange, null, keyspace, null, ANY); // ANY avoids endpoint erros
              CoordinationPlanMerger merger = new CoordinationPlanMerger(originals, keyspace, null, consistencyLevel))
         {
+            int originalSize = originals.size();
+
             // collect the merged ranges
             List<AbstractBounds<PartitionPosition>> mergedRanges = new ArrayList<>(expected.length);
             while (merger.hasNext())
                 mergedRanges.add(merger.next().replicas().range());
 
             assertFalse("The number of merged ranges should never be greater than the number of original ranges",
-                        mergedRanges.size() > originals.size());
+                        mergedRanges.size() > originalSize);
 
             // verify the merged ranges
             assertEquals(expected.length, mergedRanges.size());

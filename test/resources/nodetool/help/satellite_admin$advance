@@ -1,0 +1,49 @@
+NAME
+        nodetool satellite_admin advance - Advance satellite failover for a
+        keyspace
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] satellite_admin advance
+                [--ack] [--barrier] [--force] [(-r <rangesStr> | --ranges <rangesStr>)]
+                [--] <keyspace>
+
+OPTIONS
+        --ack
+            Only advance through epoch ack and paxos repair (TRANSITION_ACK ->
+            TRANSITION)
+
+        --barrier
+            Only process MT barrier for TRANSITION ranges (TRANSITION -> NORMAL)
+
+        --force
+            Skip gate evaluation and commit state transitions directly
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -r <rangesStr>, --ranges <rangesStr>
+            Token ranges to process (format: start:end,start:end). Defaults to
+            local ranges if not specified.
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <keyspace>
+            The keyspace name

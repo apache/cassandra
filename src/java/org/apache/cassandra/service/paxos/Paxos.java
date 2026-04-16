@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import com.codahale.metrics.Meter;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
@@ -443,6 +444,12 @@ public class Paxos
             return all;
         }
 
+        @VisibleForTesting
+        public EndpointsForToken allLive()
+        {
+            return allLive;
+        }
+
         @Override
         public boolean stillAppliesTo(ClusterMetadata newMetadata)
         {
@@ -484,6 +491,23 @@ public class Paxos
         static Participants get(TableMetadata cfm, DecoratedKey key, ConsistencyLevel consistency)
         {
             return get(cfm, key.getToken(), consistency);
+        }
+
+        /**
+         * Resolve paxos participants for repair. This is to support SatelliteReplicationStrategy failover, which
+         * only allows paxos repair operations and rejects client paxos operations during part of failover
+         */
+        static Participants getForRepair(TableMetadata table, DecoratedKey key, ConsistencyLevel consistency)
+        {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            AbstractReplicationStrategy strategy = Keyspace.open(table.keyspace).getReplicationStrategy();
+            return strategy.paxosParticipantsForRepair(metadata, table, key.getToken(), consistency, FailureDetector.isReplicaAlive);
+        }
+
+        static Participants getForRepair(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistency, Predicate<Replica> isReplicaAlive)
+        {
+            AbstractReplicationStrategy strategy = Keyspace.open(table.keyspace).getReplicationStrategy();
+            return strategy.paxosParticipantsForRepair(metadata, table, token, consistency, isReplicaAlive);
         }
 
         int sizeOfPoll()

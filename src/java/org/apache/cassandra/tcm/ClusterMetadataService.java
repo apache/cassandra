@@ -48,6 +48,7 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.satellites.SatelliteFailoverProcessState;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -308,15 +309,16 @@ public class ClusterMetadataService
                                                     DatabaseDescriptor.getPartitioner(),
                                                     new DistributedSchema(keyspaces),
                                                     Directory.EMPTY,
-                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   LockedRanges.EMPTY,
-                                   InProgressSequences.EMPTY,
-                                   ConsensusMigrationState.EMPTY,
-                                   MutationTrackingMigrationState.EMPTY,
-                                   Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
+                                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                                    DataPlacements.empty(),
+                                                    AccordFastPath.EMPTY,
+                                                    LockedRanges.EMPTY,
+                                                    InProgressSequences.EMPTY,
+                                                    ConsensusMigrationState.EMPTY,
+                                                    MutationTrackingMigrationState.EMPTY,
+                                                    SatelliteFailoverProcessState.EMPTY,
+                                                    Collections.emptyMap(),
+                                                    AccordStaleReplicas.EMPTY);
 
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()

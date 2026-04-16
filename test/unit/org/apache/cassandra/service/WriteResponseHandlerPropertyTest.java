@@ -18,24 +18,37 @@
 
 package org.apache.cassandra.service;
 
-import com.google.common.base.Predicates;
-import com.google.common.collect.ImmutableList;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.locator.*;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.transport.Dispatcher;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableList;
+
+import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
+import org.apache.cassandra.exceptions.WriteFailureException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.locator.CoordinationPlan;
+import org.apache.cassandra.locator.CoordinationPlans;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InOurDc;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.transport.Dispatcher;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.quicktheories.QuickTheory.qt;

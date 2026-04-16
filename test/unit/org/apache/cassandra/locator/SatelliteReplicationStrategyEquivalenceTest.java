@@ -28,13 +28,12 @@ import java.util.Set;
 
 import org.junit.After;
 import org.junit.Test;
-
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;

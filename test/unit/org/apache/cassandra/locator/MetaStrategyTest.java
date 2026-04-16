@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.locator.satellites.SatelliteFailoverProcessState;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.service.accord.AccordFastPath;
 import org.apache.cassandra.service.accord.AccordStaleReplicas;
@@ -97,6 +98,7 @@ public class MetaStrategyTest
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    MutationTrackingMigrationState.EMPTY,
+                                   SatelliteFailoverProcessState.EMPTY,
                                    ImmutableMap.of(),
                                    AccordStaleReplicas.EMPTY);
     }

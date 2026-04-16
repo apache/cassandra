@@ -231,6 +231,7 @@ public final class ServerTestUtils
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
         cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
+        cleanupDirectory(DatabaseDescriptor.getMutationTrackingJournalDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files

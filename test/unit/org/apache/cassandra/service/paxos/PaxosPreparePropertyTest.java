@@ -24,7 +24,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
+import org.quicktheories.core.Gen;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -45,7 +47,6 @@ import org.apache.cassandra.service.paxos.PaxosState.MaybePromise;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.quicktheories.core.Gen;
 
 import static java.util.Collections.emptyMap;
 import static org.quicktheories.QuickTheory.qt;

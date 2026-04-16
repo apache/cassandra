@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
 
 import org.apache.cassandra.db.ConsistencyLevel;

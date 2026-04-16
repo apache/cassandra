@@ -120,6 +120,7 @@ The most commonly used nodetool commands are:
     resetlocalschema                    Reset node's local schema and resync
     resumehandoff                       Resume hints delivery process
     ring                                Print information about the token ring
+    satellite_admin                     Manage satellite datacenter failover
     scrub                               Scrub (rebuild sstables for) one or more tables
     setauthcacheconfig                  Set configuration for Auth cache
     setautorepairconfig                 sets the autorepair configuration

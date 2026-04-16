@@ -173,6 +173,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          ResumeHandoff.class,
                          Ring.class,
                          SSTableRepairedSet.class,
+                         SatelliteAdmin.class,
                          Scrub.class,
                          SetAuthCacheConfig.class,
                          SetAutoRepairConfig.class,

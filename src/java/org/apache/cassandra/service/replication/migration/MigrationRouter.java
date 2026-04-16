@@ -32,13 +32,12 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.NormalizedRanges;
-import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.RangeSplitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkState;
 
@@ -96,43 +95,6 @@ public class MigrationRouter
     }
 
     /**
-     * Adds a split for the non-pending region before pendingRange, if one exists.
-     *
-     * @param isTracked the target replication type (TO_TRACKED=true, TO_UNTRACKED=false)
-     * @return true if remainder ends before pendingRange (no intersection possible)
-     */
-    private static boolean addNonPendingGapIfExists(List<RangeReadWithReplication> result,
-                                                    PartitionRangeReadCommand command,
-                                                    AbstractBounds<PartitionPosition> remainder,
-                                                    Range<Token> pendingRange,
-                                                    boolean isTracked)
-    {
-        Token pendingStart = pendingRange.left;
-        Token remainderStart = remainder.left.getToken();
-        Token remainderEnd = remainder.right.getToken();
-
-        if (remainderStart.compareTo(pendingStart) >= 0)
-            return false; // No gap before pending range
-
-        // Check if remainder ends before pending range starts
-        if (remainderEnd.compareTo(pendingStart) <= 0)
-        {
-            // Entire remainder is before this pending range - no intersection
-            // Non-pending regions use the new protocol (isTracked)
-            addSplit(result, command, remainder, isTracked);
-            return true;
-        }
-
-        // Add the non-pending gap before pending range
-        AbstractBounds<PartitionPosition> gap = remainder.withNewRight(pendingStart.maxKeyBound());
-
-        if (!gap.left.equals(gap.right))
-            addSplit(result, command, gap, isTracked);
-
-        return false;
-    }
-
-    /**
      * Split a range by pending ranges, creating sub-ranges for each contiguous region.
      * <p>
      * If we're migrating to tracked replication, pending ranges use untracked reads, non-pending uses tracked
@@ -146,34 +108,16 @@ public class MigrationRouter
     {
         Preconditions.checkArgument(!AbstractBounds.strictlyWrapsAround(keyRange.left, keyRange.right));
 
-        List<RangeReadWithReplication> result = new ArrayList<>();
-        AbstractBounds<PartitionPosition> remainder = keyRange;
+        List<RangeSplitter.Split> splits = RangeSplitter.splitAtBoundariesTagged(keyRange, pendingRanges);
+        List<RangeReadWithReplication> result = new ArrayList<>(splits.size());
 
-        for (Range<Token> pendingRange : pendingRanges)
+        for (RangeSplitter.Split split : splits)
         {
-            // Add non-pending gap before this pending range (if exists)
-            if (addNonPendingGapIfExists(result, command, remainder, pendingRange, isTracked))
-            {
-                remainder = null;
-                break; // No more remainder to process
-            }
-
-            // Add intersection with pending range
-            Pair<AbstractBounds<PartitionPosition>, AbstractBounds<PartitionPosition>> split =
-            Range.intersectionAndRemainder(remainder, pendingRange);
-
-            // Pending regions use the old protocol (!isTracked)
-            if (split.left != null)
-                addSplit(result, command, split.left, !isTracked);
-
-            remainder = split.right;
-            if (remainder == null)
-                break;
+            // RangeSplitter classifies each sub-range as within (pending) or outside (non-pending) the pending
+            // ranges, so we don't re-derive membership here. Sub-ranges inside pending ranges use the old
+            // protocol; outside use the new protocol.
+            addSplit(result, command, split.range, split.isWithinBoundary ? !isTracked : isTracked);
         }
-
-        // Add final non-pending remainder
-        if (remainder != null)
-            addSplit(result, command, remainder, isTracked);
 
         return result;
     }
@@ -237,11 +181,10 @@ public class MigrationRouter
             return ImmutableList.of(new RangeReadWithReplication(command, isTracked));
 
         // split into pending (untracked) and non-pending (tracked) ranges
-        List<RangeReadWithReplication> result = splitRangeByPendingRanges(
-        command,
-        command.dataRange().keyRange(),
-        tablePendingRanges,
-        isTracked);
+        List<RangeReadWithReplication> result = splitRangeByPendingRanges(command,
+                                                                          command.dataRange().keyRange(),
+                                                                          tablePendingRanges,
+                                                                          isTracked);
 
         // Validate the splits
         validateSplitContiguity(command, result);

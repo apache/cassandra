@@ -25,10 +25,10 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.quicktheories.core.Gen;
 
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.booleans;

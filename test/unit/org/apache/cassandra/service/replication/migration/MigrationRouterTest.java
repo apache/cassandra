@@ -574,6 +574,44 @@ public class MigrationRouterTest
     }
 
     /**
+     * confirm that a (min,min] scan with a pending range in the middle correctly splits up the range
+     */
+    @Test
+    public void testFullRingScanWithBoundedPending()
+    {
+        Range<Token> pendingRange = new Range<>(createToken(0L), createToken(100L));
+
+        ClusterMetadata metadata = createMetadata(true, Collections.singletonList(pendingRange));
+        TableMetadata testTable = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE)
+                                                 .getTableOrViewNullable(TEST_TABLE);
+
+        // Full-ring scan, equivalent to "SELECT * FROM table" without a token() filter.
+        PartitionRangeReadCommand command = PartitionRangeReadCommand.create(
+            testTable,
+            0,
+            ColumnFilter.all(testTable),
+            RowFilter.none(),
+            DataLimits.NONE,
+            DataRange.allData(partitioner));
+
+        List<MigrationRouter.RangeReadWithReplication> splits = MigrationRouter.splitRangeRead(metadata, command);
+
+        // Expected three splits:
+        //   (MIN, 0]    outside pending  -> tracked
+        //   (0, 100]    pending          -> untracked
+        //   (100, MIN]  outside pending  -> tracked  (regression: was misclassified as pending)
+        assertEquals(3, splits.size());
+        assertTrue("Split before pending range should use tracked", splits.get(0).useTracked);
+        assertFalse("Split inside pending range should use untracked", splits.get(1).useTracked);
+        assertTrue("Trailing split (MIN-right) after pending range should use tracked",
+                   splits.get(2).useTracked);
+
+        // Trailing split should extend to the original query's right (MIN.maxKey).
+        assertEquals(command.dataRange().keyRange().right,
+                     splits.get(splits.size() - 1).read.dataRange().keyRange().right);
+    }
+
+    /**
      * Test write routing through MigrationRouter for migration to tracked replication.
      * Writes always use tracked replication regardless of pendingRanges.
      */

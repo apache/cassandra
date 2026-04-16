@@ -685,6 +685,19 @@ public abstract class AbstractReplicationStrategy
     }
 
     /**
+     * Resolve paxos participants for repair. This is to support SatelliteReplicationStrategy failover, which
+     * only allows paxos repair operations and rejects client paxos operations during part of failover
+     */
+    public Paxos.Participants paxosParticipantsForRepair(ClusterMetadata metadata,
+                                                          TableMetadata table,
+                                                          Token token,
+                                                          ConsistencyLevel consistencyForConsensus,
+                                                          Predicate<Replica> isReplicaAlive)
+    {
+        return paxosParticipants(metadata, table, token, consistencyForConsensus, isReplicaAlive);
+    }
+
+    /**
      * Hook for replication strategies to send additional mutations alongside a paxos commit.
      * Called from PaxosCommit.start() after local synchronous execution for tracked keyspaces.
      *

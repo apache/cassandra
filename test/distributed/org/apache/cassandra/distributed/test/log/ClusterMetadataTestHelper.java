@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.satellites.SatelliteFailoverProcessState;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
@@ -169,6 +170,7 @@ public class ClusterMetadataTestHelper
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    MutationTrackingMigrationState.EMPTY,
+                                   SatelliteFailoverProcessState.EMPTY,
                                    ImmutableMap.of(),
                                    AccordStaleReplicas.EMPTY);
     }

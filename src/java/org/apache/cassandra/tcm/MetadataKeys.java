@@ -46,6 +46,7 @@ public class MetadataKeys
     public static final MetadataKey IN_PROGRESS_SEQUENCES   = make(CORE_NS, "sequences", "in_progress");
     public static final MetadataKey CONSENSUS_MIGRATION_STATE = make(CORE_NS, "consensus", "migration_state");
     public static final MetadataKey MUTATION_TRACKING_MIGRATION_STATE = make(CORE_NS, "mutation_tracking", "migration_state");
+    public static final MetadataKey SATELLITE_FAILOVER_STATE = make(CORE_NS, "satellite", "failover_state");
 
     public static final ImmutableMap<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>> CORE_METADATA
     = ImmutableMap.<MetadataKey, Function<ClusterMetadata, MetadataValue<?>>>builder()
@@ -59,6 +60,7 @@ public class MetadataKeys
                   .put(ACCORD_STALE_REPLICAS, cm -> cm.accordStaleReplicas)
                   .put(CONSENSUS_MIGRATION_STATE, cm -> cm.consensusMigrationState)
                   .put(MUTATION_TRACKING_MIGRATION_STATE, cm -> cm.mutationTrackingMigrationState)
+                  .put(SATELLITE_FAILOVER_STATE, cm -> cm.satelliteFailoverState)
                   .build();
 
     public static MetadataKey make(String...parts)

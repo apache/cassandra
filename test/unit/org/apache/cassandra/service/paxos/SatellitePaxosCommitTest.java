@@ -51,6 +51,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Tests for PaxosCommit's augmented commit composition logic.
@@ -282,5 +283,29 @@ public class SatellitePaxosCommitTest
         sendSuccess(handler, replicas.get(1).endpoint());
         assertNotNull("Should fire after quorum", status.get());
         assertTrue("Should be success", status.get().isSuccess());
+    }
+
+    /**
+     * The callback registered by setAugmentedCommitFuture reads the augmentedCommit field, so setting a second future
+     * would leave two callbacks reporting completion to the same AugmentedCommit and break its single-report
+     * invariant. PaxosCommit#start must call it exactly once per commit.
+     */
+    @Test
+    public void testSecondAugmentedCommitFutureRejected() throws Exception
+    {
+        EndpointsForToken replicas = threeReplicas();
+        AtomicReference<PaxosCommit.Status> status = new AtomicReference<>();
+        PaxosCommit<?> handler = createHandler(replicas, 2, status);
+
+        handler.setAugmentedCommitFuture(new AsyncPromise<>());
+        try
+        {
+            handler.setAugmentedCommitFuture(new AsyncPromise<>());
+            fail("Setting a second augmented commit future should be rejected");
+        }
+        catch (IllegalStateException e)
+        {
+            assertTrue(e.getMessage().contains("already set"));
+        }
     }
 }
