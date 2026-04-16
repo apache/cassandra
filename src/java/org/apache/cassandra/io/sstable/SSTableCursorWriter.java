@@ -99,6 +99,7 @@ public class SSTableCursorWriter implements AutoCloseable
     private final DataOutputBuffer rowIndexEntries = new DataOutputBuffer();
     private final IntArrayList rowIndexEntriesOffsets = new IntArrayList();
     private final ClusteringDescriptor rowIndexEntryLastClustering;
+    private boolean hasDistinctLastClustering = false;
     private int indexBlockStartOffset;
     private int rowIndexEntryOffset;
     private final int indexBlockThreshold;
@@ -161,6 +162,7 @@ public class SSTableCursorWriter implements AutoCloseable
         rowIndexEntriesOffsets.clear();
         rowIndexEntryOffset = 0;
         openMarker.resetLive();
+        hasDistinctLastClustering = false;
 
         partitionStart = dataWriter.position();
         writePartitionHeader(partitionKey, partitionKeyLength, partitionDeletionTime);
@@ -554,21 +556,23 @@ public class SSTableCursorWriter implements AutoCloseable
         updateMetadataAndIndexBlock(rangeTombstone, unfilteredStartPosition, unfilteredEndPosition, updateClusteringMetadata);
     }
 
-    private void updateMetadataAndIndexBlock(
-        UnfilteredDescriptor unfilteredDescriptor,
-        long unfilteredStartPosition,
-        long unfilteredEndPosition,
-        boolean updateClusteringMetadata) throws IOException
+    private void updateMetadataAndIndexBlock(UnfilteredDescriptor unfilteredDescriptor,
+                                             long unfilteredStartPosition,
+                                             long unfilteredEndPosition,
+                                             boolean updateClusteringMetadata) throws IOException
     {
         if (updateClusteringMetadata) updateClusteringMetadata(unfilteredDescriptor);
         // write the first clustering into rowIndexEntries buffer (we will need it unless we never write the first entry)
-        if (unfilteredStartPosition == indexBlockStartOffset || (rowIndexEntryOffset == rowIndexEntries.position())) {
+        if (currentOffsetInPartition(unfilteredStartPosition) == indexBlockStartOffset || (rowIndexEntryOffset == rowIndexEntries.position()))
+        {
             writeClusteringToRowIndexEntries(unfilteredDescriptor);
         }
         else
         {
             rowIndexEntryLastClustering.copy(unfilteredDescriptor);
+            hasDistinctLastClustering = true;
         }
+
         /** {@link BigFormatPartitionWriter#addUnfiltered(Unfiltered)} */
         // if we hit the index block size that we have to index after, go ahead and index it.
         long indexBlockSize = currentOffsetInPartition(unfilteredEndPosition) - indexBlockStartOffset;
@@ -597,7 +601,8 @@ public class SSTableCursorWriter implements AutoCloseable
         rowIndexEntriesOffsets.addInt(rowIndexEntryOffset);
 
         // first clustering is already in, write last entry
-        if (rowIndexEntryLastClustering.clusteringLength() == 0) {
+        if (!hasDistinctLastClustering)
+        {
             // first entry is the last entry, copy it
             byte[] entriesData = rowIndexEntries.getData();
             long endOfFirstEntry = rowIndexEntries.position();
@@ -608,6 +613,8 @@ public class SSTableCursorWriter implements AutoCloseable
             writeClusteringToRowIndexEntries(rowIndexEntryLastClustering);
             rowIndexEntryLastClustering.resetClustering();
         }
+        hasDistinctLastClustering = false;
+
         rowIndexEntries.writeUnsignedVInt((long)indexBlockStartOffset);
         rowIndexEntries.writeVInt(indexBlockSize - IndexInfo.Serializer.WIDTH_BASE);
 
