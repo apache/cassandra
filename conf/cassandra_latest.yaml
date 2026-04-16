@@ -1086,7 +1086,7 @@ native_transport_allow_older_protocols: true
 graceful_disconnect_enabled: true
 
 # Time given to clients to stop sending new requests after the GRACEFUL_DISCONNECT event is emitted.
-# graceful_disconnect_grace_period: 30000
+# graceful_disconnect_grace_period: 5000
 
 # The address or interface to bind the native transport server to.
 #

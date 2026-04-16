@@ -796,14 +796,14 @@ public class DatabaseDescriptorTest
     {
         Config config = new Config();
         boolean originalValue = config.graceful_disconnect_enabled;
-        Assert.assertFalse("Default value of graceful_disconnect_enabled must be false", originalValue);
+        Assert.assertTrue("Default value of graceful_disconnect_enabled must be true", originalValue);
     }
 
     @Test
     public void testGracefulDisconnectGracePeriod()
     {
         long originalValue = DatabaseDescriptor.getGracefulDisconnectGracePeriod();
-        Assert.assertEquals("Default value of graceful_disconnect_grace_period must be 30000", 30000, originalValue);
+        Assert.assertEquals("Default value of graceful_disconnect_grace_period must be 5000", 5000, originalValue);
         DatabaseDescriptor.setGracefulDisconnectGracePeriod(3000);
         Assert.assertEquals("graceful_disconnect_grace_period should be updated to 3000", 3000, DatabaseDescriptor.getGracefulDisconnectGracePeriod());
         DatabaseDescriptor.setGracefulDisconnectGracePeriod(originalValue);
