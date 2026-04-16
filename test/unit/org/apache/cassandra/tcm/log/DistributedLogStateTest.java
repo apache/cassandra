@@ -35,6 +35,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
+import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
@@ -76,8 +77,12 @@ public class DistributedLogStateTest extends LogStateTestBase
             }
 
             @Override
-            public void insertRegularEntry()
+            public void insertRegularEntry() throws IOException
             {
+
+                if (currentEpoch == Epoch.FIRST)
+                    DistributedMetadataLogKeyspace.insertPreInitialize(PreInitialize.blank());
+
                 nextEpoch = currentEpoch.nextEpoch();
                 boolean applied = DistributedMetadataLogKeyspace.tryCommit(new Entry.Id(currentEpoch.getEpoch()),
                                                                    CustomTransformation.make((int) currentEpoch.getEpoch()),

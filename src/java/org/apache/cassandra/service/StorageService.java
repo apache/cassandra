@@ -2151,9 +2151,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         else
         {
             // Handling the keyspaces which are not handled by CMS like system keyspace which uses LocalStrategy.
-            AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
-            for (Range<Token> range : ranges)
-                rangeToEndpointMap.put(range, strategy.calculateNaturalReplicas(range.right, metadata));
+            Keyspace ks = Keyspace.openIfExists(keyspace);
+            if (ks != null)
+            {
+                AbstractReplicationStrategy strategy = ks.getReplicationStrategy();
+                for (Range<Token> range : ranges)
+                    rangeToEndpointMap.put(range, strategy.calculateNaturalReplicas(range.right, metadata));
+            }
+            else
+            {
+                throw new IllegalArgumentException("Unknown keyspace " + keyspace);
+            }
         }
 
         return new EndpointsByRange(rangeToEndpointMap);

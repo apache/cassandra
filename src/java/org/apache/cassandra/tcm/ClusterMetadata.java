@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -131,7 +132,7 @@ public class ClusterMetadata
     @VisibleForTesting
     public ClusterMetadata(IPartitioner partitioner, Directory directory)
     {
-        this(partitioner, directory, DistributedSchema.first(directory.knownDatacenters()));
+        this(partitioner, directory, DistributedSchema.empty());
     }
 
     @VisibleForTesting
@@ -216,6 +217,9 @@ public class ClusterMetadata
 
     public Set<InetAddressAndPort> fullCMSMembers()
     {
+        if (epoch.isBefore(Epoch.FIRST))
+            return Collections.emptySet();
+
         if (fullCMSEndpoints == null)
             this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet());
         return fullCMSEndpoints;
@@ -223,6 +227,9 @@ public class ClusterMetadata
 
     public Set<NodeId> fullCMSMemberIds()
     {
+        if (epoch.isBefore(Epoch.FIRST))
+            return Collections.emptySet();
+
         if (fullCMSIds == null)
             this.fullCMSIds = placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet().stream().map(directory::peerId).collect(toImmutableSet());
         return fullCMSIds;
@@ -230,6 +237,9 @@ public class ClusterMetadata
 
     public EndpointsForRange fullCMSMembersAsReplicas()
     {
+        if (epoch.isBefore(Epoch.FIRST))
+            return EndpointsForRange.empty(MetaStrategy.entireRange);
+
         if (fullCMSReplicas == null)
             fullCMSReplicas = placements.get(ReplicationParams.meta(this)).reads.forRange(MetaStrategy.entireRange).get();
         return fullCMSReplicas;
@@ -943,6 +953,15 @@ public class ClusterMetadata
                ", placements=" + placements +
                ", lockedRanges=" + lockedRanges +
                ", consensusMigrationState=" + lockedRanges +
+               '}';
+    }
+
+    public String conciseToString()
+    {
+        return "ClusterMetadata{" + "epoch=" + epoch +
+               ", schema=" + schema.conciseToString() +
+               ", directory=" + directory.conciseToString(tokenMap.asMap()) +
+               ", placements=" + placements.conciseToString() +
                '}';
     }
 

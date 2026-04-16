@@ -287,7 +287,7 @@ public class GossipHelper
         return NodeVersion.fromCassandraVersion(cassandraVersion);
     }
 
-    public static ClusterMetadata emptyWithSchemaFromSystemTables(Set<String> allKnownDatacenters)
+    public static ClusterMetadata emptyWithSchemaFromSystemTables()
     {
         // If this instance was previously upgraded then subsequently downgraded, the metadata keyspace may have been
         // added to system_schema tables. If so, don't include it in the initial schema as this will cause it to be
@@ -297,7 +297,7 @@ public class GossipHelper
                                             .filter(k -> !k.name.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
         return new ClusterMetadata(Epoch.UPGRADE_STARTUP,
                                    DatabaseDescriptor.getPartitioner(),
-                                   DistributedSchema.fromSystemTables(keyspaces, allKnownDatacenters),
+                                   DistributedSchema.fromSystemTables(keyspaces),
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    DataPlacements.empty(),

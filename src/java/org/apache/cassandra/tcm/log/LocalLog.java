@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -277,22 +278,24 @@ public abstract class LocalLog implements Closeable
     @VisibleForTesting
     public void unsafeBootstrapForTesting(InetAddressAndPort addr)
     {
-        bootstrap(addr, "");
+        bootstrap(addr, "", (p) -> {});
     }
 
     /**
-     *
-     * @param addr
-     * @param datacenter
+     * Set up the initial state of the local ClusterMetadata, enacting the PreInitialize transform which sets up the
+     * distributed metadata log keyspace, its replication, and data placements.
+     * @param addr Address of the first CMS member, this should be the local node address
+     * @param datacenter DC of the first CMS member
      */
-    public void bootstrap(InetAddressAndPort addr, String datacenter)
+    public void bootstrap(InetAddressAndPort addr, String datacenter, Consumer<PreInitialize> postBootstrap)
     {
         ClusterMetadata metadata = metadata();
         assert metadata.epoch.isBefore(FIRST) : String.format("Metadata epoch %s should be before first", metadata.epoch);
-        Transformation transform = PreInitialize.withFirstCMS(addr, datacenter);
+        PreInitialize transform = PreInitialize.withFirstCMS(addr, datacenter);
         append(new Entry(Entry.Id.NONE, FIRST, transform));
         metadata = waitForHighestConsecutive();
         assert metadata.epoch.is(Epoch.FIRST) : String.format("Epoch: %s. CMS: %s", metadata.epoch, metadata.fullCMSMembers());
+        postBootstrap.accept(transform);
     }
 
     public LogStorage storage()
@@ -917,7 +920,7 @@ public abstract class LocalLog implements Closeable
     private LogListener snapshotListener()
     {
         return (entry, metadata) -> {
-            if (ClusterMetadataService.state() != ClusterMetadataService.State.LOCAL)
+            if (entry.epoch.isEqualOrBefore(Epoch.FIRST) || ClusterMetadataService.state() != ClusterMetadataService.State.LOCAL)
                 return;
 
             if ((entry.epoch.getEpoch() % DatabaseDescriptor.getMetadataSnapshotFrequency()) == 0)

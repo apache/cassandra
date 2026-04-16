@@ -1946,7 +1946,7 @@ public final class CassandraGenerators
                 Epoch epoch = epochGen.generate(rnd);
                 IPartitioner partitioner = partitionerGen.generate(rnd);
                 Directory directory = Directory.EMPTY;
-                DistributedSchema schema = DistributedSchema.first(directory.knownDatacenters());
+                DistributedSchema schema = DistributedSchema.empty();
                 TokenMap tokenMap = new TokenMap(partitioner);
                 DataPlacements placements = DataPlacements.EMPTY;
                 AccordFastPath accordFastPath = accordFastPathGen.generate(rnd);

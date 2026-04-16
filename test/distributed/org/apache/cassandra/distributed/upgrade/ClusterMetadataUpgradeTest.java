@@ -56,9 +56,9 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
         })
         .runAfterClusterUpgrade((cluster) -> {
             Object [][] r = cluster.get(1).executeInternal("select keyspace_name from system_schema.keyspaces where keyspace_name='system_cluster_metadata'");
-            assertEquals(1, r.length);
+            assertEquals(0, r.length);
             r = cluster.get(1).executeInternal("select table_name from system_schema.tables where keyspace_name='system_cluster_metadata' and table_name='distributed_metadata_log'");
-            assertEquals(1, r.length);
+            assertEquals(0, r.length);
 
             cluster.get(1).nodetoolResult("cms","initialize").asserts().success();
             cluster.forEach(i ->
@@ -67,6 +67,12 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
                 assertFalse("node " + i.config().num() + " is still in MIGRATING STATE",
                             ClusterUtils.isMigrating((IInvokableInstance) i));
             });
+
+            r = cluster.get(1).executeInternal("select keyspace_name from system_schema.keyspaces where keyspace_name='system_cluster_metadata'");
+            assertEquals(1, r.length);
+            r = cluster.get(1).executeInternal("select table_name from system_schema.tables where keyspace_name='system_cluster_metadata' and table_name='distributed_metadata_log'");
+            assertEquals(1, r.length);
+
             cluster.get(2).nodetoolResult("cms", "reconfigure", "3").asserts().success();
             cluster.schemaChange(withKeyspace("create table %s.xyz (id int primary key)"));
             cluster.forEach(i -> {

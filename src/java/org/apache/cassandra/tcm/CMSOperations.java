@@ -154,14 +154,14 @@ public class CMSOperations implements CMSOperationsMBean
         ClusterMetadata metadata = ClusterMetadata.current();
         String members = metadata.fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.joining(","));
         info.put(MEMBERS, members);
-        info.put(NEEDS_RECONFIGURATION, Boolean.toString(needsReconfiguration(metadata)));
+        info.put(NEEDS_RECONFIGURATION, Boolean.toString(metadata.epoch.isBefore(Epoch.FIRST) || needsReconfiguration(metadata)));
         info.put(IS_MEMBER, Boolean.toString(cms.isCurrentMember(FBUtilities.getBroadcastAddressAndPort())));
         info.put(SERVICE_STATE, ClusterMetadataService.state(metadata).toString());
         info.put(IS_MIGRATING, Boolean.toString(cms.isMigrating()));
         info.put(EPOCH, Long.toString(metadata.epoch.getEpoch()));
         info.put(LOCAL_PENDING, Integer.toString(cms.log().pendingBufferSize()));
         info.put(COMMITS_PAUSED, Boolean.toString(cms.commitsPaused()));
-        info.put(REPLICATION_FACTOR, ReplicationParams.meta(metadata).toString());
+        info.put(REPLICATION_FACTOR, metadata.epoch.isBefore(Epoch.FIRST) ? "" : ReplicationParams.meta(metadata).toString());
         info.put(CMS_ID, Integer.toString(metadata.metadataIdentifier));
         return info;
     }
