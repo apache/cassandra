@@ -2,6 +2,7 @@
 
 
 6.0-alpha2
+ * Differentiate between legitimate cases where the first entry is the same as the last entry and empty bounds in SSTableCursorWriter#addIndexBlock() (CASSANDRA-21255)
  * Synchronously publish changes to local gossip state following metadata updates (CASSANDRA-21239)
  * Change default for cassandra.set_sep_thread_name to false to reduce CPU usage (CASSANDRA-21089)
  * Avoid permission checks for masked columns when the table doesn't have any (CASSANDRA-21299)
