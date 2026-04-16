@@ -112,6 +112,7 @@ public final class CompactionParams
     private final ImmutableMap<String, String> options;
     private final boolean isEnabled;
     private final TombstoneOption tombstoneOption;
+    private final boolean onlyPurgeRepairedTombstones;
 
     private CompactionParams(Class<? extends AbstractCompactionStrategy> klass, Map<String, String> options, boolean isEnabled, TombstoneOption tombstoneOption)
     {
@@ -119,6 +120,7 @@ public final class CompactionParams
         this.options = ImmutableMap.copyOf(options);
         this.isEnabled = isEnabled;
         this.tombstoneOption = tombstoneOption;
+        this.onlyPurgeRepairedTombstones = Boolean.parseBoolean(options.get(AbstractCompactionStrategy.ONLY_PURGE_REPAIRED_TOMBSTONES));
     }
 
     public static CompactionParams create(Class<? extends AbstractCompactionStrategy> klass, Map<String, String> options)
@@ -277,6 +279,11 @@ public final class CompactionParams
     public Map<String, String> options()
     {
         return options;
+    }
+
+    public boolean onlyPurgeRepairedTombstones()
+    {
+        return onlyPurgeRepairedTombstones;
     }
 
     public boolean isEnabled()
