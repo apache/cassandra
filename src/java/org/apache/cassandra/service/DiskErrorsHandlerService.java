@@ -54,12 +54,12 @@ public class DiskErrorsHandlerService
             }
             catch (Throwable t)
             {
-                logger.warn("Exception occured while closing disk error handler of class " + oldInstance.getClass().getName(), t);
+                logger.warn("Exception occurred while closing disk error handler of class " + oldInstance.getClass().getName(), t);
             }
         }
         catch (Throwable t)
         {
-            throw new ConfigurationException("Exception occured while initializing disk error handler of class " + newInstance.getClass().getName(), t);
+            throw new ConfigurationException("Exception occurred while initializing disk error handler of class " + newInstance.getClass().getName(), t);
         }
     }
 
