@@ -1067,4 +1067,11 @@ public class DatabaseDescriptorTest
                 assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(mode);
         }
     }
+
+    @Test
+    public void testMaxValueSize()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertEquals(config.max_value_size.toMebibytes() * 1024 * 1024, DatabaseDescriptor.getMaxValueSize());
+    }
 }

@@ -2322,7 +2322,7 @@ public class DatabaseDescriptor
 
     public static int getMaxValueSize()
     {
-        return Ints.saturatedCast(conf.max_value_size.toMebibytes() * 1024L * 1024);
+        return conf.max_value_size.toBytes();
     }
 
     public static void setMaxValueSize(int maxValueSizeInBytes)
