@@ -10,6 +10,8 @@ logs/
 data/
 !test/data
 conf/hotspot_compiler
+doc/cql3/CQL.html
+doc/build/
 lib/
 pylib/src/
 **/cqlshlib.xml
