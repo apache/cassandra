@@ -115,6 +115,7 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
@@ -135,6 +136,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.Promise;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.FutureTask.callable;
@@ -645,7 +647,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     {
         Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction);
         void execute(LifecycleTransaction input) throws IOException;
-        default boolean incompleteOperation() {
+        default boolean incompleteOperation()
+        {
             return false;
         };
     }
@@ -802,24 +805,10 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         if (partitioner.getClass() == LocalPartitioner.class)
             localWrites = RangesAtEndpoint.of(Replica.fullReplica(local, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
 
-        Set<Range<Token>> noLongerOwnedRangesInUseByAccord = new HashSet<>();
-        if (AccordService.isSetup())
-        {
-            if (!localWrites.onlyTransient().ranges().isEmpty())
-            {
-                logger.error("Transient replication is not supported for Accord");
-                return AllSSTableOpStatus.ABORTED;
-            }
+        InUseRanges inUseRanges = getInUseRanges(cfStore.getTableId(), localWrites);
 
-            if (AccordService.instance().getInUseRanges().containsKey(cfStore.getTableId()))
-            {
-                Set<Range<Token>> accordOwnedRanges = AccordService.instance().getInUseRanges().get(cfStore.getTableId());
-                for (Range<Token> range : accordOwnedRanges)
-                    noLongerOwnedRangesInUseByAccord.addAll(range.subtractAll(localWrites.ranges()));
-            }
-        }
-
-        final Set<Range<Token>> allRanges = Stream.concat(localWrites.ranges().stream(), noLongerOwnedRangesInUseByAccord.stream()).collect(Collectors.toSet());
+        final List<Range<Token>> noLongerOwnedRangesInUseByAccord = inUseRanges.noLongerOwnedRangesInUseByAccord;
+        final List<Range<Token>> allRanges = inUseRanges.allRanges;
         final Set<Range<Token>> transientRanges = new HashSet<>(localWrites.onlyTransient().ranges());
         final Set<Range<Token>> fullRanges = new HashSet<>(localWrites.onlyFull().ranges());
 
@@ -839,6 +828,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                     SSTableReader sstable = sstableIter.next();
                     boolean needsCleanupFull = needsCleanup(sstable, fullRanges);
                     boolean needsCleanupTransient = !transientRanges.isEmpty() && sstable.isRepaired() && needsCleanup(sstable, transientRanges);
+                    boolean needsCleanupAccord = needsCleanup(sstable, noLongerOwnedRangesInUseByAccord);
+
                     //If there are no ranges for which the table needs cleanup either due to lack of intersection or lack
                     //of the table being repaired.
                     totalSSTables++;
@@ -855,6 +846,13 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                         transaction.cancel(sstable);
                         skippedSStables++;
                     }
+                    else if (!needsCleanupAccord)
+                    {
+                        sstableIter.remove();
+                        transaction.cancel(sstable);
+                        skippedSStables++;
+                        this.incompleteOperation = true;
+                    }
                 }
 
                 logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
@@ -867,8 +865,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
-                if (doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, noLongerOwnedRangesInUseByAccord))
-                    this.incompleteOperation = true;
+                this.incompleteOperation |= (doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, this.incompleteOperation, noLongerOwnedRangesInUseByAccord));
             }
 
             @Override
@@ -877,6 +874,39 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 return this.incompleteOperation;
             }
         }, jobs, OperationType.CLEANUP);
+    }
+
+    public static class InUseRanges
+    {
+        public List<Range<Token>> noLongerOwnedRangesInUseByAccord;
+        public List<Range<Token>> allRanges;
+
+        public InUseRanges(List<Range<Token>> noLongerOwnedRangesInUseByAccord, List<Range<Token>> allRanges)
+        {
+            this.noLongerOwnedRangesInUseByAccord = noLongerOwnedRangesInUseByAccord;
+            this.allRanges = allRanges;
+        }
+    }
+
+    private InUseRanges getInUseRanges(TableId tableId, RangesAtEndpoint localWrites)
+    {
+        List<Range<Token>> noLongerOwnedRangesInUseByAccord = new ArrayList<>();
+        TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
+
+        if (metadata != null && metadata.isAccordEnabled())
+        {
+            checkState(localWrites.onlyTransient().ranges().isEmpty(), "Transient Replication is not supported with Accord");
+            Map<TableId, Set<Range<Token>>> inUseRanges = AccordService.instance().getInUseRanges();
+            if (inUseRanges.containsKey(tableId))
+            {
+                Set<Range<Token>> accordOwnedTableRanges = inUseRanges.get(tableId);
+                for (Range<Token> range : accordOwnedTableRanges)
+                    noLongerOwnedRangesInUseByAccord.addAll(range.subtractAll(localWrites.ranges()));
+            }
+        }
+
+        Collection<Range<Token>> allRanges = Stream.concat(localWrites.ranges().stream(), noLongerOwnedRangesInUseByAccord.stream()).collect(Collectors.toSet());
+        return new InUseRanges(Range.normalize(noLongerOwnedRangesInUseByAccord), Range.normalize(allRanges));
     }
 
     public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
@@ -1432,25 +1462,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             Keyspace keyspace = cfs.keyspace;
             final RangesAtEndpoint replicas = StorageService.instance.getLocalReplicas(keyspace.getName());
 
-            Set<Range<Token>> noLongerOwnedRangesInUseByAccord = new HashSet<>();
-            if (AccordService.isSetup())
-            {
-                if (!replicas.onlyTransient().ranges().isEmpty())
-                {
-                    logger.error("Transient replication is not supported for Accord");
-                    return;
-                }
+            InUseRanges inUseRanges = getInUseRanges(cfs.getTableId(), replicas);
 
-                if (AccordService.instance().getInUseRanges().containsKey(cfs.getTableId()))
-                {
-                    Set<Range<Token>> accordOwnedRanges = AccordService.instance().getInUseRanges().get(cfs.getTableId());
-                    for (Range<Token> range : accordOwnedRanges)
-                        noLongerOwnedRangesInUseByAccord.addAll(range.subtractAll(replicas.ranges()));
-                }
-            }
-
-            final Set<Range<Token>> allRanges = Stream.concat(replicas.ranges().stream(), noLongerOwnedRangesInUseByAccord.stream()).collect(Collectors.toSet());
-            final Set<Range<Token>> transientRanges = new HashSet<>(replicas.onlyTransient().ranges());
+            final List<Range<Token>> noLongerOwnedRangesInUseByAccord = inUseRanges.noLongerOwnedRangesInUseByAccord;
+            final List<Range<Token>> allRanges = inUseRanges.allRanges;
+            final Set<Range<Token>> transientRanges = replicas.onlyTransient().ranges();
 
             boolean hasIndexes = cfs.indexManager.hasIndexes();
             SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
@@ -1464,7 +1480,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, allRanges, transientRanges, sstable.isRepaired(), FBUtilities.nowInSeconds());
                 try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
                 {
-                    doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes, noLongerOwnedRangesInUseByAccord);
+                    doCleanupOne(cfs, txn, cleanupStrategy, allRanges, hasIndexes, false, noLongerOwnedRangesInUseByAccord);
                 }
                 catch (IOException e)
                 {
@@ -1665,14 +1681,15 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      * @throws IOException
      */
     private boolean doCleanupOne(final ColumnFamilyStore cfs,
-                              LifecycleTransaction txn,
-                              CleanupStrategy cleanupStrategy,
-                              Collection<Range<Token>> allRanges,
-                              boolean hasIndexes,
-                              Collection<Range<Token>> noLongerOwnedRangesInUseByAccord) throws IOException
+                                 LifecycleTransaction txn,
+                                 CleanupStrategy cleanupStrategy,
+                                 Collection<Range<Token>> allRanges,
+                                 boolean hasIndexes,
+                                 boolean alreadyIncomplete,
+                                 Collection<Range<Token>> noLongerOwnedRangesInUseByAccord) throws IOException
     {
         assert !cfs.isIndex();
-        boolean incompleteOperation = false;
+        boolean incompleteOperation = alreadyIncomplete;
 
         SSTableReader sstable = txn.onlyOne();
 
@@ -1723,7 +1740,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                     if (notCleaned == null)
                         continue;
 
-                    if (Range.isInRanges(partition.partitionKey().getToken(), noLongerOwnedRangesInUseByAccord))
+                    if (!noLongerOwnedRangesInUseByAccord.isEmpty() && !incompleteOperation
+                        && Range.isInRanges(partition.partitionKey().getToken(), noLongerOwnedRangesInUseByAccord))
                         incompleteOperation = true;
 
                     if (writer.append(notCleaned) != null)

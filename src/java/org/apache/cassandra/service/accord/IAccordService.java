@@ -19,8 +19,8 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -362,7 +362,7 @@ public interface IAccordService
         @Override
         public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
         {
-            return new HashMap<>();
+            return Collections.emptyMap();
         }
 
         @Override

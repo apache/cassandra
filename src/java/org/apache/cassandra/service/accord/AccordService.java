@@ -1186,13 +1186,12 @@ public class AccordService implements IAccordService, Shutdownable
 
         for (Ranges ranges : globalRanges)
         {
-            ranges.stream().forEach(r -> {
+            for (accord.primitives.Range r : ranges)
+            {
                 TokenRange tokenRange = (TokenRange) r;
-                if (!tableToRangeMap.containsKey(tokenRange.table()))
-                    tableToRangeMap.put(tokenRange.table(), new HashSet<>());
-
-                tableToRangeMap.get(tokenRange.table()).add(tokenRange.toKeyspaceRange());
-            });
+                tableToRangeMap.computeIfAbsent(tokenRange.table(), tableId -> new HashSet<>())
+                               .add(tokenRange.toKeyspaceRange());
+            }
         }
 
         return tableToRangeMap;
