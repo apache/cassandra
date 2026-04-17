@@ -25,7 +25,8 @@ import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 /**
- * A validating transformation that sanity-checks the sequence of RT bounds and boundaries in every partition.
+ * A validating transformation that sanity-checks the sequence of Range Tombstone bounds and boundaries in every
+ * partition.
  *
  * What we validate, specifically:
  * - that open markers are only followed by close markers
@@ -109,7 +110,7 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
         public void onPartitionClose()
         {
             if (enforceIsClosed && null != openMarkerDeletionTime)
-                throw ise("expected all RTs to be closed, but the last one is open");
+                throw ise("expected all Range Tombstones to be closed, but the last one is open");
         }
 
         private IllegalStateException ise(String why)
@@ -119,7 +120,7 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
         private String message(String why)
         {
-            return String.format("%s UnfilteredRowIterator for %s (key: %s omdt: [%s]) has an illegal RT bounds sequence: %s",
+            return String.format("%s UnfilteredRowIterator for %s (key: %s omdt: [%s]) has an illegal Range Tombstone bounds sequence: %s",
                                  stage,
                                  partition.metadata(),
                                  partition.metadata().partitionKeyType.getString(partition.partitionKey().getKey()),
