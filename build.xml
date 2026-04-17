@@ -2220,6 +2220,8 @@
   <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/simulator/test"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/harry/main"/>
   <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
@@ -2229,8 +2231,8 @@
   <classpathentry kind="src" output="build/test/sstableloader-classes" path="tools/sstableloader/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
+  <classpathentry kind="lib" path="${build.classes.main}"/>
   <classpathentry kind="lib" path="test/conf"/>
-  <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
   ${eclipse-libs-list}
 </classpath>
 ]]>
