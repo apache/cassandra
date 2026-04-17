@@ -309,7 +309,7 @@ public class ClusterMetadata
     @SuppressWarnings("unchecked")
     private static <V> V capLastModified(MetadataValue<V> value, Epoch maxEpoch)
     {
-        return value == null || value.lastModified().isEqualOrBefore(maxEpoch)
+        return value == null || (value.lastModified().isEqualOrAfter(Epoch.EMPTY) && value.lastModified().isEqualOrBefore(maxEpoch))
                ? (V)value
                : value.withLastModified(maxEpoch);
     }
