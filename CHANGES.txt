@@ -14,6 +14,7 @@ Merged from 5.0:
 Merged from 4.1:
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 Merged from 4.0:
+ * Backport CASSANDRA-17810 fix and improve RTBoundValidator error messages (CASSANDRA-18282)
  * Rate limit password changes (CASSANDRA-21202)
 
 
