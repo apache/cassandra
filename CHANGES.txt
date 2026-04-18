@@ -1,4 +1,6 @@
 5.0.9
+Merged from 4.1:
+ * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
 Merged from 4.0:
  * Backport CASSANDRA-17810 fix and improve RTBoundValidator error messages (CASSANDRA-18282)
 

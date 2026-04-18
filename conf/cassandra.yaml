@@ -1572,6 +1572,35 @@ dynamic_snitch_reset_interval: 600000ms
 # until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 1.0
 
+# Paxos variant for lightweight transactions (LWTs)
+# Options:
+#   v1
+#          - Legacy Paxos. Expect 4RTs for a write and 3RTs for a read. (default)
+#
+#   v1_without_linearizable_reads_or_rejected_writes
+#          - Legacy Paxos. Expect 4RTs for a write and 2RTs for a read.
+#            With legacy semantics for read/read and rejected write linearizability, i.e. not guaranteed.
+#
+#   v2
+#          - Optimized Paxos. Expect 2RTs for a write, and either 1RT or 2RT for a read. (recommended)
+#
+#   v2_without_linearizable_reads
+#          - Optimized Paxos. Expect 2RTs for a write and 1RT for a read.
+#
+#   v2_without_linearizable_reads_or_rejected_writes
+#          - Optimized Paxos. Expect 2RTs for a write and 1RT for a read.
+#            With legacy semantics for read/read and rejected write linearizability, i.e. not guaranteed.
+#
+# To upgrade from v1:
+#   1. Ensure all nodes are on same Cassandra version 4.1+.
+#   2. Run `nodetool repair --full -pr` on each node.
+#   3. Set paxos_variant: v2 on each node and rolling restart.
+#   Rollback is safe: revert to v1 and rolling restart. No data migration needed.
+#
+# With any v2 variant and `paxos_state_purging: repaired` it is safe to use ANY Commit consistency.
+#
+#paxos_variant: v1
+
 # Configures Java crypto provider. By default, it will use DefaultCryptoProvider
 # which will install Amazon Correto Crypto Provider.
 #
