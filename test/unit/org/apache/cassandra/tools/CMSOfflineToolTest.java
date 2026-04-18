@@ -235,7 +235,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         assertThat(result.getExitCode()).withFailMessage(result.getStdout()).isEqualTo(2);
         assertThat(Files.exists(Paths.get(outputFile))).isFalse();
-        assertThat(result.getStderr()).contains("Did not find any sequences in progress for node " + nodeGettingReplaced);
+        assertThat(result.getStderr()).contains("No transformation sequence is in progress for " + nodeGettingReplaced);
 
         assertCorrectEnvPostTest();
     }
@@ -260,7 +260,8 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         assertThat(result.getExitCode()).withFailMessage(result.getStdout()).isEqualTo(2);
         assertThat(Files.exists(Paths.get(outputFile))).isFalse();
-        assertThat(result.getStderr()).contains("abortbootstrap is not a valid operation when sequence of kind LEAVE");
+        assertThat(result.getStderr()).contains("Sequence of kind LEAVE is in progress for node")
+                                      .contains("Cannot proceed with this operation");
 
         assertCorrectEnvPostTest();
     }
@@ -332,9 +333,9 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         assertThat(result.getExitCode()).withFailMessage(result.getStdout()).isEqualTo(2);
         assertThat(Files.exists(Paths.get(outputFile))).isFalse();
-        assertThat(result.getStderr()).contains("Multi step operation of kind")
+        assertThat(result.getStderr()).contains("Sequence of kind")
                                       .contains("LEAVE")
-                                      .contains("Cannot proceed with abort move");
+                                      .contains("Cannot proceed with this operation");
 
         assertCorrectEnvPostTest();
     }
@@ -410,9 +411,9 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
         assertThat(result.getExitCode()).withFailMessage(result.getStdout()).isEqualTo(2);
         assertThat(Files.exists(Paths.get(outputFile))).isFalse();
-        assertThat(result.getStderr()).contains("Multi step operation of kind")
+        assertThat(result.getStderr()).contains("Sequence of kind")
                                       .contains("MOVE")
-                                      .contains("Cannot proceed with abort decommission");
+                                      .contains("Cannot proceed with this operation");
 
         assertCorrectEnvPostTest();
     }
@@ -1011,7 +1012,8 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         String newNodeIpWithPort = "127.0.0.1:" + getStoragePort();
         String outputFile = temporaryFolder.getRoot() + "/metadata-out.dump";
 
-        ImmutableList<Token> secondNodeTokenList = metadata.tokenMap.tokens(new NodeId(2));
+        NodeId secondNode = new NodeId(2);
+        ImmutableList<Token> secondNodeTokenList = metadata.tokenMap.tokens(secondNode);
 
         ToolRunner.ToolResult result = ToolRunner.invokeClass(CMSOfflineTool.class,
                                                               "move",
@@ -1024,8 +1026,9 @@ public class CMSOfflineToolTest extends OfflineToolUtils
                                                               "-o",
                                                               outputFile);
 
-        assertThat(result.getExitCode()).withFailMessage(result.getStderr()).isEqualTo(2);
+        assertThat(result.getExitCode()).withFailMessage(result.getStdout()).isEqualTo(2);
         assertThat(Files.exists(Paths.get(outputFile))).isFalse();
+        assertThat(result.getStderr()).contains("is already owned by node " + secondNode.id());
 
         assertCorrectEnvPostTest();
     }
@@ -1835,5 +1838,130 @@ public class CMSOfflineToolTest extends OfflineToolUtils
     ClusterMetadata deserializeMetadata(String metadataDumpFile) throws IOException
     {
         return ClusterMetadataService.deserializeClusterMetadata(metadataDumpFile);
+    }
+
+    // -- getSerializationVersion tests --
+
+    @Test
+    public void testDefaultSerializationVersionUsesMetadataVersion() throws IOException
+    {
+        ClusterMetadata metadata = getThreeNodeClusterMetadata();
+        String metadataFile = dumpMetadata(metadata);
+        String outputFile = temporaryFolder.getRoot() + "/metadata-out.dump";
+
+        ToolRunner.ToolResult result = ToolRunner.invokeClass(CMSOfflineTool.class,
+                                                              "resetcms",
+                                                              "-f",
+                                                              metadataFile,
+                                                              "-ip",
+                                                              "127.0.0.1",
+                                                              "-o",
+                                                              outputFile);
+
+        assertThat(result.getExitCode()).withFailMessage(result.getStderr()).isEqualTo(0);
+        assertThat(Files.exists(Paths.get(outputFile))).isTrue();
+
+        try (FileInputStreamPlus fisp = new FileInputStreamPlus(outputFile))
+        {
+            int versionInt = fisp.readUnsignedVInt32();
+            assertThat(Version.fromInt(versionInt)).isEqualTo(metadata.directory.commonSerializationVersion);
+        }
+
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testUserSpecifiedSerializationVersionTakesPrecedence() throws IOException
+    {
+        ClusterMetadata metadata = getThreeNodeClusterMetadata();
+        String metadataFile = dumpMetadata(metadata);
+        String outputFile = temporaryFolder.getRoot() + "/metadata-out.dump";
+        Version userVersion = Version.V7;
+
+        ToolRunner.ToolResult result = ToolRunner.invokeClass(CMSOfflineTool.class,
+                                                              "resetcms",
+                                                              "-f",
+                                                              metadataFile,
+                                                              "-sv",
+                                                              userVersion.toString(),
+                                                              "-ip",
+                                                              "127.0.0.1",
+                                                              "-o",
+                                                              outputFile);
+
+        assertThat(result.getExitCode()).withFailMessage(result.getStderr()).isEqualTo(0);
+        assertThat(Files.exists(Paths.get(outputFile))).isTrue();
+
+        try (FileInputStreamPlus fisp = new FileInputStreamPlus(outputFile))
+        {
+            int versionInt = fisp.readUnsignedVInt32();
+            assertThat(Version.fromInt(versionInt)).isEqualTo(userVersion);
+        }
+
+        // V7 is older than metadata version (V8), so a warning should be emitted
+        assertThat(result.getStderr()).contains("WARNING");
+
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testSerializationVersionNewerThanCurrentFails() throws IOException
+    {
+        ClusterMetadata metadata = getThreeNodeClusterMetadata();
+        String metadataFile = dumpMetadata(metadata);
+        String outputFile = temporaryFolder.getRoot() + "/metadata-out.dump";
+
+        // V8 is the current version; passing a version newer than that should fail.
+        // UNKNOWN has value Integer.MAX_VALUE, which is guaranteed to be newer.
+        ToolRunner.ToolResult result = ToolRunner.invokeClass(CMSOfflineTool.class,
+                                                              "resetcms",
+                                                              "-f",
+                                                              metadataFile,
+                                                              "-sv",
+                                                              Version.UNKNOWN.toString(),
+                                                              "-ip",
+                                                              "127.0.0.1",
+                                                              "-o",
+                                                              outputFile);
+
+        assertThat(result.getExitCode()).withFailMessage(result.getStdout()).isEqualTo(2);
+        assertThat(Files.exists(Paths.get(outputFile))).isFalse();
+        assertThat(result.getStderr()).contains("is older than the target serialization version");
+
+        assertCorrectEnvPostTest();
+    }
+
+    @Test
+    public void testSerializationVersionSameAsMetadataVersion() throws IOException
+    {
+        ClusterMetadata metadata = getThreeNodeClusterMetadata();
+        String metadataFile = dumpMetadata(metadata);
+        String outputFile = temporaryFolder.getRoot() + "/metadata-out.dump";
+        Version metadataVersion = metadata.directory.commonSerializationVersion;
+
+        ToolRunner.ToolResult result = ToolRunner.invokeClass(CMSOfflineTool.class,
+                                                              "resetcms",
+                                                              "-f",
+                                                              metadataFile,
+                                                              "-sv",
+                                                              metadataVersion.toString(),
+                                                              "-ip",
+                                                              "127.0.0.1",
+                                                              "-o",
+                                                              outputFile);
+
+        assertThat(result.getExitCode()).withFailMessage(result.getStderr()).isEqualTo(0);
+        assertThat(Files.exists(Paths.get(outputFile))).isTrue();
+
+        try (FileInputStreamPlus fisp = new FileInputStreamPlus(outputFile))
+        {
+            int versionInt = fisp.readUnsignedVInt32();
+            assertThat(Version.fromInt(versionInt)).isEqualTo(metadataVersion);
+        }
+
+        // Same version as metadata, no warning expected
+        assertThat(result.getStderr()).doesNotContain("WARNING");
+
+        assertCorrectEnvPostTest();
     }
 }

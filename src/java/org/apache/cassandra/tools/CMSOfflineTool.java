@@ -181,46 +181,96 @@ public class CMSOfflineTool implements Runnable
 
         public void writeMetadata(Output output, ClusterMetadata metadata, String outputFilePath) throws IOException
         {
-            Path p = outputFilePath != null ?
-                     Files.createFile(Path.of(outputFilePath)) :
-                     Files.createTempFile("clustermetadata", "dump");
+            Version serializationVersion = getSerializationVersion(metadata);
+            Path p = outputFilePath != null
+                     ? Files.createFile(Path.of(outputFilePath))
+                     : Files.createTempFile("clustermetadata", ".dump");
 
             try (FileOutputStreamPlus out = new FileOutputStreamPlus(p))
             {
-                VerboseMetadataSerializer.serialize(ClusterMetadata.serializer,
-                                                    metadata,
-                                                    out,
-                                                    getSerializationVersion(metadata));
+                VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, metadata, out, serializationVersion);
                 output.out.println("Updated cluster metadata written to file " + p.toAbsolutePath());
             }
         }
 
         Version getSerializationVersion(ClusterMetadata metadata)
         {
-            Version currentVersion = NodeVersion.CURRENT.serializationVersion();
+            // Step 1: Default to the serialization version from the cluster metadata
+            Version finalVersion = metadata.directory.commonSerializationVersion;
+
+            // Step 2: User-specified version takes precedence
             if (serializationVersion != null)
             {
-                // Not a good idea to write metadata using lower serialization version. Ref: CASSANDRA-21174
-                if (currentVersion.isBefore(serializationVersion))
+                // Warn if user-specified version is older than what the metadata was written with
+                if (serializationVersion.isBefore(finalVersion))
                 {
-                    throw new IllegalArgumentException("Given serialization version " + serializationVersion +
-                                                       " is newer compared to current version " + currentVersion + '.');
+                    parent.output.err.printf("WARNING: Given serialization version %s is older than " +
+                                             "the version in cluster metadata (%s). Proceeding as requested.%n",
+                                             serializationVersion, finalVersion);
                 }
-
-                return serializationVersion;
+                finalVersion = serializationVersion;
             }
 
-            Version metadataVersion = metadata.directory.commonSerializationVersion;
-            if (!currentVersion.isAtLeast(metadataVersion))
+            // Step 3: Current binary version must be able to handle the finalized version
+            Version currentVersion = NodeVersion.CURRENT.serializationVersion();
+            if (currentVersion.isBefore(finalVersion))
             {
                 throw new IllegalArgumentException("Current version " + currentVersion +
-                                                   " is older than version in cluster metadata (" +
-                                                   metadataVersion + "). Cannot proceed further. " +
+                                                   " is older than the target serialization version " +
+                                                   finalVersion + ". Cannot proceed further. " +
                                                    "Try modifying cluster metadata using binaries that support " +
-                                                   "minimum serialization version: " + metadataVersion + '.');
+                                                   "minimum serialization version: " + finalVersion + '.');
             }
 
-            return metadataVersion;
+            return finalVersion;
+        }
+    }
+
+    /**
+     * Base class for commands that cancel an in-progress sequence for a given node.
+     * Subclasses specify which sequence kinds they handle via {@link #supportedKinds()} and
+     * may apply additional transformations after cancellation via {@link #postCancel}.
+     */
+    abstract static class AbstractAbortSequence extends ClusterMetadataToolCmd
+    {
+        @CommandLine.ArgGroup(exclusive = true, multiplicity = "1")
+        NodeIdentifierOption nodeIdentifierOption;
+
+        @Option(names = { "-o", "--output-file" },
+        description = "Output file path for storing the updated Cluster Metadata.")
+        String outputFilePath;
+
+        protected abstract EnumSet<MultiStepOperation.Kind> supportedKinds();
+
+        protected ClusterMetadata postCancel(ClusterMetadata metadata, NodeId nodeId)
+        {
+            return metadata;
+        }
+
+        @Override
+        protected void execute(Output output) throws IOException
+        {
+            ClusterMetadata metadata = parseClusterMetadata();
+            NodeId nodeId = nodeIdentifierOption.getNodeId(metadata);
+
+            MultiStepOperation<?> multiStepOperation = metadata.inProgressSequences.get(nodeId);
+            if (multiStepOperation == null)
+            {
+                throw new IllegalArgumentException("No transformation sequence is in progress for " +
+                                                   nodeIdentifierOption.getNodeIpOrId() + '.');
+            }
+
+            if (!supportedKinds().contains(multiStepOperation.kind()))
+            {
+                throw new IllegalArgumentException("Sequence of kind " + multiStepOperation.kind() +
+                                                   " is in progress for node " + nodeIdentifierOption.getNodeIpOrId() +
+                                                   ". Cannot proceed with this operation.");
+            }
+
+            CancelInProgressSequence cancelSequence = new CancelInProgressSequence(nodeId);
+            ClusterMetadata updatedMetadata = cancelSequence.execute(metadata).success().metadata;
+            updatedMetadata = postCancel(updatedMetadata, nodeId);
+            writeMetadata(output, updatedMetadata, outputFilePath);
         }
     }
 
@@ -231,45 +281,21 @@ public class CMSOfflineTool implements Runnable
      */
     @Command(name = "abortbootstrap",
     description = "Aborts bootstrap for given node if in progress.")
-    public static class AbortBootstrap extends ClusterMetadataToolCmd
+    public static class AbortBootstrap extends AbstractAbortSequence
     {
-        @CommandLine.ArgGroup(exclusive = true, multiplicity = "1")
-        NodeIdentifierOption nodeIdentifierOption;
-
-        @Option(names = { "-o", "--output-file" },
-        description = "Output file path for storing the updated cluster metadata.")
-        private String outputFilePath;
+        @Override
+        protected EnumSet<MultiStepOperation.Kind> supportedKinds()
+        {
+            return EnumSet.of(MultiStepOperation.Kind.JOIN, MultiStepOperation.Kind.REPLACE);
+        }
 
         @Override
-        protected void execute(Output output) throws IOException
+        protected ClusterMetadata postCancel(ClusterMetadata metadata, NodeId nodeId)
         {
-            ClusterMetadata metadata = parseClusterMetadata();
-            NodeId nodeId = nodeIdentifierOption.getNodeId(metadata);
-            if (!metadata.inProgressSequences.contains(nodeId))
-            {
-                throw new IllegalArgumentException("Did not find any sequences in progress for node " +
-                                                   nodeIdentifierOption.getNodeIpOrId() + '.');
-            }
-
-            MultiStepOperation<?> multiStepOperation = metadata.inProgressSequences.get(nodeId);
-            MultiStepOperation.Kind sequenceKind = multiStepOperation.kind();
-            if (sequenceKind != MultiStepOperation.Kind.JOIN
-                && sequenceKind != MultiStepOperation.Kind.REPLACE)
-            {
-                throw new IllegalArgumentException("abortbootstrap is not a valid operation when sequence of kind " +
-                                                   sequenceKind + " is in progress.");
-            }
-
-            CancelInProgressSequence cancelSequence = new CancelInProgressSequence(nodeId);
-            ClusterMetadata updatedMetadata = cancelSequence.execute(metadata).success().metadata;
-
-            // Cancelling the sequence is not enough, but we need to unregister as well
+            // Cancelling the sequence is not enough, we need to unregister as well
             Unregister unregister = new Unregister(nodeId, EnumSet.of(NodeState.REGISTERED),
                                                    ClusterMetadataService.instance().placementProvider());
-
-            updatedMetadata = unregister.execute(updatedMetadata).success().metadata;
-
-            writeMetadata(output, updatedMetadata, outputFilePath);
+            return unregister.execute(metadata).success().metadata;
         }
     }
 
@@ -279,38 +305,12 @@ public class CMSOfflineTool implements Runnable
      * sequence is not of kind MOVE.
      */
     @Command(name = "abortmove", description = "Aborts in progress move sequence for given node.")
-    static class AbortMove extends ClusterMetadataToolCmd
+    static class AbortMove extends AbstractAbortSequence
     {
-        @CommandLine.ArgGroup(exclusive = true, multiplicity = "1")
-        NodeIdentifierOption nodeIdentifierOption;
-
-        @Option(names = { "-o", "--output-file" },
-        description = "Output file path for storing the updated Cluster Metadata.")
-        private String outputFilePath;
-
         @Override
-        protected void execute(Output output) throws IOException
+        protected EnumSet<MultiStepOperation.Kind> supportedKinds()
         {
-            ClusterMetadata metadata = parseClusterMetadata();
-            NodeId nodeId = nodeIdentifierOption.getNodeId(metadata);
-
-            MultiStepOperation<?> multiStepOperation = metadata.inProgressSequences.get(nodeId);
-            if (multiStepOperation == null)
-            {
-                throw new IllegalArgumentException("No transformation sequence is in progress for " +
-                                                   nodeIdentifierOption.getNodeIpOrId() + '.');
-            }
-
-            if (multiStepOperation.kind() != MultiStepOperation.Kind.MOVE)
-            {
-                throw new IllegalArgumentException("Multi step operation of kind " + multiStepOperation.kind() +
-                                                   " is in progress for node " + nodeIdentifierOption.getNodeIpOrId() +
-                                                   ". Cannot proceed with abort move.");
-            }
-
-            CancelInProgressSequence cancelSequence = new CancelInProgressSequence(nodeId);
-            ClusterMetadata updatedMetadata = cancelSequence.execute(metadata).success().metadata;
-            writeMetadata(output, updatedMetadata, outputFilePath);
+            return EnumSet.of(MultiStepOperation.Kind.MOVE);
         }
     }
 
@@ -320,38 +320,12 @@ public class CMSOfflineTool implements Runnable
      * the sequence is not of kind LEAVE.
      */
     @Command(name = "abortdecommission", description = "Aborts in progress decommission sequence for given node.")
-    static class AbortDecommission extends ClusterMetadataToolCmd
+    static class AbortDecommission extends AbstractAbortSequence
     {
-        @CommandLine.ArgGroup(exclusive = true, multiplicity = "1")
-        NodeIdentifierOption nodeIdentifierOption;
-
-        @Option(names = { "-o", "--output-file" },
-        description = "Output file path for storing the updated Cluster Metadata.")
-        private String outputFilePath;
-
         @Override
-        protected void execute(Output output) throws IOException
+        protected EnumSet<MultiStepOperation.Kind> supportedKinds()
         {
-            ClusterMetadata metadata = parseClusterMetadata();
-            NodeId nodeId = nodeIdentifierOption.getNodeId(metadata);
-
-            MultiStepOperation<?> multiStepOperation = metadata.inProgressSequences.get(nodeId);
-            if (multiStepOperation == null)
-            {
-                throw new IllegalArgumentException("No transformation sequence is in progress for " +
-                                                   nodeIdentifierOption.getNodeIpOrId() + '.');
-            }
-
-            if (multiStepOperation.kind() != MultiStepOperation.Kind.LEAVE)
-            {
-                throw new IllegalArgumentException("Multi step operation of kind " + multiStepOperation.kind() +
-                                                   " is in progress for node " + nodeIdentifierOption.getNodeIpOrId() +
-                                                   ". Cannot proceed with abort decommission.");
-            }
-
-            CancelInProgressSequence cancelSequence = new CancelInProgressSequence(nodeId);
-            ClusterMetadata updatedMetadata = cancelSequence.execute(metadata).success().metadata;
-            writeMetadata(output, updatedMetadata, outputFilePath);
+            return EnumSet.of(MultiStepOperation.Kind.LEAVE);
         }
     }
 
@@ -450,17 +424,23 @@ public class CMSOfflineTool implements Runnable
         private String outputFilePath;
 
         @Override
-        public void execute(Output output) throws IOException
+        protected void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             NodeId nodeId = nodeIdentifierOption.getNodeId(metadata);
-            InetAddressAndPort nodeAddress = metadata.directory.getNodeAddresses(nodeId).broadcastAddress;
-            metadata = resetCMS(metadata, nodeAddress);
+            metadata = resetCMS(metadata, nodeId);
             writeMetadata(output, metadata, outputFilePath);
         }
 
-        ClusterMetadata resetCMS(ClusterMetadata metadata, InetAddressAndPort endpoint)
+        ClusterMetadata resetCMS(ClusterMetadata metadata, NodeId nodeId)
         {
+            NodeState nodeState = metadata.directory.peerState(nodeId);
+            if (nodeState != NodeState.JOINED)
+            {
+                throw new IllegalArgumentException("Node " + nodeIdentifierOption.getNodeIpOrId() + " is in " +
+                                                   nodeState + " state. Only a JOINED node can be set as CMS member.");
+            }
+            InetAddressAndPort endpoint = metadata.directory.getNodeAddresses(nodeId).broadcastAddress;
             ReplicationParams metaParams = ReplicationParams.meta(metadata);
             Iterable<Replica> currentReplicas = metadata.placements.get(metaParams).writes.byEndpoint().flattenValues();
             DataPlacement.Builder placementBuilder = metadata.placements.get(metaParams).unbuild();
@@ -524,7 +504,8 @@ public class CMSOfflineTool implements Runnable
             Token toToken = metadata.partitioner.getTokenFactory().fromString(token);
             if (metadata.tokenMap.tokens().contains(toToken))
             {
-                throw new IllegalArgumentException("Target token " + toToken + " is already owned by another node.");
+                NodeId tokenOwnerId = metadata.tokenMap.owner(toToken);
+                throw new IllegalArgumentException("Target token " + toToken + " is already owned by node " + tokenOwnerId.id());
             }
             if (metadata.tokenMap.tokens(nodeId).size() > 1)
             {
@@ -549,9 +530,16 @@ public class CMSOfflineTool implements Runnable
 
             Move moveInProgress = (Move) multiStepOperation;
             Collection<Token> inProgressTokens = moveInProgress.tokens;
-            Collection<Token> givenTokenSet = token == null
-                                              ? Set.of()
-                                              : Set.of(metadata.partitioner.getTokenFactory().fromString(token));
+            Collection<Token> givenTokenSet;
+            if (token == null)
+            {
+                givenTokenSet = Set.of();
+            }
+            else
+            {
+                metadata.partitioner.getTokenFactory().validate(token);
+                givenTokenSet = Set.of(metadata.partitioner.getTokenFactory().fromString(token));
+            }
             if (givenTokenSet.isEmpty() || new HashSet<>(moveInProgress.tokens).equals(givenTokenSet))
             {
                 return moveInProgress.applyTo(metadata).success().metadata;
@@ -619,7 +607,7 @@ public class CMSOfflineTool implements Runnable
     static class Describe extends ClusterMetadataToolCmd
     {
         @Override
-        public void execute(Output output) throws IOException
+        protected void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             String members = metadata.fullCMSMembers()
@@ -661,7 +649,7 @@ public class CMSOfflineTool implements Runnable
         private String outputFilePath;
 
         @Override
-        public void execute(Output output) throws IOException
+        protected void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             NodeId nodeId = nodeIdentifierOption.getNodeId(metadata);
@@ -744,7 +732,7 @@ public class CMSOfflineTool implements Runnable
     static class PrintDirectoryCmd extends ClusterMetadataToolCmd
     {
         @Override
-        public void execute(Output output) throws IOException
+        protected void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
             Directory directory = metadata.directory;
@@ -784,7 +772,7 @@ public class CMSOfflineTool implements Runnable
         private String keyspace;
 
         @Override
-        public void execute(Output output) throws IOException
+        protected void execute(Output output) throws IOException
         {
             ClusterMetadata metadata = parseClusterMetadata();
 
@@ -821,11 +809,10 @@ public class CMSOfflineTool implements Runnable
         {
             List<Object[]> rows = new ArrayList<>();
             replicaGroups.forEach(((tokenRange, forRange) -> {
-                Range<Token> range = forRange.get().range();
                 List<String> endpoints = new ArrayList<>(forRange.get().size());
                 forRange.get().forEach(replica -> endpoints.add(replica.endpoint().toString()));
                 String addresses = String.join(", ", endpoints);
-                rows.add(new Object[]{ range, replicaGroupType, addresses });
+                rows.add(new Object[]{ tokenRange, replicaGroupType, addresses });
             }));
             return rows;
         }
