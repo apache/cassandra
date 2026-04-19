@@ -119,6 +119,8 @@ import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.profiler.AsyncProfilerMBean;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.MutationTrackingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.AsyncProfilerService;
 import org.apache.cassandra.service.AutoRepairService;
@@ -190,6 +192,7 @@ public class NodeProbe implements AutoCloseable
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
     protected AutoRepairServiceMBean autoRepairProxy;
+    protected MutationTrackingServiceMBean mutationTrackingProxy;
     protected AsyncProfilerMBean asyncProfilerProxy;
     protected GuardrailsMBean grProxy;
     protected volatile Output output;
@@ -338,6 +341,10 @@ public class NodeProbe implements AutoCloseable
 
             name = new ObjectName(AutoRepairService.MBEAN_NAME);
             autoRepairProxy = JMX.newMBeanProxy(mbeanServerConn, name, AutoRepairServiceMBean.class);
+
+            name = new ObjectName(MutationTrackingService.MBEAN_NAME);
+            if (mbeanServerConn.isRegistered(name))
+                mutationTrackingProxy = JMX.newMBeanProxy(mbeanServerConn, name, MutationTrackingServiceMBean.class);
 
             name = new ObjectName(AsyncProfilerService.MBEAN_NAME);
             asyncProfilerProxy = JMX.newMBeanProxy(mbeanServerConn, name, AsyncProfilerMBean.class);
@@ -2846,6 +2853,31 @@ public class NodeProbe implements AutoCloseable
         {
             throw new IOException("Invalid keyspace or table name", e);
         }
+    }
+
+    public boolean isMutationTrackingDisabled()
+    {
+        return mutationTrackingProxy == null;
+    }
+
+    public boolean getMutationTrackingBackgroundReconciliationEnabled()
+    {
+        return mutationTrackingProxy.getMutationTrackingBackgroundReconciliationEnabled();
+    }
+
+    public void setMutationTrackingBackgroundReconciliationEnabled(boolean enabled)
+    {
+        mutationTrackingProxy.setMutationTrackingBackgroundReconciliationEnabled(enabled);
+    }
+
+    public long getMutationTrackingBackgroundReconciliationIntervalMilliseconds()
+    {
+        return mutationTrackingProxy.getMutationTrackingBackgroundReconciliationIntervalMilliseconds();
+    }
+
+    public void setMutationTrackingBackgroundReconciliationIntervalMilliseconds(long intervalMilliseconds)
+    {
+        mutationTrackingProxy.setMutationTrackingBackgroundReconciliationIntervalMilliseconds(intervalMilliseconds);
     }
 }
 

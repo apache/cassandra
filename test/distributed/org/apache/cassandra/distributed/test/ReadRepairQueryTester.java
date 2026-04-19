@@ -120,9 +120,11 @@ public abstract class ReadRepairQueryTester extends TestBaseImpl
     @BeforeClass
     public static void setupCluster() throws IOException
     {
-        cluster = init(Cluster.build(NUM_NODES)
+        // Disable background reconciler for read repair tests to avoid having the
+        // background reconciler repair before the read repair takes effect
+        cluster = init(disableBackgroundReconciler(Cluster.build(NUM_NODES)
                               .withConfig(config -> config.set("read_request_timeout", "1m")
-                                                          .set("write_request_timeout", "1m"))
+                                                          .set("write_request_timeout", "1m")))
                               .start());
     }
 

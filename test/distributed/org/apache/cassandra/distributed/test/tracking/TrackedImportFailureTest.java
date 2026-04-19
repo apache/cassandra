@@ -164,7 +164,7 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
     {
         ActivationRequest.Phase phase = COMMIT;
         int MISSED_ACTIVATION = 2;
-        try (Cluster cluster = cluster(TrackedTransferTestBase.ByteBuddyInjections.SkipActivation.install(MISSED_ACTIVATION)))
+        try (Cluster cluster = disableBackgroundReconciler(cluster(TrackedTransferTestBase.ByteBuddyInjections.SkipActivation.install(MISSED_ACTIVATION))))
         {
             TrackedTransferTestBase.ByteBuddyInjections.SkipActivation.setup(cluster, phase);
             createSchema(cluster);

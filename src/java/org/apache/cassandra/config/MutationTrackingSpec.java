@@ -22,4 +22,12 @@ public class MutationTrackingSpec
 {
     public boolean enabled = false;
     public String journal_directory;
+    /**
+     * Whether the background reconciliation process is enabled
+     */
+    public volatile boolean background_reconciliation_enabled = true;
+    /**
+     * The interval in which the backgroun reconciliation process runs
+     */
+    public volatile DurationSpec.LongMillisecondsBound background_reconciliation_interval = new DurationSpec.LongMillisecondsBound("1s");
 }
