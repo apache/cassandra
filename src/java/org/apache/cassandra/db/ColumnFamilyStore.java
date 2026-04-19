@@ -1530,6 +1530,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 metric.topWritePartitionSize.addSample(key.getKey(), update.dataSize());
             StorageHook.instance.reportWrite(metadata.id, update);
             metric.writeLatency.addNano(nanoTime() - start);
+            metric.totalRowsWritten.inc(update.affectedRowCount());
             // CASSANDRA-11117 - certain resolution paths on memtable put can result in very
             // large time deltas, either through a variety of sentinel timestamps (used for empty values, ensuring
             // a minimal write, etc). This limits the time delta to the max value the histogram
