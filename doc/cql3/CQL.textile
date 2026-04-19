@@ -1252,7 +1252,7 @@ It is also possible to "group" @CLUSTERING COLUMNS@ together in a relation using
 bc(sample). 
 SELECT * FROM posts WHERE userid='john doe' AND (blog_title, posted_at) > ('John''s Blog', '2012-01-01')
 
-will request all rows that sorts after the one having "John's Blog" as @blog_tile@ and '2012-01-01' for @posted_at@ in the clustering order. In particular, rows having a @post_at <= '2012-01-01'@ will be returned as long as their @blog_title > 'John''s Blog'@, which wouldn't be the case for:
+will request all rows that sorts after the one having "John's Blog" as @blog_title@ and '2012-01-01' for @posted_at@ in the clustering order. In particular, rows having a @posted_at <= '2012-01-01'@ will be returned as long as their @blog_title > 'John''s Blog'@, which wouldn't be the case for:
 
 bc(sample). 
 SELECT * FROM posts WHERE userid='john doe' AND blog_title > 'John''s Blog' AND posted_at > '2012-01-01'
