@@ -83,6 +83,8 @@ public class KeyspaceMetrics
     public final Histogram sstablesPerReadHistogram;
     /** Histogram of the number of sstable data files accessed per partition range read */
     public final Histogram sstablesPerRangeReadHistogram;
+    /** Histogram of rows mutated per write request in this keyspace. */
+    public final Histogram rowsMutatedPerWriteHistogram;
     /** Tombstones scanned in queries on this Keyspace */
     public final Histogram tombstoneScannedHistogram;
     /** Purgeable tombstones scanned in queries on this Keyspace */
@@ -255,6 +257,7 @@ public class KeyspaceMetrics
         // create histograms for TableMetrics to replicate updates to
         sstablesPerReadHistogram = createKeyspaceHistogram("SSTablesPerReadHistogram", true);
         sstablesPerRangeReadHistogram = createKeyspaceHistogram("SSTablesPerRangeReadHistogram", true);
+        rowsMutatedPerWriteHistogram = createKeyspaceHistogram("RowsMutatedPerWriteHistogram", false);
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
         purgeableTombstoneScannedHistogram = createKeyspaceHistogram("PurgeableTombstoneScannedHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);

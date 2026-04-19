@@ -19,6 +19,8 @@
 package org.apache.cassandra.metrics;
 
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.codahale.metrics.Counter;
 
@@ -28,6 +30,7 @@ import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -66,18 +69,22 @@ public class ClientRequestSizeMetrics
 
         int rowCount = 0;
         int columnCount = 0;
+        Map<TableId, Integer> rowsMutatedPerRequest = new HashMap<>();
 
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 columnCount += update.affectedColumnCount();
-                rowCount += update.affectedRowCount();
+                int affectedRows = update.affectedRowCount();
+                rowCount += affectedRows;
+                rowsMutatedPerRequest.merge(update.metadata().id, affectedRows, Integer::sum);
             }
         }
 
         ClientRequestSizeMetrics.totalColumnsWritten.inc(columnCount);
         ClientRequestSizeMetrics.totalRowsWritten.inc(rowCount);
+        incrementRowsMutatedPerWriteRequest(rowsMutatedPerRequest);
     }
 
     public static void recordRowAndColumnCountMetrics(PartitionUpdate update)
@@ -86,6 +93,20 @@ public class ClientRequestSizeMetrics
             return;
 
         ClientRequestSizeMetrics.totalColumnsWritten.inc(update.affectedColumnCount());
-        ClientRequestSizeMetrics.totalRowsWritten.inc(update.affectedRowCount());
+        int affectedRows = update.affectedRowCount();
+        ClientRequestSizeMetrics.totalRowsWritten.inc(affectedRows);
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(update.metadata().id);
+        if (cfs != null)
+            cfs.metric.rowsMutatedPerWriteHistogram.update(affectedRows);
+    }
+
+    private static void incrementRowsMutatedPerWriteRequest(Map<TableId, Integer> rowsMutatedPerRequest)
+    {
+        for (Map.Entry<TableId, Integer> entry : rowsMutatedPerRequest.entrySet())
+        {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(entry.getKey());
+            if (cfs != null)
+                cfs.metric.rowsMutatedPerWriteHistogram.update(entry.getValue());
+        }
     }
 }

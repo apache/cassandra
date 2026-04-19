@@ -31,6 +31,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -219,11 +220,13 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     public void shouldRecordWriteMetricsForSingleValueRow()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        ColumnFamilyStore cfs = currentTableStore();
 
         executeNet(CURRENT, "INSERT INTO %s (pk, ck, v) VALUES (1, 1, 1)");
 
         assertEquals(1, ClientRequestSizeMetrics.totalRowsWritten.getCount());
         assertEquals(1, ClientRequestSizeMetrics.totalColumnsWritten.getCount());
+        assertEquals(1, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
     }
 
     @Test
@@ -254,6 +257,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     public void shouldRecordWriteMetricsForBatch() throws Exception
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int)");
+        ColumnFamilyStore cfs = currentTableStore();
 
         try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, CURRENT))
         {
@@ -269,7 +273,13 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
             // The metrics should reflect the batch as a single write operation with multiple rows and columns.
             assertEquals(2, ClientRequestSizeMetrics.totalRowsWritten.getCount());
             assertEquals(4, ClientRequestSizeMetrics.totalColumnsWritten.getCount());
+            assertEquals(1, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
         }
+    }
+
+    private ColumnFamilyStore currentTableStore()
+    {
+        return ColumnFamilyStore.getIfExists(KEYSPACE, currentTable());
     }
 
     @Test

@@ -238,6 +238,8 @@ public class TableMetrics
     public final SnapshottingTimer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
     public final SnapshottingTimer coordinatorWriteLatency;
+    /** Histogram of rows mutated per write request on this table. */
+    public final TableHistogram rowsMutatedPerWriteHistogram;
 
     private final TableMetricNameFactory factory;
     private final TableMetricNameFactory aliasFactory;
@@ -816,6 +818,7 @@ public class TableMetrics
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency");
+        rowsMutatedPerWriteHistogram = createTableHistogram("RowsMutatedPerWriteHistogram", cfs.keyspace.metric.rowsMutatedPerWriteHistogram, false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
