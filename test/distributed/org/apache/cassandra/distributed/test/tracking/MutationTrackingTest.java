@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -49,9 +50,15 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingReadReconciliationTest.awaitNodeAlive;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingReadReconciliationTest.awaitNodeDead;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertMatchingSummaryIdSpaceForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.getOnlyLogId;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.numLogReconciliations;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryForKey;
 import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 // TODO This test would be a lot faster if it had a shared cluster
@@ -434,6 +441,164 @@ public class MutationTrackingTest extends TestBaseImpl
                     return summary.get(logId).unreconciled.offsetCount() == 0
                            && summary.get(logId).reconciled.offsetCount() == 1;
                 }), 10);
+        }
+    }
+
+    @Test
+    public void testBackgroundPullReconciliation() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("write_request_timeout", "1000ms"))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                                              "AND replication_type='tracked'"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int)"));
+
+            // 1. Partition node 3 and pause push-side retries on all nodes
+            cluster.filters().allVerbs().to(3).drop();
+            cluster.filters().allVerbs().from(3).drop();
+            for (int i = 1; i <= 2; i++)
+                cluster.get(i).runOnInstance(() -> Gossiper.instance.convict(InetAddressAndPort.getByNameUnchecked("127.0.0.3"), Double.MAX_VALUE));
+
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> {
+                    MutationTrackingService.instance().pauseActiveReconciler();
+                    MutationTrackingService.instance().pauseBackgroundReconciler();
+                });
+
+            // wait until node 1 marks node 3 as dead
+            awaitNodeDead(cluster.get(1), cluster.get(3));
+
+            // 2. Write at QUORUM - succeeds on nodes 1, 2 but node 3 won't get the write
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"),
+                                           ConsistencyLevel.QUORUM);
+
+            // Sleep one second until write timeout elapses
+            TimeUnit.SECONDS.sleep(1);
+
+            // 3. Capture expected state from node 1
+            MutationSummary expected = summaryForKey(cluster.get(1), KEYSPACE, "tbl", /* key */1);
+
+            // 4. Ensure node 3 does NOT have the mutation yet
+            cluster.get(3).runOnInstance(() -> {
+                TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, "tbl");
+                assertNotNull(table);
+                DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1));
+                MutationSummary summary = MutationTrackingService.instance()
+                                                                 .createSummaryForKey(dk, table.id, false);
+                assertTrue("Node 3 should have no mutations yet", summary.isEmpty());
+            });
+
+            // 5. Reset state for node 3, let broadcasts propagate
+            cluster.filters().reset();
+            awaitNodeAlive(cluster.get(1), cluster.get(3));
+            awaitNodeAlive(cluster.get(3), cluster.get(1));
+
+            // Now broadcast offsets so node 3 learns what nodes 1 and 2 have
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().resumeActiveReconciler());
+
+            // 6. Trigger the background reconciler on node 3 ONLY (no reads, no push retries)
+            cluster.get(3).runOnInstance(() -> {
+                MutationTrackingService.instance().resumeBackgroundReconciler();
+                MutationTrackingService.instance().reconcileForTesting();
+            });
+
+            // 7. Wait for the pull request to be processed and mutation to arrive
+            TimeUnit.SECONDS.sleep(2);
+
+            // Broadcast again so reconciliation state converges
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+
+            // 8. Verify node 3 now has the mutation (pulled via background reconciler)
+            assertMatchingSummaryIdSpaceForKey(cluster.get(3), KEYSPACE, "tbl", /* key */1, expected);
+
+            // 9. Verify no read reconciliation was triggered
+            assertEquals(0, numLogReconciliations(cluster.get(3)));
+        }
+    }
+
+    @Test
+    public void testBackgroundPullReconciliationWhenCoordinatorDown() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3).withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                                     .with(Feature.GOSSIP)
+                                                                     .set("write_request_timeout", "1000ms"))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                                              "AND replication_type='tracked'"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int)"));
+
+            // 1. Pause push-side retires and background reconciler on all nodes
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> {
+                    MutationTrackingService.instance().pauseActiveReconciler();
+                    MutationTrackingService.instance().pauseBackgroundReconciler();
+                });
+
+            // 2. Partition node 3, then write at QUORUM from coordinator (node 1)
+            cluster.filters().allVerbs().to(3).drop();
+            cluster.filters().allVerbs().from(3).drop();
+            awaitNodeDead(cluster.get(1), cluster.get(3));
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"),
+                                           ConsistencyLevel.QUORUM);
+
+            // Sleep one second until write timeout elapses
+            TimeUnit.SECONDS.sleep(1);
+
+            // 3. Capture expected state from node 1 (before we partition it)
+            MutationSummary expected = summaryForKey(cluster.get(1), KEYSPACE, "tbl", 1);
+
+            // 4. Heal node 3, then partition node 1 (the coordinator)
+            cluster.filters().reset();
+            awaitNodeAlive(cluster.get(2), cluster.get(3));
+            awaitNodeAlive(cluster.get(3), cluster.get(2));
+
+            cluster.filters().allVerbs().to(1).drop();
+            cluster.filters().allVerbs().from(1).drop();
+            for (int i = 2; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> Gossiper.instance.convict(InetAddressAndPort.getByNameUnchecked("127.0.0.1"), Double.MAX_VALUE));
+            awaitNodeDead(cluster.get(3), cluster.get(1));
+            awaitNodeDead(cluster.get(2), cluster.get(1));
+
+            // 5. Broadcast offsets between nodes 2 and 3 only (Node 3 learns what node 2 has witnessed
+            // should discover the gap)
+            for (int i = 2; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+
+            // 6. Trigger background reconciler on node 3. Coordinator is down, so it is expected to fallback to node 2
+            //    (the remaining alive replica)
+            cluster.get(3).runOnInstance(() -> {
+                MutationTrackingService.instance().resumeBackgroundReconciler();
+                MutationTrackingService.instance().reconcileForTesting();
+            });
+
+            // 7. Resume the active reconciler on instance 2, so whenever instance 2 receives the request
+            //    it will process the PULL_MUTATIONS_REQ verb
+            cluster.get(2).runOnInstance(() -> MutationTrackingService.instance().resumeActiveReconciler());
+
+            // Wait for the pull request to be processed and mutation to arrive
+            TimeUnit.SECONDS.sleep(2);
+
+            // Broadcast again so reconciliation state converges
+            for (int i = 2; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+
+            // 8. Verify node 3 pulled the mutation from node 2 (the fallback replica)
+            assertMatchingSummaryIdSpaceForKey(cluster.get(3), KEYSPACE, "tbl", 1, expected);
+
+            // 9. Verify no read reconciliation was involved
+            assertEquals(0, numLogReconciliations(cluster.get(3)));
         }
     }
 }

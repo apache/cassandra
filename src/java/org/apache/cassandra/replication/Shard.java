@@ -299,6 +299,22 @@ public class Shard
         return new BroadcastLogOffsets(keyspace, range, offsets, durable);
     }
 
+    /**
+     * @return the list of the collected locally missing offsets for the logs owned by this coordinator on
+     * this shard
+     */
+    List<Offsets.Immutable> collectLocallyMissingOffsets()
+    {
+        List<Offsets.Immutable> result = new ArrayList<>(logs.size());
+        for (CoordinatorLog log : logs.values())
+        {
+            Offsets.Immutable missing = log.collectLocallyMissingOffsets();
+            if (missing != null)
+                result.add(missing);
+        }
+        return result;
+    }
+
     void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
     {
         logs.values().forEach(log -> log.collectDurablyReconciledOffsets(into));

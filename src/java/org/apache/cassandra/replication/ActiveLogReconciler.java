@@ -173,6 +173,7 @@ public final class ActiveLogReconciler implements Shutdownable
             MutationTrackingService.instance().retryFailedWrite(mutationId, toHost, failureReason);
         }
 
+        @Override
         void send()
         {
             RecordPointer pointer = MutationJournal.instance().lookUp(mutationId);

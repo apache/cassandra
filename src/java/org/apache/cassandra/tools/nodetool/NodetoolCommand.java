@@ -147,6 +147,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          ListSnapshots.class,
                          Move.Abort.class,
                          Move.class,
+                         MTAdmin.class,
                          NetStats.class,
                          PauseHandoff.class,
                          ProfileLoad.class,

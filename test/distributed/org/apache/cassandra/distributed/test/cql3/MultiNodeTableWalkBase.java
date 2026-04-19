@@ -81,7 +81,8 @@ public abstract class MultiNodeTableWalkBase extends SingleNodeTableWalkTest
          .set("read_request_timeout", "180s")
          .set("write_request_timeout", "180s")
          .set("native_transport_timeout", "180s")
-         .set("slow_query_log_timeout", "180s");
+         .set("slow_query_log_timeout", "180s")
+         .set("mutation_tracking.background_reconciliation_enabled", "false");
     }
 
     @Override

@@ -43,9 +43,9 @@ public class OffsetBroadcastTest extends TestBaseImpl
     @Test
     public void testBroadcastOffsets() throws Throwable
     {
-        try (Cluster cluster = Cluster.build(3)
-                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
-                                      .start())
+        try (Cluster cluster = disableBackgroundReconciler(Cluster.build(3)
+                                                                  .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP)))
+                                                                  .start())
         {
 
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +

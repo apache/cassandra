@@ -27,6 +27,6 @@ public class TrackedNonZeroCopyRepairTransferTest extends TrackedRepairTransferS
     @BeforeClass
     public static void setup() throws IOException
     {
-        cluster = cluster(NON_ZCS_CONFIG);
+        cluster = disableBackgroundReconciler(cluster(NON_ZCS_CONFIG));
     }
 }

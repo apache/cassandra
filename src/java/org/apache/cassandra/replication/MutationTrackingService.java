@@ -49,6 +49,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.MutationTrackingSpec;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -87,6 +89,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
@@ -96,19 +99,25 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 // TODO (expected): persistence (handle restarts)
 // TODO (expected): handle topology changes
-public class MutationTrackingService
+public class MutationTrackingService implements MutationTrackingServiceMBean
 {
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=MutationTrackingService";
     public static final String DISABLED_MESSAGE = "Mutation tracking is not enabled. (See mutation_tracking.enabled in cassandra.yaml)";
 
     private static final MutationTrackingService instance;
     private static final ScheduledExecutorPlus executor;
 
+    private static final MutationTrackingSpec config;
+
     static
     {
-        if (DatabaseDescriptor.getMutationTrackingEnabled())
+        config = DatabaseDescriptor.getMutationTrackingConfig();
+
+        if (config.enabled)
         {
             instance = new MutationTrackingService();
             executor = executorFactory().scheduled("Mutation-Tracking-Service", NORMAL);
+            MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
         }
         else
         {
@@ -129,12 +138,12 @@ public class MutationTrackingService
 
     public static boolean isEnabled()
     {
-        return DatabaseDescriptor.getMutationTrackingEnabled();
+        return config.enabled;
     }
 
     public static void ensureEnabled()
     {
-        if (!DatabaseDescriptor.getMutationTrackingEnabled())
+        if (!config.enabled)
             throw new IllegalStateException(DISABLED_MESSAGE);
     }
 
@@ -188,6 +197,7 @@ public class MutationTrackingService
     private final ReplicatedOffsetsBroadcaster offsetsBroadcaster = new ReplicatedOffsetsBroadcaster();
     private final LogStatePersister offsetsPersister = new LogStatePersister();
     private final ActiveLogReconciler activeReconciler = new ActiveLogReconciler();
+    private final BackgroundReconciler backgroundReconciler = new BackgroundReconciler();
 
     private final IncomingMutations incomingMutations = new IncomingMutations();
     private final OutgoingMutations outgoingMutations = new OutgoingMutations();
@@ -223,12 +233,51 @@ public class MutationTrackingService
 
         onNewClusterMetadata(null, metadata);
 
+        if (!keyspaceShards.isEmpty() && !config.background_reconciliation_enabled)
+            logBackgroundReconciliationDisabledWarning(keyspaceShards.keySet());
+
         offsetsBroadcaster.start();
         offsetsPersister.start();
+        backgroundReconciler.start();
 
         ExpiredStatePurger.instance.register(incomingMutations);
 
         started = true;
+    }
+
+    @Override
+    public void setMutationTrackingBackgroundReconciliationEnabled(boolean enabled)
+    {
+        if (enabled != config.background_reconciliation_enabled)
+        {
+            logger.info("{} mutation tracking background reconciliation", enabled ? "Enabling" : "Disabling");
+            config.background_reconciliation_enabled = enabled;
+        }
+    }
+
+    @Override
+    public boolean getMutationTrackingBackgroundReconciliationEnabled()
+    {
+        return config.background_reconciliation_enabled;
+    }
+
+    @Override
+    public void setMutationTrackingBackgroundReconciliationIntervalMilliseconds(long intervalMilliseconds)
+    {
+        if (intervalMilliseconds  != config.background_reconciliation_interval.toMilliseconds())
+        {
+            DurationSpec.LongMillisecondsBound backgroundReconciliationInterval =
+            new DurationSpec.LongMillisecondsBound(intervalMilliseconds, TimeUnit.MILLISECONDS);
+            logger.info("Setting mutation tracking background reconciliation interval from {} to {}",
+                        config.background_reconciliation_interval, backgroundReconciliationInterval);
+            config.background_reconciliation_interval = backgroundReconciliationInterval;
+        }
+    }
+
+    @Override
+    public long getMutationTrackingBackgroundReconciliationIntervalMilliseconds()
+    {
+        return config.background_reconciliation_interval.toMilliseconds();
     }
 
     public void pauseOffsetBroadcast(boolean pause)
@@ -862,6 +911,14 @@ public class MutationTrackingService
             // recalculating the shards will repopulate this via the existing callbacks
             log2ShardMap = new ConcurrentHashMap<>();
             keyspaceShards = applyUpdatedMetadata(keyspaceShards, prev, next, this::nextLogId, this::onNewLog);
+
+            if (!config.background_reconciliation_enabled)
+            {
+                Set<String> newKeyspaces = new HashSet<>(keyspaceShards.keySet());
+                newKeyspaces.removeAll(originalKeyspaceShards.keySet());
+                if (!newKeyspaces.isEmpty())
+                    logBackgroundReconciliationDisabledWarning(newKeyspaces);
+            }
         }
         catch (Throwable t)
         {
@@ -1045,6 +1102,12 @@ public class MutationTrackingService
         }
 
         return unwrapped;
+    }
+
+    private void logBackgroundReconciliationDisabledWarning(Set<String> keyspaces)
+    {
+        logger.warn("Background reconciliation is disabled but mutation tracking keyspaces exist: {}. " +
+                    "Unreconciled mutations will not be automatically repaired in the background.", keyspaces);
     }
 
     public static class KeyspaceShards
@@ -1374,6 +1437,93 @@ public class MutationTrackingService
         return rows.one().getInt("host_log_id");
     }
 
+    private static class BackgroundReconciler
+    {
+        void start()
+        {
+            scheduleNext();
+        }
+
+        private void scheduleNext()
+        {
+            long intervalMillis = config.background_reconciliation_interval.toMilliseconds();
+            executor.schedule(this::runAndReschedule, intervalMillis, TimeUnit.MILLISECONDS);
+        }
+
+        private void runAndReschedule()
+        {
+            try
+            {
+                run();
+            }
+            finally
+            {
+                scheduleNext();
+            }
+        }
+
+        void run()
+        {
+            MutationTrackingService.instance().forEachKeyspace(this::run);
+        }
+
+        private void run(KeyspaceShards shards)
+        {
+            if (config.background_reconciliation_enabled)
+                shards.forEachShard(this::run);
+        }
+
+        private void run(Shard shard)
+        {
+            try
+            {
+                List<Offsets.Immutable> missing = shard.collectLocallyMissingOffsets();
+                if (missing.isEmpty()) return;
+
+                for (Offsets.Immutable offsets : missing)
+                {
+                    // Prefer pulling from the coordinator
+                    int coordinatorHostId = offsets.logId().hostId();
+                    InetAddressAndPort coordinator = ClusterMetadata.current().directory.endpoint(new NodeId(coordinatorHostId));
+                    InetAddressAndPort pullFrom = FailureDetector.instance.isAlive(coordinator)
+                                                  ? coordinator
+                                                  : findAliveReplica(shard, coordinatorHostId);
+                    if (pullFrom == null)
+                    {
+                        logger.debug("No coordinator or replica is available to process the pull mutation request for missing offset {}",
+                                     offsets);
+                        continue; // No reachable source
+                    }
+
+                    // TODO (expected): backoff, rate limits, per host and total
+                    PullMutationsRequest request = new PullMutationsRequest(offsets);
+                    logger.trace("Requesting pull mutation request from replica {} for missing offset {}", pullFrom, offsets);
+                    MessagingService.instance().send(Message.out(Verb.PULL_MUTATIONS_REQ, request), pullFrom);
+                }
+            }
+            catch (Throwable throwable)
+            {
+                // Avoid throwing an exception in the reconciliation step to prevent the scheduled task from
+                // being killed
+                logger.error("Exception encountered during background reconciliation of shard={}", shard, throwable);
+            }
+        }
+
+        private InetAddressAndPort findAliveReplica(Shard shard, int excludeHostId)
+        {
+            for (InetAddressAndPort replica : shard.remoteReplicas())
+            {
+                int replicaId = ClusterMetadata.current().directory.peerId(replica).id();
+                if (replicaId != excludeHostId && FailureDetector.instance.isAlive(replica))
+                {
+                    logger.trace("Found alive replica {} with replica id {}", replica, replicaId);
+                    return replica;
+                }
+            }
+            return null;
+        }
+    }
+
     // TODO (later): a more intelligent heuristic for offsets included in broadcasts
     private static class ReplicatedOffsetsBroadcaster
     {
@@ -1507,6 +1657,24 @@ public class MutationTrackingService
     public void resumeActiveReconcilerRegularPriority()
     {
         activeReconciler.resumeRegularPriorityForTesting();
+    }
+
+    @VisibleForTesting
+    public void reconcileForTesting()
+    {
+        backgroundReconciler.run();
+    }
+
+    @VisibleForTesting
+    public void pauseBackgroundReconciler()
+    {
+        config.background_reconciliation_enabled = false;
+    }
+
+    @VisibleForTesting
+    public void resumeBackgroundReconciler()
+    {
+        config.background_reconciliation_enabled = true;
     }
 
     @VisibleForTesting

@@ -89,7 +89,7 @@ public class PartialUpdateHandlingTest extends TestBaseImpl
     @BeforeClass
     public static void setUpCluster() throws IOException
     {
-        CLUSTER = Cluster.build(NODES).withConfig(config -> config.set("hinted_handoff_enabled", false).with(GOSSIP).with(NETWORK)).start();
+        CLUSTER = disableBackgroundReconciler(Cluster.build(NODES).withConfig(config -> config.set("hinted_handoff_enabled", false).with(GOSSIP).with(NETWORK))).start();
 
         for (ReplicationType replicationType : ReplicationType.values())
         {

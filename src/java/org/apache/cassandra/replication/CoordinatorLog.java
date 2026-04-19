@@ -271,6 +271,39 @@ public abstract class CoordinatorLog
         }
     }
 
+    /**
+     * @return the computed union of remote-witnessed offsets minus local-witnessed offsets
+     */
+    @Nullable
+    Offsets.Immutable collectLocallyMissingOffsets()
+    {
+        lock.readLock().lock();
+        try
+        {
+            Offsets.Mutable local = witnessedOffsets.get(localNodeId);
+            Offsets.Immutable.Builder missing = null;
+            for (int i = 0; i < participants.size(); i++)
+            {
+                int nodeId = participants.get(i);
+                if (nodeId == localNodeId) continue;
+                Offsets.Immutable diff = Offsets.Immutable.difference(witnessedOffsets.get(nodeId), local);
+                if (!diff.isEmpty())
+                {
+                    if (missing == null)
+                    {
+                        missing = new Offsets.Immutable.Builder(logId);
+                    }
+                    missing.addAll(diff);
+                }
+            }
+            return missing != null ? missing.build() : null;
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     Offsets.Immutable collectReconciledOffsets()
     {
         lock.readLock().lock();

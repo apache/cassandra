@@ -88,8 +88,10 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
                                                                      .set("repair_request_timeout", "2s")
                                                                      .set("stream_transfer_task_timeout", "10s");
 
-    protected static final Consumer<IInstanceConfig> ZCS_CONFIG = CONFIG.andThen(cfg -> cfg.set("stream_entire_sstables", true));
-    protected static final Consumer<IInstanceConfig> NON_ZCS_CONFIG = CONFIG.andThen(cfg -> cfg.set("stream_entire_sstables", false));
+    protected static final Consumer<IInstanceConfig> ZCS_CONFIG = CONFIG.andThen(cfg -> cfg.set("stream_entire_sstables", true)
+                                                                                           .set("mutation_tracking.background_reconciliation_enabled", false));
+    protected static final Consumer<IInstanceConfig> NON_ZCS_CONFIG = CONFIG.andThen(cfg -> cfg.set("stream_entire_sstables", false)
+                                                                                               .set("mutation_tracking.background_reconciliation_enabled", false));
 
     protected static final IIsolatedExecutor.SerializableConsumer<SSTableReader> TRANSFERS_EXIST = sstable -> {
         Assertions.assertThat(sstable.getCoordinatorLogOffsets().transfers()).isNotEmpty();

@@ -6059,6 +6059,11 @@ public class DatabaseDescriptor
         }
     }
 
+    public static MutationTrackingSpec getMutationTrackingConfig()
+    {
+        return conf.mutation_tracking;
+    }
+
     public static boolean getMutationTrackingEnabled()
     {
         return conf.mutation_tracking.enabled;

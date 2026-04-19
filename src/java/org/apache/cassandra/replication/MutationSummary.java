@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.Long2ObjectHashMap;
@@ -274,7 +275,8 @@ public class MutationSummary
         return summaries.size();
     }
 
-    boolean isEmpty()
+    @VisibleForTesting
+    public boolean isEmpty()
     {
         return size() == 0;
     }

@@ -158,7 +158,8 @@ public class StatefulASTBase extends TestBaseImpl
 
     protected void clusterConfig(IInstanceConfig config)
     {
-        config.set("repair.retries.max_attempts", Integer.MAX_VALUE);
+        config.set("repair.retries.max_attempts", Integer.MAX_VALUE)
+              .set("mutation_tracking.background_reconciliation_enabled", "false");
     }
 
     protected void clusterInitializer(ClassLoader cl, int node)

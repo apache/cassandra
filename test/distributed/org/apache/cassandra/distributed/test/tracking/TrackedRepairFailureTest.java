@@ -65,7 +65,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
     @Test
     public void testFullRepairPartiallyCompleteAnomaly() throws IOException, ExecutionException, InterruptedException, TimeoutException
     {
-        try (Cluster cluster = cluster(StreamReceiverFailureHelper::install))
+        try (Cluster cluster = disableBackgroundReconciler(cluster(StreamReceiverFailureHelper::install)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
             String TABLE_SCHEMA_CQL = "CREATE TABLE " + tableWithKeyspace(KEYSPACE) + " (k INT PRIMARY KEY, v INT)";
@@ -192,7 +192,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
     @Test
     public void testFullRepairCleanupOnFailure() throws IOException, ExecutionException, InterruptedException, TimeoutException
     {
-        try (Cluster cluster = cluster(StreamReceiverFailureHelper::install))
+        try (Cluster cluster = disableBackgroundReconciler(cluster(StreamReceiverFailureHelper::install)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
             String TABLE_SCHEMA_CQL = "CREATE TABLE " + KEYSPACE + '.' + TABLE + " (k INT PRIMARY KEY, v INT)";
@@ -259,7 +259,7 @@ public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
     @Test
     public void testRepairFailsOnMissedActivation() throws IOException
     {
-        try (Cluster cluster = cluster(ByteBuddyInjections.SkipActivation.install(2, 3)))
+        try (Cluster cluster = disableBackgroundReconciler(cluster(ByteBuddyInjections.SkipActivation.install(2, 3))))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
             cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(KEYSPACE) + " (k INT PRIMARY KEY, v INT)");
