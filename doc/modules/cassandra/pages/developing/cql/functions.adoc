@@ -32,7 +32,7 @@ include::cassandra:example$BNF/function.bnf[]
 
 ==== Cast
 
-The `cast` function can be used to converts one native datatype to
+The `cast` function can be used to convert one native datatype to
 another.
 
 The following table describes the conversions supported by the `cast`
