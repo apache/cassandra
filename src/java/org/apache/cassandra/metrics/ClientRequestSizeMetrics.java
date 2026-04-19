@@ -25,9 +25,11 @@ import com.codahale.metrics.Counter;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.Selection;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -41,13 +43,17 @@ public class ClientRequestSizeMetrics
     public static final Counter totalColumnsWritten = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "ColumnsWritten", null));
     public static final Counter totalRowsWritten = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "RowsWritten", null));
 
-    public static void recordReadResponseMetrics(ResultMessage.Rows rows, StatementRestrictions restrictions, Selection selection)
+    public static void recordReadResponseMetrics(ResultMessage.Rows rows,
+                                                 StatementRestrictions restrictions,
+                                                 Selection selection,
+                                                 TableMetadata table)
     {
         if (!DatabaseDescriptor.getClientRequestSizeMetricsEnabled())
             return;
 
         int rowCount = rows.result.size();
         ClientRequestSizeMetrics.totalRowsRead.inc(rowCount);
+        incrementTableRowsRead(table, rowCount);
         
         int nonRestrictedColumns = selection.getColumns().size();
         
@@ -72,7 +78,9 @@ public class ClientRequestSizeMetrics
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 columnCount += update.affectedColumnCount();
-                rowCount += update.affectedRowCount();
+                int affectedRows = update.affectedRowCount();
+                rowCount += affectedRows;
+                incrementTableRowsMutated(update.metadata(), affectedRows);
             }
         }
 
@@ -86,6 +94,22 @@ public class ClientRequestSizeMetrics
             return;
 
         ClientRequestSizeMetrics.totalColumnsWritten.inc(update.affectedColumnCount());
-        ClientRequestSizeMetrics.totalRowsWritten.inc(update.affectedRowCount());
+        int affectedRows = update.affectedRowCount();
+        ClientRequestSizeMetrics.totalRowsWritten.inc(affectedRows);
+        incrementTableRowsMutated(update.metadata(), affectedRows);
+    }
+
+    private static void incrementTableRowsRead(TableMetadata table, int rowCount)
+    {
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(table.id);
+        if (cfs != null)
+            cfs.metric.rowsRead.inc(rowCount);
+    }
+
+    private static void incrementTableRowsMutated(TableMetadata table, int rowCount)
+    {
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(table.id);
+        if (cfs != null)
+            cfs.metric.rowsMutated.inc(rowCount);
     }
 }

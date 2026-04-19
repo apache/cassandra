@@ -122,6 +122,10 @@ public class KeyspaceMetrics
     public final Counter speculativeInsufficientReplicas;
     /** Needed to write to a transient replica to satisfy quorum **/
     public final Counter additionalWrites;
+    /** Total number of rows returned to clients for this keyspace. */
+    public final Counter rowsRead;
+    /** Total number of rows mutated for this keyspace. */
+    public final Counter rowsMutated;
     /** Number of started repairs as coordinator on this keyspace */
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this keyspace */
@@ -279,6 +283,8 @@ public class KeyspaceMetrics
         speculativeFailedRetries = createKeyspaceCounter("SpeculativeFailedRetries", metric -> metric.speculativeFailedRetries.getCount());
         speculativeInsufficientReplicas = createKeyspaceCounter("SpeculativeInsufficientReplicas", metric -> metric.speculativeInsufficientReplicas.getCount());
         additionalWrites = createKeyspaceCounter("AdditionalWrites", metric -> metric.additionalWrites.getCount());
+        rowsRead = createKeyspaceCounter("RowsRead", metric -> metric.rowsRead.getCount());
+        rowsMutated = createKeyspaceCounter("RowsMutated", metric -> metric.rowsMutated.getCount());
         repairsStarted = createKeyspaceCounter("RepairJobsStarted", metric -> metric.repairsStarted.getCount());
         repairsCompleted = createKeyspaceCounter("RepairJobsCompleted", metric -> metric.repairsCompleted.getCount());
         repairTime =createKeyspaceTimer("RepairTime");

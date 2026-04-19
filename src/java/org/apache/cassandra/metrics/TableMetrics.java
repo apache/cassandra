@@ -238,6 +238,10 @@ public class TableMetrics
     public final SnapshottingTimer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
     public final SnapshottingTimer coordinatorWriteLatency;
+    /** Total number of rows returned to clients for this table. */
+    public final Counter rowsRead;
+    /** Total number of rows mutated for this table. */
+    public final Counter rowsMutated;
 
     private final TableMetricNameFactory factory;
     private final TableMetricNameFactory aliasFactory;
@@ -816,6 +820,8 @@ public class TableMetrics
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency");
+        rowsRead = createTableCounter("RowsRead");
+        rowsMutated = createTableCounter("RowsMutated");
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table

@@ -423,7 +423,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                            unmask);
         }
         if (!SchemaConstants.isSystemKeyspace(table.keyspace))
-            ClientRequestSizeMetrics.recordReadResponseMetrics(rows, restrictions, selection);
+            ClientRequestSizeMetrics.recordReadResponseMetrics(rows, restrictions, selection, table);
 
         return rows;
     }
