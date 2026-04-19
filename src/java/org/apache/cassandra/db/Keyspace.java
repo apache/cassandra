@@ -577,6 +577,7 @@ public class Keyspace
                 }
 
                 cfs.getWriteHandler().write(upd, ctx, updateIndexes);
+                cfs.metric.rowsMutatedPerWriteHistogram.update(upd.affectedRowCount());
 
                 if (requiresViewUpdate)
                     baseComplete.set(currentTimeMillis());

@@ -214,6 +214,30 @@ public class TableMetricsTest
     }
 
     @Test
+    public void testRowsMutatedPerWriteHistogram()
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
+
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (1, 'a', 'b')", KEYSPACE, TABLE));
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (1, 'c', 'd')", KEYSPACE, TABLE));
+
+        assertEquals(2, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
+        assertGreaterThan(cfs.metric.rowsMutatedPerWriteHistogram.cf.getSnapshot().getMax(), 0);
+
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
+                           row("org.apache.cassandra.metrics.Table.RowsMutatedPerWriteHistogram.junit.tablemetricstest",
+                               "junit.tablemetricstest",
+                               "histogram",
+                               String.valueOf(cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount())));
+        assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
+                           row("org.apache.cassandra.metrics.ColumnFamily.RowsMutatedPerWriteHistogram.junit.tablemetricstest",
+                               "junit.tablemetricstest",
+                               "histogram",
+                               String.valueOf(cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount())));
+    }
+
+    @Test
     public void testLoggedPartitionsPerBatch()
     {
         ColumnFamilyStore cfs = recreateTable();

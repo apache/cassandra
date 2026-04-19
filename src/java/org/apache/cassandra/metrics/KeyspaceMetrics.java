@@ -89,6 +89,8 @@ public class KeyspaceMetrics
     public final Histogram purgeableTombstoneScannedHistogram;
     /** Live cells scanned in queries on this Keyspace */
     public final Histogram liveScannedHistogram;
+    /** Rows mutated in writes on this Keyspace */
+    public final Histogram rowsMutatedPerWriteHistogram;
     /** Column update time delta on this Keyspace */
     public final Histogram colUpdateTimeDeltaHistogram;
     /** time taken acquiring the partition lock for materialized view updates on this keyspace */
@@ -258,6 +260,7 @@ public class KeyspaceMetrics
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
         purgeableTombstoneScannedHistogram = createKeyspaceHistogram("PurgeableTombstoneScannedHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);
+        rowsMutatedPerWriteHistogram = createKeyspaceHistogram("RowsMutatedPerWriteHistogram", false);
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
         viewLockAcquireTime = createKeyspaceTimer("ViewLockAcquireTime");
         viewReadTime = createKeyspaceTimer("ViewReadTime");

@@ -166,6 +166,8 @@ public class TableMetrics
     public final TableHistogram purgeableTombstoneScannedHistogram;
     /** Live rows scanned in queries on this CF */
     public final TableHistogram liveScannedHistogram;
+    /** Rows mutated in writes on this CF */
+    public final TableHistogram rowsMutatedPerWriteHistogram;
     /** Column update time delta on this CF */
     public final TableHistogram colUpdateTimeDeltaHistogram;
     /** time taken acquiring the partition lock for materialized view updates for this table */
@@ -812,6 +814,7 @@ public class TableMetrics
         tombstoneScannedHistogram = createTableHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram, false);
         purgeableTombstoneScannedHistogram = createTableHistogram("PurgeableTombstoneScannedHistogram", cfs.keyspace.metric.purgeableTombstoneScannedHistogram, true);
         liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram, false);
+        rowsMutatedPerWriteHistogram = createTableHistogram("RowsMutatedPerWriteHistogram", cfs.keyspace.metric.rowsMutatedPerWriteHistogram, false);
         colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram, false);
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
