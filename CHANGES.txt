@@ -1,3 +1,6 @@
+7.0
+
+
 6.0-alpha2
  * Change default for cassandra.set_sep_thread_name to false to reduce CPU usage (CASSANDRA-21089)
  * Avoid permission checks for masked columns when the table doesn't have any (CASSANDRA-21299)
