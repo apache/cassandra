@@ -106,9 +106,12 @@ public class UpgradeTestBase extends DistributedTestBase
                                                                          .addEdge(v40, v41)
                                                                          .addEdge(v40, v50)
                                                                          .addEdge(v40, v60)
+                                                                         .addEdge(v40, v70)
                                                                          .addEdge(v41, v50)
                                                                          .addEdge(v41, v60)
+                                                                         .addEdge(v41, v70)
                                                                          .addEdge(v50, v60)
+                                                                         .addEdge(v50, v70)
                                                                          .addEdge(v60, v70)
                                                                          .build();
 
