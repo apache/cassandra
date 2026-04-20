@@ -81,6 +81,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
         }
 
+        logger.info("Proposed CMS reconfiguration resulted in {}", diff);
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
         Set<NodeId> cms = prev.fullCMSMembers().stream().map(prev.directory::peerId).collect(Collectors.toSet());
         Set<NodeId> tmp = new HashSet<>(cms);

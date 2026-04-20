@@ -1503,6 +1503,7 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
     public volatile DurationSpec.LongSecondsBound discovery_timeout = new DurationSpec.LongSecondsBound("30s");
     public boolean unsafe_tcm_mode = false;
+    public boolean legacy_state_listener_sync_local_updates = true;
 
     public enum TriggersPolicy
     {
