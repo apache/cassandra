@@ -120,8 +120,9 @@ public class LegacyStateListener implements ChangeListener
             case JOINED:
                 tokensForGossip = next.tokenMap.tokens(localId);
                 SystemKeyspace.updateTokens(next.directory.endpoint(localId), tokensForGossip);
+                Set<String> userKeyspaces = Schema.instance.getUserKeyspaces().names();
                 StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                             .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                             .filter(cfs -> userKeyspaces.contains(cfs.keyspace.getName()))
                              .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
                 NodeState previousState = prev.directory.peerState(localId);
                 if (previousState == MOVING)
@@ -221,8 +222,7 @@ public class LegacyStateListener implements ChangeListener
     {
         for (InetAddressAndPort remove : removed)
         {
-            GossipHelper.removeFromGossip(remove);
-            GossipHelper.evictFromMembership(remove);
+            GossipHelper.removeAndEvict(remove);
             PeersTable.removeFromSystemPeersTables(remove);
         }
     }

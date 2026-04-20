@@ -105,9 +105,12 @@ public class GossipHelper
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(addr));
     }
 
-    public static void evictFromMembership(InetAddressAndPort endpoint)
+    public static void removeAndEvict(InetAddressAndPort endpoint)
     {
-        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.evictFromMembership(endpoint));
+        Gossiper.runInGossipStageBlocking(() -> {
+            Gossiper.instance.removeEndpoint(endpoint);
+            Gossiper.instance.evictFromMembership(endpoint);
+        });
     }
 
     public static VersionedValue nodeStateToStatus(NodeId nodeId,
