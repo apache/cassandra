@@ -225,16 +225,18 @@ public class TableMetricsTest
         assertEquals(2, cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount());
         assertGreaterThan(cfs.metric.rowsMutatedPerWriteHistogram.cf.getSnapshot().getMax(), 0);
 
+        String histogramMedian = Double.toString(cfs.metric.rowsMutatedPerWriteHistogram.cf.getSnapshot().getMedian());
+
         assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.table_group"),
                            row("org.apache.cassandra.metrics.Table.RowsMutatedPerWriteHistogram.junit.tablemetricstest",
                                "junit.tablemetricstest",
                                "histogram",
-                               String.valueOf(cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount())));
+                               histogramMedian));
         assertRowsContains(cluster, session.execute("SELECT * FROM system_metrics.column_family_group"),
                            row("org.apache.cassandra.metrics.ColumnFamily.RowsMutatedPerWriteHistogram.junit.tablemetricstest",
                                "junit.tablemetricstest",
                                "histogram",
-                               String.valueOf(cfs.metric.rowsMutatedPerWriteHistogram.cf.getCount())));
+                               histogramMedian));
     }
 
     @Test
