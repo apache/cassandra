@@ -161,7 +161,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
 {
-    public static class MetadataChangeListener implements ChangeListener.Async
+    public static class MetadataChangeListener implements ChangeListener
     {
         // Listener is initialized before Accord is initialized
         public static MetadataChangeListener instance = new MetadataChangeListener();

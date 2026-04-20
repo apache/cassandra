@@ -27,13 +27,17 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -51,12 +55,18 @@ public class JoinTokenRingTest
     @Test
     public void testIndexPreJoinInvocation() throws IOException, ExecutionException, InterruptedException
     {
-        ClusterMetadataTestHelper.addEndpoint(FBUtilities.getBroadcastAddressAndPort(),
-                                              ClusterMetadata.current().partitioner.getRandomToken());
-        ScheduledExecutors.optionalTasks.submit(() -> null).get(); // make sure the LegacyStateListener has finished executing
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        ClusterMetadataTestHelper.addEndpoint(local, ClusterMetadata.current().partitioner.getRandomToken());
+
         SecondaryIndexManager indexManager = ColumnFamilyStore.getIfExists("JoinTokenRingTestKeyspace7", "Indexed1").indexManager;
         StubIndex stub = (StubIndex) indexManager.getIndexByName("Indexed1_value_index");
         Assert.assertTrue(stub.preJoinInvocation);
+
+        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(local);
+        Assert.assertNotNull(epState);
+        VersionedValue statusValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
+        Assert.assertNotNull(statusValue);
+        Assert.assertTrue(statusValue.value.contains(VersionedValue.STATUS_NORMAL));
     }
 
 
