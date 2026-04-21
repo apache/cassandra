@@ -1,5 +1,6 @@
 7.0
 Merged from 6.0:
+ * Differentiate between legitimate cases where the first entry is the same as the last entry and empty bounds in SSTableCursorWriter#addIndexBlock() (CASSANDRA-21255)
  * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
 
 6.0-alpha2
