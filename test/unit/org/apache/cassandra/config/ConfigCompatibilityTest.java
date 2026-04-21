@@ -176,6 +176,13 @@ public class ConfigCompatibilityTest
                                                                .build(), ImmutableSet.of());
     }
 
+    @Test
+    public void diff_7_0() throws IOException
+    {
+        diff(TEST_DIR + "/version=7.0-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .build(), ImmutableSet.of());
+    }
+
     private void diff(String original, Set<String> ignore, Set<String> expectedErrors) throws IOException
     {
         Class<Config> type = Config.class;
