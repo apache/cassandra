@@ -1,5 +1,6 @@
 7.0
-
+Merged from 6.0:
+ * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
 
 6.0-alpha2
  * Synchronously publish changes to local gossip state following metadata updates (CASSANDRA-21239)
