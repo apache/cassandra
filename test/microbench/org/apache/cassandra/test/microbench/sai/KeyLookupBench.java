@@ -215,7 +215,8 @@ public class KeyLookupBench
 
         private List<String> generateUniqueSortedStrings(TreeSet<String> uniqueStrings)
         {
-            while (uniqueStrings.size() < partitionSize)
+            int totalNeededValues = partitionSize * table.comparator.size();
+            while (uniqueStrings.size() < totalNeededValues)
             {
                 String candidate = makeClusteringString();
                 uniqueStrings.add(candidate);
@@ -229,9 +230,11 @@ public class KeyLookupBench
                 return Clustering.EMPTY;
 
             ByteBuffer[] values = new ByteBuffer[table.comparator.size()];
-            String nextString = sortedStrings.get(currentIndex++);
             for (int index = 0; index < table.comparator.size(); index++)
+            {
+                String nextString = sortedStrings.get(currentIndex++);
                 values[index] = table.comparator.subtype(index).fromString(nextString);
+            }
             return Clustering.make(values);
         }
 
