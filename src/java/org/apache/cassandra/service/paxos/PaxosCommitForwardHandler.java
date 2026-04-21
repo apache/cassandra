@@ -28,17 +28,21 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * Handler for forwarded Paxos V1 commit requests.
- * Executes the commit operation on behalf of the original coordinator,
- * ensuring that MutationId generation happens on a replica coordinator.
+ * Routes the commit to the tracked or untracked path based on the current
+ * migration state of the keyspace for the affected partition.
  *
  * TODO (expected): more comprehensive testing
+ * TODO: should loop on CoordinatorBehindException rather than propagating failure to the forwarding coordinator
  */
 public class PaxosCommitForwardHandler implements IVerbHandler<PaxosCommitForwardRequest>
 {
@@ -48,35 +52,59 @@ public class PaxosCommitForwardHandler implements IVerbHandler<PaxosCommitForwar
     @Override
     public void doVerb(Message<PaxosCommitForwardRequest> message)
     {
-        // PaxosV1 when doing commit picks whatever the current replicas are to send the commits to
-        // so make sure we at least match what they would have picked
-        ClusterMetadataService.instance().fetchLogFromPeerOrCMS(message.from(), message.header.epoch);
         PaxosCommitForwardRequest request = message.payload;
+        Commit proposal = request.proposal;
 
-        Tracing.trace("Executing forwarded Paxos commit for {}", request.proposal.partitionKey());
+        Tracing.trace("Executing forwarded Paxos commit for {}", proposal.partitionKey());
 
         try
         {
-            String ksName = request.proposal.metadata().keyspace;
+            String ksName = proposal.metadata().keyspace;
             Keyspace keyspace = Keyspace.openIfExists(ksName);
             if (keyspace == null)
             {
                 MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
-                logger.error("Failed to forward paxos commit for non-existent keyspace {}", ksName);
+                logger.error("Failed to forward paxos commit for non-existent keyspace {}.{} partition {}",
+                             ksName, proposal.metadata().name, proposal.partitionKey());
                 return;
             }
 
-            if (!keyspace.getMetadata().params.replicationType.isTracked())
+            ClusterMetadata metadata = ClusterMetadata.current();
+            boolean shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(metadata,
+                                                                                ksName,
+                                                                                proposal.metadata().id,
+                                                                                proposal.partitionKey().getToken());
+
+            if (!shouldBeTracked && message.epoch().isAfter(metadata.epoch))
             {
-                MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
-                logger.error("Asked to perform forwarded paxos commit, but keyspace {} is not tracked", ksName);
-                return;
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+                shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(metadata,
+                                                                            ksName,
+                                                                            proposal.metadata().id,
+                                                                            proposal.partitionKey().getToken());
             }
 
-            // Call commitPaxosTracked which handles mutation ID generation, sending to all replicas,
-            // and tracking. The respondAfterSend flag determines if we wait for application.
-            StorageProxy.commitPaxosTracked(keyspace, request.proposal, request.consistencyLevel,
-                Dispatcher.RequestTime.forImmediateExecution(), request.respondAfterSend);
+            if (shouldBeTracked)
+            {
+                StorageProxy.commitPaxosTracked(keyspace, proposal, request.consistencyLevel,
+                                                Dispatcher.RequestTime.forImmediateExecution(), request.respondAfterSend);
+            }
+            else
+            {
+                // respondAfterSend is not propagated here — commitPaxosUntracked always blocks.
+                // During migration races this adds latency but doesn't affect correctness.
+                Commit reconciled = proposal;
+                if (!proposal.mutation.id().isNone())
+                {
+                    logger.warn("Stripping mutation ID {} from forwarded PaxosCommit for {}.{} partition {} - keyspace is untracked at handler",
+                                proposal.mutation.id(), ksName, proposal.metadata().name, proposal.partitionKey());
+                    Tracing.trace("Stripping mutation ID {} from forwarded PaxosCommit for {}.{} partition {} - keyspace is untracked at handler",
+                                  proposal.mutation.id(), ksName, proposal.metadata().name, proposal.partitionKey());
+                    reconciled = proposal.withMutationId(MutationId.none());
+                }
+                StorageProxy.commitPaxosUntracked(keyspace, reconciled, request.consistencyLevel,
+                                                  true, Dispatcher.RequestTime.forImmediateExecution());
+            }
 
             MessagingService.instance().respond(NoPayload.noPayload, message);
         }

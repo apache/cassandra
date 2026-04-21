@@ -73,6 +73,14 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.HINT_DISPA
  */
 public final class HintsService implements HintsServiceMBean
 {
+    private static long REJECT_HINTS_BEFORE_NANOS;
+
+    @VisibleForTesting
+    public static void setRejectHintsBeforeNanos(long nanos)
+    {
+        REJECT_HINTS_BEFORE_NANOS = nanos;
+    }
+
     // Dummy address to use for storing metrics for hints that will be retried on a different transaction system
     // and aren't being sent to a specific node
     public static final InetAddressAndPort RETRY_ON_DIFFERENT_SYSTEM_ADDRESS;
@@ -188,6 +196,9 @@ public final class HintsService implements HintsServiceMBean
     {
         if (isShutDown)
             throw new IllegalStateException("HintsService is shut down and can't accept new hints");
+
+        if (hint.mutation.getApproxCreatedAtNanos() < REJECT_HINTS_BEFORE_NANOS)
+            return;
 
         // we have to make sure that the HintsStore instances get properly initialized - otherwise dispatch will not trigger
         catalog.maybeLoadStores(hostIds);

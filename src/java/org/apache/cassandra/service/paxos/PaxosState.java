@@ -59,6 +59,7 @@ import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationSta
 import org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Nemesis;
 
@@ -729,18 +730,28 @@ public class PaxosState implements PaxosOperationLock
                 Tracing.trace("Not committing proposal {} as ballot timestamp predates last truncation time", commit);
 
                 // Still acknowledge mutation ID for tracked keyspaces even though we're discarding
-                // This ensures the tracking service knows this replica "handled" the mutation.
-                // We call both startWriting and finishWriting - startWriting registers the mutation
-                // data (for reconciliation) and finishWriting marks it as witnessed.
-                // This is needed because there are cases where mutation IDs might be created for the same Paxos
-                // commit.
+                // the data. This ensures the tracking service considers this mutation handled by
+                // this replica, preventing false positives during reconciliation.
                 Mutation mutation = commit.makeMutation();
                 if (!mutation.id().isNone())
                 {
                     KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(mutation.getKeyspaceName());
-                    if (ksm != null && ksm.params.replicationType.isTracked()
-                        && MutationTrackingService.instance().startWriting(mutation))
-                        MutationTrackingService.instance().finishWriting(mutation);
+                    if (ksm != null
+                        && MigrationRouter.shouldUseTrackedForWrites(ksm.name, mutation.getOnlyUpdate().metadata().id, mutation.key().getToken()))
+                    {
+                        if (MutationTrackingService.instance().startWriting(mutation))
+                            MutationTrackingService.instance().finishWriting(mutation);
+                    }
+                    else if (ksm == null)
+                    {
+                        logger.warn("Paxos commit has mutation ID {} but keyspace {} not found in schema - skipping mutation tracking",
+                                    mutation.id(), mutation.getKeyspaceName());
+                    }
+                    else
+                    {
+                        logger.warn("Paxos commit has mutation ID {} but keyspace {}.{} partition {} is not tracked - skipping mutation tracking",
+                                    mutation.id(), mutation.getKeyspaceName(), mutation.getOnlyUpdate().metadata().name, mutation.key());
+                    }
                 }
             }
 

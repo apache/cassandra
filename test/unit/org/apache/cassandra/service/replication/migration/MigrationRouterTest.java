@@ -37,10 +37,13 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmbeddableSinglePartitionReadCommand;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadKind;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -56,6 +59,11 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -68,6 +76,7 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -590,10 +599,9 @@ public class MigrationRouterTest
         assertTrue(MigrationRouter.shouldUseTrackedForWrites(metadata, TEST_KEYSPACE, testTable.id, tokenOutsidePending));
     }
 
-
     /**
-     * Test mutation routing with multiple tables - some tracked, some untracked.
-     * This verifies that routeMutations correctly filters mutations to separate tracked/untracked tables.
+     * Test mutation routing with multiple tables during migration to tracked.
+     * All tables in the mutation are routed as tracked (both migrating and already-completed).
      */
     @Test
     public void testMultiTableMutationRouting_ToTracked()
@@ -608,7 +616,7 @@ public class MigrationRouterTest
 
         ClusterMetadata.Transformer transformer = metadata.transformer();
 
-        // table1 migrating to untracked, table2 complete
+        // table1 still migrating (pending), table2 migration complete
         MutationTrackingMigrationState migrationState = metadata.mutationTrackingMigrationState.withKeyspaceMigrating(ksm.name, Collections.singleton(table1.id), transformer.epoch());
         metadata = transformer.with(migrationState).build().metadata;
 
@@ -627,5 +635,230 @@ public class MigrationRouterTest
         assertEquals(Set.of(table1.id, table2.id), trackedMutation.getTableIds());
 
         assertEquals(0, routed.untrackedMutations.size());
+    }
+
+    // Null keyspace metadata guard tests
+
+    @Test
+    public void testShouldUseTrackedForWritesWithNullKeyspace()
+    {
+        // ClusterMetadata without the test keyspace — simulates concurrent keyspace drop
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        // Ensure the non-existent keyspace is not in the metadata
+        assertFalse("Keyspace should not exist in metadata",
+                    metadata.schema.getKeyspaces().containsKeyspace("nonexistent_ks"));
+
+        // Should return false, not NPE
+        assertFalse(MigrationRouter.shouldUseTrackedForWrites(metadata, "nonexistent_ks",
+                                                              TableId.generate(), createToken(100)));
+    }
+
+    @Test
+    public void testShouldUseTrackedForWritesWithNullKeyspaceDuringMigration()
+    {
+        // Create metadata WITH migration info but WITHOUT the keyspace itself
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        // Add migration info for a keyspace that doesn't exist in the schema
+        KeyspaceMigrationInfo migrationInfo = new KeyspaceMigrationInfo("dropped_ks",
+                                                                        Collections.emptyMap(),
+                                                                        Epoch.create(1));
+        MutationTrackingMigrationState migrationState = new MutationTrackingMigrationState(Epoch.create(1),
+                                                                                           ImmutableMap.of("dropped_ks", migrationInfo));
+        metadata = withMigrationInfo(metadata, migrationState);
+
+        // Should return false, not NPE
+        assertFalse(MigrationRouter.shouldUseTrackedForWrites(metadata, "dropped_ks",
+                                                              TableId.generate(), createToken(100)));
+    }
+
+    @Test
+    public void testSplitRangeReadForMigrationWithNullKeyspace()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        // Create a range read command for a non-existent keyspace using a table metadata
+        // that references a keyspace not in the cluster metadata
+        TableMetadata nonexistentTable = TableMetadata.builder("nonexistent_ks", "test_table")
+                                                       .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                       .addRegularColumn("value", UTF8Type.instance)
+                                                       .partitioner(partitioner)
+                                                       .build();
+
+        PartitionRangeReadCommand cmd = createRangeCommand(nonexistentTable, createToken(0), createToken(1000));
+
+        List<MigrationRouter.RangeReadWithReplication> result =
+            MigrationRouter.splitRangeRead(metadata, cmd);
+
+        // Should return single untracked entry, not NPE
+        assertEquals(1, result.size());
+        assertFalse("Should be untracked for non-existent keyspace", result.get(0).useTracked);
+    }
+
+    @Test
+    public void testShouldUseTrackedWithNullKeyspace()
+    {
+        TableMetadata nonexistentTable = TableMetadata.builder("nonexistent_ks", "test_table")
+                                                       .addPartitionKeyColumn("pk", UTF8Type.instance)
+                                                       .addRegularColumn("value", UTF8Type.instance)
+                                                       .partitioner(partitioner)
+                                                       .build();
+
+        DecoratedKey key = partitioner.decorateKey(UTF8Type.instance.decompose("test_key"));
+        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(nonexistentTable, 0, key);
+
+        assertFalse(MigrationRouter.shouldUseTracked(cmd));
+    }
+
+    /**
+     * Minimal test-only stub for EmbeddableSinglePartitionReadCommand that lets us control
+     * the kind() (and therefore isTracked()) without constructing a full TrackedRead.DataRequest
+     * or TrackedRead.SummaryRequest.
+     */
+    private static EmbeddableSinglePartitionReadCommand readStub(TableMetadata table, DecoratedKey key, ReadKind kind)
+    {
+        return new EmbeddableSinglePartitionReadCommand()
+        {
+            @Override
+            public ReadKind kind()
+            {
+                return kind;
+            }
+
+            @Override
+            public TableMetadata metadata()
+            {
+                return table;
+            }
+
+            @Override
+            public DecoratedKey partitionKey()
+            {
+                return key;
+            }
+        };
+    }
+
+    @Test
+    public void testCheckPaxosCommitMigration_Agreement()
+    {
+        ClusterMetadata metadata = createMetadata(true, Collections.emptyList());
+        TableMetadata table = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
+        Token token = createToken(0L);
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, NoPayload.noPayload).withEpoch(metadata.epoch).build();
+        InetAddressAndPort respondTo = FBUtilities.getBroadcastAddressAndPort();
+
+        // Tracked keyspace, no migration → handler says tracked. Coordinator says tracked → agreement.
+        ClusterMetadata result = MigrationRouter.checkPaxosCommitMigration(metadata, msg, respondTo,
+                                                                           TEST_KEYSPACE, table.id, token, true);
+        Assert.assertSame("Metadata should be returned unchanged on agreement", metadata, result);
+    }
+
+    @Test
+    public void testCheckPaxosCommitMigration_CoordinatorBehind()
+    {
+        ClusterMetadata metadata = createMetadata(true, Collections.emptyList());
+        TableMetadata table = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
+        Token token = createToken(0L);
+        // Message epoch is strictly before metadata.epoch.
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, NoPayload.noPayload).withEpoch(Epoch.EMPTY).build();
+        InetAddressAndPort respondTo = FBUtilities.getBroadcastAddressAndPort();
+
+        try
+        {
+            // Coordinator says untracked (stale), handler says tracked → disagreement with older epoch → CBE.
+            MigrationRouter.checkPaxosCommitMigration(metadata, msg, respondTo, TEST_KEYSPACE, table.id, token, false);
+            Assert.fail("Expected CoordinatorBehindException");
+        }
+        catch (CoordinatorBehindException e)
+        {
+            Assert.assertTrue("Exception message should mention coordinator is behind: " + e.getMessage(),
+                              e.getMessage().contains("coordinator") && e.getMessage().contains("behind"));
+        }
+    }
+
+    @Test
+    public void testCheckPaxosCommitMigration_SameEpochDisagreement()
+    {
+        ClusterMetadata metadata = createMetadata(true, Collections.emptyList());
+        TableMetadata table = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
+        Token token = createToken(0L);
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, NoPayload.noPayload).withEpoch(metadata.epoch).build();
+        InetAddressAndPort respondTo = FBUtilities.getBroadcastAddressAndPort();
+
+        try
+        {
+            // Same epoch, but coordinator says untracked while handler says tracked → inconsistent routing → ISE.
+            MigrationRouter.checkPaxosCommitMigration(metadata, msg, respondTo, TEST_KEYSPACE, table.id, token, false);
+            Assert.fail("Expected IllegalStateException");
+        }
+        catch (IllegalStateException e)
+        {
+            Assert.assertTrue("Exception message should mention inconsistent routing: " + e.getMessage(),
+                              e.getMessage().contains("Inconsistent"));
+        }
+    }
+
+    @Test
+    public void testCheckPaxosPrepareReadMigration_Agreement()
+    {
+        ClusterMetadata metadata = createMetadata(true, Collections.emptyList());
+        TableMetadata table = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
+        DecoratedKey key = partitioner.decorateKey(UTF8Type.instance.decompose("test_key"));
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, NoPayload.noPayload).withEpoch(metadata.epoch).build();
+        InetAddressAndPort respondTo = FBUtilities.getBroadcastAddressAndPort();
+
+        // Tracked keyspace, no migration → handler says tracked. Coordinator says tracked (TRACKED_DATA) → agreement.
+        EmbeddableSinglePartitionReadCommand trackedRead = readStub(table, key, ReadKind.TRACKED_DATA);
+        ClusterMetadata result = MigrationRouter.checkPaxosPrepareReadMigration(metadata, msg, respondTo, trackedRead);
+        Assert.assertSame("Metadata should be returned unchanged on agreement", metadata, result);
+    }
+
+    @Test
+    public void testCheckPaxosPrepareReadMigration_CoordinatorBehind()
+    {
+        ClusterMetadata metadata = createMetadata(true, Collections.emptyList());
+        TableMetadata table = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
+        DecoratedKey key = partitioner.decorateKey(UTF8Type.instance.decompose("test_key"));
+        // Message epoch is strictly before metadata.epoch.
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, NoPayload.noPayload).withEpoch(Epoch.EMPTY).build();
+        InetAddressAndPort respondTo = FBUtilities.getBroadcastAddressAndPort();
+
+        try
+        {
+            // Coordinator says untracked (stale), handler says tracked → disagreement with older epoch → CBE.
+            EmbeddableSinglePartitionReadCommand untrackedRead = readStub(table, key, ReadKind.UNTRACKED);
+            MigrationRouter.checkPaxosPrepareReadMigration(metadata, msg, respondTo, untrackedRead);
+            Assert.fail("Expected CoordinatorBehindException");
+        }
+        catch (CoordinatorBehindException e)
+        {
+            Assert.assertTrue("Exception message should mention coordinator is behind: " + e.getMessage(),
+                              e.getMessage().contains("coordinator") && e.getMessage().contains("behind"));
+        }
+    }
+
+    @Test
+    public void testCheckPaxosPrepareReadMigration_SameEpochDisagreement()
+    {
+        ClusterMetadata metadata = createMetadata(true, Collections.emptyList());
+        TableMetadata table = metadata.schema.getKeyspaceMetadata(TEST_KEYSPACE).getTableOrViewNullable(TEST_TABLE);
+        DecoratedKey key = partitioner.decorateKey(UTF8Type.instance.decompose("test_key"));
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, NoPayload.noPayload).withEpoch(metadata.epoch).build();
+        InetAddressAndPort respondTo = FBUtilities.getBroadcastAddressAndPort();
+
+        try
+        {
+            // Same epoch, but coordinator says untracked (UNTRACKED) while handler says tracked → ISE.
+            EmbeddableSinglePartitionReadCommand untrackedRead = readStub(table, key, ReadKind.UNTRACKED);
+            MigrationRouter.checkPaxosPrepareReadMigration(metadata, msg, respondTo, untrackedRead);
+            Assert.fail("Expected IllegalStateException");
+        }
+        catch (IllegalStateException e)
+        {
+            Assert.assertTrue("Exception message should mention inconsistent routing: " + e.getMessage(),
+                              e.getMessage().contains("Inconsistent"));
+        }
     }
 }

@@ -180,6 +180,12 @@ public class Commit
             this.localDeletionTime = localDeletionTime;
         }
 
+        public AcceptedWithTTL(Ballot ballot, Mutation mutation, long localDeletionTime)
+        {
+            super(ballot, mutation);
+            this.localDeletionTime = localDeletionTime;
+        }
+
         boolean isExpired(long nowInSec)
         {
             return nowInSec >= localDeletionTime;
@@ -194,7 +200,7 @@ public class Commit
         @Override
         public AcceptedWithTTL withMutationId(MutationId mutationId)
         {
-            return new AcceptedWithTTL(ballot, makeMutation(mutationId).getOnlyUpdate(), localDeletionTime);
+            return new AcceptedWithTTL(ballot, makeMutation(mutationId), localDeletionTime);
         }
     }
 
@@ -383,6 +389,12 @@ public class Commit
     {
         update = withTimestamp(update, ballot.unixMicros());
         return new Commit(ballot, update);
+    }
+
+    public static Commit newProposal(Ballot ballot, Mutation mutation)
+    {
+        PartitionUpdate update = withTimestamp(mutation.getOnlyUpdate(), ballot.unixMicros());
+        return new Commit(ballot, new Mutation(mutation.id(), update, mutation.potentialTxnConflicts()));
     }
 
     public boolean isAfter(Commit other)
@@ -651,7 +663,7 @@ public class Commit
             if (version >= MessagingService.VERSION_61)
             {
                 // New format: deserialize Mutation
-                Mutation mutation = org.apache.cassandra.db.Mutation.serializer.deserialize(in, version);
+                Mutation mutation = Mutation.serializer.deserialize(in, version);
                 return mutationConstructor.apply(ballot, mutation);
             }
             else

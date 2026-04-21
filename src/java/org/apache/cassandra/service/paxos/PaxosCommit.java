@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.paxos;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.Consumer;
 
@@ -43,11 +44,12 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.paxos.Paxos.Participants;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -112,6 +114,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     final EndpointsForToken replicas;
     final int required;
     final OnDone onDone;
+    final boolean tracked;
 
     @Nullable
     final IntHashSet remoteReplicas;
@@ -128,8 +131,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
     public PaxosCommit(Agreed commit, boolean allowHints, ConsistencyLevel consistencyForConsensus, ConsistencyLevel consistencyForCommit, EndpointsForToken replicas, int required, OnDone onDone)
     {
-        // Check if this is a tracked keyspace
-        boolean isTracked = commit.metadata().replicationType().isTracked();
+        boolean isTracked = MigrationRouter.shouldUseTrackedForWrites(commit.metadata().keyspace, commit.metadata().id, commit.partitionKey().getToken());
 
         Agreed commitToUse = commit;
         IntHashSet remoteReplicas = null;
@@ -162,7 +164,18 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
                     remoteReplicas.add(metadata.directory.peerId(replica.endpoint()).id());
             }
         }
+        else if (!commit.mutation.id().isNone())
+        {
+            // Keyspace is now untracked but the commit has an ID (from system.paxos or a previous
+            // round when tracking was active). Strip it to avoid misrouting on replicas.
+            logger.warn("Stripping mutation ID {} from PaxosCommit for {}.{} partition {} - keyspace migrated to untracked",
+                        commit.mutation.id(), commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
+            Tracing.trace("Stripping mutation ID {} from PaxosCommit for {}.{} partition {} - keyspace migrated to untracked",
+                          commit.mutation.id(), commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
+            commitToUse = commit.withMutationId(MutationId.none());
+        }
 
+        this.tracked = isTracked;
         this.commit = commitToUse;
         this.allowHints = allowHints;
         this.consistencyForConsensus = consistencyForConsensus;
@@ -181,10 +194,8 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      */
     static Paxos.Async<Status> commit(Agreed commit, EndpointsForToken all, EndpointsForToken allLive, EndpointsForToken allDown, int required, boolean isUrgent, ConsistencyLevel consistencyForConsensus, ConsistencyLevel consistencyForCommit, /** @deprecated See CASSANDRA-17164 */ @Deprecated(since = "4.1") boolean allowHints)
     {
-        // Check if this is a tracked keyspace requiring forwarding to a replica coordinator
         if (isTrackedKeyspaceRequiringForwarding(commit, all))
         {
-            // For async version, create a wrapper that handles forwarding
             Status[] statusHolder = new Status[1];
             ConditionAsConsumer<Status> condition = newConditionAsConsumer();
             Consumer<Status> statusCapture = status -> {
@@ -246,7 +257,6 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      */
     static <T extends Consumer<Status>> T commit(Agreed commit, EndpointsForToken all, EndpointsForToken allLive, EndpointsForToken allDown, int required, boolean isUrgent, ConsistencyLevel consistencyForConsensus, ConsistencyLevel consistencyForCommit, /** @deprecated See CASSANDRA-17164 */ @Deprecated(since = "4.1") boolean allowHints, T onDone)
     {
-        // Check if this is a tracked keyspace requiring forwarding to a replica coordinator
         if (isTrackedKeyspaceRequiringForwarding(commit, all))
         {
             forwardPaxos2Commit(commit, all, allLive, allDown, required, isUrgent, consistencyForConsensus, consistencyForCommit, onDone);
@@ -328,13 +338,11 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             }
         }
 
-        // Now send to remote replicas (and record local execution for non-tracked keyspaces)
         boolean executeOnSelf = false;
         for (int i = 0, mi = allLive.size(); i < mi ; ++i)
         {
             InetAddressAndPort endpoint = allLive.endpoint(i);
-            // Skip self if we already executed synchronously for tracked keyspace.
-            // Use direct comparison instead of shouldExecuteOnSelf to avoid dependence on USE_SELF_EXECUTION.
+            // Skip self if already executed synchronously (avoid shouldExecuteOnSelf to not depend on USE_SELF_EXECUTION)
             if (localExecutedSynchronously && endpoint.equals(localEndpoint))
                 continue;
             executeOnSelf |= isSelfOrSend(commitMessage, mutationMessage, endpoint);
@@ -343,17 +351,14 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         for (int i = 0, mi = allDown.size(); i < mi ; ++i)
         {
             InetAddressAndPort endpoint = allDown.endpoint(i);
-            // Skip self if we already executed synchronously for tracked keyspace.
-            // We can't "retry" to self via network anyway, and we've already written to the journal.
+            // Skip self — already handled above
             if (localExecutedSynchronously && endpoint.equals(localEndpoint))
                 continue;
             onFailure(endpoint, RequestFailure.NODE_DOWN);
         }
 
-        // Tracked if remoteReplicas != null, register write request with tracking service for tracked keyspaces
-        if (remoteReplicas != null)
+        if (isTrackedKeyspace && !remoteReplicas.isEmpty())
         {
-            checkState(!remoteReplicas.isEmpty());
             MutationTrackingService.instance().sentWriteRequest(commit.makeMutation(), remoteReplicas);
         }
 
@@ -390,7 +395,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
 
     private boolean isTracked()
     {
-        return !commit.mutation.id().equals(MutationId.none());
+        return tracked;
     }
 
     /**
@@ -399,17 +404,18 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
+        super.onFailure(from, reason); // Populates failureResponses for failureReasonsAsMap()
+
         if (logger.isTraceEnabled())
             logger.trace("{} {} from {}", commit, reason, from);
 
-        // Track failed response for tracked keyspaces
         if (isTracked())
             MutationTrackingService.instance().retryFailedWrite(commit.mutation.id(), from, reason);
 
         response(false, from);
         Replica replica = replicas.lookup(from);
 
-        if (allowHints && shouldHint(replica))
+        if (allowHints && shouldHint(replica) && !isTracked())
             submitHint(commit.makeMutation(), replica, null);
     }
 
@@ -420,8 +426,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     {
         logger.trace("{} Success from {}", commit, response.from());
 
-        // Track successful response for tracked keyspaces 
-        // (Local mutations are witnessed from Keyspace.applyInternalTracked)
+        // Local responses are handled via Keyspace.applyInternalTracked
         if (isTracked())
             MutationTrackingService.instance().receivedWriteResponse(commit.mutation.id(), response.from());
 
@@ -458,7 +463,6 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     @Override
     public void onResponse(NoPayload response, InetAddressAndPort from)
     {
-        // Track successful response for tracked keyspaces
         if (isTracked())
         {
             if (response != null)
@@ -519,6 +523,15 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
         @Override
         public void doVerb(Message<Agreed> message)
         {
+            Agreed agreed = message.payload;
+            ClusterMetadata metadata = ClusterMetadata.current();
+
+            boolean coordinatorSaysTracked = !agreed.mutation.id().isNone();
+            MigrationRouter.checkPaxosCommitMigration(metadata, message, message.from(),
+                                                      agreed.metadata().keyspace, agreed.metadata().id,
+                                                      agreed.partitionKey().getToken(),
+                                                      coordinatorSaysTracked);
+
             NoPayload response = execute(message.payload);
             // NOTE: for correctness, this must be our last action, so that we cannot throw an error and send both a response and a failure response
             if (response == null)
@@ -543,7 +556,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      */
     private static boolean isTrackedKeyspaceRequiringForwarding(Agreed commit, EndpointsForToken all)
     {
-        if (!commit.metadata().replicationType().isTracked())
+        if (!MigrationRouter.shouldUseTrackedForWrites(commit.metadata().keyspace, commit.metadata().id, commit.partitionKey().getToken()))
             return false;
             
         // Check if current coordinator is not a replica
@@ -592,8 +605,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
                                                                                    required, isUrgent);
         Message<Paxos2CommitForwardRequest> message = Message.out(Verb.PAXOS2_COMMIT_FORWARD_REQ, forwardRequest);
 
-        // Create callback to handle forwarding response
-        RequestCallback<NoPayload> callback = new RequestCallback<NoPayload>()
+        RequestCallbackWithFailure<NoPayload> callback = new RequestCallbackWithFailure<NoPayload>()
         {
             @Override
             public void onResponse(Message<NoPayload> response)
@@ -607,9 +619,9 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             {
                 logger.debug("Forwarded Paxos V2 commit to {} failed: {}", from, failure);
                 Tracing.trace("Forwarded Paxos V2 commit to {} failed: {}", from, failure);
-                // Populate the failure map with the actual failure reason; contacted=1, required=1 for forwarded request
+                // contacted=1, required=1 because this is a single forwarded request
                 onDone.accept(new Status(new Paxos.MaybeFailure(true, 1, 1, 0,
-                                                                java.util.Collections.singletonMap(from, failure.reason))));
+                                                                Collections.singletonMap(from, failure.reason))));
             }
         };
 
@@ -622,7 +634,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             logger.debug("Failed to send forwarded Paxos V2 commit to {}: {}", replicaCoordinator, e.getMessage());
             Tracing.trace("Failed to send forwarded Paxos V2 commit: {}", e.getMessage());
             onDone.accept(new Status(new Paxos.MaybeFailure(true, 1, 1, 0,
-                                                            java.util.Collections.singletonMap(replicaCoordinator, UNKNOWN))));
+                                                            Collections.singletonMap(replicaCoordinator, UNKNOWN))));
         }
     }
 

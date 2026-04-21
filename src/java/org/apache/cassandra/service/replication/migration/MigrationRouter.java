@@ -25,19 +25,28 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.EmbeddableSinglePartitionReadCommand;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -49,23 +58,14 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public class MigrationRouter
 {
-    public static boolean shouldUseTracked(SinglePartitionReadCommand command)
+    private static final Logger logger = LoggerFactory.getLogger(MigrationRouter.class);
+
+    public static boolean shouldUseTracked(EmbeddableSinglePartitionReadCommand command)
     {
-        // System keyspaces never use tracked replication
         if (SchemaConstants.isSystemKeyspace(command.metadata().keyspace))
             return false;
 
-        ClusterMetadata metadata = ClusterMetadata.current();
-
-        KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(command.metadata().keyspace);
-
-        if (migrationInfo == null)
-            return command.metadata().replicationType().isTracked();
-
-        Token token = command.partitionKey().getToken();
-        boolean isTracked = command.metadata().replicationType().isTracked();
-
-        return migrationInfo.shouldUseTrackedForReads(isTracked, command.metadata().id(), token);
+        return shouldUseTracked(ClusterMetadata.current(), command);
     }
 
     /**
@@ -215,13 +215,18 @@ public class MigrationRouter
                                                                 PartitionRangeReadCommand command)
     {
         // System keyspaces never use tracked replication
-        if (SchemaConstants.isSystemKeyspace(command.metadata().keyspace))
+        String keyspace = command.metadata().keyspace;
+        if (SchemaConstants.isSystemKeyspace(keyspace) || command.metadata().kind != TableMetadata.Kind.REGULAR)
+            return ImmutableList.of(new RangeReadWithReplication(command, false));
+
+        KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+        if (ksm == null)
             return ImmutableList.of(new RangeReadWithReplication(command, false));
 
         KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState
-                                              .getKeyspaceInfo(command.metadata().keyspace);
+                                              .getKeyspaceInfo(keyspace);
 
-        boolean isTracked = command.metadata().replicationType().isTracked();
+        boolean isTracked = ksm.params.replicationType.isTracked();
 
         // During migration, reads use untracked replication except for ranges that have
         // completed migration to tracked. Therefore, we only need to split ranges when
@@ -254,14 +259,24 @@ public class MigrationRouter
         if (SchemaConstants.isSystemKeyspace(keyspace))
             return false;
 
-        KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState
-                                              .getKeyspaceInfo(keyspace);
+        KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
 
         if (migrationInfo == null)
-            return metadata.schema.getKeyspaceMetadata(keyspace).params.replicationType.isTracked();
+        {
+            KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+            return ksm != null && ksm.params.replicationType.isTracked();
+        }
 
-        boolean isTracked = metadata.schema.getKeyspaceMetadata(keyspace).params.replicationType.isTracked();
+        KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+        if (ksm == null)
+            return false;
+        boolean isTracked = ksm.params.replicationType.isTracked();
         return migrationInfo.shouldUseTrackedForWrites(isTracked, tableId, token);
+    }
+
+    public static boolean shouldUseTrackedForWrites(String keyspace, TableId tableId, Token token)
+    {
+        return shouldUseTrackedForWrites(ClusterMetadata.current(), keyspace, tableId, token);
     }
 
     public static class RoutedMutations
@@ -391,5 +406,117 @@ public class MigrationRouter
     public static void validateUntrackedMutation(IMutation mutation)
     {
         validateMutationReplication(mutation, MutationRouting.UNTRACKED);
+    }
+
+    /**
+     * Validate that coordinator and handler agree on tracked/untracked routing for a Paxos commit.
+     * Fetches log from coordinator only on mismatch when coordinator epoch is ahead.
+     *
+     * @return updated ClusterMetadata after any fetch
+     */
+    public static ClusterMetadata checkPaxosCommitMigration(ClusterMetadata metadata,
+                                                            Message<?> message,
+                                                            InetAddressAndPort respondTo,
+                                                            String keyspace,
+                                                            TableId tableId,
+                                                            Token token,
+                                                            boolean coordinatorSaysTracked)
+    {
+        boolean handlerSaysTracked = shouldUseTrackedForWrites(metadata, keyspace, tableId, token);
+        if (coordinatorSaysTracked == handlerSaysTracked)
+            return metadata;
+
+        if (message.epoch().isAfter(metadata.epoch))
+        {
+            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+            handlerSaysTracked = shouldUseTrackedForWrites(metadata, keyspace, tableId, token);
+            if (coordinatorSaysTracked == handlerSaysTracked)
+                return metadata;
+        }
+
+        if (message.epoch().isBefore(metadata.epoch))
+        {
+            TCMMetrics.instance.coordinatorBehindReplication.mark();
+            logger.warn("COORDINATOR_BEHIND: Paxos commit migration mismatch for keyspace {} table {} token {}, coordinator {} at epoch {} is behind our epoch {}",
+                        keyspace, tableId, token, respondTo, message.epoch(), metadata.epoch);
+            throw new CoordinatorBehindException(String.format("Paxos commit migration mismatch for keyspace: %s token %s, coordinator: %s is behind, our epoch = %s, their epoch = %s",
+                                                               keyspace, token, respondTo, metadata.epoch, message.epoch()));
+        }
+        else
+        {
+            logger.error("Inconsistent Paxos commit routing at same epoch {} for keyspace {} table {} token {} - coordinator says tracked={}, handler says tracked={}",
+                         metadata.epoch, keyspace, tableId, token, coordinatorSaysTracked, handlerSaysTracked);
+            throw new IllegalStateException(String.format("Inconsistent Paxos commit routing at epoch = %s. Keyspace: %s token: %s",
+                                                          metadata.epoch, keyspace, token));
+        }
+    }
+
+    /**
+     * Validate that a Paxos prepare read type matches the handler's migration state.
+     * Uses the conditional-fetch pattern: check first, fetch only on mismatch when coordinator is ahead.
+     *
+     * Both directions are validated:
+     * - Tracked read → untracked handler: CRITICAL — tracked reads lose monotonicity when writes are untracked.
+     * - Untracked read → tracked handler: less bad (untracked quorum reads are self-consistent) but still
+     *   indicates epoch disagreement that should be resolved.
+     *
+     * @return updated ClusterMetadata after any fetch
+     */
+    public static ClusterMetadata checkPaxosPrepareReadMigration(ClusterMetadata metadata,
+                                                                 Message<?> message,
+                                                                 InetAddressAndPort respondTo,
+                                                                 EmbeddableSinglePartitionReadCommand read)
+    {
+        boolean coordinatorSaysTracked = read.isTracked();
+        boolean handlerSaysTracked = shouldUseTracked(metadata, read);
+        if (coordinatorSaysTracked == handlerSaysTracked)
+            return metadata;
+
+        if (message.epoch().isAfter(metadata.epoch))
+        {
+            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, respondTo, message.epoch());
+            handlerSaysTracked = shouldUseTracked(metadata, read);
+            if (coordinatorSaysTracked == handlerSaysTracked)
+                return metadata;
+        }
+
+        if (message.epoch().isBefore(metadata.epoch))
+        {
+            TCMMetrics.instance.coordinatorBehindReplication.mark();
+            logger.warn("COORDINATOR_BEHIND: Paxos prepare read migration mismatch for {}.{} partition {}, coordinator {} at epoch {} is behind our epoch {}",
+                        read.metadata().keyspace, read.metadata().name, read.partitionKey(), respondTo, message.epoch(), metadata.epoch);
+            throw new CoordinatorBehindException(String.format("Paxos prepare read migration mismatch for keyspace: %s token %s, coordinator: %s is behind, our epoch = %s, their epoch = %s",
+                                                               read.metadata().keyspace, read.partitionKey().getToken(), respondTo, metadata.epoch, message.epoch()));
+        }
+        else
+        {
+            logger.error("Inconsistent Paxos prepare read routing at same epoch {} for {}.{} partition {} - coordinator says tracked={}, handler says tracked={}",
+                         metadata.epoch, read.metadata().keyspace, read.metadata().name, read.partitionKey(), coordinatorSaysTracked, handlerSaysTracked);
+            throw new IllegalStateException(String.format("Inconsistent Paxos prepare read routing at epoch = %s. Keyspace: %s token: %s",
+                                                          metadata.epoch, read.metadata().keyspace, read.partitionKey().getToken()));
+        }
+    }
+
+    public static boolean shouldUseTracked(ClusterMetadata metadata, EmbeddableSinglePartitionReadCommand command)
+    {
+        if (command.metadata().kind != TableMetadata.Kind.REGULAR)
+            return false;
+
+        String keyspace = command.metadata().keyspace;
+        if (SchemaConstants.isSystemKeyspace(keyspace))
+            return false;
+
+        KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+        if (ksm == null)
+            return false;
+
+        KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
+
+        boolean isTracked = ksm.params.replicationType.isTracked();
+        if (migrationInfo == null)
+            return isTracked;
+
+        Token token = command.partitionKey().getToken();
+        return migrationInfo.shouldUseTrackedForReads(isTracked, command.metadata().id(), token);
     }
 }
