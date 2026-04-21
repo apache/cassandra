@@ -27,7 +27,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.streaming.StreamOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,14 +48,15 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.PendingLocalTransfer;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
-import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
-import org.apache.cassandra.replication.PendingLocalTransfer;
 import org.apache.cassandra.streaming.IncomingStream;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;

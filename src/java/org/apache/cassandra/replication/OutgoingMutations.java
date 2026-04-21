@@ -18,10 +18,11 @@
 package org.apache.cassandra.replication;
 
 import org.agrona.collections.IntHashSet;
+import org.jctools.maps.NonBlockingHashMapLong;
+
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.jctools.maps.NonBlockingHashMapLong;
 
 /**
  * Keep track of outgoing mutations so that we don't double-send any mutations

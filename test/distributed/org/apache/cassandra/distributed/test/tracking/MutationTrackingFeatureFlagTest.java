@@ -24,19 +24,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.YamlConfigurationLoader;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.MutationTrackingTables;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -46,11 +46,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.AssertionUtils;
 
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-
-import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 
 public class MutationTrackingFeatureFlagTest extends TestBaseImpl
 {

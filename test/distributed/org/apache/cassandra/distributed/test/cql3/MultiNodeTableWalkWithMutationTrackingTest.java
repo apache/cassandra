@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Property;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.cql3.ast.Select;
 import org.apache.cassandra.distributed.Cluster;

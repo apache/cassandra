@@ -20,6 +20,9 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.replication.MutationTrackingService;
@@ -30,8 +33,6 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Incoming mutation log stream message for receiving mutation logs during bootstrap.

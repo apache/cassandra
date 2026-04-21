@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.cql3;
 import java.util.List;
 
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.cql3.ast.CreateIndexDDL;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;

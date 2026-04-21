@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.journal;
 
-import org.apache.cassandra.io.util.DataInputBuffer;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import org.apache.cassandra.io.util.DataInputBuffer;
 
 public abstract class DeserializedRecordConsumer<K, V> implements RecordConsumer<K>
 {

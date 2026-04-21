@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,11 +68,11 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static org.apache.cassandra.replication.ActivationRequest.Phase;
 import static org.apache.cassandra.replication.CoordinatedTransfer.SingleTransferResult.State.COMMITTED;
 import static org.apache.cassandra.replication.CoordinatedTransfer.SingleTransferResult.State.COMMITTING;
 import static org.apache.cassandra.replication.CoordinatedTransfer.SingleTransferResult.State.PREPARE_FAILED;
 import static org.apache.cassandra.replication.CoordinatedTransfer.SingleTransferResult.State.STREAM_COMPLETE;
-import static org.apache.cassandra.replication.ActivationRequest.Phase;
 
 /**
  * Tracked imports mostly follow the default coordination process. They are notable in two ways. The first is that 

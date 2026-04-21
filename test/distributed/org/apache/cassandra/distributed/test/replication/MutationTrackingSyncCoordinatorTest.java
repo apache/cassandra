@@ -20,23 +20,24 @@ package org.apache.cassandra.distributed.test.replication;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.MutationTrackingSyncCoordinator;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
-import org.awaitility.Awaitility;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Distributed tests for MutationTrackingSyncCoordinator.

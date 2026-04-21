@@ -17,6 +17,11 @@
  */
 package org.apache.cassandra.service.reads.tracked;
 
+import java.io.IOException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.ReadKind;
 import org.apache.cassandra.db.TypeSizes;
@@ -26,11 +31,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
-
-import java.io.IOException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.db.ReadKind.TRACKED_SUMMARY;
 

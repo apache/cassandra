@@ -17,30 +17,6 @@
  */
 package org.apache.cassandra.replication;
 
-import accord.utils.Invariants;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import org.agrona.collections.Long2LongHashMap;
-import org.agrona.collections.Long2ObjectHashMap;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.journal.*;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.utils.Crc;
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.Semaphore;
-import org.jctools.maps.NonBlockingHashMapLong;
-
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -49,6 +25,53 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.zip.CRC32;
+
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+
+import org.agrona.collections.Long2LongHashMap;
+import org.agrona.collections.Long2ObjectHashMap;
+import org.jctools.maps.NonBlockingHashMapLong;
+
+import accord.utils.Invariants;
+
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.journal.ActiveSegment;
+import org.apache.cassandra.journal.Component;
+import org.apache.cassandra.journal.Descriptor;
+import org.apache.cassandra.journal.DeserializedRecordConsumer;
+import org.apache.cassandra.journal.Journal;
+import org.apache.cassandra.journal.JournalReadError;
+import org.apache.cassandra.journal.JournalWriteError;
+import org.apache.cassandra.journal.KeyStats;
+import org.apache.cassandra.journal.KeySupport;
+import org.apache.cassandra.journal.Params;
+import org.apache.cassandra.journal.RecordConsumer;
+import org.apache.cassandra.journal.RecordPointer;
+import org.apache.cassandra.journal.Segment;
+import org.apache.cassandra.journal.SegmentCompactor;
+import org.apache.cassandra.journal.StaticSegment;
+import org.apache.cassandra.journal.ValueSerializer;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.Crc;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.concurrent.Semaphore;
 
 import static org.apache.cassandra.replication.MutationTrackingService.DISABLED_MESSAGE;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;

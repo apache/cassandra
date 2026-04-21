@@ -27,19 +27,31 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.exceptions.RequestFailure;
-import org.apache.cassandra.locator.*;
-import org.apache.cassandra.tracing.Tracing;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.CounterMutation;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.NodeProximity;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
@@ -51,11 +63,12 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**

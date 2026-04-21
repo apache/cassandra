@@ -27,9 +27,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.Offsets;
-import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 /**

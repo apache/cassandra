@@ -26,8 +26,11 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import accord.utils.Invariants;
+
 import com.google.common.annotations.VisibleForTesting;
+
+import accord.utils.Invariants;
+
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.IntegerInterval;

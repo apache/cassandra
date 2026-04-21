@@ -20,6 +20,10 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -32,8 +36,6 @@ import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.junit.Assert;
-import org.junit.Test;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 
@@ -96,4 +98,3 @@ public class MutationTrackingLogPersisterTest extends FuzzTestBase
         }
     }
 }
-

@@ -18,30 +18,37 @@
 
 package org.apache.cassandra.distributed.test.tracking;
 
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.distributed.api.ICoordinator;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.replication.CoordinatorLogId;
-import org.apache.cassandra.replication.MutationSummary;
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.replication.CoordinatorLogId;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.*;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertMatchingSummaryIdSpaceForKey;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertMatchingSummaryIdSpaceForTable;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertOffsetsIsSuperSet;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.assertSummaryIdSpaceIsSuperSet;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.numLogReconciliations;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.row;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryForKey;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryForTable;
+import static org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils.summaryIdSpace;
 
 public class MutationTrackingReadReconciliationTest extends TestBaseImpl
 {

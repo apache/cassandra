@@ -20,12 +20,12 @@ package org.apache.cassandra.replication;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import org.jctools.maps.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Clock;
-import org.jctools.maps.NonBlockingHashMap;
 
 /**
  * Listeners for incoming mutations requested by e.g. {@link org.apache.cassandra.service.reads.tracked.TrackedLocalReads}.

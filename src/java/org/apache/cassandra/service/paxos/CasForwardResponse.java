@@ -21,6 +21,7 @@ package org.apache.cassandra.service.paxos;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+
 import javax.annotation.Nonnull;
 
 import org.apache.cassandra.db.TypeSizes;

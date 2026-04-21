@@ -24,9 +24,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import org.apache.cassandra.utils.concurrent.Ref;
+
 import org.junit.Test;
 
+import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 

@@ -20,6 +20,9 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.DeserializationHelper;
@@ -34,8 +37,6 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class OutgoingMutationLogStreamMessage extends MutationLogStreamMessage
 {

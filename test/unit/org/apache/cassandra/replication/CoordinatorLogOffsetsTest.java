@@ -18,40 +18,6 @@
 
 package org.apache.cassandra.replication;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.ReplicationType;
-import org.apache.cassandra.schema.SchemaTransformations;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.StubClusterMetadataService;
-import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.transformations.AlterSchema;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import accord.utils.Gen;
-import accord.utils.Gens;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService;
-import org.assertj.core.api.Assertions;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,6 +30,40 @@ import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Sets;
+
+import org.assertj.core.api.Assertions;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import accord.utils.Gen;
+import accord.utils.Gens;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationType;
+import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.StubClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.AlterSchema;
 
 import static accord.utils.Property.qt;
 

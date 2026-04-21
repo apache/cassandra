@@ -25,7 +25,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.virtual.VirtualMutation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.NormalizedRanges;

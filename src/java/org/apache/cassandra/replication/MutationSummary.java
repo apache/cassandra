@@ -18,11 +18,17 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.Long2ObjectHashMap;
+
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;

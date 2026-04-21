@@ -42,8 +42,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compression.CompressionDictionaryManager;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;

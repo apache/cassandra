@@ -33,10 +33,11 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
+import org.agrona.collections.IntArrayList;
+import org.jctools.maps.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.PartitionPosition;
@@ -51,7 +52,6 @@ import org.apache.cassandra.replication.CoordinatorLog.CoordinatorLogPrimary;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.jctools.maps.NonBlockingHashMapLong;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;

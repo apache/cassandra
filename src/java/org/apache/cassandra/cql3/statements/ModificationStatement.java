@@ -124,11 +124,11 @@ import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys.Key
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
-import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;

@@ -40,7 +40,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.PeekingIterator;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringBound;
@@ -90,6 +89,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.CloseablePeekingIterator;
 import org.apache.cassandra.utils.FBUtilities;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class StorageAttachedIndexSearcher implements Index.MultiStepSearcher<PrimaryKey>
 {

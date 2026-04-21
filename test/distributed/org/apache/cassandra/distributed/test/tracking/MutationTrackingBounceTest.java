@@ -20,6 +20,10 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.junit.Ignore;
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
@@ -31,9 +35,6 @@ import org.apache.cassandra.harry.execution.InJvmDTestVisitExecutor;
 import org.apache.cassandra.harry.gen.Generator;
 import org.apache.cassandra.harry.gen.SchemaGenerators;
 import org.apache.cassandra.replication.MutationJournal;
-import org.junit.Ignore;
-import org.junit.Test;
-
 
 import static org.apache.cassandra.harry.checker.TestHelper.withRandom;
 

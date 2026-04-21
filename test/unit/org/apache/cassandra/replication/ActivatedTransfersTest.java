@@ -21,11 +21,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.utils.Gen;
 import accord.utils.Gens;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -40,7 +42,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 

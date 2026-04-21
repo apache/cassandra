@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db;
 
+import org.hamcrest.core.StringContains;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -50,7 +51,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
-import org.hamcrest.core.StringContains;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;

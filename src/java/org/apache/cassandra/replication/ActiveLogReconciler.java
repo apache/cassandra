@@ -23,10 +23,10 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import org.agrona.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.agrona.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.Mutation;

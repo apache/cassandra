@@ -23,11 +23,12 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.Iterators;
 
+import org.jctools.maps.NonBlockingHashMapLong;
+import org.jctools.queues.MpscUnboundedArrayQueue;
+
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TrieMemtable;
-import org.jctools.maps.NonBlockingHashMapLong;
-import org.jctools.queues.MpscUnboundedArrayQueue;
 
 /**
  * This is different from {@link Log2OffsetsMap} because it's focused on supporting fast, frequent updates from multiple

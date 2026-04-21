@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -684,4 +685,3 @@ public class MigrationRouterTest
         assertEquals(0, routed.untrackedMutations.size());
     }
 }
-

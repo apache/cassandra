@@ -22,10 +22,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
 
+import org.agrona.collections.MutableInteger;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.agrona.collections.MutableInteger;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;

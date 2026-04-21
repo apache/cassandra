@@ -19,6 +19,7 @@
 package org.apache.cassandra.harry.checker;
 
 import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

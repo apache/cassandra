@@ -23,10 +23,12 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
+import org.agrona.collections.IntArrayList;
+import org.jctools.maps.NonBlockingHashMap;
+import org.jctools.maps.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -48,8 +50,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
-import org.jctools.maps.NonBlockingHashMap;
-import org.jctools.maps.NonBlockingHashSet;
 
 /**
  * On the initial coordinator (replica or not):

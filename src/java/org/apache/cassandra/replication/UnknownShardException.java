@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.replication;
 
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 
 public class UnknownShardException extends IllegalStateException

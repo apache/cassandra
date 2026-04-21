@@ -35,10 +35,10 @@ import org.apache.cassandra.service.FailureRecordingCallback;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.apache.cassandra.exceptions.RequestFailure.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 import static org.apache.cassandra.exceptions.RequestFailure.TIMEOUT;
 import static org.apache.cassandra.exceptions.RequestFailure.UNKNOWN;
-import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T>

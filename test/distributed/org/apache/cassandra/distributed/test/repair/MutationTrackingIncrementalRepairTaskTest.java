@@ -30,7 +30,8 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.repair.MutationTrackingIncrementalRepairTask;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for MutationTrackingIncrementalRepairTask.

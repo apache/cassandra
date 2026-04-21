@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.service.reads.tracked;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadKind;
@@ -33,14 +41,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
-import com.google.common.base.Preconditions;
 
 public class TrackedDataResponse implements IReadResponse
 {

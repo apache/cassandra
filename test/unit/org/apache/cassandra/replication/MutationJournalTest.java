@@ -36,12 +36,12 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationJournal.ActiveOffsetRanges;
+import org.apache.cassandra.replication.MutationJournal.OffsetRangesFactory;
+import org.apache.cassandra.replication.MutationJournal.StaticOffsetRanges;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.replication.MutationJournal.ActiveOffsetRanges;
-import org.apache.cassandra.replication.MutationJournal.StaticOffsetRanges;
-import org.apache.cassandra.replication.MutationJournal.OffsetRangesFactory;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

@@ -21,6 +21,9 @@ package org.apache.cassandra.distributed.test.tracking;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.Assert;
+
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
@@ -28,7 +31,6 @@ import org.apache.cassandra.journal.DeserializedRecordConsumer;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.ShortMutationId;
-import org.junit.Assert;
 
 // Separate class for MutationTrackingBounceTest, since without it we were getting non-serializable class exceptions, likely due to static fields
 public class MutationTrackingBounce_ValidateRunnable implements IIsolatedExecutor.SerializableRunnable

@@ -23,11 +23,12 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.stream.Collectors;
 
-import accord.utils.Invariants;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
+import accord.utils.Invariants;
 
 /**
  * Mutable integer interval class, thread-safe.

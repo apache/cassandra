@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.distributed.test.replication;
 
+import org.junit.Test;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 

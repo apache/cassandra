@@ -60,7 +60,6 @@ import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
 import static org.apache.cassandra.tcm.MetadataKeys.IN_PROGRESS_SEQUENCES;
 import static org.apache.cassandra.tcm.MetadataKeys.LOCKED_RANGES;
 import static org.apache.cassandra.tcm.MetadataKeys.MUTATION_TRACKING_MIGRATION_STATE;
-
 import static org.apache.cassandra.tcm.MetadataKeys.NODE_DIRECTORY;
 import static org.apache.cassandra.tcm.MetadataKeys.SCHEMA;
 import static org.apache.cassandra.tcm.MetadataKeys.TOKEN_MAP;

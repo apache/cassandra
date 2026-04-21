@@ -25,13 +25,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.harry.checker.TestHelper;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.Pair;
-import org.junit.Assert;
-import org.junit.Test;
-
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

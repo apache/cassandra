@@ -27,14 +27,15 @@ import java.util.Set;
 
 import com.google.common.primitives.Ints;
 
+import org.junit.Assert;
+import org.junit.Assume;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SimpleBuilders;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.replication.*;
-import org.junit.Assert;
-import org.junit.Assume;
-
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -43,13 +44,16 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.CoordinatorLogId;
+import org.apache.cassandra.replication.MutationId;
+import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
+import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.Offsets;
 import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MutationTrackingUtils
 {

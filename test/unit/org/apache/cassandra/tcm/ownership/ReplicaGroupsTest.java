@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -32,6 +33,7 @@ import org.junit.runners.Parameterized;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -44,7 +46,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
-import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;

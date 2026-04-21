@@ -18,19 +18,19 @@
 
 package org.apache.cassandra.distributed.test.tracking;
 
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.metrics.MutationTrackingMetrics;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.replication.MutationJournal;
-import org.apache.cassandra.replication.MutationTrackingService;
+import java.time.Duration;
 
 import org.awaitility.Awaitility;
 import org.junit.Test;
 
-import java.time.Duration;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.metrics.MutationTrackingMetrics;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.MutationTrackingService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

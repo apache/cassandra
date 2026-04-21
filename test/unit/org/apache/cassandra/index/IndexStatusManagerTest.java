@@ -28,8 +28,6 @@ import java.util.stream.Collectors;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import org.apache.cassandra.schema.ReplicationType;
 import org.mockito.Mockito;
 
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -43,6 +41,7 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.ReplicationType;
 import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;

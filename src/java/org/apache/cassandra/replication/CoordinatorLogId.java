@@ -17,16 +17,16 @@
  */
 package org.apache.cassandra.replication;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Comparator;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CoordinatorLogId implements Serializable
 {

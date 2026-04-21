@@ -23,11 +23,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.io.IVersionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
-import org.junit.Assert;
-import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

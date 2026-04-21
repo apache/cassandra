@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -195,4 +196,3 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
      */
     abstract PartitionUpdate.Builder getUpdateFor(DecoratedKey key) throws IOException;
 }
-

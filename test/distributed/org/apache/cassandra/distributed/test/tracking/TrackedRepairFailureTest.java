@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
 import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -53,12 +54,11 @@ import org.apache.cassandra.replication.ActivationRequest;
 import static net.bytebuddy.implementation.MethodDelegation.to;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesNoArguments;
-import static org.assertj.core.api.Assertions.assertThat;
-
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TrackedRepairFailureTest extends TrackedRepairTransferTestBase
 {

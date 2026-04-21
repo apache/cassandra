@@ -19,10 +19,10 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.replication.migration.MutationTrackingMigrationRepairResult;
-
-import javax.annotation.Nullable;
 
 /**
  * RepairJob's result

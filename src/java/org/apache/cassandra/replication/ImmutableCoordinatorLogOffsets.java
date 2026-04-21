@@ -23,14 +23,15 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.Iterators;
 
+import org.agrona.collections.Long2ObjectHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
