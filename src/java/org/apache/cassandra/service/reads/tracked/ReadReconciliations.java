@@ -35,6 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.replication.ActiveLogReconciler;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.ExpiredStatePurger;
 import org.apache.cassandra.replication.IncomingMutations;
@@ -397,7 +398,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
 
         if (!toPull.isEmpty())
         {
-            PullMutationsRequest pull = new PullMutationsRequest(Offsets.Immutable.copy(toPull));
+            PullMutationsRequest pull = new PullMutationsRequest(Offsets.Immutable.copy(toPull), ActiveLogReconciler.Priority.HIGH);
             logger.debug("Pulling {} from {}", pull, pullFrom);
             MessagingService.instance().send(Message.out(Verb.MT_PULL_MUTATIONS_REQ, pull), pullFrom);
         }

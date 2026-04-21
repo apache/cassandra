@@ -42,6 +42,12 @@ public class WriteTimeoutException extends RequestTimeoutException
         this.writeType = writeType;
     }
 
+    public WriteTimeoutException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, Throwable cause)
+    {
+        super(ExceptionCode.WRITE_TIMEOUT, consistency, received, blockFor, cause);
+        this.writeType = writeType;
+    }
+
     @Override
     protected void serializeSpecificFields(DataOutputPlus out, int version) throws IOException
     {

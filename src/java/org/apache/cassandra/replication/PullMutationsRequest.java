@@ -33,10 +33,12 @@ public final class PullMutationsRequest
     private static final Logger logger = LoggerFactory.getLogger(PullMutationsRequest.class);
 
     private final Offsets.Immutable offsets;
+    private final ActiveLogReconciler.Priority priority;
 
-    public PullMutationsRequest(Offsets.Immutable offsets)
+    public PullMutationsRequest(Offsets.Immutable offsets, ActiveLogReconciler.Priority priority)
     {
         this.offsets = offsets;
+        this.priority = priority;
     }
 
     public static final UnversionedSerializer<PullMutationsRequest> serializer = new UnversionedSerializer<>()
@@ -45,18 +47,21 @@ public final class PullMutationsRequest
         public void serialize(PullMutationsRequest pull, DataOutputPlus out) throws IOException
         {
             Offsets.serializer.serialize(pull.offsets, out);
+            out.writeByte(pull.priority.id);
         }
 
         @Override
         public PullMutationsRequest deserialize(DataInputPlus in) throws IOException
         {
-            return new PullMutationsRequest(Offsets.serializer.deserialize(in));
+            Offsets.Immutable offsets = Offsets.serializer.deserialize(in);
+            ActiveLogReconciler.Priority priority = ActiveLogReconciler.Priority.fromId(in.readUnsignedByte());
+            return new PullMutationsRequest(offsets, priority);
         }
 
         @Override
         public long serializedSize(PullMutationsRequest pull)
         {
-            return Offsets.serializer.serializedSize(pull.offsets);
+            return Offsets.serializer.serializedSize(pull.offsets) + 1;
         }
     };
 
@@ -64,8 +69,9 @@ public final class PullMutationsRequest
         MutationTrackingService.ensureEnabled();
         InetAddressAndPort forHost = message.from();
         Offsets offsets = message.payload.offsets;
-        logger.trace("Received pull mutations request from {} for {}", forHost, offsets);
-        MutationTrackingService.instance().requestMissingMutations(offsets, forHost);
+        ActiveLogReconciler.Priority priority = message.payload.priority;
+        logger.trace("Received pull mutations request from {} for {} with priority {}", forHost, offsets, priority);
+        MutationTrackingService.instance().requestMissingMutations(offsets, forHost, priority);
     };
 
     @Override
@@ -73,6 +79,7 @@ public final class PullMutationsRequest
     {
         return "PullMutationsRequest{" +
                "offsets=" + offsets +
+               ", priority=" + priority +
                '}';
     }
 }

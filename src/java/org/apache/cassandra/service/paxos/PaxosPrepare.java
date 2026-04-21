@@ -71,6 +71,7 @@ import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.service.reads.tracked.TrackedRead.DataRequest;
 import org.apache.cassandra.service.reads.tracked.TrackedRead.Id;
 import org.apache.cassandra.service.reads.tracked.TrackedRead.SummaryRequest;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -346,6 +347,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     private final List<Message<IReadResponse>> readResponses;
     private boolean haveReadResponseWithLatest;
     private boolean haveTrackedDataResponseIfNeeded;
+    private boolean isTrackedRead;
     private boolean haveQuorumOfPermissions; // permissions => SUCCESS or READ_SUCCESS
     private @Nonnull List<InetAddressAndPort> withLatest; // promised and have latest commit
     private @Nullable List<InetAddressAndPort> needLatest; // promised without having witnessed latest commit, nor yet been refreshed by us
@@ -430,7 +432,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
      */
     static <R extends AbstractRequest<R>> void start(PaxosPrepare prepare, Participants participants, Message<R> send, BiFunction<R, RequestTime, Future<Response>> selfHandler)
     {
-        if (send.payload.read != null && send.payload.read.metadata().replicationType().isTracked())
+        boolean tracked = send.payload.read != null && MigrationRouter.shouldUseTracked(send.payload.read);
+        prepare.isTrackedRead = tracked;
+        if (tracked)
             startTracked(prepare, participants, send, selfHandler);
         else
             startUntracked(prepare, participants, send, selfHandler);
@@ -554,7 +558,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     private boolean isTracked()
     {
-        return request.read != null && request.read.metadata().replicationType().isTracked();
+        return isTrackedRead;
     }
 
     private boolean isDone()
@@ -1226,7 +1230,12 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+            ClusterMetadata metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(),
+                                                                                              message.from(),
+                                                                                              message.epoch());
+
+            if (message.payload.read != null)
+                MigrationRouter.checkPaxosPrepareReadMigration(metadata, message, message.from(), message.payload.read);
 
             try
             {

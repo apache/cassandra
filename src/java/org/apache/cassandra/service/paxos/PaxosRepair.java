@@ -343,7 +343,7 @@ public class PaxosRepair extends AbstractPaxosRepair
                     // with a newer ballot)
                     FoundIncompleteAccepted incomplete = input.incompleteAccepted();
 
-                    Proposal propose = new Proposal(incomplete.ballot, incomplete.accepted.update);
+                    Proposal propose = new Proposal(incomplete.ballot, incomplete.accepted.mutation);
                     logger.trace("PaxosRepair of {} found incomplete {}", partitionKey(), incomplete.accepted);
                     return PaxosPropose.propose(propose, participants, false,
                             new ProposingRepair(propose)); // we don't know if we're done, so we must restart

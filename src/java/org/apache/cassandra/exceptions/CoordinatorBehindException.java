@@ -25,7 +25,7 @@ public class CoordinatorBehindException extends RuntimeException
         super(msg);
     }
 
-    public CoordinatorBehindException(String msg, UnknownTableException cause)
+    public CoordinatorBehindException(String msg, Throwable cause)
     {
         super(msg, cause);
     }

@@ -29,8 +29,8 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
@@ -39,13 +39,11 @@ import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newCondi
 
 /**
  * Handler for forwarded Paxos V2 commit requests.
- * Executes the commit operation on behalf of the original coordinator,
- * ensuring that MutationId generation happens on a replica coordinator.
- *
- * The PaxosCommit constructor handles mutation ID generation, so this handler
- * simply delegates to PaxosCommit.commit() with the original commit.
+ * Delegates to PaxosCommit.commit() which handles mutation ID generation
+ * in its constructor.
  *
  * TODO (expected): more comprehensive testing
+ * TODO: should loop on CoordinatorBehindException rather than propagating failure to the forwarding coordinator
  */
 public class Paxos2CommitForwardHandler implements IVerbHandler<Paxos2CommitForwardRequest>
 {
@@ -55,27 +53,38 @@ public class Paxos2CommitForwardHandler implements IVerbHandler<Paxos2CommitForw
     @Override
     public void doVerb(Message<Paxos2CommitForwardRequest> message)
     {
-        // Ensure we have up-to-date cluster metadata before executing the forwarded commit
-        ClusterMetadataService.instance().fetchLogFromPeerOrCMS(message.from(), message.header.epoch);
         Paxos2CommitForwardRequest request = message.payload;
+        Commit.Agreed commit = request.commit;
 
-        Tracing.trace("Executing forwarded Paxos V2 commit for {}", request.commit.partitionKey());
+        Tracing.trace("Executing forwarded Paxos V2 commit for {}.{} partition {}",
+                      commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
 
         try
         {
-            String ksName = request.commit.metadata().keyspace;
-            KeyspaceMetadata ksMetadata = Schema.instance.getKeyspaceMetadata(ksName);
-            if (ksMetadata == null)
+            String ksName = commit.metadata().keyspace;
+            ClusterMetadata metadata = ClusterMetadata.current();
+            boolean shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(metadata,
+                                                                                ksName,
+                                                                                commit.metadata().id,
+                                                                                commit.partitionKey().getToken());
+
+            if (!shouldBeTracked && message.epoch().isAfter(metadata.epoch))
             {
-                MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
-                logger.error("Failed to forward paxos commit for non-existent keyspace {}", ksName);
-                return;
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+                // shouldBeTracked isn't used after this, but is kept up to date just in case
+                shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(metadata,
+                                                                            ksName,
+                                                                            commit.metadata().id,
+                                                                            commit.partitionKey().getToken());
             }
 
-            if (!ksMetadata.params.replicationType.isTracked())
+            if (metadata.schema.getKeyspaces().getNullable(ksName) == null)
             {
                 MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
-                logger.error("Asked to perform forwarded paxos commit, but keyspace {} is not tracked", ksName);
+                logger.error("Failed to forward paxos commit for non-existent keyspace {}.{} partition {}",
+                             ksName, commit.metadata().name, commit.partitionKey());
+                Tracing.trace("Failed to forward paxos commit for non-existent keyspace {}.{} partition {}",
+                              ksName, commit.metadata().name, commit.partitionKey());
                 return;
             }
 
@@ -112,8 +121,21 @@ public class Paxos2CommitForwardHandler implements IVerbHandler<Paxos2CommitForw
                 }
                 else
                 {
-                    MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);
+                    RequestFailureReason reason = RequestFailureReason.UNKNOWN;
+                    if (status != null && status.maybeFailure() != null)
+                    {
+                        for (RequestFailureReason r : status.maybeFailure().failures.values())
+                        {
+                            if (r == RequestFailureReason.COORDINATOR_BEHIND)
+                            {
+                                reason = RequestFailureReason.COORDINATOR_BEHIND;
+                                break;
+                            }
+                        }
+                    }
+                    MessagingService.instance().respondWithFailure(reason, message);
                     logger.error("Forwarded Paxos V2 commit failed with status: {}", status);
+                    Tracing.trace("Forwarded Paxos V2 commit failed with status: {}", status);
                 }
             }
             catch (InterruptedException e)
@@ -121,6 +143,7 @@ public class Paxos2CommitForwardHandler implements IVerbHandler<Paxos2CommitForw
                 Thread.currentThread().interrupt();
                 MessagingService.instance().respondWithFailure(RequestFailure.forException(e), message);
                 logger.error("Forwarded Paxos V2 commit interrupted", e);
+                Tracing.trace("Forwarded Paxos V2 commit interrupted");
             }
         }
         catch (Exception e)

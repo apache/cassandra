@@ -50,6 +50,7 @@ import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -617,7 +618,10 @@ public class Keyspace
     private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
     {
         MutationTrackingService.ensureEnabled();
-        Preconditions.checkState(MigrationRouter.isFullyTracked(mutation) && !mutation.id().isNone());
+        if (!MigrationRouter.isFullyTracked(mutation) || mutation.id().isNone())
+            throw new CoordinatorBehindException("Mutation routing mismatch in applyInternalTracked: isFullyTracked=" +
+                                                 MigrationRouter.isFullyTracked(mutation) + ", id.isNone=" + mutation.id().isNone() +
+                                                 ", keyspace=" + mutation.getKeyspaceName());
         ClusterMetadata cm = ClusterMetadata.current();
 
         if (TEST_FAIL_WRITES && getMetadata().name.equals(TEST_FAIL_WRITES_KS))

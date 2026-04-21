@@ -40,8 +40,7 @@ import org.apache.cassandra.transport.Dispatcher;
 
 /**
  * Handler for forwarded consensus read operations.
- * Executes the consensus read operation on behalf of the original coordinator,
- * ensuring proper coordination for tracked keyspaces on a replica coordinator.
+ * Executes the consensus read operation on behalf of the original coordinator.
  *
  * TODO (expected): more comprehensive testing
  */
@@ -55,26 +54,19 @@ public class ConsensusReadForwardHandler implements IVerbHandler<ConsensusReadFo
     {
         ConsensusReadForwardRequest request = message.payload;
         SinglePartitionReadCommand command = request.command;
+
         Tracing.trace("Executing forwarded consensus read operation for {}", command.partitionKey());
 
         // Start capturing client warnings for the forwarded operation
         ClientWarn.instance.captureWarnings();
         try
         {
-            // Validate keyspace exists and is tracked
             String keyspaceName = command.metadata().keyspace;
             KeyspaceMetadata ksMetadata = Schema.instance.getKeyspaceMetadata(keyspaceName);
             if (ksMetadata == null)
             {
                 MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
                 logger.error("Failed to forward consensus read operation for non-existent keyspace {}", keyspaceName);
-                return;
-            }
-
-            if (!ksMetadata.params.replicationType.isTracked())
-            {
-                MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
-                logger.error("Asked to perform forwarded consensus read operation, but keyspace {} is not tracked", keyspaceName);
                 return;
             }
 
@@ -85,7 +77,7 @@ public class ConsensusReadForwardHandler implements IVerbHandler<ConsensusReadFo
             // 1. Check forwarding (returns null since we're on a replica)
             // 2. Execute the consensus read with the appropriate protocol
             logger.debug("Executing consensus read operation for table {}.{} with key {}",
-                         keyspaceName, command.metadata().name, command.partitionKey());
+                         command.metadata().keyspace, command.metadata().name, command.partitionKey());
 
             Dispatcher.RequestTime requestTime = Dispatcher.RequestTime.forImmediateExecution();
             PartitionIterator result = StorageProxy.readWithConsensusForwarded(group, request.consistencyLevel, requestTime);

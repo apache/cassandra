@@ -787,9 +787,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    public void requestMissingMutations(Offsets offsets, InetAddressAndPort forHost)
+    public void requestMissingMutations(Offsets offsets, InetAddressAndPort forHost, ActiveLogReconciler.Priority priority)
     {
-        activeReconciler.schedule(offsets, forHost, ActiveLogReconciler.Priority.HIGH);
+        activeReconciler.schedule(offsets, forHost, priority);
     }
 
     @Nullable
@@ -1496,7 +1496,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                     }
 
                     // TODO (expected): backoff, rate limits, per host and total
-                    PullMutationsRequest request = new PullMutationsRequest(offsets);
+                    PullMutationsRequest request = new PullMutationsRequest(offsets, ActiveLogReconciler.Priority.REGULAR);
                     logger.trace("Requesting pull mutation request from replica {} for missing offset {}", pullFrom, offsets);
                     MessagingService.instance().send(Message.out(Verb.MT_PULL_MUTATIONS_REQ, request), pullFrom);
                 }

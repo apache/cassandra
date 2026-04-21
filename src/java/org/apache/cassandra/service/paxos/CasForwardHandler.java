@@ -40,7 +40,7 @@ import org.apache.cassandra.transport.Dispatcher;
 /**
  * Handler for forwarded CAS (Compare-And-Set) operations.
  * Executes the CAS operation on behalf of the original coordinator,
- * ensuring that MutationId generation happens on a replica coordinator for tracked keyspaces.
+ * ensuring that MutationId generation happens on a replica coordinator.
  *
  * TODO (expected): more comprehensive testing
  */
@@ -60,19 +60,11 @@ public class CasForwardHandler implements IVerbHandler<CasForwardRequest>
         ClientWarn.instance.captureWarnings();
         try
         {
-            // Validate keyspace exists and is tracked
             KeyspaceMetadata ksMetadata = Schema.instance.getKeyspaceMetadata(request.keyspaceName);
             if (ksMetadata == null)
             {
                 MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
                 logger.error("Failed to forward CAS operation for non-existent keyspace {}", request.keyspaceName);
-                return;
-            }
-
-            if (!ksMetadata.params.replicationType.isTracked())
-            {
-                MessagingService.instance().respondWithFailure(RequestFailureReason.INCOMPATIBLE_SCHEMA, message);
-                logger.error("Asked to perform forwarded CAS operation, but keyspace {} is not tracked", request.keyspaceName);
                 return;
             }
 

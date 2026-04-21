@@ -1773,4 +1773,47 @@ public class ClusterUtils
             return null;
         });
     }
+
+    /**
+     * Wait for all nodes in the cluster to reach at least the highest TCM epoch currently observed.
+     * Useful after tests that block TCM propagation to specific nodes.
+     */
+    public static void awaitTCMCatchUp(ICluster<?> cluster)
+    {
+        long maxEpoch = 0;
+        boolean foundRunning = false;
+        for (int i = 1; i <= cluster.size(); i++)
+        {
+            IInvokableInstance inst = (IInvokableInstance) cluster.get(i);
+            if (inst.isShutdown())
+                continue;
+            foundRunning = true;
+            maxEpoch = Math.max(maxEpoch, inst.callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()));
+        }
+        if (!foundRunning)
+            throw new AssertionError("No running nodes to await TCM catch-up on");
+
+        long target = maxEpoch;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        List<String> lagging = new ArrayList<>();
+        for (int i = 1; i <= cluster.size(); i++)
+        {
+            IInvokableInstance inst = (IInvokableInstance) cluster.get(i);
+            if (inst.isShutdown())
+                continue;
+            int node = i;
+            while (System.nanoTime() < deadline)
+            {
+                long nodeEpoch = inst.callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+                if (nodeEpoch >= target)
+                    break;
+                sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+            }
+            long finalEpoch = inst.callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+            if (finalEpoch < target)
+                lagging.add(String.format("node%d(epoch=%d)", node, finalEpoch));
+        }
+        if (!lagging.isEmpty())
+            throw new AssertionError(String.format("Timed out waiting for nodes to reach epoch %d; lagging: %s", target, lagging));
+    }
 }

@@ -20,6 +20,9 @@ package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmbeddableSinglePartitionReadCommand;
@@ -29,6 +32,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
@@ -36,8 +40,8 @@ import org.apache.cassandra.service.paxos.PaxosPrepare.Rejected;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Response;
 import org.apache.cassandra.service.reads.tracked.TrackedRead;
 import org.apache.cassandra.service.reads.tracked.TrackedRead.Id;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher.RequestTime;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -52,6 +56,8 @@ import static org.apache.cassandra.service.paxos.PaxosPrepare.start;
 
 public class PaxosCommitAndPrepare
 {
+    private static final Logger logger = LoggerFactory.getLogger(PaxosCommitAndPrepare.class);
+
     public static final RequestSerializer requestSerializer = new RequestSerializer();
     public static final RequestHandler requestHandler = new RequestHandler();
 
@@ -68,7 +74,22 @@ public class PaxosCommitAndPrepare
          *
          * All these things are tractable to do better, but for now doing something simple and correct.
          */
-        if (readCommand.metadata().replicationType().isTracked())
+        boolean shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(commit.metadata().keyspace,
+                                                                            commit.metadata().id,
+                                                                            commit.partitionKey().getToken());
+
+        // Reconcile the mutation's ID with the current migration state.
+        // The commit may have been saved to system.paxos under a different replication type.
+        if (!shouldBeTracked && !commit.mutation.id().isNone())
+        {
+            logger.warn("Stripping mutation ID {} from PaxosCommitAndPrepare for {}.{} partition {} - keyspace migrated to untracked",
+                        commit.mutation.id(), commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
+            Tracing.trace("Stripping mutation ID {} from PaxosCommitAndPrepare for {}.{} partition {} - keyspace migrated to untracked",
+                          commit.mutation.id(), commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
+            commit = commit.withMutationId(MutationId.none());
+        }
+
+        if (shouldBeTracked)
         {
             /*
              * Consistency for consensus is tricky to pick here. The goal of sending this commit is to unblock the prepare
@@ -169,7 +190,17 @@ public class PaxosCommitAndPrepare
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+            ClusterMetadata metadata = ClusterMetadata.current();
+
+            Agreed commit = message.payload.commit;
+            boolean coordinatorSaysTracked = !commit.mutation.id().isNone();
+            metadata = MigrationRouter.checkPaxosCommitMigration(metadata, message, message.from(),
+                                                                 commit.metadata().keyspace, commit.metadata().id,
+                                                                 commit.partitionKey().getToken(),
+                                                                 coordinatorSaysTracked);
+
+            if (message.payload.read != null)
+                MigrationRouter.checkPaxosPrepareReadMigration(metadata, message, message.from(), message.payload.read);
 
             Future<Response> response = execute(message.payload, new RequestTime(message.createdAtNanos()));
             if (response == null)

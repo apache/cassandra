@@ -111,6 +111,7 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -140,11 +141,11 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.TrackedWriteRequest;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.PartitionDenylist;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -189,6 +190,7 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.ReadExecutor;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -800,7 +802,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("Finishing incomplete paxos round {}", inProgress);
                     casMetrics.unfinishedCommit.inc();
-                    Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
+                    Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.mutation);
                     if (proposePaxos(refreshedInProgress, paxosPlan, false, requestTime))
                     {
                         commitPaxos(refreshedInProgress, consistencyForCommit, false, requestTime);
@@ -844,16 +846,29 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * Unlike commitPaxos, this does not wait for replies.
-     * For tracked keyspaces, ensures proper mutation ID generation and tracking.
+     * Unlike commitPaxos, this does not wait for commit application replies.
+     * For tracked keyspaces where the local node is not a replica, waits for the
+     * forwarding coordinator to acknowledge dispatch.
      */
     private static void sendCommit(Commit commit, Iterable<InetAddressAndPort> targetReplicas, ReplicaPlan.ForPaxosWrite replicaPlan)
     {
         String ksName = commit.metadata().keyspace;
-        KeyspaceMetadata ksMetadata = Schema.instance.getKeyspaceMetadata(ksName);
+        ClusterMetadata cm = ClusterMetadata.current();
+        boolean shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(cm, ksName, commit.metadata().id, commit.partitionKey().getToken());
+
+        // Reconcile the mutation's ID with the current migration state.
+        // The commit may have been saved to system.paxos under a different replication type.
+        if (!shouldBeTracked && !commit.mutation.id().isNone())
+        {
+            logger.warn("Stripping mutation ID {} from V2 paxos sendCommit for {}.{} partition {} - keyspace migrated to untracked",
+                        commit.mutation.id(), ksName, commit.metadata().name, commit.partitionKey());
+            Tracing.trace("Stripping mutation ID {} from V2 paxos sendCommit for {}.{} partition {} - keyspace migrated to untracked",
+                          commit.mutation.id(), ksName, commit.metadata().name, commit.partitionKey());
+            commit = commit.withMutationId(MutationId.none());
+        }
 
         // Non-tracked keyspaces OR already has mutation ID: fire and forget to target replicas
-        if (ksMetadata == null || !ksMetadata.params.replicationType.isTracked() || !commit.mutation.id().isNone())
+        if (!shouldBeTracked || !commit.mutation.id().isNone())
         {
             Message<Commit> message = Message.out(PAXOS_COMMIT_REQ, commit);
             for (InetAddressAndPort target : targetReplicas)
@@ -887,30 +902,23 @@ public class StorageProxy implements StorageProxyMBean
     private static void forwardPaxosCommit(Commit commit, ReplicaPlan.ForPaxosWrite replicaPlan)
     {
         InetAddressAndPort localEndpoint = FBUtilities.getBroadcastAddressAndPort();
-
-        // Get live replicas (excluding local node) to find a coordinator
         EndpointsForToken liveReplicas = replicaPlan.live().filter(replica -> !replica.endpoint().equals(localEndpoint));
-
         if (liveReplicas.isEmpty())
         {
-            logger.warn("No live replicas available to forward Paxos commit for tracked keyspace");
+            logger.warn("No live replicas available to forward Paxos commit for {}.{} partition {}",
+                        commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
             return;
         }
 
-        // Sort by proximity and select the closest as coordinator
         EndpointsForToken sortedReplicas = DatabaseDescriptor.getNodeProximity().sortedByProximity(localEndpoint, liveReplicas);
         InetAddressAndPort replicaCoordinator = sortedReplicas.get(0).endpoint();
-
         Tracing.trace("Forwarding Paxos commit to replica coordinator {}", replicaCoordinator);
 
-        // Use respondAfterSend=true so coordinator responds after sending commits (not waiting for application)
+        // respondAfterSend=true so coordinator responds after sending commits (not waiting for application)
         PaxosCommitForwardRequest forwardRequest = new PaxosCommitForwardRequest(commit, replicaPlan.consistencyLevel(), true);
         Message<PaxosCommitForwardRequest> message = Message.out(PAXOS_COMMIT_FORWARD_REQ, forwardRequest);
-
-        // Wait for coordinator to confirm commits were sent before returning
         Promise<NoPayload> promise = new AsyncPromise<>();
-
-        RequestCallback<NoPayload> callback = new RequestCallback<NoPayload>()
+        RequestCallbackWithFailure<NoPayload> callback = new RequestCallbackWithFailure<NoPayload>()
         {
             @Override
             public void onResponse(Message<NoPayload> response)
@@ -921,20 +929,26 @@ public class StorageProxy implements StorageProxyMBean
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailure reason)
             {
-                promise.setFailure(new RuntimeException("Failed to forward Paxos commit to " + from + ": " + reason));
+                if (reason.reason == RequestFailureReason.COORDINATOR_BEHIND)
+                    promise.setFailure(new CoordinatorBehindException("Failed to forward Paxos commit to " + from + ": " + reason, reason.failure));
+                else
+                    promise.setFailure(new RuntimeException("Failed to forward Paxos commit to " + from + ": " + reason, reason.failure));
             }
         };
 
         MessagingService.instance().sendWithCallback(message, replicaCoordinator, callback);
-
         try
         {
-            // Wait for coordinator to confirm commits were sent
             promise.get(DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS), MILLISECONDS);
         }
         catch (TimeoutException e)
         {
             logger.warn("Timeout waiting for forwarded Paxos commit response from {}", replicaCoordinator);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
         }
         catch (Exception e)
         {
@@ -1026,35 +1040,56 @@ public class StorageProxy implements StorageProxyMBean
     private static void commitPaxos(Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, Dispatcher.RequestTime requestTime) throws WriteTimeoutException
     {
         checkArgument(!proposal.isEmpty());
-        // Check if this is a tracked keyspace
         String keyspaceName = proposal.metadata().keyspace;
         Keyspace keyspace = Keyspace.openIfExists(keyspaceName);
         if (keyspace == null)
             throw new KeyspaceNotDefinedException("Keyspace " + keyspaceName + " does not exist");
-        KeyspaceMetadata ksMetadata = keyspace.getMetadata();
-        
-        if (ksMetadata.params.replicationType.isTracked())
+
+        long deadline = requestTime.computeDeadline(DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS));
+        while (nanoTime() < deadline)
         {
-            // For tracked keyspaces, check if we need to forward or execute directly
-            Token tk = proposal.partitionKey().getToken();
-            ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
-            
-            if (isTrackedKeyspaceRequiringPaxosCommitForwarding(ksMetadata, proposal, replicaPlan.liveAndDown()))
+            try
             {
-                // Forward to a replica coordinator
-                forwardPaxosCommit(proposal, consistencyLevel, replicaPlan);
+                Token tk = proposal.partitionKey().getToken();
+                ClusterMetadata cm = ClusterMetadata.current();
+                boolean shouldBeTracked = MigrationRouter.shouldUseTrackedForWrites(cm, keyspaceName, proposal.metadata().id, tk);
+
+                // Reconcile the mutation's ID with the current migration state.
+                Commit reconciled = proposal;
+                if (!shouldBeTracked && !proposal.mutation.id().isNone())
+                {
+                    logger.warn("Stripping mutation ID {} from V1 paxos commit for {}.{} partition {} - keyspace migrated to untracked",
+                                proposal.mutation.id(), keyspaceName, proposal.metadata().name, proposal.partitionKey());
+                    Tracing.trace("Stripping mutation ID {} from V1 paxos commit for {}.{} partition {} - keyspace migrated to untracked",
+                                  proposal.mutation.id(), keyspaceName, proposal.metadata().name, proposal.partitionKey());
+                    reconciled = proposal.withMutationId(MutationId.none());
+                }
+
+                if (shouldBeTracked)
+                {
+                    ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
+
+                    if (requiresPaxosCommitForwarding(replicaPlan.liveAndDown()))
+                        forwardPaxosCommit(reconciled, consistencyLevel, replicaPlan);
+                    else
+                        commitPaxosTracked(keyspace, reconciled, consistencyLevel, requestTime);
+                }
+                else
+                {
+                    commitPaxosUntracked(keyspace, reconciled, consistencyLevel, allowHints, requestTime);
+                }
+                return;
             }
-            else
+            catch (CoordinatorBehindException e)
             {
-                // Execute directly using tracked logic
-                commitPaxosTracked(keyspace, proposal, consistencyLevel, requestTime);
+                casWriteMetrics.retryCoordinatorBehind.mark();
+                logger.warn("Retrying V1 Paxos commit after COORDINATOR_BEHIND for {}.{} partition {}",
+                            keyspaceName, proposal.metadata().name, proposal.partitionKey());
+                Tracing.trace("Retrying V1 Paxos commit after COORDINATOR_BEHIND for {}.{} partition {}",
+                              keyspaceName, proposal.metadata().name, proposal.partitionKey());
             }
         }
-        else
-        {
-            // For untracked keyspaces, use existing logic
-            commitPaxosUntracked(keyspace, proposal, consistencyLevel, allowHints, requestTime);
-        }
+        throw new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(keyspace.getReplicationStrategy()));
     }
 
     public static void commitPaxosTracked(Keyspace keyspace, Commit proposal, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime) throws WriteTimeoutException
@@ -1152,7 +1187,7 @@ public class StorageProxy implements StorageProxyMBean
             responseHandler.get();
     }
 
-    private static void commitPaxosUntracked(Keyspace keyspace, Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, Dispatcher.RequestTime requestTime) throws WriteTimeoutException
+    public static void commitPaxosUntracked(Keyspace keyspace, Commit proposal, ConsistencyLevel consistencyLevel, boolean allowHints, Dispatcher.RequestTime requestTime) throws WriteTimeoutException
     {
         boolean shouldBlock = consistencyLevel != ConsistencyLevel.ANY;
         PartitionUpdate update = proposal.update;
@@ -1245,48 +1280,35 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * Checks if this commit needs to be forwarded to a replica coordinator for tracked keyspace support.
+     * Returns true if the local node is not a participant and the operation must be forwarded to a replica coordinator.
      */
-    private static boolean isTrackedKeyspaceRequiringPaxosCommitForwarding(KeyspaceMetadata ksMetadata, Commit proposal, EndpointsForToken participants)
+    private static boolean requiresPaxosCommitForwarding(EndpointsForToken participants)
     {
-        if (!ksMetadata.params.replicationType.isTracked())
-            return false;
-            
-        // Check if current coordinator is not a replica
         InetAddressAndPort localEndpoint = FBUtilities.getBroadcastAddressAndPort();
-        boolean isLocalReplica = participants.endpoints().contains(localEndpoint);
-        return !isLocalReplica;
+        return !participants.endpoints().contains(localEndpoint);
     }
 
     /**
      * Forwards a Paxos V1 commit operation to a replica coordinator for tracked keyspaces.
      * Uses the replica plan to select the best live, non-local replica based on proximity.
      */
-    private static void forwardPaxosCommit(Commit proposal, ConsistencyLevel consistencyLevel, ReplicaPlan.ForWrite replicaPlan) throws WriteTimeoutException
+    private static void forwardPaxosCommit(Commit proposal,
+                                           ConsistencyLevel consistencyLevel,
+                                           ReplicaPlan.ForWrite replicaPlan)
+    throws WriteTimeoutException, CoordinatorBehindException
     {
         InetAddressAndPort localEndpoint = FBUtilities.getBroadcastAddressAndPort();
-        
-        // Get live replicas and filter out local node
         EndpointsForToken liveReplicas = replicaPlan.live().filter(replica -> !replica.endpoint().equals(localEndpoint));
-        
         if (liveReplicas.isEmpty())
-        {
-            // No live replica available, throw exception
             throw new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(replicaPlan.replicationStrategy()));
-        }
-        
-        // Sort by proximity and select the best coordinator
+
         EndpointsForToken sortedReplicas = DatabaseDescriptor.getNodeProximity().sortedByProximity(localEndpoint, liveReplicas);
         InetAddressAndPort replicaCoordinator = sortedReplicas.get(0).endpoint();
-        
-        // Create forward request with participant list
         PaxosCommitForwardRequest forwardRequest = new PaxosCommitForwardRequest(proposal, consistencyLevel);
         Message<PaxosCommitForwardRequest> message = Message.out(PAXOS_COMMIT_FORWARD_REQ, forwardRequest);
-        
-        // Use AsyncPromise for proper callback handling
         Promise<NoPayload> promise = new AsyncPromise<>();
-        
-        RequestCallback<NoPayload> callback = new RequestCallback<NoPayload>()
+
+        RequestCallbackWithFailure<NoPayload> callback = new RequestCallbackWithFailure<NoPayload>()
         {
             @Override
             public void onResponse(Message<NoPayload> response)
@@ -1297,27 +1319,36 @@ public class StorageProxy implements StorageProxyMBean
             @Override
             public void onFailure(InetAddressAndPort from, RequestFailure reason)
             {
-                promise.setFailure(new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(replicaPlan.replicationStrategy())));
+                if (reason.reason == RequestFailureReason.COORDINATOR_BEHIND)
+                    promise.setFailure(new CoordinatorBehindException("Forwarded Paxos commit rejected: handler says coordinator is behind", reason.failure));
+                else
+                    promise.setFailure(new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(replicaPlan.replicationStrategy()), reason.failure));
             }
         };
-        
+
         try
         {
             MessagingService.instance().sendWithCallback(message, replicaCoordinator, callback);
-            
-            // Wait for response with timeout
-            promise.get(DatabaseDescriptor.getWriteRpcTimeout(java.util.concurrent.TimeUnit.MILLISECONDS), java.util.concurrent.TimeUnit.MILLISECONDS);
+            promise.get(DatabaseDescriptor.getWriteRpcTimeout(MILLISECONDS), MILLISECONDS);
         }
         catch (TimeoutException e)
         {
             throw new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(replicaPlan.replicationStrategy()));
         }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new UncheckedInterruptedException(e);
+        }
         catch (Exception e)
         {
-            if (e instanceof WriteTimeoutException)
-                throw (WriteTimeoutException) e;
-            
-            throw new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(replicaPlan.replicationStrategy()));
+            Throwable cause = e.getCause();
+            if (cause instanceof WriteTimeoutException)
+                throw (WriteTimeoutException) cause;
+            if (cause instanceof CoordinatorBehindException)
+                throw (CoordinatorBehindException) cause;
+
+            throw new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, consistencyLevel.blockFor(replicaPlan.replicationStrategy()), e);
         }
     }
 
@@ -4349,13 +4380,13 @@ public class StorageProxy implements StorageProxyMBean
                                                          boolean alreadyForwarded)
     throws UnavailableException, RequestFailureException, RequestTimeoutException
     {
-        // Get keyspace metadata to check if it's tracked
         Keyspace keyspace = Keyspace.openIfExists(keyspaceName);
         if (keyspace == null)
             throw new KeyspaceNotDefinedException("Keyspace " + keyspaceName + " does not exist");
 
-        KeyspaceMetadata ksMetadata = keyspace.getMetadata();
-        if (!ksMetadata.params.replicationType.isTracked())
+        ClusterMetadata cm = ClusterMetadata.current();
+        TableMetadata tableMetadata = cm.schema.getTableMetadata(keyspaceName, cfName);
+        if (tableMetadata == null || !MigrationRouter.shouldUseTrackedForWrites(cm, keyspaceName, tableMetadata.id, key.getToken()))
             return null; // Not tracked, no forwarding needed
 
         // Property to disable top-level forwarding for testing
@@ -4364,7 +4395,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // Check if current coordinator is not a replica
         Token tk = key.getToken();
-        EndpointsForToken allReplicas = ReplicaLayout.forTokenWriteLiveAndDown(ClusterMetadata.current(), keyspace, tk)
+        EndpointsForToken allReplicas = ReplicaLayout.forTokenWriteLiveAndDown(cm, keyspace, tk)
                                                      .all();
         EndpointsForToken liveReplicas = allReplicas.filter(FailureDetector.isReplicaAlive);
 
@@ -4445,13 +4476,12 @@ public class StorageProxy implements StorageProxyMBean
         SinglePartitionReadCommand firstCommand = group.queries.get(0);
         String keyspaceName = firstCommand.metadata().keyspace;
 
-        // Get keyspace metadata to check if it's tracked
         Keyspace keyspace = Keyspace.openIfExists(keyspaceName);
         if (keyspace == null)
             throw new KeyspaceNotDefinedException("Keyspace " + keyspaceName + " does not exist");
 
-        KeyspaceMetadata ksMetadata = keyspace.getMetadata();
-        if (!ksMetadata.params.replicationType.isTracked())
+        ClusterMetadata cm = ClusterMetadata.current();
+        if (!MigrationRouter.shouldUseTracked(cm, firstCommand))
             return null; // Not tracked, no forwarding needed
 
         // Property to disable top-level forwarding for testing
@@ -4460,7 +4490,7 @@ public class StorageProxy implements StorageProxyMBean
 
         // Check if current coordinator is not a replica
         Token tk = firstCommand.partitionKey().getToken();
-        EndpointsForToken allReplicas = ReplicaLayout.forTokenWriteLiveAndDown(ClusterMetadata.current(), keyspace, tk)
+        EndpointsForToken allReplicas = ReplicaLayout.forTokenWriteLiveAndDown(cm, keyspace, tk)
                                                      .all();
         EndpointsForToken liveReplicas = allReplicas.filter(FailureDetector.isReplicaAlive);
 

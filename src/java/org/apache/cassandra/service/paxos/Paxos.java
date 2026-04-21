@@ -20,6 +20,7 @@ package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +95,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
@@ -740,6 +742,8 @@ public class Paxos
         try (PaxosOperationLock lock = PaxosState.lock(partitionKey, metadata, proposeDeadline, consistencyForConsensus, true))
         {
             Paxos.Async<PaxosCommit.Status> commit = null;
+            Agreed agreed = null;
+            Participants commitParticipants = null;
             done: while (true)
             {
                 // read the current values and check they validate the conditions
@@ -839,7 +843,11 @@ public class Paxos
                         //   1) reached a majority, in which case it was agreed, had no effect and we can do nothing; or
                         //   2) did not reach a majority, was not agreed, and was not user visible as a result so we can ignore it
                         if (!proposal.isEmpty())
-                            commit = commit(proposal.agreed(), participants, consistencyForConsensus, consistencyForCommit, true);
+                        {
+                            agreed = proposal.agreed();
+                            commitParticipants = participants;
+                            commit = commit(agreed, participants, consistencyForConsensus, consistencyForCommit, true);
+                        }
 
                         break done;
                     }
@@ -872,8 +880,26 @@ public class Paxos
             if (commit != null)
             {
                 PaxosCommit.Status result = commit.awaitUntil(commitDeadline);
-                if (!result.isSuccess())
-                    throw result.maybeFailure().markAndThrowAsTimeoutOrFailure(true, consistencyForCommit, failedAttemptsDueToContention);
+                while (!result.isSuccess())
+                {
+                    Paxos.MaybeFailure failure = result.maybeFailure();
+                    long coordinatorBehindCount = Collections.frequency(failure.failures.values(),
+                                                                        RequestFailureReason.COORDINATOR_BEHIND);
+                    if (coordinatorBehindCount == 0
+                        || failure.successes + coordinatorBehindCount < failure.required
+                        || nanoTime() >= commitDeadline)
+                    {
+                        throw failure.markAndThrowAsTimeoutOrFailure(true, consistencyForCommit, failedAttemptsDueToContention);
+                    }
+
+                    casWriteMetrics.retryCoordinatorBehind.mark();
+                    Tracing.trace("Retrying V2 Paxos commit after COORDINATOR_BEHIND for {}.{} partition {}, {} behind replicas out of {} required",
+                                  metadata.keyspace, metadata.name, partitionKey, coordinatorBehindCount, failure.required);
+                    logger.warn("Retrying V2 Paxos commit after COORDINATOR_BEHIND for {}.{} partition {}, {} behind replicas out of {} required",
+                                metadata.keyspace, metadata.name, partitionKey, coordinatorBehindCount, failure.required);
+                    commit = commit(agreed, commitParticipants, consistencyForConsensus, consistencyForCommit, true);
+                    result = commit.awaitUntil(commitDeadline);
+                }
             }
             Tracing.trace("CAS successful");
             return casResult((RowIterator)null);
@@ -1103,7 +1129,7 @@ public class Paxos
                     // is equal to the latest commit (even if the ballots aren't) we're done and can abort earlier,
                     // and in fact it's possible for a CAS to sometimes determine if side effects occurred by reading
                     // the underlying data and not witnessing the timestamp of its ballot (or any newer for the relevant data).
-                    Proposal repropose = new Proposal(inProgress.ballot, inProgress.accepted.update);
+                    Proposal repropose = new Proposal(inProgress.ballot, inProgress.accepted.mutation);
                     PaxosPropose.Status proposeResult = propose(repropose, inProgress.participants, false).awaitUntil(deadline);
                     switch (proposeResult.outcome)
                     {

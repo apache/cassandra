@@ -19,30 +19,44 @@
 package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
-import java.util.List;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.utils.NullableSerializer;
 
 /**
  * Response from a forwarded PaxosPrepareRefresh operation.
- * Contains the superseding ballot for each refresh target (null if confirmed).
+ * Each response carries a single target result (targetIndex + supersededBy),
+ * or just the mutation ID if targetIndex is null.
+ * Multiple non-final responses are sent incrementally as targets respond,
+ * followed by a final response for the last target.
  */
 public class PrepareRefreshForwardResponse
 {
     public static final Serializer serializer = new Serializer();
 
-    /**
-     * List of superseding ballots, one per refresh target.
-     * Null entry means the promise was confirmed for that target.
-     */
-    public final List<Ballot> supersededBy;
+    public final MutationId mutationId;
+    @Nullable
+    public final Integer targetIndex;
+    @Nullable
+    public final Ballot supersededBy;
 
-    public PrepareRefreshForwardResponse(List<Ballot> supersededBy)
+    public PrepareRefreshForwardResponse(MutationId mutationId)
     {
+        this.mutationId = mutationId;
+        this.targetIndex = null;
+        this.supersededBy = null;
+    }
+
+    public PrepareRefreshForwardResponse(MutationId mutationId, int targetIndex, @Nullable Ballot supersededBy)
+    {
+        this.mutationId = mutationId;
+        this.targetIndex = targetIndex;
         this.supersededBy = supersededBy;
     }
 
@@ -53,20 +67,39 @@ public class PrepareRefreshForwardResponse
         @Override
         public void serialize(PrepareRefreshForwardResponse response, DataOutputPlus out, int version) throws IOException
         {
-            CollectionSerializers.serializeList(response.supersededBy, out, version, NULLABLE_BALLOT_SERIALIZER);
+            MutationId.serializer.serialize(response.mutationId, out);
+            boolean hasTarget = response.targetIndex != null;
+            out.writeBoolean(hasTarget);
+            if (hasTarget)
+            {
+                out.writeUnsignedVInt32(response.targetIndex);
+                NULLABLE_BALLOT_SERIALIZER.serialize(response.supersededBy, out, version);
+            }
         }
 
         @Override
         public PrepareRefreshForwardResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            List<Ballot> supersededBy = CollectionSerializers.deserializeList(in, version, NULLABLE_BALLOT_SERIALIZER);
-            return new PrepareRefreshForwardResponse(supersededBy);
+            MutationId mutationId = MutationId.serializer.deserialize(in);
+            boolean hasTarget = in.readBoolean();
+            if (!hasTarget)
+                return new PrepareRefreshForwardResponse(mutationId);
+            int targetIndex = in.readUnsignedVInt32();
+            Ballot supersededBy = NULLABLE_BALLOT_SERIALIZER.deserialize(in, version);
+            return new PrepareRefreshForwardResponse(mutationId, targetIndex, supersededBy);
         }
 
         @Override
         public long serializedSize(PrepareRefreshForwardResponse response, int version)
         {
-            return CollectionSerializers.serializedListSize(response.supersededBy, version, NULLABLE_BALLOT_SERIALIZER);
+            long size = MutationId.serializer.serializedSize(response.mutationId);
+            size += 1; // hasTarget boolean
+            if (response.targetIndex != null)
+            {
+                size += TypeSizes.sizeofUnsignedVInt(response.targetIndex);
+                size += NULLABLE_BALLOT_SERIALIZER.serializedSize(response.supersededBy, version);
+            }
+            return size;
         }
     }
 }

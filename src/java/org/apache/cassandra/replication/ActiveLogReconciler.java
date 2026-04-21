@@ -59,7 +59,40 @@ public final class ActiveLogReconciler implements Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(ActiveLogReconciler.class);
 
-    public enum Priority { HIGH, REGULAR }
+    public enum Priority
+    {
+        HIGH(0),
+        REGULAR(1);
+
+        public final int id;
+
+        private static final Priority[] idMapping;
+        static
+        {
+            int maxId = -1;
+            for (Priority p : values())
+                maxId = Math.max(maxId, p.id);
+            idMapping = new Priority[maxId + 1];
+            for (Priority p : values())
+            {
+                if (idMapping[p.id] != null)
+                    throw new IllegalStateException("Duplicate Priority id " + p.id);
+                idMapping[p.id] = p;
+            }
+        }
+
+        Priority(int id)
+        {
+            this.id = id;
+        }
+
+        public static Priority fromId(int id)
+        {
+            if (id < 0 || id >= idMapping.length || idMapping[id] == null)
+                throw new IllegalArgumentException("Unknown Priority id: " + id);
+            return idMapping[id];
+        }
+    }
 
     // prioritised delivery of mutations that are needed by reads;
     private final ManyToOneConcurrentLinkedQueue<Task> highPriorityTasks;

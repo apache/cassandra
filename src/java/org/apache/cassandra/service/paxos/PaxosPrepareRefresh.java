@@ -21,18 +21,20 @@ package org.apache.cassandra.service.paxos;
 import java.io.IOException;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
@@ -44,6 +46,7 @@ import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Committed;
+import org.apache.cassandra.service.replication.migration.MigrationRouter;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
@@ -78,10 +81,11 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         void onRefreshSuccess(Ballot isSupersededBy, InetAddressAndPort from);
     }
 
-    private Message<Request> send;
+    private volatile Message<Request> send;
     private final Callbacks callbacks;
     private final Paxos.Participants participants;
     private final boolean isUrgent;
+    private boolean selfCallbackDelivered;
 
     public PaxosPrepareRefresh(Ballot prepared, Paxos.Participants participants, Committed latestCommitted, Callbacks callbacks)
     {
@@ -97,98 +101,103 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
      */
     void refresh(List<InetAddressAndPort> refresh)
     {
-        // Check if forwarding is needed for tracked keyspaces
+        selfCallbackDelivered = false;
         Committed commit = send.payload.missingCommit;
+        boolean tracked = MigrationRouter.shouldUseTrackedForWrites(commit.metadata().keyspace,
+                                                                    commit.metadata().id,
+                                                                    commit.partitionKey().getToken());
 
-        if (commit.metadata().replicationType().isTracked() && commit.mutation.id().isNone())
+        if (tracked && commit.mutation.id().isNone())
         {
-            // Check if we can generate mutation ID locally (are we a replica?)
             Replica localReplica = participants.all.byEndpoint().get(getBroadcastAddressAndPort());
-
-            if (localReplica != null)
+            if (localReplica == null)
             {
-                // We ARE a replica - generate mutation ID and update the commit
-                String keyspaceName = commit.metadata().keyspace;
-                MutationId mutationId = MutationTrackingService.instance().nextMutationId(keyspaceName, commit.partitionKey().getToken());
-                Mutation mutationWithId = commit.makeMutation(mutationId);
-                Committed commitWithId = new Commit.Committed(commit.ballot, mutationWithId);
-
-                // Update the message payload with the new commit
-                this.send = Message.out(PAXOS2_PREPARE_REFRESH_REQ,
-                                        new Request(send.payload.promised, commitWithId),
-                                        isUrgent);
-
-                // For tracked keyspaces, we MUST ALWAYS write to the local journal since we generated the mutation ID.
-                // This is required for retry purposes: if a remote target fails, the ActiveLogReconciler will try
-                // to look up the mutation in the local journal. The node that generated the mutation ID is the "owner"
-                // and must have the mutation available for retries.
-                //
-                // We do this BEFORE the main refresh loop to ensure the mutation is in the journal before any
-                // failure callback can trigger reconciliation.
-                Response localResponse = null;
-                try
-                {
-                    localResponse = RequestHandler.execute(this.send.payload, getBroadcastAddressAndPort());
-                    if (localResponse == null)
-                        logger.warn("Local execution failed for tracked mutation {}", mutationId);
-                }
-                catch (Exception e)
-                {
-                    logger.warn("Exception writing tracked mutation {} locally", mutationId, e);
-                }
-
-                // If self is in the refresh list, report the local execution result to callbacks
-                // We need to do this because the main loop will skip self for tracked keyspaces
-                for (int i = 0, size = refresh.size(); i < size; ++i)
-                {
-                    if (shouldExecuteOnSelf(refresh.get(i)))
-                    {
-                        if (localResponse != null)
-                            callbacks.onRefreshSuccess(localResponse.isSupersededBy, getBroadcastAddressAndPort());
-                        else
-                            callbacks.onRefreshFailure(getBroadcastAddressAndPort(), RequestFailure.UNKNOWN);
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                // We're NOT a replica - forward to a replica
                 forwardRefresh(refresh);
                 return;
             }
+            if (!generateMutationIdAndPersistLocally(commit, refresh))
+                return;
+        }
+        else if (!tracked && !commit.mutation.id().isNone())
+        {
+            logger.warn("Stripping mutation ID {} from PaxosPrepareRefresh for {}.{} partition {} - keyspace migrated to untracked",
+                        commit.mutation.id(), commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
+            Tracing.trace("Stripping mutation ID {} from PaxosPrepareRefresh for {}.{} partition {} - keyspace migrated to untracked",
+                          commit.mutation.id(), commit.metadata().keyspace, commit.metadata().name, commit.partitionKey());
+            updateSendMessage(commit.withMutationId(MutationId.none()));
         }
 
-        // For tracked keyspaces where we generated the ID above, we already wrote locally.
-        // For tracked keyspaces where the ID was already present, we still need to ensure local execution.
-        boolean isTracked = !send.payload.missingCommit.mutation.id().isNone();
+        dispatchRefresh(refresh, tracked);
+    }
 
-        // If we just generated the ID above, we already wrote locally - check by examining the original commit
-        boolean alreadyWroteLocally = commit.metadata().replicationType().isTracked()
-                                      && commit.mutation.id().isNone()
-                                      && participants.all.byEndpoint().get(getBroadcastAddressAndPort()) != null;
-        boolean localExecutedSync = alreadyWroteLocally;
+    /**
+     * Generates a mutation ID as the local replica, updates the send message, executes locally
+     * to persist to the journal (for ID ownership), and reports self's callback if self is a target.
+     *
+     * @return true if local write succeeded, false if it failed (all target callbacks reported as failure)
+     */
+    private boolean generateMutationIdAndPersistLocally(Committed commit, List<InetAddressAndPort> refresh)
+    {
+        String keyspaceName = commit.metadata().keyspace;
+        MutationId mutationId = MutationTrackingService.instance().nextMutationId(keyspaceName, commit.partitionKey().getToken());
+        updateSendMessage(commit.withMutationId(mutationId));
+        selfCallbackDelivered = true;
 
-        // For tracked keyspaces where we DIDN'T generate the ID (it was already present), we still need to
-        // execute locally BEFORE sending to remotes if self is in the refresh list.
-        if (isTracked && !alreadyWroteLocally)
+        Response localResponse = null;
+        try
         {
-            for (int i = 0, size = refresh.size(); i < size; ++i)
+            localResponse = RequestHandler.execute(this.send.payload, getBroadcastAddressAndPort());
+            if (localResponse == null)
+                logger.warn("Local execution failed for tracked mutation {}", mutationId);
+        }
+        catch (Exception e)
+        {
+            logger.warn("Exception writing tracked mutation {} locally", mutationId, e);
+        }
+
+        if (localResponse == null)
+        {
+            for (InetAddressAndPort target : refresh)
+                callbacks.onRefreshFailure(target, RequestFailure.UNKNOWN);
+            return false;
+        }
+
+        for (int i = 0, size = refresh.size(); i < size; ++i)
+        {
+            if (shouldExecuteOnSelf(refresh.get(i)))
             {
-                if (shouldExecuteOnSelf(refresh.get(i)))
-                {
-                    executeOnSelf();  // SYNCHRONOUS - journal write completes here
-                    localExecutedSync = true;
-                    break;
-                }
+                callbacks.onRefreshSuccess(localResponse.isSupersededBy, getBroadcastAddressAndPort());
+                break;
             }
         }
+        return true;
+    }
 
-        // Now send to remote nodes (and record local execution for non-tracked keyspaces)
-        boolean executeOnSelf = false;
-        for (int i = 0, size = refresh.size(); i < size ; ++i)
+    private void updateSendMessage(Committed commit)
+    {
+        this.send = Message.out(PAXOS2_PREPARE_REFRESH_REQ, new Request(send.payload.promised, commit), isUrgent);
+    }
+
+    /**
+     * Dispatches refresh to all targets. For tracked keyspaces, self is executed synchronously
+     * before remotes (unless already handled during ID generation). For untracked keyspaces,
+     * self is scheduled for async execution after remotes.
+     */
+    private void dispatchRefresh(List<InetAddressAndPort> refresh, boolean tracked)
+    {
+        if (tracked && !selfCallbackDelivered)
+            executeSelfSynchronously(refresh);
+
+        boolean selfInList = false;
+        for (int i = 0, size = refresh.size(); i < size; ++i)
         {
             InetAddressAndPort destination = refresh.get(i);
+
+            if (shouldExecuteOnSelf(destination))
+            {
+                selfInList = true;
+                continue;
+            }
 
             if (logger.isTraceEnabled())
                 logger.trace("Refresh {} and Confirm {} to {}", send.payload.missingCommit, Ballot.toString(send.payload.promised, "Promise"), destination);
@@ -196,46 +205,42 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
             if (Tracing.isTracing())
                 Tracing.trace("Refresh {} and Confirm {} to {}", send.payload.missingCommit.ballot, send.payload.promised, destination);
 
-            if (shouldExecuteOnSelf(destination))
-            {
-                // For tracked keyspaces, skip self - already executed synchronously above
-                if (!localExecutedSync)
-                    executeOnSelf = true;
-            }
-            else
-            {
-                MessagingService.instance().sendWithCallback(send, destination, this);
-            }
+            MessagingService.instance().sendWithCallback(send, destination, this);
         }
 
-        // Async local execution only for non-tracked keyspaces
-        if (executeOnSelf)
+        if (!tracked && selfInList)
             PAXOS2_PREPARE_REFRESH_REQ.stage.execute(this::executeOnSelf);
+    }
+
+    private void executeSelfSynchronously(List<InetAddressAndPort> refresh)
+    {
+        for (int i = 0, size = refresh.size(); i < size; ++i)
+        {
+            if (shouldExecuteOnSelf(refresh.get(i)))
+            {
+                executeOnSelf();
+                break;
+            }
+        }
     }
 
     /**
      * Forward the refresh operation to a replica coordinator.
-     * The replica will generate the mutation ID and send to all refresh nodes.
+     * The replica will generate (or find) the mutation ID and send the refresh to all target nodes.
      */
     private void forwardRefresh(List<InetAddressAndPort> refreshTargets)
     {
-        // Find a live replica to forward to (that's not us)
-        InetAddressAndPort targetReplica = null;
-        for (Replica replica : participants.all)
-        {
-            if (!replica.endpoint().equals(getBroadcastAddressAndPort()) &&
-                FailureDetector.instance.isAlive(replica.endpoint()))
-            {
-                targetReplica = replica.endpoint();
-                break;
-            }
-        }
+        InetAddressAndPort localEndpoint = getBroadcastAddressAndPort();
+        EndpointsForToken liveExcludingSelf = participants.allLive.filter(replica -> !replica.endpoint().equals(localEndpoint));
+        InetAddressAndPort targetReplica = liveExcludingSelf.isEmpty()
+                                         ? null
+                                         : DatabaseDescriptor.getNodeProximity().sortedByProximity(localEndpoint, liveExcludingSelf).get(0).endpoint();
 
         if (targetReplica == null)
         {
-            logger.error("No live replica available to forward PaxosPrepareRefresh for {}",
+            logger.error("No live replica available to forward PaxosPrepareRefresh for {}.{} partition {}",
+                         send.payload.missingCommit.metadata().keyspace, send.payload.missingCommit.metadata().name,
                          send.payload.missingCommit.partitionKey());
-            // Report failure for all refresh targets
             for (InetAddressAndPort target : refreshTargets)
                 callbacks.onRefreshFailure(target, RequestFailure.UNKNOWN);
             return;
@@ -244,54 +249,68 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         logger.debug("Forwarding PaxosPrepareRefresh to replica {} for mutation ID generation", targetReplica);
         Tracing.trace("Forwarding PaxosPrepareRefresh to replica {}", targetReplica);
 
-        // Create forward request with refresh targets
-        PrepareRefreshForwardRequest forwardRequest = new PrepareRefreshForwardRequest(
-            send.payload.promised,
-            send.payload.missingCommit,
-            refreshTargets,
-            isUrgent
-        );
+        ImmutableList<InetAddressAndPort> immutableRefreshTargets = ImmutableList.copyOf(refreshTargets);
+        PrepareRefreshForwardRequest forwardRequest = new PrepareRefreshForwardRequest(send.payload.promised,
+                                                                                       send.payload.missingCommit,
+                                                                                       immutableRefreshTargets,
+                                                                                       isUrgent);
 
-        Message<PrepareRefreshForwardRequest> message = Message.out(
-            Verb.PAXOS_PREPARE_REFRESH_FORWARD_REQ, forwardRequest, isUrgent);
+        Message<PrepareRefreshForwardRequest> message = Message.out(Verb.PAXOS_PREPARE_REFRESH_FORWARD_REQ,
+                                                                    forwardRequest, isUrgent);
 
-        // Send and handle response
         MessagingService.instance().sendWithCallback(message, targetReplica,
-            new ForwardCallback(refreshTargets));
+                                                     new ForwardCallback(immutableRefreshTargets));
     }
 
     /**
      * Callback for forwarded refresh operations.
-     * Translates forward response to individual refresh callbacks.
+     * Receives multiple onResponse() calls (non-final + final) as the forward handler
+     * streams per-target results back incrementally.
+     * Caches the mutation ID from the first response so subsequent refresh() calls
+     * can dispatch directly without forwarding.
      */
     private class ForwardCallback implements RequestCallbackWithFailure<PrepareRefreshForwardResponse>
     {
         private final List<InetAddressAndPort> refreshTargets;
+        private final boolean[] reported;
 
         ForwardCallback(List<InetAddressAndPort> refreshTargets)
         {
             this.refreshTargets = refreshTargets;
+            this.reported = new boolean[refreshTargets.size()];
         }
 
         @Override
-        public void onResponse(Message<PrepareRefreshForwardResponse> message)
+        public synchronized void onResponse(Message<PrepareRefreshForwardResponse> message)
         {
             PrepareRefreshForwardResponse response = message.payload;
-            // Report results for each target
-            for (int i = 0; i < refreshTargets.size(); i++)
+
+            Message<Request> currentSend = send;
+            if (!response.mutationId.isNone() && currentSend.payload.missingCommit.mutation.id().isNone())
+                updateSendMessage(currentSend.payload.missingCommit.withMutationId(response.mutationId));
+
+            if (response.targetIndex != null && !reported[response.targetIndex])
             {
-                InetAddressAndPort target = refreshTargets.get(i);
-                Ballot supersededBy = response.supersededBy.get(i);
-                callbacks.onRefreshSuccess(supersededBy, target);
+                reported[response.targetIndex] = true;
+                InetAddressAndPort target = refreshTargets.get(response.targetIndex);
+                if (PrepareRefreshForwardHandler.FAILED_SENTINEL.equals(response.supersededBy))
+                    callbacks.onRefreshFailure(target, RequestFailure.UNKNOWN);
+                else
+                    callbacks.onRefreshSuccess(response.supersededBy, target);
             }
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailure reason)
+        public synchronized void onFailure(InetAddressAndPort from, RequestFailure reason)
         {
-            // Report failure for all targets
-            for (InetAddressAndPort target : refreshTargets)
-                callbacks.onRefreshFailure(target, reason);
+            for (int i = 0; i < refreshTargets.size(); i++)
+            {
+                if (!reported[i])
+                {
+                    reported[i] = true;
+                    callbacks.onRefreshFailure(refreshTargets.get(i), reason);
+                }
+            }
         }
     }
 
@@ -315,7 +334,10 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         {
             response = RequestHandler.execute(send.payload, getBroadcastAddressAndPort());
             if (response == null)
+            {
+                onFailure(getBroadcastAddressAndPort(), RequestFailure.UNKNOWN);
                 return;
+            }
         }
         catch (RetryOnDifferentSystemException e)
         {
@@ -365,7 +387,16 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         @Override
         public void doVerb(Message<Request> message)
         {
-            ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
+            ClusterMetadata metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(),
+                                                                                              message.from(),
+                                                                                              message.epoch());
+
+            Committed commit = message.payload.missingCommit;
+            MigrationRouter.checkPaxosCommitMigration(metadata, message, message.from(),
+                                                      commit.metadata().keyspace, commit.metadata().id,
+                                                      commit.partitionKey().getToken(),
+                                                      !commit.mutation.id().isNone());
+
             try
             {
                 Response response = execute(message.payload, message.from());
