@@ -35,7 +35,7 @@ public class CompactStorageImplicitNullInClusteringTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(2)
         .withConfig(c -> c.with(Feature.GOSSIP))
-        .upgradesToCurrentFrom(v40)
+        .upgradesToCurrentFrom(v41)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck1 int, ck2 int, v int, PRIMARY KEY (pk, ck1, ck2)) WITH COMPACT STORAGE");
         })

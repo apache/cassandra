@@ -40,8 +40,6 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
         new TestCase()
         .nodes(1)
         .nodesToUpgrade(1)
-        // all upgrades from v40 to current, excluding v50 -> v51
-        .singleUpgradeToCurrentFrom(v40)
         .singleUpgradeToCurrentFrom(v41)
         .withConfig(c -> c.with(Feature.GOSSIP))
         .setup((cluster) -> {
