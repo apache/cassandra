@@ -33,22 +33,12 @@ public class MixedModePaxosTTLTest extends UpgradeTestBase
     /**
      * Tests the mixed mode paxos loop bug in CASSANDRA-20514
      *
-     * CEP-14 changed the ttl behavior of legacy paxos state to expire based off the ballot time of the operation being
-     * persisted, not the time a commit is persisted. This eliminated the race addressed by CASSANDRA-12043, and so the
-     * check it added to the most recent commit prepare logic was removed.
-     *
-     * When operating in mixed mode though, this can still be a problem. If a 4.1 or higher node is coordinating a paxos
-     * operation with 2 or more replicas on 4.0 or lower, this race becomes a problem again. You need 3 things to make
-     * this an infinite loop
-     * 1. a 4.1 node coordinating a paxos operation with 2x 4.0 replicas
-     * 2. replica A) a 4.0 node returns a most recent commit for a ballot that's could have been ttld
-     * 3. replica B) a 4.0 node has ttl'd that mrc AND converted the ttld cells into tombstones
-     *
-     * The 4.1 coordinator receives the mrc from replica A, but since it no longer disregards missing most recent commits
-     * past the ttl window, it sends the "missing" commit to replica B. Since replica B now has a tombstone for that mrc,
-     * and tombstones win when reconciled with live cells, even ones with ttls, the commit is a noop and it continues
-     * to report nothing for its mrc value when the coordinator restarts the prepare phase. This loops until the query
-     * times out.
+     * Regression test for mixed-mode paxos with ttl'd legacy paxos state. CEP-14 made legacy paxos
+     * state expire off the ballot time rather than the commit-persist time, which eliminated the race
+     * addressed by CASSANDRA-12043 and let that check be removed. Historically, a post-CEP-14
+     * coordinator paired with pre-CEP-14 replicas could hit an infinite prepare loop when a tombstoned
+     * most-recent-commit on one replica shadowed the coordinator's resend. This test keeps the
+     * scenario covered for current upgrade paths.
      */
     @Test
     public void legacyExpiredStateTest() throws Throwable
@@ -61,7 +51,7 @@ public class MixedModePaxosTTLTest extends UpgradeTestBase
         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK).set("cas_contention_timeout", "500ms"))
         .nodes(3)
         .nodesToUpgrade(1)
-        .upgradesToCurrentFrom(v40)
+        .upgradesToCurrentFrom(v41)
         .setup(cluster -> {
             cluster.schemaChange(format("CREATE KEYSPACE %s WITH REPLICATION={'class': 'SimpleStrategy', 'replication_factor': '2'}", keyspace));
             cluster.schemaChange(format("CREATE TABLE %s.%s (k int primary key, v int) " +

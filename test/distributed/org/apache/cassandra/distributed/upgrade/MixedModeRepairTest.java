@@ -44,9 +44,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
     public static final String SELECT = withKeyspace("SELECT * FROM %s.t WHERE k=?");
 
     /**
-     * Test that repairs fail during a major upgrade. If the repaired node is >= 4.0 thanks to CASSANDRA-13944 there
-     * will be an informative message. Otherwise, if the repaired node is below 4.0, there won't be such an informative
-     * message and the repair will take very long to timeout.
+     * Test that repairs fail during a major upgrade with an informative message (CASSANDRA-13944).
      */
     @Test
     public void testRepairDuringMajorUpgrade() throws Throwable
@@ -54,7 +52,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
         new UpgradeTestBase.TestCase()
         .nodes(2)
         .nodesToUpgrade(UPGRADED_NODE)
-        .upgradesToCurrentFrom(v40)
+        .upgradesToCurrentFrom(v41)
         .withConfig(config -> config.with(NETWORK, GOSSIP).set("storage_compatibility_mode", "CASSANDRA_4"))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);

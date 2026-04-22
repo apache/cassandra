@@ -95,7 +95,6 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
-    public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
     public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
     public static final Semver v50 = new Semver("5.0-alpha1", SemverType.LOOSE);
@@ -103,13 +102,6 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v70 = new Semver("7.0-alpha1", SemverType.LOOSE);
 
     protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
-                                                                         // 40 edges are here temporarily
-                                                                         // until we resolve CASSANDRA-21324
-                                                                         .addEdge(v40, v41)
-                                                                         .addEdge(v40, v50)
-                                                                         .addEdge(v40, v60)
-                                                                         .addEdge(v40, v70)
-                                                                         /////
                                                                          .addEdge(v41, v50)
                                                                          .addEdge(v41, v60)
                                                                          .addEdge(v41, v70)

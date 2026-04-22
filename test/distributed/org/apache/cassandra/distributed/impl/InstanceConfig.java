@@ -373,12 +373,6 @@ public class InstanceConfig implements IInstanceConfig
         config.remove("node_proximity");
         config.set("endpoint_snitch", "org.apache.cassandra.distributed.impl.DistributedTestSnitch");
 
-        // 4.0+ has seed_provider without port
-        if (version.compareTo(UpgradeTestBase.v40) >= 0)
-            return config;
-
-        config.set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                           Collections.singletonMap("seeds", "127.0.0.1")));
         return config;
     }
 

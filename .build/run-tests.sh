@@ -203,7 +203,7 @@ _build_all_dtest_jars() {
     [ "${java_version}" -eq 11 ] && export CASSANDRA_USE_JDK11=true
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
-    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 cassandra-6.0 trunk ; do
+    for branch in cassandra-4.1 cassandra-5.0 cassandra-6.0 trunk ; do
         git clean -qxdff && git reset --hard HEAD  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
