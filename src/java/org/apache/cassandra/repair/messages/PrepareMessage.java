@@ -26,6 +26,7 @@ import java.util.Objects;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -116,7 +117,7 @@ public class PrepareMessage extends RepairMessage
                 out.writeUTF(message.partitioner.getClass().getCanonicalName());
             out.writeInt(message.ranges.size());
             for (Range<Token> r : message.ranges)
-                Range.tokenSerializer.serialize(r, out, version);
+                AbstractBounds.tokenSerializer.serialize(r, out, version);
             out.writeBoolean(message.isIncremental);
             out.writeLong(message.repairedAt);
             out.writeBoolean(message.isGlobal);
@@ -140,7 +141,7 @@ public class PrepareMessage extends RepairMessage
             int rangeCount = in.readInt();
             List<Range<Token>> ranges = new ArrayList<>(rangeCount);
             for (int i = 0; i < rangeCount; i++)
-                ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, partitioner, version));
+                ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, version));
             boolean isIncremental = in.readBoolean();
             long timestamp = in.readLong();
             boolean isGlobal = in.readBoolean();
@@ -162,7 +163,7 @@ public class PrepareMessage extends RepairMessage
                 size += TypeSizes.sizeof(message.partitioner.getClass().getCanonicalName());
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> r : message.ranges)
-                size += Range.tokenSerializer.serializedSize(r, version);
+                size += AbstractBounds.tokenSerializer.serializedSize(r, version);
             size += TypeSizes.sizeof(message.isIncremental);
             size += TypeSizes.sizeof(message.repairedAt);
             size += TypeSizes.sizeof(message.isGlobal);

@@ -208,7 +208,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             {
                 // send the summary to all peers, so that they can initiate reconciling their gaps ASAP
                 TrackedSummaryResponse response = new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
-                Message<TrackedSummaryResponse> message = Message.out(Verb.TRACKED_SUMMARY_RSP, response);
+                Message<TrackedSummaryResponse> message = Message.out(Verb.MT_SUMMARY_RSP, response);
                 for (int node : remoteNodes)
                     MessagingService.instance().send(message, host(node));
             }
@@ -365,7 +365,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
             if (isDataNode())
                 MutationTrackingService.instance().localReads().acknowledgeReconcile(id, augmentingOffsets());
             else
-                MessagingService.instance().send(Message.out(Verb.READ_RECONCILE_ACK, new ReadReconcileAck(id)), host(dataNode));
+                MessagingService.instance().send(Message.out(Verb.MT_READ_RECONCILE_ACK, new ReadReconcileAck(id)), host(dataNode));
 
             return true;
         }
@@ -399,7 +399,7 @@ public class ReadReconciliations implements ExpiredStatePurger.Expireable
         {
             PullMutationsRequest pull = new PullMutationsRequest(Offsets.Immutable.copy(toPull));
             logger.debug("Pulling {} from {}", pull, pullFrom);
-            MessagingService.instance().send(Message.out(Verb.PULL_MUTATIONS_REQ, pull), pullFrom);
+            MessagingService.instance().send(Message.out(Verb.MT_PULL_MUTATIONS_REQ, pull), pullFrom);
         }
     }
 

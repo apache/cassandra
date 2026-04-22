@@ -71,6 +71,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -2027,7 +2028,7 @@ public final class SystemKeyspace
             // pass 0 as the version to trigger that legacy code.
             // In the future, it might be worth switching to a stable text format for the ranges to 1) save that and 2)
             // be more user friendly (the serialization format we currently use is pretty custom).
-            Range.tokenSerializer.serialize(range, out, 0);
+            AbstractBounds.tokenSerializer.serialize(range, out, 0);
             return out.buffer();
         }
         catch (IOException e)
@@ -2042,7 +2043,7 @@ public final class SystemKeyspace
         try (DataInputPlus.DataInputStreamPlus in = new DataInputBuffer(ByteBufferUtil.getArray(rawRange)))
         {
             // See rangeToBytes above for why version is 0.
-            return (Range<Token>) Range.tokenSerializer.deserialize(in, partitioner, 0);
+            return (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, partitioner, 0);
         }
         catch (IOException e)
         {

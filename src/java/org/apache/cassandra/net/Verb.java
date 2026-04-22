@@ -58,8 +58,6 @@ import org.apache.cassandra.gms.GossipShutdown;
 import org.apache.cassandra.gms.GossipShutdownVerbHandler;
 import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.hints.HintVerbHandler;
-import org.apache.cassandra.io.AsymmetricUnversionedSerializer;
-import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
 import org.apache.cassandra.repair.messages.CleanupMessage;
@@ -93,7 +91,6 @@ import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
-import org.apache.cassandra.service.accord.AccordSerializers;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
@@ -120,7 +117,6 @@ import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ReadDataSerializer;
 import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
-import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.ConsensusKeyMigrationFinished;
 import org.apache.cassandra.service.paxos.CasForwardHandler;
@@ -190,6 +186,8 @@ import static org.apache.cassandra.concurrent.Stage.READ;
 import static org.apache.cassandra.concurrent.Stage.REQUEST_RESPONSE;
 import static org.apache.cassandra.concurrent.Stage.TRACING;
 import static org.apache.cassandra.concurrent.Stage.TRACKED_CAS;
+import static org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer.accordEmbedded;
+import static org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer.mtEmbedded;
 import static org.apache.cassandra.net.ResponseHandlerSupplier.RESPONSE_HANDLER;
 import static org.apache.cassandra.net.Verb.Kind.CUSTOM;
 import static org.apache.cassandra.net.Verb.Kind.NORMAL;
@@ -296,8 +294,6 @@ public enum Verb
     FAILED_SESSION_MSG     (113, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
     STATUS_RSP             (115, P1, repairTimeout,                 ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
     STATUS_REQ             (114, P1, repairTimeout,                 ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
-    MT_SYNC_RSP            (117, P1, repairWithBackoffTimeout,      REQUEST_RESPONSE,  () -> MutationTrackingSyncResponse.serializer, RESPONSE_HANDLER                                              ),
-    MT_SYNC_REQ            (116, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> MutationTrackingSyncRequest.serializer, () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP         ),
 
     REPLICATION_DONE_RSP   (82,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     REPLICATION_DONE_REQ   (22,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ReplicationDoneVerbHandler.instance, REPLICATION_DONE_RSP),
@@ -361,23 +357,25 @@ public enum Verb
     DATA_MOVEMENT_EXECUTED_REQ  (817, P1, rpcTimeout, MISC, () -> DataMovement.Status.serializer,   () -> DataMovements.instance,           DATA_MOVEMENT_EXECUTED_RSP  ),
 
     // tracked replication
-    PULL_MUTATIONS_REQ         (901, P2, readTimeout,  READ,             () -> PullMutationsRequest.serializer,       () -> PullMutationsRequest.verbHandler                             ),
-    PUSH_MUTATION_REQ          (902, P3, writeTimeout, MUTATION,         () -> PushMutationRequest.serializer,        () -> PushMutationRequest.verbHandler,   MUTATION_RSP              ),
-    READ_RECONCILE_ACK         (903, P2, readTimeout,  REQUEST_RESPONSE, () -> ReadReconcileAck.serializer,           () -> ReadReconcileAck.verbHandler                                 ),
-    FORWARD_WRITE_REQ          (904, P3, writeTimeout, MUTATION,         () -> ForwardedWrite.serializer,             () -> ForwardedWrite.verbHandler                                   ),
-    BROADCAST_LOG_OFFSETS      (905, P1, rpcTimeout,   MISC,             () -> BroadcastLogOffsets.serializer,        () -> BroadcastLogOffsets.verbHandler                              ),
+    MT_PULL_MUTATIONS_REQ    (901, P2, readTimeout,              READ,             () -> mtEmbedded(PullMutationsRequest.serializer),         () -> PullMutationsRequest.verbHandler                             ),
+    MT_PUSH_MUTATION_REQ     (902, P3, writeTimeout,             MUTATION,         () -> mtEmbedded(PushMutationRequest.serializer),          () -> PushMutationRequest.verbHandler,     MUTATION_RSP            ),
+    MT_READ_RECONCILE_ACK    (903, P2, readTimeout,              REQUEST_RESPONSE, () -> mtEmbedded(ReadReconcileAck.serializer),             () -> ReadReconcileAck.verbHandler                                 ),
+    MT_FORWARD_WRITE_REQ     (904, P3, writeTimeout,             MUTATION,         () -> mtEmbedded(ForwardedWrite.serializer),               () -> ForwardedWrite.verbHandler                                   ),
+    MT_BROADCAST_LOG_OFFSETS (905, P1, rpcTimeout,               MISC,             () -> mtEmbedded(BroadcastLogOffsets.serializer),          () -> BroadcastLogOffsets.verbHandler                              ),
 
-    TRACKED_PARTITION_READ_RSP (906, P2, readTimeout,  REQUEST_RESPONSE, () -> TrackedDataResponse.serializer,        RESPONSE_HANDLER                                 ),
-    TRACKED_PARTITION_READ_REQ (907, P3, readTimeout,  READ,             () -> TrackedRead.DataRequest.serializer,    () -> TrackedRead.verbHandler, TRACKED_PARTITION_READ_RSP),
-    TRACKED_RANGE_READ_RSP     (908, P2, rangeTimeout, REQUEST_RESPONSE, () -> TrackedDataResponse.serializer,        RESPONSE_HANDLER                                 ),
-    TRACKED_RANGE_READ_REQ     (909, P3, rangeTimeout, READ,             () -> TrackedRead.DataRequest.serializer,    () -> TrackedRead.verbHandler,           TRACKED_RANGE_READ_RSP    ),
-    TRACKED_SUMMARY_RSP        (910, P2, readTimeout,  REQUEST_RESPONSE, () -> TrackedSummaryResponse.serializer, () -> TrackedSummaryResponse.verbHandler                           ),
-    TRACKED_SUMMARY_REQ        (911, P3, readTimeout,  READ,             () -> TrackedRead.SummaryRequest.serializer, () -> TrackedRead.verbHandler,           TRACKED_SUMMARY_RSP       ),
+    MT_PARTITION_READ_RSP    (906, P2, readTimeout,              REQUEST_RESPONSE, () -> TrackedDataResponse.embedded,                        RESPONSE_HANDLER                                                   ),
+    MT_PARTITION_READ_REQ    (907, P3, readTimeout,              READ,             () -> TrackedRead.DataRequest.embedded,                    () -> TrackedRead.verbHandler,             MT_PARTITION_READ_RSP   ),
+    MT_RANGE_READ_RSP        (908, P2, rangeTimeout,             REQUEST_RESPONSE, () -> TrackedDataResponse.embedded,                        RESPONSE_HANDLER                                                   ),
+    MT_RANGE_READ_REQ        (909, P3, rangeTimeout,             READ,             () -> TrackedRead.DataRequest.embedded,                    () -> TrackedRead.verbHandler,             MT_RANGE_READ_RSP       ),
+    MT_SUMMARY_RSP           (910, P2, readTimeout,              REQUEST_RESPONSE, () -> TrackedSummaryResponse.embedded,                     () -> TrackedSummaryResponse.verbHandler                           ),
+    MT_SUMMARY_REQ           (911, P3, readTimeout,              READ,             () -> TrackedRead.SummaryRequest.embedded,                 () -> TrackedRead.verbHandler,             MT_SUMMARY_RSP          ),
 
-    TRACKED_TRANSFER_ACTIVATE_RSP   (912, P1, repairTimeout, REQUEST_RESPONSE,   () -> ActivationResponse.serializer,    RESPONSE_HANDLER),
-    TRACKED_TRANSFER_ACTIVATE_REQ   (913, P1, repairTimeout, ANTI_ENTROPY,       () -> ActivationRequest.serializer,     () -> ActivationRequest.verbHandler, TRACKED_TRANSFER_ACTIVATE_RSP),
-    TRACKED_TRANSFER_FAILED_RSP     (914, P1, repairTimeout, REQUEST_RESPONSE,   () -> NoPayload.serializer,             RESPONSE_HANDLER),
-    TRACKED_TRANSFER_FAILED_REQ     (915, P1, repairTimeout, ANTI_ENTROPY, () -> TransferFailed.serializer, () -> TransferTrackingService.verbHandler, TRACKED_TRANSFER_FAILED_RSP),
+    MT_TRANSFER_ACTIVATE_RSP (912, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(ActivationResponse.serializer),           RESPONSE_HANDLER                                                   ),
+    MT_TRANSFER_ACTIVATE_REQ (913, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(ActivationRequest.serializer),            () -> ActivationRequest.verbHandler,       MT_TRANSFER_ACTIVATE_RSP),
+    MT_TRANSFER_FAILED_RSP   (914, P1, repairTimeout,            REQUEST_RESPONSE, () -> mtEmbedded(NoPayload.unversionedSerializer),         RESPONSE_HANDLER                                                   ),
+    MT_TRANSFER_FAILED_REQ   (915, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(TransferFailed.serializer),               () -> TransferTrackingService.verbHandler, MT_TRANSFER_FAILED_RSP  ),
+    MT_SYNC_RSP              (916, P1, repairWithBackoffTimeout, REQUEST_RESPONSE, () -> mtEmbedded(MutationTrackingSyncResponse.serializer), RESPONSE_HANDLER                                                   ),
+    MT_SYNC_REQ              (917, P1, repairWithBackoffTimeout, ANTI_ENTROPY,     () -> mtEmbedded(MutationTrackingSyncRequest.serializer),  () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP             ),
 
     // accord
     ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),
@@ -701,16 +699,6 @@ public enum Verb
     private static int idForCustomVerb(int id)
     {
         return CUSTOM_VERB_START - id;
-    }
-
-    private static <A, B> IVersionedAsymmetricSerializer<A, B> accordEmbedded(AsymmetricVersionedSerializer<A, B, Version> delegate)
-    {
-        return AccordSerializers.embedded(Version.CLUSTER_SAFE_VERSION, delegate);
-    }
-
-    private static <A, B> IVersionedAsymmetricSerializer<A, B> accordEmbedded(AsymmetricUnversionedSerializer<A, B> delegate)
-    {
-        return accordEmbedded(AsymmetricVersionedSerializer.from(delegate));
     }
 }
 

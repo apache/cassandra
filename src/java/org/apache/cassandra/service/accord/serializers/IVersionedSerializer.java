@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
@@ -27,30 +26,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public interface IVersionedSerializer<T> extends VersionedSerializer<T, Version>
 {
-    static <T> IVersionedSerializer<T> fromMessaging(org.apache.cassandra.io.IVersionedSerializer<T> delegate)
-    {
-        return new IVersionedSerializer<T>()
-        {
-            @Override
-            public void serialize(T t, DataOutputPlus out, Version version) throws IOException
-            {
-                delegate.serialize(t, out, version.messageVersion());
-            }
-
-            @Override
-            public T deserialize(DataInputPlus in, Version version) throws IOException
-            {
-                return delegate.deserialize(in, version.messageVersion());
-            }
-
-            @Override
-            public long serializedSize(T t, Version version)
-            {
-                return delegate.serializedSize(t, version.messageVersion());
-            }
-        };
-    }
-
     static <T> IVersionedSerializer<T> fromSerializer(UnversionedSerializer<T> delegate)
     {
         return new IVersionedSerializer<T>()

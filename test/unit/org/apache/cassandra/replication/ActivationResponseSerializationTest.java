@@ -26,14 +26,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.Pair;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ActivationResponseSerializationTest
 {
-    private static final int VERSION = MessagingService.current_version;
 
     @BeforeClass
     public static void setUpClass()
@@ -49,7 +47,7 @@ public class ActivationResponseSerializationTest
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
-            Serializers.testSerde(output, ActivationResponse.serializer, response, VERSION);
+            Serializers.testSerde(output, ActivationResponse.serializer, response, Version.CURRENT);
         }
     }
 
@@ -63,7 +61,7 @@ public class ActivationResponseSerializationTest
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
-            Serializers.testSerde(output, ActivationResponse.serializer, response, VERSION);
+            Serializers.testSerde(output, ActivationResponse.serializer, response, Version.CURRENT);
         }
     }
 

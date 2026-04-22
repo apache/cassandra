@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.StringSerializer;
 
 public class FunctionExecutionException extends RequestExecutionException
 {
@@ -63,7 +64,7 @@ public class FunctionExecutionException extends RequestExecutionException
         if (functionName.keyspace != null)
             out.writeUTF(functionName.keyspace);
         out.writeUTF(functionName.name);
-        CollectionSerializers.serializeList(argTypes, out, version, CollectionSerializers.STRING_SERIALIZER);
+        CollectionSerializers.serializeList(argTypes, out, version, StringSerializer.instance);
         out.writeUTF(detail);
     }
 
@@ -74,7 +75,7 @@ public class FunctionExecutionException extends RequestExecutionException
         if (functionName.keyspace != null)
             size += TypeSizes.sizeof(functionName.keyspace);
         size += TypeSizes.sizeof(functionName.name);
-        size += CollectionSerializers.serializedListSize(argTypes, version, CollectionSerializers.STRING_SERIALIZER);
+        size += CollectionSerializers.serializedListSize(argTypes, version, StringSerializer.instance);
         size += TypeSizes.sizeof(detail);
         return size;
     }
@@ -83,7 +84,7 @@ public class FunctionExecutionException extends RequestExecutionException
     {
         String keyspace = in.readBoolean() ? in.readUTF() : null;
         String name = in.readUTF();
-        List<String> argTypes = CollectionSerializers.deserializeList(in, version, CollectionSerializers.STRING_SERIALIZER);
+        List<String> argTypes = CollectionSerializers.deserializeList(in, version, StringSerializer.instance);
         String detail = in.readUTF();
         return new FunctionExecutionException(new FunctionName(keyspace, name), argTypes, detail);
     }

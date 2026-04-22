@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.reads.tracked;
 
 import java.io.IOException;
@@ -29,33 +28,37 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadKind;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.replication.Version;
+import org.apache.cassandra.replication.VersionedSerializer;
+import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 public class TrackedDataResponse implements IReadResponse
 {
-    private final int serializationVersion;
+    private final int[] versions;
     private final List<ByteBuffer> data;
 
-    public TrackedDataResponse(int serializationVersion, ByteBuffer data)
+    public TrackedDataResponse(int version, ByteBuffer data)
     {
-        this(serializationVersion, Collections.singletonList(data));
+        this(new int[] { version }, Collections.singletonList(data));
     }
 
-    private TrackedDataResponse(int serializationVersion, List<ByteBuffer> data)
+    private TrackedDataResponse(int[] versions, List<ByteBuffer> data)
     {
         Preconditions.checkArgument(!data.isEmpty());
-        this.serializationVersion = serializationVersion;
+        Preconditions.checkArgument(versions.length == data.size());
+        this.versions = versions;
         this.data = data;
     }
 
@@ -66,39 +69,44 @@ public class TrackedDataResponse implements IReadResponse
 
     public static TrackedDataResponse merge(TrackedDataResponse l, TrackedDataResponse r)
     {
-        Preconditions.checkArgument(l.serializationVersion == r.serializationVersion);
+        int[] newVersions = new int[l.versions.length + r.versions.length];
         List<ByteBuffer> newData = new ArrayList<>(l.data.size() + r.data.size());
+        System.arraycopy(l.versions, 0, newVersions, 0, l.versions.length);
+        System.arraycopy(r.versions, 0, newVersions, l.versions.length, r.versions.length);
         newData.addAll(l.data);
         newData.addAll(r.data);
-        return new TrackedDataResponse(l.serializationVersion, newData);
+        return new TrackedDataResponse(newVersions, newData);
     }
 
     public static TrackedDataResponse merge(List<TrackedDataResponse> responses)
     {
         Preconditions.checkArgument(!responses.isEmpty());
 
-        int version = responses.get(0).serializationVersion;
-        int size = responses.get(0).data.size();
+        int size = 0;
+        for (TrackedDataResponse response : responses)
+            size += response.data.size();
 
-        for (int i=1,mi=responses.size(); i<mi; i++)
+        int[] newVersions = new int[size];
+        List<ByteBuffer> newData = new ArrayList<>(size);
+
+        int offset = 0;
+        for (TrackedDataResponse response : responses)
         {
-            Preconditions.checkState(responses.get(i).serializationVersion == version);
-            size += responses.get(i).data.size();
+            System.arraycopy(response.versions, 0, newVersions, offset, response.versions.length);
+            offset += response.versions.length;
+            newData.addAll(response.data);
         }
 
-        List<ByteBuffer> newData = new ArrayList<>(size);
-        for (int i=0,mi=responses.size(); i<mi; i++)
-            newData.addAll(responses.get(i).data);
-
-        return new TrackedDataResponse(version, newData);
+        return new TrackedDataResponse(newVersions, newData);
     }
 
     public static TrackedDataResponse create(PartitionIterator iter, ColumnFilter selection)
     {
         try (DataOutputBuffer buffer = new DataOutputBuffer())
         {
-            PartitionIterators.Serializer.serialize(iter, selection, buffer, MessagingService.current_version);
-            return new TrackedDataResponse(MessagingService.current_version, buffer.buffer(false));
+            int version = Version.CLUSTER_SAFE_VERSION.messagingVersion();
+            PartitionIterators.Serializer.serialize(iter, selection, buffer, version);
+            return new TrackedDataResponse(version, buffer.buffer(false));
         }
         catch (IOException e)
         {
@@ -123,11 +131,10 @@ public class TrackedDataResponse implements IReadResponse
     public PartitionIterator makeIteratorUnlimited(ReadCommand command)
     {
         if (data.size() == 1)
-            return makeIterator(serializationVersion, data.get(0), command);
-
+            return makeIterator(versions[0], data.get(0), command);
         List<PartitionIterator> iterators = new ArrayList<>(data.size());
-        for (ByteBuffer buffer : data)
-            iterators.add(makeIterator(serializationVersion, buffer, command));
+        for (int i = 0; i < data.size(); i++)
+            iterators.add(makeIterator(versions[i], data.get(i), command));
         return PartitionIterators.mergeNonOverlapping(iterators);
     }
 
@@ -140,37 +147,34 @@ public class TrackedDataResponse implements IReadResponse
         return counter.applyTo(makeIteratorUnlimited(command));
     }
 
-    public static final IVersionedSerializer<TrackedDataResponse> serializer = new IVersionedSerializer<>()
+    private static final VersionedSerializer<TrackedDataResponse> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(TrackedDataResponse response, DataOutputPlus out, int version) throws IOException
+        public void serialize(TrackedDataResponse response, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeInt(response.serializationVersion);
-            out.writeInt(response.data.size());
-            for (ByteBuffer buffer : response.data)
-                ByteBufferUtil.writeWithVIntLength(buffer, out);
+            ArraySerializers.serializeVIntArray(response.versions, out);
+            CollectionSerializers.serializeList(response.data, out, ByteBufferUtil.byteBufferSerializer);
         }
 
         @Override
-        public TrackedDataResponse deserialize(DataInputPlus in, int version) throws IOException
+        public TrackedDataResponse deserialize(DataInputPlus in, Version version) throws IOException
         {
-            int serializationVersion = in.readInt();
-            int size = in.readInt();
-            List<ByteBuffer> data = new ArrayList<>(size);
-            for (int i = 0; i < size; i++)
-                data.add(ByteBufferUtil.readWithVIntLength(in));
-            return new TrackedDataResponse(serializationVersion, data);
+            int[] versions = ArraySerializers.deserializeVIntArray(in);
+            List<ByteBuffer> data = CollectionSerializers.deserializeList(in, ByteBufferUtil.byteBufferSerializer);
+            return new TrackedDataResponse(versions, data);
         }
 
         @Override
-        public long serializedSize(TrackedDataResponse response, int version)
+        public long serializedSize(TrackedDataResponse response, Version version)
         {
-            long size = TypeSizes.sizeof(response.serializationVersion) + TypeSizes.sizeof(response.data.size());
-            for (ByteBuffer buffer : response.data)
-                size += ByteBufferUtil.serializedSizeWithVIntLength(buffer);
+            long size = ArraySerializers.serializedVIntArraySize(response.versions);
+            size += CollectionSerializers.serializedListSize(response.data, ByteBufferUtil.byteBufferSerializer);
             return size;
         }
     };
+
+    public static final IVersionedAsymmetricSerializer<TrackedDataResponse, TrackedDataResponse> embedded =
+        EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
     @Override
     public ReadKind kind()

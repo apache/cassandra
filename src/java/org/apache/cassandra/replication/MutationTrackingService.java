@@ -1418,7 +1418,7 @@ public class MutationTrackingService
             if (replicatedOffsets.isEmpty())
                 return;
 
-            Message<BroadcastLogOffsets> message = Message.out(Verb.BROADCAST_LOG_OFFSETS, replicatedOffsets);
+            Message<BroadcastLogOffsets> message = Message.out(Verb.MT_BROADCAST_LOG_OFFSETS, replicatedOffsets);
 
             for (InetAddressAndPort target : shard.remoteReplicas())
                 if (FailureDetector.instance.isAlive(target))

@@ -20,10 +20,11 @@ package org.apache.cassandra.repair.messages;
 import java.io.IOException;
 import java.util.Set;
 
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.replication.Version;
+import org.apache.cassandra.replication.VersionedSerializer;
 
 import static org.apache.cassandra.utils.CollectionSerializers.nullableIntSetSerializer;
 
@@ -57,24 +58,24 @@ public class MutationTrackingSyncRequest extends RepairMessage
                '}';
     }
 
-    public static final IVersionedSerializer<MutationTrackingSyncRequest> serializer = new IVersionedSerializer<>()
+    public static final VersionedSerializer<MutationTrackingSyncRequest> serializer = new VersionedSerializer<>()
     {
-        public void serialize(MutationTrackingSyncRequest request, DataOutputPlus out, int version) throws IOException
+        public void serialize(MutationTrackingSyncRequest request, DataOutputPlus out, Version version) throws IOException
         {
-            RepairJobDesc.serializer.serialize(request.desc, out, version);
+            RepairJobDesc.serializer.serialize(request.desc, out, version.messagingVersion());
             nullableIntSetSerializer.serialize(request.liveHostIds, out);
         }
 
-        public MutationTrackingSyncRequest deserialize(DataInputPlus in, int version) throws IOException
+        public MutationTrackingSyncRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
-            RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
+            RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version.messagingVersion());
             Set<Integer> liveHostIds = nullableIntSetSerializer.deserialize(in);
             return new MutationTrackingSyncRequest(desc, liveHostIds);
         }
 
-        public long serializedSize(MutationTrackingSyncRequest request, int version)
+        public long serializedSize(MutationTrackingSyncRequest request, Version version)
         {
-            return RepairJobDesc.serializer.serializedSize(request.desc, version)
+            return RepairJobDesc.serializer.serializedSize(request.desc, version.messagingVersion())
                    + nullableIntSetSerializer.serializedSize(request.liveHostIds);
         }
     };

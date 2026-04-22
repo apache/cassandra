@@ -17,24 +17,34 @@
  */
 package org.apache.cassandra.streaming.messages;
 
+import java.io.IOException;
+
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.replication.Version;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class MutationLogReceivedMessage extends StreamMessage
 {
-    public static Serializer<MutationLogReceivedMessage> serializer = new Serializer<MutationLogReceivedMessage>()
+    public static Serializer<MutationLogReceivedMessage> serializer = new Serializer<>()
     {
-        public MutationLogReceivedMessage deserialize(DataInputPlus in, int version)
+        @Override
+        public MutationLogReceivedMessage deserialize(DataInputPlus in, int version) throws IOException
         {
+            Version ignore = Version.serializer.deserialize(in);
             return new MutationLogReceivedMessage();
         }
 
-        public void serialize(MutationLogReceivedMessage message, StreamingDataOutputPlus out, int version, StreamSession session) {}
+        @Override
+        public void serialize(MutationLogReceivedMessage message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
+        {
+            Version.serializer.serialize(Version.CLUSTER_SAFE_VERSION, out);
+        }
 
+        @Override
         public long serializedSize(MutationLogReceivedMessage message, int version)
         {
-            return 0;
+            return Version.serializer.serializedSize(Version.CLUSTER_SAFE_VERSION);
         }
     };
 

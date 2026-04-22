@@ -95,7 +95,7 @@ public class SyncResponse extends RepairMessage
         return Objects.hash(desc, success, nodes, summaries, planId, transferId);
     }
 
-    public static final IPartitionerDependentSerializer<SyncResponse> serializer = new IPartitionerDependentSerializer<SyncResponse>()
+    public static final IPartitionerDependentSerializer<SyncResponse> serializer = new IPartitionerDependentSerializer<>()
     {
         public void serialize(SyncResponse message, DataOutputPlus out, int version) throws IOException
         {
@@ -117,7 +117,7 @@ public class SyncResponse extends RepairMessage
 
                 out.writeBoolean(message.transferId != null);
                 if (message.transferId != null)
-                    ShortMutationId.serializer.serialize(message.transferId, out, version);
+                    ShortMutationId.serializer.serialize(message.transferId, out);
             }
         }
 
@@ -139,7 +139,7 @@ public class SyncResponse extends RepairMessage
                               ? TimeUUID.Serializer.instance.deserialize(in) : null;
 
             ShortMutationId transferId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
-                                         ? ShortMutationId.serializer.deserialize(in, version) : null;
+                                         ? ShortMutationId.serializer.deserialize(in) : null;
 
             return new SyncResponse(desc, nodes, success, summaries, planId, transferId);
         }
@@ -164,7 +164,7 @@ public class SyncResponse extends RepairMessage
 
                 size += TypeSizes.sizeof(false);
                 if (message.transferId != null)
-                    size += ShortMutationId.serializer.serializedSize(message.transferId, version);
+                    size += ShortMutationId.serializer.serializedSize(message.transferId);
             }
 
             return size;

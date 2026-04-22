@@ -35,8 +35,6 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.AsymmetricVersionedSerializer;
-import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
 import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -56,11 +54,6 @@ import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
 
 public class AccordSerializers
 {
-    public static <A, B> EmbeddedAsymmetricVersionedSerializer<A, B, Version> embedded(Version version, AsymmetricVersionedSerializer<A, B, Version> serializer)
-    {
-        return new EmbeddedAsymmetricVersionedSerializer<>(version, Version.Serializer.instance, serializer);
-    }
-
     public static Term.Terminal deserializeCqlCollectionAsTerm(ByteBuffer buffer, AbstractType<?> type)
     {
         CollectionType<?> collectionType = (CollectionType<?>) type;

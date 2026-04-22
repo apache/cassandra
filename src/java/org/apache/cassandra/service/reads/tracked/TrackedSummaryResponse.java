@@ -24,15 +24,18 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.IReadResponse;
 import org.apache.cassandra.db.ReadKind;
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.utils.ArraySerializers;
 
 import static org.apache.cassandra.db.ReadKind.TRACKED_SUMMARY;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class TrackedSummaryResponse implements IReadResponse
 {
@@ -60,41 +63,40 @@ public class TrackedSummaryResponse implements IReadResponse
         ReadReconciliations.instance.acceptRemoteSummary(message.from(), message.payload);
     };
 
-    public static final IVersionedSerializer<TrackedSummaryResponse> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<TrackedSummaryResponse> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(TrackedSummaryResponse summary, DataOutputPlus out, int version) throws IOException
+        public void serialize(TrackedSummaryResponse summary, DataOutputPlus out) throws IOException
         {
-            TrackedRead.Id.serializer.serialize(summary.readId, out, version);
-            MutationSummary.serializer.serialize(summary.summary, out, version);
-            out.writeInt(summary.dataNode);
-            out.writeInt(summary.summaryNodes.length);
-            for (int hostid : summary.summaryNodes)
-                out.writeInt(hostid);
+            TrackedRead.Id.serializer.serialize(summary.readId, out);
+            MutationSummary.serializer.serialize(summary.summary, out);
+            out.writeUnsignedVInt32(summary.dataNode);
+            ArraySerializers.serializeVIntArray(summary.summaryNodes, out);
         }
 
         @Override
-        public TrackedSummaryResponse deserialize(DataInputPlus in, int version) throws IOException
+        public TrackedSummaryResponse deserialize(DataInputPlus in) throws IOException
         {
-            TrackedRead.Id id = TrackedRead.Id.serializer.deserialize(in, version);
-            MutationSummary summary = MutationSummary.serializer.deserialize(in, version);
-            int dataNode = in.readInt();
-            int[] summaryNodes = new int[in.readInt()];
-            for (int i = 0; i < summaryNodes.length; i++)
-                summaryNodes[i] = in.readInt();
+            TrackedRead.Id id = TrackedRead.Id.serializer.deserialize(in);
+            MutationSummary summary = MutationSummary.serializer.deserialize(in);
+            int dataNode = in.readUnsignedVInt32();
+            int[] summaryNodes = ArraySerializers.deserializeVIntArray(in);
             return new TrackedSummaryResponse(id, summary, dataNode, summaryNodes);
         }
 
         @Override
-        public long serializedSize(TrackedSummaryResponse summary, int version)
+        public long serializedSize(TrackedSummaryResponse summary)
         {
-            return TrackedRead.Id.serializer.serializedSize(summary.readId, version) +
-                   MutationSummary.serializer.serializedSize(summary.summary, version) +
-                   TypeSizes.sizeof(summary.dataNode) +
-                   TypeSizes.sizeof(summary.summaryNodes.length) +
-                   TypeSizes.INT_SIZE * (long) summary.summaryNodes.length;
+            long size = TrackedRead.Id.serializer.serializedSize(summary.readId);
+            size += MutationSummary.serializer.serializedSize(summary.summary);
+            size += sizeofUnsignedVInt(summary.dataNode);
+            size += ArraySerializers.serializedVIntArraySize(summary.summaryNodes);
+            return size;
         }
     };
+
+    public static final IVersionedAsymmetricSerializer<TrackedSummaryResponse, TrackedSummaryResponse> embedded =
+        EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
     @Override
     public ReadKind kind()

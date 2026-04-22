@@ -28,19 +28,16 @@ import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
 import org.agrona.collections.IntArrayList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.AbstractIterator;
 
 public abstract class Offsets implements Iterable<ShortMutationId>
 {
-    private static final Logger logger = LoggerFactory.getLogger(Offsets.class);
     private static final int INITIAL_CAPACITY = 16;
 
     protected final CoordinatorLogId logId;
@@ -1567,21 +1564,21 @@ public abstract class Offsets implements Iterable<ShortMutationId>
     }
 
     // TODO (consider): delta-encoding + vints
-    public static final IVersionedSerializer<Offsets.Immutable> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<Immutable> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(Offsets.Immutable offsets, DataOutputPlus out, int version) throws IOException
+        public void serialize(Offsets.Immutable offsets, DataOutputPlus out) throws IOException
         {
-            CoordinatorLogId.serializer.serialize(offsets.logId, out, version);
+            CoordinatorLogId.serializer.serialize(offsets.logId, out);
             out.writeInt(offsets.size);
             for (int i = 0; i < offsets.size; i++)
                 out.writeInt(offsets.bounds[i]);
         }
 
         @Override
-        public Offsets.Immutable deserialize(DataInputPlus in, int version) throws IOException
+        public Offsets.Immutable deserialize(DataInputPlus in) throws IOException
         {
-            CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in, version);
+            CoordinatorLogId logId = CoordinatorLogId.serializer.deserialize(in);
             int size = in.readInt();
             Preconditions.checkArgument(size >= 0 && size % 2 == 0);
             int[] bounds = new int[size];
@@ -1591,9 +1588,9 @@ public abstract class Offsets implements Iterable<ShortMutationId>
         }
 
         @Override
-        public long serializedSize(Offsets.Immutable offsets, int version)
+        public long serializedSize(Offsets.Immutable offsets)
         {
-            long size = CoordinatorLogId.serializer.serializedSize(offsets.logId, version);
+            long size = CoordinatorLogId.serializer.serializedSize(offsets.logId);
             size += TypeSizes.sizeof(offsets.size);
             size += (long) TypeSizes.INT_SIZE * offsets.size;
             return size;

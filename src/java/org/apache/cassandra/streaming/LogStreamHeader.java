@@ -22,11 +22,12 @@ import java.io.IOException;
 import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.replication.ReconciledLogSnapshot;
+import org.apache.cassandra.replication.Version;
+import org.apache.cassandra.replication.VersionedSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
@@ -58,41 +59,42 @@ public class LogStreamHeader
         this.sendByFollower = sendByFollower;
     }
 
-    public static class Serializer implements IVersionedSerializer<LogStreamHeader>
+    public static final VersionedSerializer<LogStreamHeader> serializer = new VersionedSerializer<>()
     {
-        public void serialize(LogStreamHeader header, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(LogStreamHeader header, DataOutputPlus out, Version version) throws IOException
         {
             LogStreamManifest.serializer.serialize(header.manifest, out, version);
             ReconciledLogSnapshot.serializer.serialize(header.reconciled, out, version);
-            inetAddressAndPortSerializer.serialize(header.sender, out, version);
+            inetAddressAndPortSerializer.serialize(header.sender, out, version.messagingVersion());
             header.planId.serialize(out);
             out.writeInt(header.sessionIndex);
             out.writeBoolean(header.sendByFollower);
         }
 
-        public LogStreamHeader deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public LogStreamHeader deserialize(DataInputPlus in, Version version) throws IOException
         {
             LogStreamManifest manifest = LogStreamManifest.serializer.deserialize(in, version);
             ReconciledLogSnapshot reconciled = ReconciledLogSnapshot.serializer.deserialize(in, version);
-            InetAddressAndPort sender = inetAddressAndPortSerializer.deserialize(in, version);
+            InetAddressAndPort sender = inetAddressAndPortSerializer.deserialize(in, version.messagingVersion());
             TimeUUID planId = TimeUUID.deserialize(in);
             int sessionIndex = in.readInt();
             boolean sendByFollower = in.readBoolean();
             return new LogStreamHeader(manifest, reconciled, sender, planId, sessionIndex, sendByFollower);
         }
 
-        public long serializedSize(LogStreamHeader header, int version)
+        @Override
+        public long serializedSize(LogStreamHeader header, Version version)
         {
             return LogStreamManifest.serializer.serializedSize(header.manifest, version)
                    + ReconciledLogSnapshot.serializer.serializedSize(header.reconciled, version)
-                   + inetAddressAndPortSerializer.serializedSize(header.sender, version)
+                   + inetAddressAndPortSerializer.serializedSize(header.sender, version.messagingVersion())
                    + TimeUUID.sizeInBytes()
                    + TypeSizes.sizeof(header.sessionIndex)
                    + TypeSizes.sizeof(header.sendByFollower);
         }
-    }
-
-    public static final Serializer serializer = new Serializer();
+    };
 
     @Override
     public boolean equals(Object o)

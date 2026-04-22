@@ -50,10 +50,10 @@ public interface IReadResponse
                     ReadResponse.serializer.serialize((ReadResponse) response, out, version);
                     break;
                 case TRACKED_DATA:
-                    TrackedDataResponse.serializer.serialize((TrackedDataResponse) response, out, version);
+                    TrackedDataResponse.embedded.serialize((TrackedDataResponse) response, out, version);
                     break;
                 case TRACKED_SUMMARY:
-                    TrackedSummaryResponse.serializer.serialize((TrackedSummaryResponse) response, out, version);
+                    TrackedSummaryResponse.embedded.serialize((TrackedSummaryResponse) response, out, version);
                     break;
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());
@@ -70,9 +70,9 @@ public interface IReadResponse
                 case UNTRACKED:
                     return ReadResponse.serializer.deserialize(in, version);
                 case TRACKED_DATA:
-                    return TrackedDataResponse.serializer.deserialize(in, version);
+                    return TrackedDataResponse.embedded.deserialize(in, version);
                 case TRACKED_SUMMARY:
-                    return TrackedSummaryResponse.serializer.deserialize(in, version);
+                    return TrackedSummaryResponse.embedded.deserialize(in, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + kind);
             }
@@ -93,9 +93,9 @@ public interface IReadResponse
                 case UNTRACKED:
                     return size + ReadResponse.serializer.serializedSize((ReadResponse) response, version);
                 case TRACKED_DATA:
-                    return size + TrackedDataResponse.serializer.serializedSize((TrackedDataResponse) response, version);
+                    return size + TrackedDataResponse.embedded.serializedSize((TrackedDataResponse) response, version);
                 case TRACKED_SUMMARY:
-                    return size + TrackedSummaryResponse.serializer.serializedSize((TrackedSummaryResponse) response, version);
+                    return size + TrackedSummaryResponse.embedded.serializedSize((TrackedSummaryResponse) response, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + response.kind());
             }

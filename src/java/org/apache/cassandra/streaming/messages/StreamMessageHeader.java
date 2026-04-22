@@ -123,7 +123,7 @@ public class StreamMessageHeader
             {
                 header.pendingRepair.serialize(out);
             }
-            ImmutableCoordinatorLogOffsets.serializer.serialize(header.coordinatorLogOffsets, out, version);
+            ImmutableCoordinatorLogOffsets.embedded.serialize(header.coordinatorLogOffsets, out, version);
         }
 
         public StreamMessageHeader deserialize(DataInputPlus in, int version) throws IOException
@@ -136,7 +136,7 @@ public class StreamMessageHeader
             int sequenceNumber = in.readInt();
             long repairedAt = in.readLong();
             TimeUUID pendingRepair = in.readBoolean() ? TimeUUID.deserialize(in) : null;
-            ImmutableCoordinatorLogOffsets coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.serializer.deserialize(in, version);
+            ImmutableCoordinatorLogOffsets coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.embedded.deserialize(in, version);
 
             return new StreamMessageHeader(tableId, sender, planId, sendByFollower, sessionIndex, sequenceNumber, repairedAt, pendingRepair, coordinatorLogOffsets);
         }
@@ -152,7 +152,7 @@ public class StreamMessageHeader
             size += TypeSizes.sizeof(header.repairedAt);
             size += TypeSizes.sizeof(header.pendingRepair != null);
             size += header.pendingRepair != null ? TimeUUID.sizeInBytes() : 0;
-            size += ImmutableCoordinatorLogOffsets.serializer.serializedSize(header.coordinatorLogOffsets, version);
+            size += ImmutableCoordinatorLogOffsets.embedded.serializedSize(header.coordinatorLogOffsets, version);
 
             return size;
         }

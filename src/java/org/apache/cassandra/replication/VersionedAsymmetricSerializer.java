@@ -15,10 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.replication;
 
-package org.apache.cassandra.io;
+import org.apache.cassandra.io.AsymmetricVersionedSerializer;
 
-public interface MessageVersionProvider
+public interface VersionedAsymmetricSerializer<In, Out> extends AsymmetricVersionedSerializer<In, Out, Version>
 {
-    int messageVersion();
 }

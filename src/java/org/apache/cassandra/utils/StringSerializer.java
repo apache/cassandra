@@ -25,43 +25,46 @@ import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public class Int64Serializer implements IVersionedSerializer<Long>, UnversionedSerializer<Long>
+/**
+ * A simple UTF-8 string serializer for use with (primarily) collection serialization methods.
+ */
+public final class StringSerializer implements IVersionedSerializer<String>, UnversionedSerializer<String>
 {
-    public static final Int64Serializer serializer = new Int64Serializer();
+    public static final StringSerializer instance = new StringSerializer();
 
     @Override
-    public void serialize(Long t, DataOutputPlus out, int version) throws IOException
+    public void serialize(String str, DataOutputPlus out, int version) throws IOException
     {
-        serialize(t, out);
+        serialize(str, out);
     }
 
     @Override
-    public void serialize(Long t, DataOutputPlus out) throws IOException
+    public void serialize(String str, DataOutputPlus out) throws IOException
     {
-        out.writeLong(t);
+        out.writeUTF(str);
     }
 
     @Override
-    public Long deserialize(DataInputPlus in, int version) throws IOException
+    public String deserialize(DataInputPlus in, int version) throws IOException
     {
         return deserialize(in);
     }
 
     @Override
-    public Long deserialize(DataInputPlus in) throws IOException
+    public String deserialize(DataInputPlus in) throws IOException
     {
-        return in.readLong();
+        return in.readUTF();
     }
 
     @Override
-    public long serializedSize(Long t, int version)
+    public long serializedSize(String str, int version)
     {
-        return serializedSize(t);
+        return serializedSize(str);
     }
 
     @Override
-    public long serializedSize(Long t)
+    public long serializedSize(String str)
     {
-        return TypeSizes.sizeof(t);
+        return TypeSizes.sizeof(str);
     }
 }

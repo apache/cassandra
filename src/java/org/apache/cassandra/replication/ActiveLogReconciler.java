@@ -184,7 +184,7 @@ public final class ActiveLogReconciler implements Shutdownable
                 try (DataInputBuffer in = new DataInputBuffer(buffer, true))
                 {
                     ClusterMetadata metadata = ClusterMetadata.current();
-                    TableId tableId = Mutation.serializer.deserializeTableId(in, version, DeserializationHelper.Flag.LOCAL);
+                    TableId tableId = Mutation.serializer.deserializeFirstTableId(in, version, DeserializationHelper.Flag.LOCAL);
 
                     TableMetadata tableMetadata = metadata.schema.getTableMetadata(tableId);
                     if (tableMetadata == null)
@@ -201,7 +201,7 @@ public final class ActiveLogReconciler implements Shutdownable
                 }
 
                 Message<PushMutationRequest> message =
-                Message.outWithFlag(Verb.PUSH_MUTATION_REQ,
+                Message.outWithFlag(Verb.MT_PUSH_MUTATION_REQ,
                                     new PushMutationRequest.Buffer(version, buffer),
                                     MessageFlag.CALL_BACK_ON_FAILURE);
                 MessagingService.instance().sendWithCallback(message, toHost, this);

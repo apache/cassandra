@@ -108,7 +108,7 @@ public abstract class AbstractReadCommandVerbHandler<T> implements IVerbHandler<
 
     private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message)
     {
-        boolean acceptsTransient = message.verb() == Verb.TRACKED_SUMMARY_REQ;
+        boolean acceptsTransient = message.verb() == Verb.MT_SUMMARY_REQ;
         ReadCommand command = getCommand(message.payload);
 
         if (command.metadata().isVirtual())

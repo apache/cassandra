@@ -24,13 +24,12 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.MessageVersionProvider;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
-public enum Version implements MessageVersionProvider
+public enum Version
 {
     // If MessagingService version bumps, this mapping does not need to be updated; only updates needed are those that
     // include accord serializer changes.
@@ -92,7 +91,6 @@ public enum Version implements MessageVersionProvider
         throw new IllegalArgumentException("Attempted to use message version " + messagingVersion + " which is smaller than " + versions[0] + " can handle (" + versions[0].messageVersion() + ")");
     }
 
-    @Override
     public int messageVersion()
     {
         return messagingVersion.value;

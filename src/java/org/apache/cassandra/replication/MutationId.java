@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -136,17 +136,17 @@ public class MutationId extends ShortMutationId
              : new MutationId(logId, sequenceId);
     }
 
-    public static class Serializer implements IVersionedSerializer<MutationId>
+    public static class Serializer implements UnversionedSerializer<MutationId>
     {
         @Override
-        public void serialize(MutationId id, DataOutputPlus out, int version) throws IOException
+        public void serialize(MutationId id, DataOutputPlus out) throws IOException
         {
             out.writeLong(id.logId());
             out.writeLong(id.sequenceId());
         }
 
         @Override
-        public MutationId deserialize(DataInputPlus in, int version) throws IOException
+        public MutationId deserialize(DataInputPlus in) throws IOException
         {
             long logId = in.readLong();
             long sequenceId = in.readLong();
@@ -156,17 +156,17 @@ public class MutationId extends ShortMutationId
         }
 
         @Override
-        public long serializedSize(MutationId id, int version)
+        public long serializedSize(MutationId id)
         {
             return TypeSizes.sizeof(id.logId()) + TypeSizes.sizeof(id.sequenceId());
         }
 
-        public void skip(DataInputPlus in, int version) throws IOException
+        public void skip(DataInputPlus in) throws IOException
         {
             in.readLong();
             in.readLong();
         }
     }
 
-    public static Serializer serializer = new Serializer();
+    public static final Serializer serializer = new Serializer();
 }

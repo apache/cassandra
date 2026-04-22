@@ -365,6 +365,8 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
     public static class Serializer extends AbstractSerializer<TimeUUID> implements IVersionedSerializer<TimeUUID>, UnversionedSerializer<TimeUUID>
     {
         public static final Serializer instance = new Serializer();
+        public static final UnversionedSerializer<TimeUUID> nullable =
+            NullableSerializer.wrap((UnversionedSerializer<TimeUUID>) instance);
 
         public <V> TimeUUID deserialize(V value, ValueAccessor<V> accessor)
         {

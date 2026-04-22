@@ -18,20 +18,14 @@
 
 package org.apache.cassandra.replication;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.agrona.collections.Long2ObjectHashMap;
 
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.replication.MutationSummary.CoordinatorSummary;
 
 public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<ShortMutationId>
@@ -276,40 +270,5 @@ public abstract class Log2OffsetsMap<T extends Offsets> implements Iterable<Shor
                 return new Immutable(result);
             }
         }
-
-        public static final IVersionedSerializer<Log2OffsetsMap.Immutable> serializer = new IVersionedSerializer<>()
-        {
-            @Override
-            public void serialize(Log2OffsetsMap.Immutable mo, DataOutputPlus out, int version) throws IOException
-            {
-                out.writeInt(mo.offsetMap.size());
-                for (Offsets.Immutable offsets : mo.asMap().values())
-                    Offsets.serializer.serialize(offsets, out, version);
-            }
-
-            @Override
-            public Log2OffsetsMap.Immutable deserialize(DataInputPlus in, int version) throws IOException
-            {
-                Long2ObjectHashMap<Offsets.Immutable> offsetMap = new Long2ObjectHashMap<>();
-                int size = in.readInt();
-                for (int i=0; i<size; i++)
-                {
-                    Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
-                    long key = offsets.logId().asLong();
-                    Preconditions.checkState(!offsetMap.containsKey(key));
-                    offsetMap.put(key, offsets);
-                }
-                return new Immutable(offsetMap);
-            }
-
-            @Override
-            public long serializedSize(Log2OffsetsMap.Immutable mo, int version)
-            {
-                long size = TypeSizes.INT_SIZE;
-                for (Offsets.Immutable offsets : mo.offsetMap.values())
-                    size += Offsets.serializer.serializedSize(offsets, version);
-                return size;
-            }
-        };
     }
 }

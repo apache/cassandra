@@ -26,9 +26,8 @@ import java.util.function.Supplier;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.io.IVersionedSerializers;
+import org.apache.cassandra.io.filesystem.UnversionedSerializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -757,7 +756,7 @@ public class OffsetsTest
     {
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        IVersionedSerializers.testSerde(buffer, Offsets.serializer, Offsets.Immutable.copy(offsets(0, 3, 7, 10, 15, 17)), MessagingService.current_version);
+        UnversionedSerializers.testSerde(buffer, Offsets.serializer, Offsets.Immutable.copy(offsets(0, 3, 7, 10, 15, 17)));
     }
 
     private static List<ShortMutationId> ids(int... offsets)

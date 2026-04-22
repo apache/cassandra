@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,6 +65,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.CollectionSerializers;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -329,7 +329,7 @@ public class ForwardedWrite
         AbstractWriteResponseHandler<Object> handler = strategy.getWriteResponseHandler(plan, onComplete, WriteType.SIMPLE, null, requestTime);
 
         // Add callbacks for replicas to respond directly to coordinator
-        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
+        Message<MutationRequest> toLeader = Message.outWithRequestTime(Verb.MT_FORWARD_WRITE_REQ, new MutationRequest(mutation, plan), requestTime);
         for (Replica endpoint : endpoints)
         {
             if (plan.isAlive(endpoint))
@@ -504,35 +504,28 @@ public class ForwardedWrite
         logger.trace("Tracked counter mutation {} processed, local application and replication initiated", id);
     }
 
-    public static final IVersionedSerializer<MutationRequest> serializer = new IVersionedSerializer<>()
+    public static final VersionedSerializer<MutationRequest> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(MutationRequest request, DataOutputPlus out, int version) throws IOException
+        public void serialize(MutationRequest request, DataOutputPlus out, Version version) throws IOException
         {
-            Mutation.serializer.serialize(request.mutation, out, version);
-            out.writeInt(request.recipients.size());
-            for (NodeId recipient : request.recipients)
-                NodeId.messagingSerializer.serialize(recipient, out, version);
+            Mutation.serializer.serialize(request.mutation, out, version.messagingVersion());
+            CollectionSerializers.serializeCollection(request.recipients, out, version.messagingVersion(), NodeId.messagingSerializer);
         }
 
         @Override
-        public MutationRequest deserialize(DataInputPlus in, int version) throws IOException
+        public MutationRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
-            Mutation mutation = Mutation.serializer.deserialize(in, version);
-            int numRecipients = in.readInt();
-            Set<NodeId> recipients = Sets.newHashSetWithExpectedSize(numRecipients);
-            for (int i = 0; i < numRecipients; i++)
-                recipients.add(NodeId.messagingSerializer.deserialize(in, version));
+            Mutation mutation = Mutation.serializer.deserialize(in, version.messagingVersion());
+            Set<NodeId> recipients = CollectionSerializers.deserializeSet(in, version.messagingVersion(), NodeId.messagingSerializer);
             return new MutationRequest(mutation, recipients);
         }
 
         @Override
-        public long serializedSize(MutationRequest request, int version)
+        public long serializedSize(MutationRequest request, Version version)
         {
-            long size = Mutation.serializer.serializedSize(request.mutation, version);
-            size += TypeSizes.INT_SIZE;
-            for (NodeId recipient : request.recipients)
-                size += NodeId.messagingSerializer.serializedSize(recipient, version);
+            long size = Mutation.serializer.serializedSize(request.mutation, version.messagingVersion());
+            size += CollectionSerializers.serializedCollectionSize(request.recipients, version.messagingVersion(), NodeId.messagingSerializer);
             return size;
         }
     };

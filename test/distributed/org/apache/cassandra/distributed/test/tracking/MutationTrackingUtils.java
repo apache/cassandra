@@ -43,7 +43,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationSummary;
@@ -58,7 +57,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class MutationTrackingUtils
 {
     private static final Logger logger = LoggerFactory.getLogger(MutationTrackingUtils.class);
-    private static final int VERSION = MessagingService.current_version;
 
     public static class IgnoreReasons
     {
@@ -66,42 +64,13 @@ public class MutationTrackingUtils
         public static final String NO_PER_PARTITION_RANGE_READ_LIMITS = "NO_PER_PARTITION_RANGE_READ_LIMITS";
     }
 
-    public static byte[] encodeId(MutationId id)
-    {
-        int size = Ints.checkedCast(MutationId.serializer.serializedSize(id, VERSION));
-        ByteBuffer buffer = ByteBuffer.allocate(size);
-        try (DataOutputBuffer dob = new DataOutputBuffer(buffer))
-        {
-            MutationId.serializer.serialize(id, dob, VERSION);
-            return buffer.array();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static MutationId decodeId(byte[] bytes)
-    {
-        try (DataInputBuffer dib = new DataInputBuffer(bytes))
-        {
-            MutationId id = MutationId.serializer.deserialize(dib, VERSION);
-            Assert.assertEquals(MutationId.serializer.serializedSize(id, VERSION), bytes.length);
-            return id;
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static byte[] encodeSummary(MutationSummary summary)
     {
-        int size = Ints.checkedCast(MutationSummary.serializer.serializedSize(summary, VERSION));
+        int size = Ints.checkedCast(MutationSummary.serializer.serializedSize(summary));
         ByteBuffer buffer = ByteBuffer.allocate(size);
         try (DataOutputBuffer dob = new DataOutputBuffer(buffer))
         {
-            MutationSummary.serializer.serialize(summary, dob, VERSION);
+            MutationSummary.serializer.serialize(summary, dob);
             Assert.assertEquals(size, buffer.position());
             return buffer.array();
         }
@@ -115,8 +84,8 @@ public class MutationTrackingUtils
     {
         try (DataInputBuffer dib = new DataInputBuffer(bytes))
         {
-            MutationSummary summary = MutationSummary.serializer.deserialize(dib, VERSION);
-            Assert.assertEquals(MutationSummary.serializer.serializedSize(summary, VERSION), bytes.length);
+            MutationSummary summary = MutationSummary.serializer.deserialize(dib);
+            Assert.assertEquals(MutationSummary.serializer.serializedSize(summary), bytes.length);
             return summary;
         }
         catch (IOException e)

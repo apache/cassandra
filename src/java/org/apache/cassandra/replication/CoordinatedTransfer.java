@@ -212,7 +212,7 @@ public abstract class CoordinatedTransfer
         for (Pair<InetAddressAndPort, InetAddressAndPort> target : targets)
         {
             ActivationRequest activation = createActivation(target, Phase.COMMIT);
-            Message<ActivationRequest> msg = Message.out(Verb.TRACKED_TRANSFER_ACTIVATE_REQ, activation);
+            Message<ActivationRequest> msg = Message.out(Verb.MT_TRANSFER_ACTIVATE_REQ, activation);
 
             logger.debug("{} Sending commit {} to peer {}", logPrefix(), activation, target.right);
             MessagingService.instance().sendWithCallback(msg, target.right, commit);
@@ -285,7 +285,7 @@ public abstract class CoordinatedTransfer
 
             logger.debug("{} Notifying {} of transfer failure for plan {}", logPrefix(), to, result.planId());
             notifyFailure.responses.incrementAndGet();
-            Message<TransferFailed> msg = Message.out(Verb.TRACKED_TRANSFER_FAILED_REQ, new TransferFailed(result.planId()));
+            Message<TransferFailed> msg = Message.out(Verb.MT_TRANSFER_FAILED_REQ, new TransferFailed(result.planId()));
             MessagingService.instance().sendWithCallback(msg, to, notifyFailure);
         }
 

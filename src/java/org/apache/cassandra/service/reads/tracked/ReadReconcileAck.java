@@ -22,7 +22,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
@@ -57,25 +57,24 @@ public class ReadReconcileAck
         ReadReconciliations.instance.acceptSyncAck(message.from(), notify.readId);
     };
 
-    public static final IVersionedSerializer<ReadReconcileAck> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<ReadReconcileAck> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(ReadReconcileAck notify, DataOutputPlus out, int version) throws IOException
+        public void serialize(ReadReconcileAck notify, DataOutputPlus out) throws IOException
         {
-            TrackedRead.Id.serializer.serialize(notify.readId, out, version);
+            TrackedRead.Id.serializer.serialize(notify.readId, out);
         }
 
         @Override
-        public ReadReconcileAck deserialize(DataInputPlus in, int version) throws IOException
+        public ReadReconcileAck deserialize(DataInputPlus in) throws IOException
         {
-            TrackedRead.Id readId = TrackedRead.Id.serializer.deserialize(in, version);
-            return new ReadReconcileAck(readId);
+            return new ReadReconcileAck(TrackedRead.Id.serializer.deserialize(in));
         }
 
         @Override
-        public long serializedSize(ReadReconcileAck notify, int version)
+        public long serializedSize(ReadReconcileAck notify)
         {
-            return TrackedRead.Id.serializer.serializedSize(notify.readId, version);
+            return TrackedRead.Id.serializer.serializedSize(notify.readId);
         }
     };
 }

@@ -51,7 +51,6 @@ import org.apache.cassandra.distributed.test.tracking.MutationTrackingUtils;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationType;
@@ -107,15 +106,15 @@ public class CoordinatorLogOffsetsTest
         .check(originals -> {
             try (DataOutputBuffer outputBuffer = DataOutputBuffer.scratchBuffer.get())
             {
-                ImmutableCoordinatorLogOffsets.serializer.serialize(originals, outputBuffer, MessagingService.current_version);
+                ImmutableCoordinatorLogOffsets.serializer.serialize(originals, outputBuffer, Version.CURRENT);
                 try (DataInputBuffer inputBuffer = new DataInputBuffer(outputBuffer.buffer(), true))
                 {
-                    ImmutableCoordinatorLogOffsets deserialized = ImmutableCoordinatorLogOffsets.serializer.deserialize(inputBuffer, MessagingService.current_version);
+                    ImmutableCoordinatorLogOffsets deserialized = ImmutableCoordinatorLogOffsets.serializer.deserialize(inputBuffer, Version.CURRENT);
                     CoordinatorLogOffsets.Mutations<Offsets.Immutable> mutations = deserialized.mutations();
                     Assertions.assertThat(Sets.newHashSet(mutations)).isEqualTo(Sets.newHashSet(originals.mutations().iterator()));
                     for (long logId : originals.mutations())
                         Assertions.assertThat(mutations.offsets(logId)).isEqualTo(originals.mutations().offsets(logId));
-                    Assertions.assertThat(outputBuffer.getLength()).isEqualTo(ImmutableCoordinatorLogOffsets.serializer.serializedSize(originals, MessagingService.current_version));
+                    Assertions.assertThat(outputBuffer.getLength()).isEqualTo(ImmutableCoordinatorLogOffsets.serializer.serializedSize(originals, Version.CURRENT));
                 }
             }
         });

@@ -45,10 +45,9 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.Uninterruptibles;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.replication.ActivatedTransfers;
 import org.apache.cassandra.replication.ActivationRequest;
 import org.apache.cassandra.replication.ShortMutationId;
@@ -382,23 +381,24 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
         onRows.accept(rows);
     }
 
-    private static <T> T callSerialized(IInvokableInstance instance, IIsolatedExecutor.SerializableSupplier<IVersionedSerializer<T>> serializer, IIsolatedExecutor.SerializableCallable<T> callable)
+    private static <T> T callSerialized(IInvokableInstance instance, IIsolatedExecutor.SerializableSupplier<UnversionedSerializer<T>> serializer, IIsolatedExecutor.SerializableCallable<T> callable)
     {
         ByteBuffer serialized = instance.callOnInstance(() -> {
             T deserialized = callable.call();
-            IVersionedSerializer<T> serialize = serializer.get();
+            UnversionedSerializer<T> serialize = serializer.get();
             try
             {
-                return serialize.serialize(deserialized, MessagingService.current_version);
+                return serialize.serialize(deserialized);
             }
             catch (IOException e)
             {
                 throw new RuntimeException(e);
             }
         });
+
         try
         {
-            return serializer.get().deserialize(serialized, MessagingService.current_version);
+            return serializer.get().deserialize(serialized);
         }
         catch (IOException e)
         {

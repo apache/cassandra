@@ -38,7 +38,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraGenerators;
@@ -134,7 +133,7 @@ public class ActivatedTransfersTest
         qt()
         .forAll(activatedTransfersGen())
         .check(transfers -> {
-            int version = MessagingService.current_version;
+            Version version = Version.CURRENT;
             ActivatedTransfers deserialized;
             try (DataOutputBuffer out = new DataOutputBuffer())
             {

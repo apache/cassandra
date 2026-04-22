@@ -852,7 +852,7 @@ public class MutationTrackingRepairTest extends TestBaseImpl
 
         // Drop only offset broadcasts so MT_SYNC_REQ/RSP can succeed but
         // reconciliation never completes, triggering mutation_tracking_sync_timeout
-        CLUSTER.filters().verbs(Verb.BROADCAST_LOG_OFFSETS.id).drop();
+        CLUSTER.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).drop();
 
         List<NodeToolResult> results = repairConcurrently(ALL_NODES, withPR(ksName));
         assertAllFailure(results);
@@ -884,7 +884,7 @@ public class MutationTrackingRepairTest extends TestBaseImpl
         insertData("tbl", 0, 50);
 
         // Block offset broadcasts so the sync coordinator stays alive waiting
-        IMessageFilters.Filter offsetFilter = CLUSTER.filters().verbs(Verb.BROADCAST_LOG_OFFSETS.id).drop();
+        IMessageFilters.Filter offsetFilter = CLUSTER.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).drop();
 
         // Use a latch to detect when the sync request has been sent, meaning
         // the sync coordinator is active and tracking shard references

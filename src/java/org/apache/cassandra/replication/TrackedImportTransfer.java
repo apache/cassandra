@@ -329,7 +329,7 @@ public class TrackedImportTransfer extends CoordinatedTransfer
         for (Pair<InetAddressAndPort, InetAddressAndPort> target : targets)
         {
             ActivationRequest activation = createActivation(target, Phase.PREPARE);
-            Message<ActivationRequest> msg = Message.out(Verb.TRACKED_TRANSFER_ACTIVATE_REQ, activation);
+            Message<ActivationRequest> msg = Message.out(Verb.MT_TRANSFER_ACTIVATE_REQ, activation);
             logger.debug("{} Sending prepare {} to peer {}", logPrefix(), activation, target.right);
             MessagingService.instance().sendWithCallback(msg, target.right, prepare);
             streamResults.computeIfPresent(target, (peer0, result) -> result.preparing());

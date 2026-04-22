@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.Version;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.streaming.LogStreamHeader;
 import org.apache.cassandra.streaming.StreamSession;
@@ -54,7 +55,8 @@ public class OutgoingMutationLogStreamMessage extends MutationLogStreamMessage
 
     public void serialize(StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
     {
-        LogStreamHeader.serializer.serialize(header, out, version);
+        Version.serializer.serialize(Version.CLUSTER_SAFE_VERSION, out);
+        LogStreamHeader.serializer.serialize(header, out, Version.CLUSTER_SAFE_VERSION);
 
         try
         {
@@ -118,16 +120,19 @@ public class OutgoingMutationLogStreamMessage extends MutationLogStreamMessage
 
     public static class OutgoingMutationLogStreamMessageSerializer implements StreamMessage.Serializer<OutgoingMutationLogStreamMessage>
     {
+        @Override
         public OutgoingMutationLogStreamMessage deserialize(DataInputPlus in, int version)
         {
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing stream");
         }
 
+        @Override
         public void serialize(OutgoingMutationLogStreamMessage message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
         {
             message.serialize(out, version, session);
         }
 
+        @Override
         public long serializedSize(OutgoingMutationLogStreamMessage message, int version)
         {
             return message.serializedSize(version);

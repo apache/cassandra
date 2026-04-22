@@ -55,30 +55,6 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class CollectionSerializers
 {
-    /**
-     * A simple UTF-8 string serializer for use with collection serialization methods.
-     */
-    public static final IVersionedSerializer<String> STRING_SERIALIZER = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(String str, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUTF(str);
-        }
-
-        @Override
-        public String deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return in.readUTF();
-        }
-
-        @Override
-        public long serializedSize(String str, int version)
-        {
-            return org.apache.cassandra.db.TypeSizes.sizeof(str);
-        }
-    };
-
     public static final UnversionedSerializer<Set<Integer>> intSetSerializer = newSetSerializer(Int32Serializer.serializer);
     public static final UnversionedSerializer<Set<Integer>> nullableIntSetSerializer = NullableSerializer.wrap(intSetSerializer);
 
@@ -199,6 +175,16 @@ public class CollectionSerializers
         }
     }
 
+    public static <K, V, Version> void serializeMap(Map<K, V> map, DataOutputPlus out, Version version, UnversionedSerializer<K> keySerializer, VersionedSerializer<V, Version> valueSerializer) throws IOException
+    {
+        out.writeUnsignedVInt32(map.size());
+        for (Map.Entry<K, V> e : map.entrySet())
+        {
+            keySerializer.serialize(e.getKey(), out);
+            valueSerializer.serialize(e.getValue(), out, version);
+        }
+    }
+
     public static <K, V> void serializeMap(Map<K, V> map, DataOutputPlus out, int version, IVersionedSerializer<K> keySerializer, IPartitionerDependentSerializer<V> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(map.size());
@@ -311,12 +297,12 @@ public class CollectionSerializers
         return result;
     }
 
-    public static <K, V> void deserializeMapToConsumer(DataInputPlus in, int version, IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer, BiConsumer<K, V> consumer) throws IOException
+    public static <K, V, Version> void deserializeMapToConsumer(DataInputPlus in, Version version, UnversionedSerializer<K> keySerializer, VersionedSerializer<V, Version> valueSerializer, BiConsumer<K, V> consumer) throws IOException
     {
         int size = in.readUnsignedVInt32();
         while (size-- > 0)
         {
-            K key = keySerializer.deserialize(in, version);
+            K key = keySerializer.deserialize(in);
             V value = valueSerializer.deserialize(in, version);
             consumer.accept(key, value);
         }
@@ -329,6 +315,19 @@ public class CollectionSerializers
         while (size-- > 0)
         {
             K key = keySerializer.deserialize(in, version);
+            V value = valueSerializer.deserialize(in, version);
+            result.put(key, value);
+        }
+        return result;
+    }
+
+    public static <K, V, Version, M extends Map<K, V>> M deserializeMap(DataInputPlus in, Version version, UnversionedSerializer<K> keySerializer, VersionedSerializer<V, Version> valueSerializer, IntFunction<M> factory) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        M result = factory.apply(size);
+        while (size-- > 0)
+        {
+            K key = keySerializer.deserialize(in);
             V value = valueSerializer.deserialize(in, version);
             result.put(key, value);
         }
@@ -522,6 +521,15 @@ public class CollectionSerializers
         return size;
     }
 
+    public static <K, V, Version> long serializedMapSize(Map<K, V> map, Version version, UnversionedSerializer<K> keySerializer, VersionedSerializer<V, Version> valueSerializer)
+    {
+        long size = sizeofUnsignedVInt(map.size());
+        for (Map.Entry<K, V> e : map.entrySet())
+            size += keySerializer.serializedSize(e.getKey())
+                    + valueSerializer.serializedSize(e.getValue(), version);
+        return size;
+    }
+
     public static <K, V> long serializedMapSize(Map<K, V> map, int version, IVersionedSerializer<K> keySerializer, IPartitionerDependentSerializer<V> valueSerializer)
     {
         long size = sizeofUnsignedVInt(map.size());
@@ -583,6 +591,13 @@ public class CollectionSerializers
     }
 
     public static <V> void deserializeCollectionToConsumer(DataInputPlus in, int version, IVersionedSerializer<V> serializer, Consumer<V> consumer) throws IOException
+    {
+        int size = in.readUnsignedVInt32();
+        while (size-- > 0)
+            consumer.accept(serializer.deserialize(in, version));
+    }
+
+    public static <V, Version> void deserializeCollectionToConsumer(DataInputPlus in, Version version, VersionedSerializer<V, Version> serializer, Consumer<V> consumer) throws IOException
     {
         int size = in.readUnsignedVInt32();
         while (size-- > 0)
@@ -695,26 +710,26 @@ public class CollectionSerializers
         };
     }
 
-    public static <K, V> IVersionedSerializer<Map<K, V>> newMapSerializer(IVersionedSerializer<K> keySerializer, IVersionedSerializer<V> valueSerializer)
+    public static <K, V> UnversionedSerializer<Map<K, V>> newMapSerializer(UnversionedSerializer<K> keySerializer, UnversionedSerializer<V> valueSerializer)
     {
-        return new IVersionedSerializer<Map<K, V>>()
+        return new UnversionedSerializer<>()
         {
             @Override
-            public void serialize(Map<K, V> map, DataOutputPlus out, int version) throws IOException
+            public void serialize(Map<K, V> map, DataOutputPlus out) throws IOException
             {
-                serializeMap(map, out, version, keySerializer, valueSerializer);
+                serializeMap(map, out, keySerializer, valueSerializer);
             }
 
             @Override
-            public Map<K, V> deserialize(DataInputPlus in, int version) throws IOException
+            public Map<K, V> deserialize(DataInputPlus in) throws IOException
             {
-                return deserializeMap(in, version, keySerializer, valueSerializer);
+                return deserializeMap(in, keySerializer, valueSerializer);
             }
 
             @Override
-            public long serializedSize(Map<K, V> map, int version)
+            public long serializedSize(Map<K, V> map)
             {
-                return serializedMapSize(map, version, keySerializer, valueSerializer);
+                return serializedMapSize(map, keySerializer, valueSerializer);
             }
         };
     }

@@ -48,10 +48,10 @@ public class PrepareSynMessage extends StreamMessage
             if (version >= MessagingService.VERSION_61)
             {
                 if (input.readBoolean())
-                    message.logRequest = LogStreamManifest.serializer.deserialize(input, version);
+                    message.logRequest = LogStreamManifest.embedded.deserialize(input, version);
 
                 if (input.readBoolean())
-                    message.logSummary = LogStreamManifest.serializer.deserialize(input, version);
+                    message.logSummary = LogStreamManifest.embedded.deserialize(input, version);
             }
 
             return message;
@@ -69,10 +69,10 @@ public class PrepareSynMessage extends StreamMessage
             {
                 size += 1; // boolean for logRequest presence
                 if (message.logRequest != null)
-                    size += LogStreamManifest.serializer.serializedSize(message.logRequest, version);
+                    size += LogStreamManifest.embedded.serializedSize(message.logRequest, version);
                 size += 1; // boolean for logSummary presence
                 if (message.logSummary != null)
-                    size += LogStreamManifest.serializer.serializedSize(message.logSummary, version);
+                    size += LogStreamManifest.embedded.serializedSize(message.logSummary, version);
             }
             return size;
         }
@@ -92,10 +92,10 @@ public class PrepareSynMessage extends StreamMessage
             {
                 out.writeBoolean(message.logRequest != null);
                 if (message.logRequest != null)
-                    LogStreamManifest.serializer.serialize(message.logRequest, out, version);
+                    LogStreamManifest.embedded.serialize(message.logRequest, out, version);
                 out.writeBoolean(message.logSummary != null);
                 if (message.logSummary != null)
-                    LogStreamManifest.serializer.serialize(message.logSummary, out, version);
+                    LogStreamManifest.embedded.serialize(message.logSummary, out, version);
             }
         }
     };

@@ -34,10 +34,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Offsets.Immutable>
@@ -210,24 +211,20 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         }
     }
 
-    public static class Serializer implements IVersionedSerializer<ImmutableCoordinatorLogOffsets>
+    public static final VersionedSerializer<ImmutableCoordinatorLogOffsets> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(ImmutableCoordinatorLogOffsets logOffsets, DataOutputPlus out, int version) throws IOException
+        public void serialize(ImmutableCoordinatorLogOffsets logOffsets, DataOutputPlus out, Version version) throws IOException
         {
-            if (version < MessagingService.VERSION_61)
-                return;
-            ImmutableMutations.serializer.serialize(logOffsets.mutations, out, version);
+            ImmutableMutations.serializer.serialize(logOffsets.mutations, out);
             ActivatedTransfers.serializer.serialize(logOffsets.transfers(), out, version);
         }
 
         @Override
-        public ImmutableCoordinatorLogOffsets deserialize(DataInputPlus in, int version) throws IOException
+        public ImmutableCoordinatorLogOffsets deserialize(DataInputPlus in, Version version) throws IOException
         {
-            if (version < MessagingService.VERSION_61)
-                return ImmutableCoordinatorLogOffsets.NONE;
             Builder builder = new Builder();
-            ImmutableMutations mutations = ImmutableMutations.serializer.deserialize(in, version);
+            ImmutableMutations mutations = ImmutableMutations.serializer.deserialize(in);
             mutations.ids.forEach((id, offsets) -> builder.addAll(offsets));
             ActivatedTransfers transfers = ActivatedTransfers.serializer.deserialize(in, version);
             if (!transfers.isEmpty())
@@ -236,18 +233,17 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
         }
 
         @Override
-        public long serializedSize(ImmutableCoordinatorLogOffsets logOffsets, int version)
+        public long serializedSize(ImmutableCoordinatorLogOffsets logOffsets, Version version)
         {
-            if (version < MessagingService.VERSION_61)
-                return 0;
             long size = 0;
-            size += ImmutableMutations.serializer.serializedSize(logOffsets.mutations, version);
+            size += ImmutableMutations.serializer.serializedSize(logOffsets.mutations);
             size += ActivatedTransfers.serializer.serializedSize(logOffsets.transfers(), version);
             return size;
         }
-    }
+    };
 
-    public static final Serializer serializer = new Serializer();
+    public static final IVersionedAsymmetricSerializer<ImmutableCoordinatorLogOffsets, ImmutableCoordinatorLogOffsets> embedded =
+        EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
     public static class ImmutableMutations implements Mutations<Offsets.Immutable>
     {
@@ -301,35 +297,35 @@ public class ImmutableCoordinatorLogOffsets implements CoordinatorLogOffsets<Off
                    '}';
         }
 
-        private static final IVersionedSerializer<ImmutableMutations> serializer = new IVersionedSerializer<>()
+        public static final UnversionedSerializer<ImmutableMutations> serializer = new UnversionedSerializer<>()
         {
             @Override
-            public void serialize(ImmutableMutations mutations, DataOutputPlus out, int version) throws IOException
+            public void serialize(ImmutableMutations mutations, DataOutputPlus out) throws IOException
             {
                 out.writeUnsignedVInt32(mutations.size());
                 for (long logId : mutations)
-                    Offsets.serializer.serialize(mutations.offsets(logId), out, version);
+                    Offsets.serializer.serialize(mutations.offsets(logId), out);
             }
 
             @Override
-            public ImmutableMutations deserialize(DataInputPlus in, int version) throws IOException
+            public ImmutableMutations deserialize(DataInputPlus in) throws IOException
             {
                 int size = in.readUnsignedVInt32();
                 Long2ObjectHashMap<Offsets.Immutable> ids = new Long2ObjectHashMap<>(size, 0.9f, false);
                 for (int i = 0; i < size; i++)
                 {
-                    Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
+                    Offsets.Immutable offsets = Offsets.serializer.deserialize(in);
                     ids.put(offsets.logId.asLong(), offsets);
                 }
                 return new ImmutableMutations(ids);
             }
 
             @Override
-            public long serializedSize(ImmutableMutations mutations, int version)
+            public long serializedSize(ImmutableMutations mutations)
             {
                 long size = VIntCoding.computeUnsignedVIntSize(mutations.size());
                 for (long logId : mutations)
-                    size += Offsets.serializer.serializedSize(mutations.offsets(logId), version);
+                    size += Offsets.serializer.serializedSize(mutations.offsets(logId));
                 return size;
             }
         };

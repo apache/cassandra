@@ -73,9 +73,8 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>, Commitable
 {
-    public static final MutationSerializer serializer = new MutationSerializer();
     public static final int ALLOW_POTENTIAL_TRANSACTION_CONFLICTS = 0x01;
-
+    public static final int HAS_MUTATION_ID = 0x02;
 
     private final MutationId id;
     // todo this is redundant
@@ -608,17 +607,20 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
                                       DataOutputPlus out,
                                       int version) throws IOException
         {
-            Map<TableId, PartitionUpdate> modifications = mutation.modifications;
+            boolean hasMutationId = version >= VERSION_61 && !mutation.id.isNone();
 
             if (version >= VERSION_60)
             {
                 int flags = 0;
                 flags |= potentialTxnConflictsFlag(mutation.potentialTxnConflicts);
+                if (hasMutationId) flags |= HAS_MUTATION_ID;
                 out.write(flags);
             }
 
-            if (version >= MessagingService.VERSION_61)
-                MutationId.serializer.serialize(mutation.id, out, version);
+            if (hasMutationId)
+                MutationId.serializer.serialize(mutation.id, out);
+
+            Map<TableId, PartitionUpdate> modifications = mutation.modifications;
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
@@ -640,15 +642,15 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
                 PotentialTxnConflicts potentialTxnConflicts = PotentialTxnConflicts.DISALLOW;
+                boolean hasMutationId = false;
                 if (version >= VERSION_60)
                 {
-                    int flags = teeIn.readByte();
+                    int flags = teeIn.readUnsignedByte();
                     potentialTxnConflicts = potentialTxnConflicts(flags);
+                    hasMutationId = version >= VERSION_61 && (flags & HAS_MUTATION_ID) == HAS_MUTATION_ID;
                 }
 
-                MutationId id = version >= MessagingService.VERSION_61
-                              ? MutationId.serializer.deserialize(teeIn, version)
-                              : MutationId.none();
+                MutationId id = hasMutationId ? MutationId.serializer.deserialize(teeIn) : MutationId.none();
 
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
@@ -686,30 +688,35 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
          */
         public Pair<DecoratedKey, TableMetadata> deserializeKeyAndTableMetadata(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
         {
-            if (version >= VERSION_60)
-                in.skipBytes(1); // potentialTxnConflicts
-
-            if (version >= VERSION_61)
-                MutationId.serializer.skip(in, version);
-
+            skipHeader(in, version);
             int size = in.readUnsignedVInt32();
             assert size > 0;
-
             return PartitionUpdate.serializer.deserializeMetadataAndKey(in, version, flag);
         }
 
-        public TableId deserializeTableId(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
+        /**
+         * Return first (out of potentially multiple) table ids in this mutation.
+         */
+        public TableId deserializeFirstTableId(DataInputBuffer in, int version, DeserializationHelper.Flag flag) throws IOException
         {
-            if (version >= VERSION_60)
-                in.skipBytes(1); // flags
-
-            if (version >= VERSION_61)
-                MutationId.serializer.skip(in, version);
-
+            skipHeader(in, version);
             int size = in.readUnsignedVInt32();
             assert size > 0;
-
             return PartitionUpdate.serializer.deserializeTableId(in, version, flag);
+        }
+
+        private void skipHeader(DataInputBuffer in, int version) throws IOException
+        {
+            boolean hasMutationId = false;
+            if (version >= VERSION_60)
+            {
+                int flags = in.readUnsignedByte();
+                if (version >= VERSION_61)
+                    hasMutationId = (flags & HAS_MUTATION_ID) == HAS_MUTATION_ID;
+            }
+
+            if (hasMutationId)
+                MutationId.serializer.skip(in);
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
@@ -722,6 +729,8 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
             return serialization(mutation, version).serializedSize(PartitionUpdate.serializer, mutation, version);
         }
     }
+
+    public static final MutationSerializer serializer = new MutationSerializer();
 
     /**
      * There are two implementations of this class. One that keeps the serialized representation on-heap for later
@@ -780,9 +789,11 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
             if (size == 0L)
             {
                 if (version >= VERSION_60)
-                    size += TypeSizes.sizeof((byte)ALLOW_POTENTIAL_TRANSACTION_CONFLICTS); // flags
-                if (version >= MessagingService.VERSION_61)
-                    size += MutationId.serializer.serializedSize(mutation.id, version);
+                    size += TypeSizes.BYTE_SIZE; // flags
+
+                if (version >= MessagingService.VERSION_61 && !mutation.id.isNone())
+                    size += MutationId.serializer.serializedSize(mutation.id);
+
                 size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);

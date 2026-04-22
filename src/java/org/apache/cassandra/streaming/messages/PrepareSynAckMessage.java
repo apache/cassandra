@@ -43,7 +43,7 @@ public class PrepareSynAckMessage extends StreamMessage
             {
                 out.writeBoolean(message.logSummary != null);
                 if (message.logSummary != null)
-                    LogStreamManifest.serializer.serialize(message.logSummary, out, version);
+                    LogStreamManifest.embedded.serialize(message.logSummary, out, version);
             }
         }
 
@@ -57,7 +57,7 @@ public class PrepareSynAckMessage extends StreamMessage
             if (version >= MessagingService.VERSION_61)
             {
                 if (input.readBoolean())
-                    message.logSummary = LogStreamManifest.serializer.deserialize(input, version);
+                    message.logSummary = LogStreamManifest.embedded.deserialize(input, version);
             }
             return message;
         }
@@ -72,7 +72,7 @@ public class PrepareSynAckMessage extends StreamMessage
             {
                 size += 1; // boolean for logSummary presence
                 if (message.logSummary != null)
-                    size += LogStreamManifest.serializer.serializedSize(message.logSummary, version);
+                    size += LogStreamManifest.embedded.serializedSize(message.logSummary, version);
             }
             return size;
         }

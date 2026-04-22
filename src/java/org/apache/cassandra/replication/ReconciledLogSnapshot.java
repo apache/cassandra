@@ -26,12 +26,12 @@ import java.util.function.BiConsumer;
 
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.StringSerializer;
 
 /**
  * Container for reconciled offsets organized by keyspace and shard, including range information for each log.
@@ -39,8 +39,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  */
 public class ReconciledLogSnapshot
 {
-    public static final IVersionedSerializer<ReconciledLogSnapshot> serializer = new Serializer();
-
     private final ImmutableMap<String, ReconciledKeyspaceOffsets> reconciled;
 
     private ReconciledLogSnapshot(ImmutableMap<String, ReconciledKeyspaceOffsets> reconciled)
@@ -177,48 +175,32 @@ public class ReconciledLogSnapshot
         return new Builder();
     }
 
-    public static class Serializer implements IVersionedSerializer<ReconciledLogSnapshot>
+    public static final VersionedSerializer<ReconciledLogSnapshot> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(ReconciledLogSnapshot offsets, DataOutputPlus out, int version) throws IOException
+        public void serialize(ReconciledLogSnapshot offsets, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeInt(offsets.reconciled.size());
-
-            for (Map.Entry<String, ReconciledKeyspaceOffsets> keyspaceEntry : offsets.reconciled.entrySet())
-            {
-                out.writeUTF(keyspaceEntry.getKey());
-                ReconciledKeyspaceOffsets.serializer.serialize(keyspaceEntry.getValue(), out, version);
-            }
+            CollectionSerializers.serializeMap(
+                offsets.reconciled, out, version, StringSerializer.instance, ReconciledKeyspaceOffsets.serializer
+            );
         }
 
         @Override
-        public ReconciledLogSnapshot deserialize(DataInputPlus in, int version) throws IOException
+        public ReconciledLogSnapshot deserialize(DataInputPlus in, Version version) throws IOException
         {
-            int keyspaceCount = in.readInt();
             ImmutableMap.Builder<String, ReconciledKeyspaceOffsets> builder = ImmutableMap.builder();
-
-            for (int i = 0; i < keyspaceCount; i++)
-            {
-                String keyspace = in.readUTF();
-                ReconciledKeyspaceOffsets keyspaceOffsets = ReconciledKeyspaceOffsets.serializer.deserialize(in, version);
-                builder.put(keyspace, keyspaceOffsets);
-            }
-
+            CollectionSerializers.deserializeMapToConsumer(
+                in, version, StringSerializer.instance, ReconciledKeyspaceOffsets.serializer, builder::put
+            );
             return new ReconciledLogSnapshot(builder.build());
         }
 
         @Override
-        public long serializedSize(ReconciledLogSnapshot offsets, int version)
+        public long serializedSize(ReconciledLogSnapshot offsets, Version version)
         {
-            long size = TypeSizes.sizeof(offsets.reconciled.size());
-
-            for (Map.Entry<String, ReconciledKeyspaceOffsets> keyspaceEntry : offsets.reconciled.entrySet())
-            {
-                size += TypeSizes.sizeof(keyspaceEntry.getKey());
-                size += ReconciledKeyspaceOffsets.serializer.serializedSize(keyspaceEntry.getValue(), version);
-            }
-
-            return size;
+            return CollectionSerializers.serializedMapSize(
+                offsets.reconciled, version, StringSerializer.instance, ReconciledKeyspaceOffsets.serializer
+            );
         }
-    }
+    };
 }

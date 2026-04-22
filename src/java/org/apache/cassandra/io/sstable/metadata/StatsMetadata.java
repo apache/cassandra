@@ -419,7 +419,7 @@ public class StatsMetadata extends MetadataComponent
             }
 
             if (version.hasMutationTrackingMetadata())
-                size += ImmutableCoordinatorLogOffsets.serializer.serializedSize(component.coordinatorLogOffsets, version.correspondingMessagingVersion());
+                size += ImmutableCoordinatorLogOffsets.embedded.serializedSize(component.coordinatorLogOffsets, version.correspondingMessagingVersion());
 
             return size;
         }
@@ -546,7 +546,7 @@ public class StatsMetadata extends MetadataComponent
             }
 
             if (version.hasMutationTrackingMetadata())
-                ImmutableCoordinatorLogOffsets.serializer.serialize(component.coordinatorLogOffsets, out, version.correspondingMessagingVersion());
+                ImmutableCoordinatorLogOffsets.embedded.serialize(component.coordinatorLogOffsets, out, version.correspondingMessagingVersion());
         }
 
         private void serializeImprovedMinMax(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
@@ -694,7 +694,7 @@ public class StatsMetadata extends MetadataComponent
 
             ImmutableCoordinatorLogOffsets coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.NONE;
             if (version.hasMutationTrackingMetadata())
-                coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.serializer.deserialize(in, version.correspondingMessagingVersion());
+                coordinatorLogOffsets = ImmutableCoordinatorLogOffsets.embedded.deserialize(in, version.correspondingMessagingVersion());
 
             return new StatsMetadata(partitionSizes,
                                      columnCounts,

@@ -54,7 +54,9 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.Endpoints;
@@ -71,12 +73,15 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.Version;
+import org.apache.cassandra.replication.VersionedSerializer;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Dispatcher.RequestTime;
+import org.apache.cassandra.utils.ArraySerializers;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -87,6 +92,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.ReadKind.TRACKED_DATA;
 import static org.apache.cassandra.db.ReadKind.TRACKED_SUMMARY;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 
 public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> implements RequestCallback<TrackedDataResponse>
@@ -127,17 +133,17 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return "Id{" + node + ':' + hlc + '}';
         }
 
-        public static final IVersionedSerializer<Id> serializer = new IVersionedSerializer<>()
+        public static final UnversionedSerializer<Id> serializer = new UnversionedSerializer<>()
         {
             @Override
-            public void serialize(Id id, DataOutputPlus out, int version) throws IOException
+            public void serialize(Id id, DataOutputPlus out) throws IOException
             {
                 out.writeInt(id.node);
                 out.writeLong(id.hlc);
             }
 
             @Override
-            public Id deserialize(DataInputPlus in, int version) throws IOException
+            public Id deserialize(DataInputPlus in) throws IOException
             {
                 int node = in.readInt();
                 long hlc = in.readLong();
@@ -145,7 +151,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             }
 
             @Override
-            public long serializedSize(Id id, int version)
+            public long serializedSize(Id id)
             {
                 return TypeSizes.sizeof(id.node) + TypeSizes.sizeof(id.hlc);
             }
@@ -241,7 +247,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         protected Verb verb()
         {
-            return Verb.TRACKED_PARTITION_READ_REQ;
+            return Verb.MT_PARTITION_READ_REQ;
         }
     }
 
@@ -261,7 +267,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
         @Override
         protected Verb verb()
         {
-            return Verb.TRACKED_RANGE_READ_REQ;
+            return Verb.MT_RANGE_READ_REQ;
         }
     }
 
@@ -340,7 +346,7 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return;
 
         SummaryRequest summaryRequest = new SummaryRequest(readId, command, dataNode, summaryNodes);
-        Message<SummaryRequest> summaryMessage = Message.outWithRequestTime(Verb.TRACKED_SUMMARY_REQ, summaryRequest, requestTime);
+        Message<SummaryRequest> summaryMessage = Message.outWithRequestTime(Verb.MT_SUMMARY_REQ, summaryRequest, requestTime);
         for (Replica replica : summaryReplicas)
         {
             if (localReplica == replica)
@@ -519,44 +525,43 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
                                           .beginRead(readId, metadata, command, consistencyLevel, summaryNodes, requestTime, TrackedLocalReads.Completer.DEFAULT);
         }
 
-        public static final IVersionedSerializer<DataRequest> serializer = new IVersionedSerializer<>()
+        private static final VersionedSerializer<DataRequest> serializer = new VersionedSerializer<>()
         {
             @Override
-            public void serialize(DataRequest request, DataOutputPlus out, int version) throws IOException
+            public void serialize(DataRequest request, DataOutputPlus out, Version version) throws IOException
             {
-                Id.serializer.serialize(request.readId, out, version);
-                ReadCommand.serializer.serialize(request.command, out, version);
-                out.writeInt(request.dataNode);
-                out.writeInt(request.summaryNodes.length);
-                for (int hostid : request.summaryNodes)
-                    out.writeInt(hostid);
-                out.writeInt(request.consistencyLevel.code);
+                Id.serializer.serialize(request.readId, out);
+                ReadCommand.serializer.serialize(request.command, out, version.messagingVersion());
+                out.writeUnsignedVInt32(request.dataNode);
+                ArraySerializers.serializeVIntArray(request.summaryNodes, out);
+                out.writeUnsignedVInt32(request.consistencyLevel.code);
             }
 
             @Override
-            public DataRequest deserialize(DataInputPlus in, int version) throws IOException
+            public DataRequest deserialize(DataInputPlus in, Version version) throws IOException
             {
-                Id readId = Id.serializer.deserialize(in, version);
-                ReadCommand command = ReadCommand.serializer.deserialize(in, version);
-                int dataNode = in.readInt();
-                int[] summaryNodes = new int[in.readInt()];
-                for (int i = 0; i < summaryNodes.length; i++)
-                    summaryNodes[i] = in.readInt();
-                ConsistencyLevel consistencyLevel = ConsistencyLevel.fromCode(in.readInt());
+                Id readId = Id.serializer.deserialize(in);
+                ReadCommand command = ReadCommand.serializer.deserialize(in, version.messagingVersion());
+                int dataNode = in.readUnsignedVInt32();
+                int[] summaryNodes = ArraySerializers.deserializeVIntArray(in);
+                ConsistencyLevel consistencyLevel = ConsistencyLevel.fromCode(in.readUnsignedVInt32());
                 return new DataRequest(readId, command, dataNode, summaryNodes, consistencyLevel);
             }
 
             @Override
-            public long serializedSize(DataRequest request, int version)
+            public long serializedSize(DataRequest request, Version version)
             {
-                return Id.serializer.serializedSize(request.readId, version) +
-                       ReadCommand.serializer.serializedSize(request.command, version) +
-                       TypeSizes.sizeof(request.dataNode) +
-                       TypeSizes.sizeof(request.summaryNodes.length) +
-                       ((long) TypeSizes.INT_SIZE * request.summaryNodes.length) +
-                       TypeSizes.sizeof(request.consistencyLevel.code);
+                long size = Id.serializer.serializedSize(request.readId);
+                size += ReadCommand.serializer.serializedSize(request.command, version.messagingVersion());
+                size += sizeofUnsignedVInt(request.dataNode);
+                size += ArraySerializers.serializedVIntArraySize(request.summaryNodes);
+                size += sizeofUnsignedVInt(request.consistencyLevel.code);
+                return size;
             }
         };
+
+        public static final IVersionedAsymmetricSerializer<DataRequest, DataRequest> embedded =
+            EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
         @Override
         public ReadKind kind()
@@ -585,41 +590,40 @@ public abstract class TrackedRead<E extends Endpoints<E>, P extends ReplicaPlan.
             return ImmediateFuture.success(null);
         }
 
-        public static final IVersionedSerializer<SummaryRequest> serializer = new IVersionedSerializer<>()
+        private static final VersionedSerializer<SummaryRequest> serializer = new VersionedSerializer<>()
         {
             @Override
-            public void serialize(SummaryRequest request, DataOutputPlus out, int version) throws IOException
+            public void serialize(SummaryRequest request, DataOutputPlus out, Version version) throws IOException
             {
-                Id.serializer.serialize(request.readId, out, version);
-                ReadCommand.serializer.serialize(request.command, out, version);
-                out.writeInt(request.dataNode);
-                out.writeInt(request.summaryNodes.length);
-                for (int hostid : request.summaryNodes)
-                    out.writeInt(hostid);
+                Id.serializer.serialize(request.readId, out);
+                ReadCommand.serializer.serialize(request.command, out, version.messagingVersion());
+                out.writeUnsignedVInt32(request.dataNode);
+                ArraySerializers.serializeVIntArray(request.summaryNodes, out);
             }
 
             @Override
-            public SummaryRequest deserialize(DataInputPlus in, int version) throws IOException
+            public SummaryRequest deserialize(DataInputPlus in, Version version) throws IOException
             {
-                Id readId = Id.serializer.deserialize(in, version);
-                ReadCommand command = ReadCommand.serializer.deserialize(in, version);
-                int dataNode = in.readInt();
-                int[] summaryNodes = new int[in.readInt()];
-                for (int i = 0; i < summaryNodes.length; i++)
-                    summaryNodes[i] = in.readInt();
+                Id readId = Id.serializer.deserialize(in);
+                ReadCommand command = ReadCommand.serializer.deserialize(in, version.messagingVersion());
+                int dataNode = in.readUnsignedVInt32();
+                int[] summaryNodes = ArraySerializers.deserializeVIntArray(in);
                 return new SummaryRequest(readId, command, dataNode, summaryNodes);
             }
 
             @Override
-            public long serializedSize(SummaryRequest request, int version)
+            public long serializedSize(SummaryRequest request, Version version)
             {
-                return Id.serializer.serializedSize(request.readId, version) +
-                       ReadCommand.serializer.serializedSize(request.command, version) +
-                       TypeSizes.sizeof(request.dataNode) +
-                       TypeSizes.sizeof(request.summaryNodes.length) +
-                       ((long) TypeSizes.INT_SIZE * request.summaryNodes.length);
+                long size = Id.serializer.serializedSize(request.readId);
+                size += ReadCommand.serializer.serializedSize(request.command, version.messagingVersion());
+                size += sizeofUnsignedVInt(request.dataNode);
+                size += ArraySerializers.serializedVIntArraySize(request.summaryNodes);
+                return size;
             }
         };
+
+        public static final IVersionedAsymmetricSerializer<SummaryRequest, SummaryRequest> embedded =
+            EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
         @Override
         public ReadKind kind()

@@ -32,7 +32,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -138,72 +137,62 @@ public class ActivationRequest
         MutationTrackingService.instance().activateLocal(this);
     }
 
-    public static final Serializer serializer = new Serializer();
-
-    public static class Serializer implements IVersionedSerializer<ActivationRequest>
+    public static final VersionedSerializer<ActivationRequest> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(ActivationRequest request, DataOutputPlus out, int version) throws IOException
+        public void serialize(ActivationRequest request, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(request.operation.getDescription());
 
-            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(request.pair.left, out, version);
-            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(request.pair.right, out, version);
+            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(request.pair.left, out, version.messagingVersion());
+            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(request.pair.right, out, version.messagingVersion());
 
-            ShortMutationId.serializer.serialize(request.id(), out, version);
-            NodeId.messagingSerializer.serialize(request.coordinatorId, out, version);
+            ShortMutationId.serializer.serialize(request.id(), out);
+            NodeId.messagingSerializer.serialize(request.coordinatorId, out, version.messagingVersion());
             out.writeByte(request.phase.id);
             out.writeUTF(request.keyspace);
             Range.serializer.serialize(request.range, out, null);
-
-            out.writeBoolean(request.planId != null);
-            if (request.planId != null)
-                TimeUUID.Serializer.instance.serialize(request.planId, out, version);
+            TimeUUID.Serializer.nullable.serialize(request.planId, out);
         }
 
         @Override
-        public ActivationRequest deserialize(DataInputPlus in, int version) throws IOException
+        public ActivationRequest deserialize(DataInputPlus in, Version version) throws IOException
         {
             StreamOperation operation = StreamOperation.fromString(in.readUTF());
 
-            InetAddressAndPort sender = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
-            InetAddressAndPort receiver = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
+            InetAddressAndPort sender = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version.messagingVersion());
+            InetAddressAndPort receiver = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version.messagingVersion());
 
-            ShortMutationId id = ShortMutationId.serializer.deserialize(in, version);
-            NodeId coordinatorId = NodeId.messagingSerializer.deserialize(in, version);
+            ShortMutationId id = ShortMutationId.serializer.deserialize(in);
+            NodeId coordinatorId = NodeId.messagingSerializer.deserialize(in, version.messagingVersion());
             Phase phase = Phase.from(in.readByte());
             String keyspace = in.readUTF();
             Range<Token> range = Range.serializer.deserialize(in, null);
-
-            TimeUUID planId = in.readBoolean() ? TimeUUID.Serializer.instance.deserialize(in, version) : null;
+            TimeUUID planId = TimeUUID.Serializer.nullable.deserialize(in);
 
             return new ActivationRequest(operation, Pair.create(sender, receiver), phase, id, coordinatorId, range, keyspace, planId);
         }
 
         @Override
-        public long serializedSize(ActivationRequest request, int version)
+        public long serializedSize(ActivationRequest request, Version version)
         {
             long size = 0;
 
             size += TypeSizes.sizeof(request.operation.getDescription());
 
-            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(request.pair.left, version);
-            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(request.pair.right, version);
+            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(request.pair.left, version.messagingVersion());
+            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(request.pair.right, version.messagingVersion());
 
-            size += ShortMutationId.serializer.serializedSize(request.id(), version);
-            size += NodeId.messagingSerializer.serializedSize(request.coordinatorId, version);
+            size += ShortMutationId.serializer.serializedSize(request.id());
+            size += NodeId.messagingSerializer.serializedSize(request.coordinatorId, version.messagingVersion());
             size += TypeSizes.BYTE_SIZE; // Enum ordinal
-
             size += TypeSizes.sizeof(request.keyspace);
             size += Range.serializer.serializedSize(request.range, null);
-
-            size += TypeSizes.BOOL_SIZE;
-            if (request.planId != null)
-                size += TimeUUID.Serializer.instance.serializedSize(request.planId, version);
+            size += TimeUUID.Serializer.nullable.serializedSize(request.planId);
 
             return size;
         }
-    }
+    };
 
     public static class VerbHandler implements IVerbHandler<ActivationRequest>
     {

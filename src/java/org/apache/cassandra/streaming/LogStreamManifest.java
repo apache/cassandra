@@ -26,12 +26,15 @@ import java.util.Set;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.EmbeddedAsymmetricVersionedSerializer;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.replication.Version;
+import org.apache.cassandra.replication.VersionedSerializer;
+import org.apache.cassandra.utils.StringSerializer;
 
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeCollectionToConsumer;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMapToConsumer;
@@ -56,62 +59,44 @@ public class LogStreamManifest
         return new LogStreamManifest(builder.build());
     }
 
-    public static class Serializer
+    public static class Serializer implements VersionedSerializer<LogStreamManifest>
     {
-        private static final IVersionedSerializer<String> strSerializer = new IVersionedSerializer<>()
+        private static final VersionedSerializer<Range<Token>> rangeSerializer = new VersionedSerializer<>()
         {
             @Override
-            public void serialize(String str, DataOutputPlus out, int version) throws IOException
+            public void serialize(Range<Token> range, DataOutputPlus out, Version version) throws IOException
             {
-                out.writeUTF(str);
+                Token.serializer.serialize(range.left, out, version.messagingVersion());
+                Token.serializer.serialize(range.right, out, version.messagingVersion());
             }
 
             @Override
-            public String deserialize(DataInputPlus in, int version) throws IOException
+            public Range<Token> deserialize(DataInputPlus in, Version version) throws IOException
             {
-                return in.readUTF();
+                return new Range<>(
+                    Token.serializer.deserialize(in, version.messagingVersion()),
+                    Token.serializer.deserialize(in, version.messagingVersion())
+                );
             }
 
             @Override
-            public long serializedSize(String str, int version)
+            public long serializedSize(Range<Token> range, Version version)
             {
-                return TypeSizes.sizeof(str);
+                return Token.serializer.serializedSize(range.left, version.messagingVersion())
+                     + Token.serializer.serializedSize(range.right, version.messagingVersion());
             }
         };
 
-        private static final IVersionedSerializer<Range<Token>> rangeSerializer = new IVersionedSerializer<Range<Token>>()
+        private static final VersionedSerializer<ImmutableSet<Range<Token>>> rangeSetSerializer = new VersionedSerializer<>()
         {
             @Override
-            public void serialize(Range<Token> range, DataOutputPlus out, int version) throws IOException
-            {
-                Token.serializer.serialize(range.left, out, version);
-                Token.serializer.serialize(range.right, out, version);
-            }
-
-            @Override
-            public Range<Token> deserialize(DataInputPlus in, int version) throws IOException
-            {
-                return new Range<>(Token.serializer.deserialize(in, version), Token.serializer.deserialize(in, version));
-            }
-
-            @Override
-            public long serializedSize(Range<Token> range, int version)
-            {
-                return Token.serializer.serializedSize(range.left, version)
-                       + Token.serializer.serializedSize(range.right, version);
-            }
-        };
-
-        private static final IVersionedSerializer<ImmutableSet<Range<Token>>> rangeSetSerializer = new IVersionedSerializer<>()
-        {
-            @Override
-            public void serialize(ImmutableSet<Range<Token>> t, DataOutputPlus out, int version) throws IOException
+            public void serialize(ImmutableSet<Range<Token>> t, DataOutputPlus out, Version version) throws IOException
             {
                 serializeCollection(t, out, version, rangeSerializer);
             }
 
             @Override
-            public ImmutableSet<Range<Token>> deserialize(DataInputPlus in, int version) throws IOException
+            public ImmutableSet<Range<Token>> deserialize(DataInputPlus in, Version version) throws IOException
             {
                 ImmutableSet.Builder<Range<Token>> builder = ImmutableSet.builder();
                 deserializeCollectionToConsumer(in, version, rangeSerializer, builder::add);
@@ -119,32 +104,36 @@ public class LogStreamManifest
             }
 
             @Override
-            public long serializedSize(ImmutableSet<Range<Token>> t, int version)
+            public long serializedSize(ImmutableSet<Range<Token>> t, Version version)
             {
                 return serializedCollectionSize(t, version, rangeSerializer);
             }
         };
 
-
-        public void serialize(LogStreamManifest header, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(LogStreamManifest header, DataOutputPlus out, Version version) throws IOException
         {
-            serializeMap(header.keyspaceRanges, out, version, strSerializer, rangeSetSerializer);
+            serializeMap(header.keyspaceRanges, out, version, StringSerializer.instance, rangeSetSerializer);
         }
 
-        public LogStreamManifest deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public LogStreamManifest deserialize(DataInputPlus in, Version version) throws IOException
         {
             ImmutableMap.Builder<String, ImmutableSet<Range<Token>>> builder = ImmutableMap.builder();
-            deserializeMapToConsumer(in, version, strSerializer, rangeSetSerializer, builder::put);
+            deserializeMapToConsumer(in, version, StringSerializer.instance, rangeSetSerializer, builder::put);
             return new LogStreamManifest(builder.build());
         }
 
-        public long serializedSize(LogStreamManifest header, int version)
+        @Override
+        public long serializedSize(LogStreamManifest header, Version version)
         {
-            return serializedMapSize(header.keyspaceRanges, version, strSerializer, rangeSetSerializer);
+            return serializedMapSize(header.keyspaceRanges, version, StringSerializer.instance, rangeSetSerializer);
         }
     }
 
     public static final Serializer serializer = new Serializer();
+    public static final IVersionedAsymmetricSerializer<LogStreamManifest, LogStreamManifest> embedded =
+        EmbeddedAsymmetricVersionedSerializer.mtEmbedded(serializer);
 
     @Override
     public boolean equals(Object o)

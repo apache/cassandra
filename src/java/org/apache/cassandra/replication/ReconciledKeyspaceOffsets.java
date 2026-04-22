@@ -25,19 +25,17 @@ import java.util.function.BiConsumer;
 
 import org.agrona.collections.Long2ObjectHashMap;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.Int64Serializer;
 
 public class ReconciledKeyspaceOffsets
 {
-    public static final IVersionedSerializer<ReconciledKeyspaceOffsets> serializer = new Serializer();
-
     /**
      * Simple data holder for offsets and their associated range
      */
@@ -214,57 +212,52 @@ public class ReconciledKeyspaceOffsets
         return new Builder();
     }
 
-    public static class Serializer implements IVersionedSerializer<ReconciledKeyspaceOffsets>
+    private static final VersionedSerializer<Entry> entrySerializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(ReconciledKeyspaceOffsets keyspaceOffsets, DataOutputPlus out, int version) throws IOException
+        public void serialize(Entry e, DataOutputPlus out, Version version) throws IOException
         {
-            out.writeInt(keyspaceOffsets.logEntries.size());
-
-            keyspaceOffsets.logEntries.forEachLong((logId, entry) -> {
-                try
-                {
-                    out.writeLong(logId);
-                    Offsets.serializer.serialize(entry.offsets, out, version);
-                    AbstractBounds.tokenSerializer.serialize(entry.range, out, version);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            });
+            Offsets.serializer.serialize(e.offsets, out);
+            AbstractBounds.tokenSerializer.serialize(e.range, out, version.messagingVersion());
         }
 
         @Override
-        public ReconciledKeyspaceOffsets deserialize(DataInputPlus in, int version) throws IOException
+        public Entry deserialize(DataInputPlus in, Version version) throws IOException
         {
-            int logCount = in.readInt();
-            Long2ObjectHashMap<Entry> logEntries = new Long2ObjectHashMap<>();
+            Offsets.Immutable offsets = Offsets.serializer.deserialize(in);
+            Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+            return new Entry(offsets, range);
+        }
 
-            for (int j = 0; j < logCount; j++)
-            {
-                long logId = in.readLong();
-                Offsets.Immutable offsets = Offsets.serializer.deserialize(in, version);
-                Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version);
-                logEntries.put(logId, new Entry(offsets, range));
-            }
+        @Override
+        public long serializedSize(Entry e, Version version)
+        {
+            return Offsets.serializer.serializedSize(e.offsets) + AbstractBounds.tokenSerializer.serializedSize(e.range, version.messagingVersion());
+        }
+    };
 
+    public static final VersionedSerializer<ReconciledKeyspaceOffsets> serializer = new VersionedSerializer<>()
+    {
+        @Override
+        public void serialize(ReconciledKeyspaceOffsets keyspaceOffsets, DataOutputPlus out, Version version) throws IOException
+        {
+            CollectionSerializers.serializeMap(
+                keyspaceOffsets.logEntries, out, version, Int64Serializer.serializer, entrySerializer
+            );
+        }
+
+        @Override
+        public ReconciledKeyspaceOffsets deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            Long2ObjectHashMap<Entry> logEntries =
+                CollectionSerializers.deserializeMap(in, version, Int64Serializer.serializer, entrySerializer, i -> new Long2ObjectHashMap<>());
             return new ReconciledKeyspaceOffsets(logEntries);
         }
 
         @Override
-        public long serializedSize(ReconciledKeyspaceOffsets keyspaceOffsets, int version)
+        public long serializedSize(ReconciledKeyspaceOffsets keyspaceOffsets, Version version)
         {
-            long size = TypeSizes.sizeof(keyspaceOffsets.logEntries.size());
-
-            final long[] totalSize = { size };
-            keyspaceOffsets.logEntries.forEachLong((logId, entry) -> {
-                totalSize[0] += TypeSizes.sizeof(logId);
-                totalSize[0] += Offsets.serializer.serializedSize(entry.offsets, version);
-                totalSize[0] += AbstractBounds.tokenSerializer.serializedSize(entry.range, version);
-            });
-
-            return totalSize[0];
+            return CollectionSerializers.serializedMapSize(keyspaceOffsets.logEntries, version, Int64Serializer.serializer, entrySerializer);
         }
-    }
+    };
 }

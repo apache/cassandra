@@ -30,12 +30,12 @@ import com.google.common.base.Preconditions;
 import org.agrona.collections.Long2ObjectHashMap;
 
 import org.apache.cassandra.db.Digest;
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 public class MutationSummary
 {
@@ -129,27 +129,26 @@ public class MutationSummary
             }
         }
 
-        public static final IVersionedSerializer<CoordinatorSummary> serializer = new IVersionedSerializer<>()
+        public static final UnversionedSerializer<CoordinatorSummary> serializer = new UnversionedSerializer<>()
         {
             @Override
-            public void serialize(CoordinatorSummary t, DataOutputPlus out, int version) throws IOException
+            public void serialize(CoordinatorSummary t, DataOutputPlus out) throws IOException
             {
-                Offsets.serializer.serialize(t.reconciled, out, version);
-                Offsets.serializer.serialize(t.unreconciled, out, version);
+                Offsets.serializer.serialize(t.reconciled, out);
+                Offsets.serializer.serialize(t.unreconciled, out);
             }
 
             @Override
-            public CoordinatorSummary deserialize(DataInputPlus in, int version) throws IOException
+            public CoordinatorSummary deserialize(DataInputPlus in) throws IOException
             {
-                return new CoordinatorSummary(Offsets.serializer.deserialize(in, version),
-                                              Offsets.serializer.deserialize(in, version));
+                return new CoordinatorSummary(Offsets.serializer.deserialize(in), Offsets.serializer.deserialize(in));
             }
 
             @Override
-            public long serializedSize(CoordinatorSummary t, int version)
+            public long serializedSize(CoordinatorSummary t)
             {
-                return Offsets.serializer.serializedSize(t.reconciled, version)
-                     + Offsets.serializer.serializedSize(t.unreconciled, version);
+                return Offsets.serializer.serializedSize(t.reconciled)
+                     + Offsets.serializer.serializedSize(t.unreconciled);
             }
         };
     }
@@ -347,36 +346,28 @@ public class MutationSummary
         };
     }
 
-    public static final IVersionedSerializer<MutationSummary> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<MutationSummary> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(MutationSummary summary, DataOutputPlus out, int version) throws IOException
+        public void serialize(MutationSummary summary, DataOutputPlus out) throws IOException
         {
-            summary.tableId.serialize(out);
-            out.writeInt(summary.summaries.size());
-            for (int i=0,mi=summary.summaries.size(); i<mi; i++)
-                CoordinatorSummary.serializer.serialize(summary.summaries.get(i), out, version);
+            summary.tableId.serializeCompact(out);
+            CollectionSerializers.serializeList(summary.summaries, out, CoordinatorSummary.serializer);
         }
 
         @Override
-        public MutationSummary deserialize(DataInputPlus in, int version) throws IOException
+        public MutationSummary deserialize(DataInputPlus in) throws IOException
         {
-            TableId tableId = TableId.deserialize(in);
-            int size = in.readInt();
-            List<CoordinatorSummary> summaries = new ArrayList<>(size);
-            for (int i = 0; i < size; i++)
-                summaries.add(CoordinatorSummary.serializer.deserialize(in, version));
-
+            TableId tableId = TableId.deserializeCompact(in);
+            List<CoordinatorSummary> summaries = CollectionSerializers.deserializeList(in, CoordinatorSummary.serializer);
             return new MutationSummary(tableId, summaries);
         }
 
         @Override
-        public long serializedSize(MutationSummary summary, int version)
+        public long serializedSize(MutationSummary summary)
         {
-            long size = summary.tableId.serializedSize();
-            size += TypeSizes.sizeof(summary.summaries.size());
-            for (int i=0,mi=summary.summaries.size(); i<mi; i++)
-                size += CoordinatorSummary.serializer.serializedSize(summary.summaries.get(i), version);
+            long size = summary.tableId.serializedCompactSize();
+            size += CollectionSerializers.serializedListSize(summary.summaries, CoordinatorSummary.serializer);
             return size;
         }
     };

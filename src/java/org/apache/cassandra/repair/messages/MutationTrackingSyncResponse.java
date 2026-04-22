@@ -30,6 +30,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.replication.CoordinatorLogId;
 import org.apache.cassandra.replication.Offsets;
+import org.apache.cassandra.replication.Version;
+import org.apache.cassandra.replication.VersionedSerializer;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 /**
@@ -77,33 +79,40 @@ public class MutationTrackingSyncResponse extends RepairMessage
     }
 
     private static final IVersionedSerializer<Map<CoordinatorLogId, Offsets.Immutable>> offsetsMapSerializer =
-        CollectionSerializers.newMapSerializer(CoordinatorLogId.serializer, Offsets.serializer);
+        IVersionedSerializer.from(CollectionSerializers.newMapSerializer(CoordinatorLogId.serializer, Offsets.serializer));
 
     @SuppressWarnings("unchecked")
-    public static final IVersionedSerializer<MutationTrackingSyncResponse> serializer = new IVersionedSerializer<>()
+    public static final VersionedSerializer<MutationTrackingSyncResponse> serializer = new VersionedSerializer<>()
     {
-        public void serialize(MutationTrackingSyncResponse response, DataOutputPlus out, int version) throws IOException
+        @Override
+        public void serialize(MutationTrackingSyncResponse response, DataOutputPlus out, Version version) throws IOException
         {
-            RepairJobDesc.serializer.serialize(response.desc, out, version);
-            CollectionSerializers.serializeMap((Map<AbstractBounds<Token>, Map<CoordinatorLogId, Offsets.Immutable>>) (Map<?, ?>) response.offsetsByShard,
-                                              out, version, Range.tokenSerializer, offsetsMapSerializer);
+            RepairJobDesc.serializer.serialize(response.desc, out, version.messagingVersion());
+            CollectionSerializers.serializeMap(
+                (Map<AbstractBounds<Token>, Map<CoordinatorLogId, Offsets.Immutable>>) (Map<?, ?>) response.offsetsByShard,
+                out, version.messagingVersion(), AbstractBounds.tokenSerializer, offsetsMapSerializer
+            );
         }
 
-        public MutationTrackingSyncResponse deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public MutationTrackingSyncResponse deserialize(DataInputPlus in, Version version) throws IOException
         {
-            RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
+            RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version.messagingVersion());
             Map<AbstractBounds<Token>, Map<CoordinatorLogId, Offsets.Immutable>> raw =
-                CollectionSerializers.deserializeMap(in, version, Range.tokenSerializer, offsetsMapSerializer);
+                CollectionSerializers.deserializeMap(in, version.messagingVersion(), AbstractBounds.tokenSerializer, offsetsMapSerializer);
             Map<Range<Token>, Map<CoordinatorLogId, Offsets.Immutable>> offsetsByShard =
                 (Map<Range<Token>, Map<CoordinatorLogId, Offsets.Immutable>>) (Map<?, ?>) raw;
             return new MutationTrackingSyncResponse(desc, offsetsByShard);
         }
 
-        public long serializedSize(MutationTrackingSyncResponse response, int version)
+        @Override
+        public long serializedSize(MutationTrackingSyncResponse response, Version version)
         {
-            long size = RepairJobDesc.serializer.serializedSize(response.desc, version);
-            size += CollectionSerializers.serializedMapSize((Map<AbstractBounds<Token>, Map<CoordinatorLogId, Offsets.Immutable>>) (Map<?, ?>) response.offsetsByShard,
-                                                           version, Range.tokenSerializer, offsetsMapSerializer);
+            long size = RepairJobDesc.serializer.serializedSize(response.desc, version.messagingVersion());
+            size += CollectionSerializers.serializedMapSize(
+                        (Map<AbstractBounds<Token>, Map<CoordinatorLogId, Offsets.Immutable>>) (Map<?, ?>) response.offsetsByShard,
+                        version.messagingVersion(), AbstractBounds.tokenSerializer, offsetsMapSerializer
+                    );
             return size;
         }
     };

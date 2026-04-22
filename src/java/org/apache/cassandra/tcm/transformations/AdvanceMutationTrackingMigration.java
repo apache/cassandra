@@ -113,14 +113,14 @@ public class AdvanceMutationTrackingMigration implements Transformation
             LockedRanges.AffectedRanges.EMPTY);
     }
 
-    static class Serializer implements AsymmetricMetadataSerializer<Transformation, AdvanceMutationTrackingMigration>
+    public static class Serializer implements AsymmetricMetadataSerializer<Transformation, AdvanceMutationTrackingMigration>
     {
         @Override
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             AdvanceMutationTrackingMigration v = (AdvanceMutationTrackingMigration) t;
             out.writeUTF(v.keyspace);
-            TableId.serializer.serialize(v.tableId, out, version.asInt());
+            v.tableId.serializeCompact(out);
             serializeCollection(v.repairedRanges, out, version, Range.serializer);
         }
 
@@ -128,7 +128,7 @@ public class AdvanceMutationTrackingMigration implements Transformation
         public AdvanceMutationTrackingMigration deserialize(DataInputPlus in, Version version) throws IOException
         {
             String keyspace = in.readUTF();
-            TableId tableId = TableId.serializer.deserialize(in, version.asInt());
+            TableId tableId = TableId.deserializeCompact(in);
             Collection<Range<Token>> repairedRanges = deserializeList(in, version, Range.serializer);
             return new AdvanceMutationTrackingMigration(keyspace, tableId, repairedRanges);
         }
@@ -138,7 +138,7 @@ public class AdvanceMutationTrackingMigration implements Transformation
         {
             AdvanceMutationTrackingMigration v = (AdvanceMutationTrackingMigration) t;
             return TypeSizes.sizeof(v.keyspace)
-                   + TableId.serializer.serializedSize(v.tableId, version.asInt())
+                   + v.tableId.serializedCompactSize()
                    + serializedCollectionSize(v.repairedRanges, version, Range.serializer);
         }
     }

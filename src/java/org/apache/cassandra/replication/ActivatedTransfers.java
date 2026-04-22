@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
@@ -38,7 +37,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -87,32 +85,32 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
             this.bounds = bounds;
         }
 
-        public static final IVersionedSerializer<ActivatedTransfer> serializer = new IVersionedSerializer<>()
+        public static final VersionedSerializer<ActivatedTransfer> serializer = new VersionedSerializer<>()
         {
             @Override
-            public void serialize(ActivatedTransfer transfer, DataOutputPlus out, int version) throws IOException
+            public void serialize(ActivatedTransfer transfer, DataOutputPlus out, Version version) throws IOException
             {
-                ShortMutationId.serializer.serialize(transfer.id, out, version);
-                Token.serializer.serialize(transfer.bounds.left, out, version);
-                Token.serializer.serialize(transfer.bounds.right, out, version);
+                ShortMutationId.serializer.serialize(transfer.id, out);
+                Token.serializer.serialize(transfer.bounds.left, out, version.messagingVersion());
+                Token.serializer.serialize(transfer.bounds.right, out, version.messagingVersion());
             }
 
             @Override
-            public ActivatedTransfer deserialize(DataInputPlus in, int version) throws IOException
+            public ActivatedTransfer deserialize(DataInputPlus in, Version version) throws IOException
             {
-                ShortMutationId id = ShortMutationId.serializer.deserialize(in, version);
-                Token left = Token.serializer.deserialize(in, version);
-                Token right = Token.serializer.deserialize(in, version);
-                return new ActivatedTransfer(id, new Bounds<Token>(left, right));
+                ShortMutationId id = ShortMutationId.serializer.deserialize(in);
+                Token left = Token.serializer.deserialize(in, version.messagingVersion());
+                Token right = Token.serializer.deserialize(in, version.messagingVersion());
+                return new ActivatedTransfer(id, new Bounds<>(left, right));
             }
 
             @Override
-            public long serializedSize(ActivatedTransfer transfer, int version)
+            public long serializedSize(ActivatedTransfer transfer, Version version)
             {
                 long size = 0;
-                size += ShortMutationId.serializer.serializedSize(transfer.id, version);
-                size += Token.serializer.serializedSize(transfer.bounds.left, version);
-                size += Token.serializer.serializedSize(transfer.bounds.right, version);
+                size += ShortMutationId.serializer.serializedSize(transfer.id);
+                size += Token.serializer.serializedSize(transfer.bounds.left, version.messagingVersion());
+                size += Token.serializer.serializedSize(transfer.bounds.right, version.messagingVersion());
                 return size;
             }
         };
@@ -258,22 +256,22 @@ public class ActivatedTransfers implements Iterable<ShortMutationId>
                '}';
     }
 
-    public static final IVersionedSerializer<ActivatedTransfers> serializer = new IVersionedSerializer<>()
+    public static final VersionedSerializer<ActivatedTransfers> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(ActivatedTransfers transfers, DataOutputPlus out, int version) throws IOException
+        public void serialize(ActivatedTransfers transfers, DataOutputPlus out, Version version) throws IOException
         {
             CollectionSerializers.serializeCollection(transfers.transfers, out, version, ActivatedTransfer.serializer);
         }
 
         @Override
-        public ActivatedTransfers deserialize(DataInputPlus in, int version) throws IOException
+        public ActivatedTransfers deserialize(DataInputPlus in, Version version) throws IOException
         {
             return new ActivatedTransfers(CollectionSerializers.deserializeSet(in, version, ActivatedTransfer.serializer));
         }
 
         @Override
-        public long serializedSize(ActivatedTransfers transfers, int version)
+        public long serializedSize(ActivatedTransfers transfers, Version version)
         {
             return CollectionSerializers.serializedCollectionSize(transfers.transfers, version, ActivatedTransfer.serializer);
         }

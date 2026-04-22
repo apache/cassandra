@@ -22,12 +22,11 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
 
 public final class PullMutationsRequest
 {
@@ -40,38 +39,33 @@ public final class PullMutationsRequest
         this.offsets = offsets;
     }
 
-    public static IVersionedSerializer<PullMutationsRequest> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<PullMutationsRequest> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(PullMutationsRequest pull, DataOutputPlus out, int version) throws IOException
+        public void serialize(PullMutationsRequest pull, DataOutputPlus out) throws IOException
         {
-            Offsets.serializer.serialize(pull.offsets, out, version);
+            Offsets.serializer.serialize(pull.offsets, out);
         }
 
         @Override
-        public PullMutationsRequest deserialize(DataInputPlus in, int version) throws IOException
+        public PullMutationsRequest deserialize(DataInputPlus in) throws IOException
         {
-            return new PullMutationsRequest(Offsets.serializer.deserialize(in, version));
+            return new PullMutationsRequest(Offsets.serializer.deserialize(in));
         }
 
         @Override
-        public long serializedSize(PullMutationsRequest pull, int version)
+        public long serializedSize(PullMutationsRequest pull)
         {
-            return Offsets.serializer.serializedSize(pull.offsets, version);
+            return Offsets.serializer.serializedSize(pull.offsets);
         }
     };
 
-    public static IVerbHandler<PullMutationsRequest> verbHandler = new IVerbHandler<>()
-    {
-        @Override
-        public void doVerb(Message<PullMutationsRequest> message)
-        {
-            MutationTrackingService.ensureEnabled();
-            InetAddressAndPort forHost = message.from();
-            Offsets offsets = message.payload.offsets;
-            logger.trace("Received pull mutations request from {} for {}", forHost, offsets);
-            MutationTrackingService.instance().requestMissingMutations(offsets, forHost);
-        }
+    public static IVerbHandler<PullMutationsRequest> verbHandler = message -> {
+        MutationTrackingService.ensureEnabled();
+        InetAddressAndPort forHost = message.from();
+        Offsets offsets = message.payload.offsets;
+        logger.trace("Received pull mutations request from {} for {}", forHost, offsets);
+        MutationTrackingService.instance().requestMissingMutations(offsets, forHost);
     };
 
     @Override

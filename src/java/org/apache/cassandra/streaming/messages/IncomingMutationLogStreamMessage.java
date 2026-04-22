@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.replication.MutationTrackingService;
+import org.apache.cassandra.replication.Version;
 import org.apache.cassandra.streaming.LogStreamHeader;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
@@ -63,9 +64,12 @@ public class IncomingMutationLogStreamMessage extends MutationLogStreamMessage
 
     public static class IncomingMutationLogStreamMessageSerializer implements StreamMessage.Serializer<IncomingMutationLogStreamMessage>
     {
-        public IncomingMutationLogStreamMessage deserialize(DataInputPlus in, int version) throws IOException
+        @Override
+        public IncomingMutationLogStreamMessage deserialize(DataInputPlus in, int messagingVersion) throws IOException
         {
+            Version version = Version.serializer.deserialize(in);
             LogStreamHeader header = LogStreamHeader.serializer.deserialize(in, version);
+
             StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);
             if (session == null)
                 throw new IllegalStateException(String.format("unknown stream session: %s - %d", header.planId, header.sessionIndex));
@@ -100,11 +104,13 @@ public class IncomingMutationLogStreamMessage extends MutationLogStreamMessage
             }
         }
 
+        @Override
         public void serialize(IncomingMutationLogStreamMessage message, StreamingDataOutputPlus out, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call serialize on an incoming stream");
         }
 
+        @Override
         public long serializedSize(IncomingMutationLogStreamMessage message, int version)
         {
             throw new UnsupportedOperationException("Not allowed to call serializedSize on an incoming stream");

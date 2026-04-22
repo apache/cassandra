@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.CollectionSerializers;
+import org.apache.cassandra.utils.StringSerializer;
 
 import static org.apache.cassandra.db.SerializationHeader.StableHeaderSerializer.STABLE;
 import static org.apache.cassandra.db.rows.DeserializationHelper.Flag.FROM_REMOTE;
@@ -123,7 +124,7 @@ public class CasForwardResponse
                 CassandraException.serializer.serialize(response.exception, out, version);
 
             if (!response.warnings.isEmpty())
-                CollectionSerializers.serializeList(response.warnings, out, version, CollectionSerializers.STRING_SERIALIZER);
+                CollectionSerializers.serializeList(response.warnings, out, version, StringSerializer.instance);
         }
 
         @Override
@@ -151,7 +152,7 @@ public class CasForwardResponse
 
             List<String> warnings = Collections.emptyList();
             if (hasWarnings)
-                warnings = CollectionSerializers.deserializeList(in, version, CollectionSerializers.STRING_SERIALIZER);
+                warnings = CollectionSerializers.deserializeList(in, version, StringSerializer.instance);
 
             return new CasForwardResponse(result, exception, warnings);
         }
@@ -175,7 +176,7 @@ public class CasForwardResponse
                 size += CassandraException.serializer.serializedSize(response.exception, version);
 
             if (!response.warnings.isEmpty())
-                size += CollectionSerializers.serializedListSize(response.warnings, version, CollectionSerializers.STRING_SERIALIZER);
+                size += CollectionSerializers.serializedListSize(response.warnings, version, StringSerializer.instance);
 
             return size;
         }

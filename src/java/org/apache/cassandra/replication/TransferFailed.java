@@ -20,7 +20,6 @@ package org.apache.cassandra.replication;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.TimeUUID;
@@ -40,25 +39,24 @@ public class TransferFailed
         this.planId = planId;
     }
 
-    public static final IVersionedSerializer<TransferFailed> serializer = new IVersionedSerializer<TransferFailed>()
+    public static final VersionedSerializer<TransferFailed> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(TransferFailed t, DataOutputPlus out, int version) throws IOException
+        public void serialize(TransferFailed t, DataOutputPlus out, Version version) throws IOException
         {
-            TimeUUID.Serializer.instance.serialize(t.planId, out, version);
+            TimeUUID.Serializer.instance.serialize(t.planId, out, version.messagingVersion());
         }
 
         @Override
-        public TransferFailed deserialize(DataInputPlus in, int version) throws IOException
+        public TransferFailed deserialize(DataInputPlus in, Version version) throws IOException
         {
-            TimeUUID planId = TimeUUID.Serializer.instance.deserialize(in, version);
-            return new TransferFailed(planId);
+            return new TransferFailed(TimeUUID.Serializer.instance.deserialize(in, version.messagingVersion()));
         }
 
         @Override
-        public long serializedSize(TransferFailed t, int version)
+        public long serializedSize(TransferFailed t, Version version)
         {
-            return TimeUUID.Serializer.instance.serializedSize(t.planId, version);
+            return TimeUUID.Serializer.instance.serializedSize(t.planId, version.messagingVersion());
         }
     };
 

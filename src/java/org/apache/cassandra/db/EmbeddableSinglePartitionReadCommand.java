@@ -67,10 +67,10 @@ public interface EmbeddableSinglePartitionReadCommand
                     ReadCommand.serializer.serialize((ReadCommand) command, out, version);
                     break;
                 case TRACKED_DATA:
-                    DataRequest.serializer.serialize((DataRequest) command, out, version);
+                    DataRequest.embedded.serialize((DataRequest) command, out, version);
                     break;
                 case TRACKED_SUMMARY:
-                    SummaryRequest.serializer.serialize((SummaryRequest) command, out, version);
+                    SummaryRequest.embedded.serialize((SummaryRequest) command, out, version);
                     break;
                 default:
                     throw new IllegalStateException("Unhandled kind: " + command.kind());
@@ -87,9 +87,9 @@ public interface EmbeddableSinglePartitionReadCommand
                 case UNTRACKED:
                     return (SinglePartitionReadCommand)ReadCommand.serializer.deserialize(in, version);
                 case TRACKED_DATA:
-                    return DataRequest.serializer.deserialize(in, version);
+                    return DataRequest.embedded.deserialize(in, version);
                 case TRACKED_SUMMARY:
-                    return SummaryRequest.serializer.deserialize(in, version);
+                    return SummaryRequest.embedded.deserialize(in, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + kind);
             }
@@ -109,9 +109,9 @@ public interface EmbeddableSinglePartitionReadCommand
                 case UNTRACKED:
                     return size + ReadCommand.serializer.serializedSize((ReadCommand) command, version);
                 case TRACKED_DATA:
-                    return size + DataRequest.serializer.serializedSize((DataRequest) command, version);
+                    return size + DataRequest.embedded.serializedSize((DataRequest) command, version);
                 case TRACKED_SUMMARY:
-                    return size + SummaryRequest.serializer.serializedSize((SummaryRequest) command, version);
+                    return size + SummaryRequest.embedded.serializedSize((SummaryRequest) command, version);
                 default:
                     throw new IllegalStateException("Unhandled kind: " + command.kind());
             }

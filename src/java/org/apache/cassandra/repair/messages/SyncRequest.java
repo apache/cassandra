@@ -100,7 +100,7 @@ public class SyncRequest extends RepairMessage
         return Objects.hash(desc, initiator, src, dst, ranges, previewKind, transferId);
     }
 
-    public static final IVersionedSerializer<SyncRequest> serializer = new IVersionedSerializer<SyncRequest>()
+    public static final IVersionedSerializer<SyncRequest> serializer = new IVersionedSerializer<>()
     {
         public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
@@ -118,7 +118,7 @@ public class SyncRequest extends RepairMessage
             {
                 out.writeBoolean(message.transferId != null);
                 if (message.transferId != null)
-                    ShortMutationId.serializer.serialize(message.transferId, out, version);
+                    ShortMutationId.serializer.serialize(message.transferId, out);
             }
         }
 
@@ -137,7 +137,7 @@ public class SyncRequest extends RepairMessage
             boolean asymmetric = in.readBoolean();
 
             ShortMutationId transferId = version >= MessagingService.Version.VERSION_61.value && in.readBoolean()
-                                         ? ShortMutationId.serializer.deserialize(in, version)
+                                         ? ShortMutationId.serializer.deserialize(in)
                                          : null;
 
             return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric, transferId);
@@ -159,7 +159,7 @@ public class SyncRequest extends RepairMessage
             {
                 size += TypeSizes.sizeof(false);
                 if (message.transferId != null)
-                    size += ShortMutationId.serializer.serializedSize(message.transferId, version);
+                    size += ShortMutationId.serializer.serializedSize(message.transferId);
             }
 
             return size;

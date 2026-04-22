@@ -15,7 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.io;
+
+package org.apache.cassandra.io.filesystem;
 
 import java.io.IOException;
 
@@ -24,19 +25,20 @@ import org.assertj.core.api.Assertions;
 import accord.utils.LazyToString;
 import accord.utils.ReflectionUtils;
 
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
-public class IVersionedSerializers
+public final class UnversionedSerializers
 {
-    public static <T> void testSerde(DataOutputBuffer output, IVersionedSerializer<T> serializer, T input, int version) throws IOException
+    public static <T> void testSerde(DataOutputBuffer output, UnversionedSerializer<T> serializer, T input) throws IOException
     {
         output.clear();
-        long expectedSize = serializer.serializedSize(input, version);
-        serializer.serialize(input, output, version);
+        long expectedSize = serializer.serializedSize(input);
+        serializer.serialize(input, output);
         Assertions.assertThat(output.getLength()).describedAs("The serialized size and bytes written do not match").isEqualTo(expectedSize);
         DataInputBuffer in = new DataInputBuffer(output.unsafeGetBufferAndFlip(), false);
-        T read = serializer.deserialize(in, version);
+        T read = serializer.deserialize(in);
         Assertions.assertThat(read).describedAs("The deserialized output does not match the serialized input; difference %s", new LazyToString(() -> ReflectionUtils.recursiveEquals(read, input).toString())).isEqualTo(input);
     }
 }

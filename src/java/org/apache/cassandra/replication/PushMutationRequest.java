@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.journal.RecordPointer;
@@ -142,24 +141,24 @@ public interface PushMutationRequest
         }
     }
 
-    IVersionedAsymmetricSerializer<PushMutationRequest, Materialized> serializer = new IVersionedAsymmetricSerializer<>()
+    VersionedAsymmetricSerializer<PushMutationRequest, Materialized> serializer = new VersionedAsymmetricSerializer<>()
     {
         @Override
-        public long serializedSize(PushMutationRequest mutation, int version)
+        public long serializedSize(PushMutationRequest mutation, Version version)
         {
-            return mutation.serializedSize(version);
+            return mutation.serializedSize(version.messagingVersion());
         }
 
         @Override
-        public void serialize(PushMutationRequest mutation, DataOutputPlus out, int version) throws IOException
+        public void serialize(PushMutationRequest mutation, DataOutputPlus out, Version version) throws IOException
         {
-            mutation.serialize(out, version);
+            mutation.serialize(out, version.messagingVersion());
         }
 
         @Override
-        public Materialized deserialize(DataInputPlus in, int version) throws IOException
+        public Materialized deserialize(DataInputPlus in, Version version) throws IOException
         {
-            return Materialized.deserialize(in, version);
+            return Materialized.deserialize(in, version.messagingVersion());
         }
     };
 

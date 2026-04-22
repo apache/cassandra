@@ -406,6 +406,8 @@ public enum CassandraRelevantProperties
     MONITORING_MAX_OPERATIONS("cassandra.monitoring_max_operations", "50"),
     /** Defines the interval for reporting any operations that have timed out. */
     MONITORING_REPORT_INTERVAL_MS("cassandra.monitoring_report_interval_ms", "5000"),
+    /** The most recent version that's supported by all nodes in the cluster **/
+    MT_CLUSTER_SAFE_VERSION("cassandra.mutation_tracking.cluster_safe_version"),
     MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE("cassandra.mv.allow_filtering_nonkey_columns_unsafe"),
     MV_ENABLE_COORDINATOR_BATCHLOG("cassandra.mv_enable_coordinator_batchlog"),
     /** mx4jaddress */

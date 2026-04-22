@@ -31,7 +31,6 @@ import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.Pair;
@@ -41,7 +40,6 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class ActivationRequestSerializationTest extends CassandraTestBase
 {
-    private static final int VERSION = MessagingService.current_version;
 
     @BeforeClass
     public static void setUpClass()
@@ -65,7 +63,7 @@ public class ActivationRequestSerializationTest extends CassandraTestBase
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
-            Serializers.testSerde(output, ActivationRequest.serializer, activation, VERSION);
+            Serializers.testSerde(output, ActivationRequest.serializer, activation, Version.CURRENT);
         }
     }
 
@@ -84,7 +82,7 @@ public class ActivationRequestSerializationTest extends CassandraTestBase
 
         try (DataOutputBuffer output = new DataOutputBuffer())
         {
-            Serializers.testSerde(output, ActivationRequest.serializer, activation, VERSION);
+            Serializers.testSerde(output, ActivationRequest.serializer, activation, Version.CURRENT);
         }
     }
 }

@@ -23,7 +23,6 @@ import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -39,8 +38,6 @@ public class ActivationResponse
 
         this.syncPair = syncPair;
     }
-
-    public static final Serializer serializer = new Serializer();
 
     @Override
     public String toString()
@@ -64,31 +61,31 @@ public class ActivationResponse
         return Objects.hash(syncPair);
     }
 
-    public static class Serializer implements IVersionedSerializer<ActivationResponse>
+    public static final VersionedSerializer<ActivationResponse> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(ActivationResponse activate, DataOutputPlus out, int version) throws IOException
+        public void serialize(ActivationResponse activate, DataOutputPlus out, Version version) throws IOException
         {
-            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(activate.syncPair.left, out, version);
-            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(activate.syncPair.right, out, version);
+            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(activate.syncPair.left, out, version.messagingVersion());
+            InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serialize(activate.syncPair.right, out, version.messagingVersion());
         }
 
         @SuppressWarnings("SuspiciousNameCombination")
         @Override
-        public ActivationResponse deserialize(DataInputPlus in, int version) throws IOException
+        public ActivationResponse deserialize(DataInputPlus in, Version version) throws IOException
         {
-            InetAddressAndPort left = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
-            InetAddressAndPort right = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version);
+            InetAddressAndPort left = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version.messagingVersion());
+            InetAddressAndPort right = InetAddressAndPort.Serializer.inetAddressAndPortSerializer.deserialize(in, version.messagingVersion());
             return new ActivationResponse(Pair.create(left, right));
         }
 
         @Override
-        public long serializedSize(ActivationResponse activate, int version)
+        public long serializedSize(ActivationResponse activate, Version version)
         {
             long size = 0;
-            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(activate.syncPair.left, version);
-            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(activate.syncPair.right, version);
+            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(activate.syncPair.left, version.messagingVersion());
+            size += InetAddressAndPort.Serializer.inetAddressAndPortSerializer.serializedSize(activate.syncPair.right, version.messagingVersion());
             return size;
         }
-    }
+    };
 }

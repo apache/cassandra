@@ -15,11 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.io;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -42,17 +40,6 @@ public interface AsymmetricVersionedSerializer<In, Out, Version>
         }
     }
 
-    default ByteBuffer serializeUnchecked(In t, Version version)
-    {
-        try
-        {
-            return serialize(t, version);
-        }
-        catch (IOException e)
-        {
-            throw new UncheckedIOException(e);
-        }
-    }
     Out deserialize(DataInputPlus in, Version version) throws IOException;
 
     default void skip(DataInputPlus in, Version version) throws IOException
@@ -68,17 +55,6 @@ public interface AsymmetricVersionedSerializer<In, Out, Version>
         }
     }
 
-    default Out deserializeUnchecked(ByteBuffer buffer, Version version)
-    {
-        try
-        {
-            return deserialize(buffer, version);
-        }
-        catch (IOException e)
-        {
-            throw new UncheckedIOException(e);
-        }
-    }
     long serializedSize(In t, Version version);
 
     static <In, Out, Version> AsymmetricVersionedSerializer<In, Out, Version> from(AsymmetricUnversionedSerializer<In, Out> delegate)

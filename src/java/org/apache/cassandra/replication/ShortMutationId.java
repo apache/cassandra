@@ -22,7 +22,7 @@ import java.io.Serializable;
 import java.util.Comparator;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -135,17 +135,17 @@ public class ShortMutationId implements Serializable
         return cmp != 0 ? cmp : Integer.compare(l.offset, r.offset);
     };
 
-    public static final IVersionedSerializer<ShortMutationId> serializer = new IVersionedSerializer<>()
+    public static final UnversionedSerializer<ShortMutationId> serializer = new UnversionedSerializer<>()
     {
         @Override
-        public void serialize(ShortMutationId id, DataOutputPlus out, int version) throws IOException
+        public void serialize(ShortMutationId id, DataOutputPlus out) throws IOException
         {
             out.writeLong(id.logId());
             out.writeInt(id.offset());
         }
 
         @Override
-        public ShortMutationId deserialize(DataInputPlus in, int version) throws IOException
+        public ShortMutationId deserialize(DataInputPlus in) throws IOException
         {
             long logId = in.readLong();
             int offset = in.readInt();
@@ -156,7 +156,7 @@ public class ShortMutationId implements Serializable
         }
 
         @Override
-        public long serializedSize(ShortMutationId id, int version)
+        public long serializedSize(ShortMutationId id)
         {
             return TypeSizes.sizeof(id.logId()) + TypeSizes.sizeof(id.offset());
         }

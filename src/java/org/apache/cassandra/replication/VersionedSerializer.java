@@ -15,9 +15,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.replication;
 
-package org.apache.cassandra.service.accord.serializers;
-
-public interface AsymmetricVersionedSerializer<In, Out> extends org.apache.cassandra.io.AsymmetricVersionedSerializer<In, Out, Version>
+public interface VersionedSerializer<T> extends org.apache.cassandra.io.VersionedSerializer<T, Version>
 {
 }

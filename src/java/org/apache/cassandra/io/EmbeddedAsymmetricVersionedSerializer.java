@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.io;
 
 import java.io.IOException;
@@ -64,11 +63,6 @@ public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements 
         return delegate.deserialize(in, version);
     }
 
-    public Version deserializeVersion(DataInputPlus in) throws IOException
-    {
-        return versionSerializer.deserialize(in);
-    }
-
     @Override
     public long serializedSize(In t, int msgVersion)
     {
@@ -80,5 +74,33 @@ public class EmbeddedAsymmetricVersionedSerializer<In, Out, Version> implements 
     {
         return versionSerializer.serializedSize(version)
                + delegate.serializedSize(t, version);
+    }
+
+    public static <A, B> IVersionedAsymmetricSerializer<A, B> accordEmbedded(AsymmetricVersionedSerializer<A, B, org.apache.cassandra.service.accord.serializers.Version> delegate)
+    {
+        return new EmbeddedAsymmetricVersionedSerializer<>(
+            org.apache.cassandra.service.accord.serializers.Version.CLUSTER_SAFE_VERSION,
+            org.apache.cassandra.service.accord.serializers.Version.Serializer.instance,
+            delegate
+        );
+    }
+
+    public static <A, B> IVersionedAsymmetricSerializer<A, B> accordEmbedded(AsymmetricUnversionedSerializer<A, B> delegate)
+    {
+        return accordEmbedded(AsymmetricVersionedSerializer.from(delegate));
+    }
+
+    public static <A, B> IVersionedAsymmetricSerializer<A, B> mtEmbedded(AsymmetricVersionedSerializer<A, B, org.apache.cassandra.replication.Version> delegate)
+    {
+        return new EmbeddedAsymmetricVersionedSerializer<>(
+            org.apache.cassandra.replication.Version.CLUSTER_SAFE_VERSION,
+            org.apache.cassandra.replication.Version.serializer,
+            delegate
+        );
+    }
+
+    public static <A, B> IVersionedAsymmetricSerializer<A, B> mtEmbedded(AsymmetricUnversionedSerializer<A, B> delegate)
+    {
+        return mtEmbedded(AsymmetricVersionedSerializer.from(delegate));
     }
 }

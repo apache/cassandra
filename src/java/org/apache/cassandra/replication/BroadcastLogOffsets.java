@@ -18,7 +18,6 @@
 package org.apache.cassandra.replication;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -26,10 +25,10 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 public class BroadcastLogOffsets
 {
@@ -76,41 +75,34 @@ public class BroadcastLogOffsets
                                                                  message.from());
     };
 
-    public static final IVersionedSerializer<BroadcastLogOffsets> serializer = new IVersionedSerializer<>()
+    public static final VersionedSerializer<BroadcastLogOffsets> serializer = new VersionedSerializer<>()
     {
         @Override
-        public void serialize(BroadcastLogOffsets status, DataOutputPlus out, int version) throws IOException
+        public void serialize(BroadcastLogOffsets status, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(status.keyspace);
-            AbstractBounds.tokenSerializer.serialize(status.range, out, version);
-            out.writeInt(status.replicatedOffsets.size());
-            for (Offsets.Immutable logOffsets : status.replicatedOffsets)
-                Offsets.serializer.serialize(logOffsets, out, version);
+            AbstractBounds.tokenSerializer.serialize(status.range, out, version.messagingVersion());
+            CollectionSerializers.serializeList(status.replicatedOffsets, out, Offsets.serializer);
             out.writeBoolean(status.durable);
         }
 
         @Override
-        public BroadcastLogOffsets deserialize(DataInputPlus in, int version) throws IOException
+        public BroadcastLogOffsets deserialize(DataInputPlus in, Version version) throws IOException
         {
             String keyspace = in.readUTF();
-            Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version);
-            int count = in.readInt();
-            List<Offsets.Immutable> replicatedOffsets = new ArrayList<>(count);
-            for (int i = 0; i < count; ++i)
-                replicatedOffsets.add(Offsets.serializer.deserialize(in, version));
+            Range<Token> range = (Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version.messagingVersion());
+            List<Offsets.Immutable> replicatedOffsets = CollectionSerializers.deserializeList(in, Offsets.serializer);
             boolean durable = in.readBoolean();
             return new BroadcastLogOffsets(keyspace, range, replicatedOffsets, durable);
         }
 
         @Override
-        public long serializedSize(BroadcastLogOffsets replicatedOffsets, int version)
+        public long serializedSize(BroadcastLogOffsets replicatedOffsets, Version version)
         {
             long size = 0;
             size += TypeSizes.sizeof(replicatedOffsets.keyspace);
-            size += AbstractBounds.tokenSerializer.serializedSize(replicatedOffsets.range, version);
-            size += TypeSizes.sizeof(replicatedOffsets.replicatedOffsets.size());
-            for (Offsets.Immutable logOffsets : replicatedOffsets.replicatedOffsets)
-                size += Offsets.serializer.serializedSize(logOffsets, version);
+            size += AbstractBounds.tokenSerializer.serializedSize(replicatedOffsets.range, version.messagingVersion());
+            size += CollectionSerializers.serializedListSize(replicatedOffsets.replicatedOffsets, Offsets.serializer);
             size += TypeSizes.sizeof(replicatedOffsets.durable);
             return size;
         }
