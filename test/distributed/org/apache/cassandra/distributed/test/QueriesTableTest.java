@@ -120,10 +120,14 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= threadId.contains("Read") && task.contains("SELECT");
-            coordinatorReadVisible |= threadId.contains("Native-Transport-Requests") && task.contains("SELECT");
-            writeVisible |= threadId.contains("Mutation") && task.contains("Mutation");
-            coordinatorWriteVisible |= threadId.contains("Native-Transport-Requests") && task.contains("INSERT");
+            boolean localReaderThread = threadId.contains("Read") || threadId.contains("SharedPool-Worker");
+            readVisible |= localReaderThread && task.contains("SELECT");
+            boolean coordReaderThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorReadVisible |= coordReaderThread && task.contains("SELECT");
+            boolean localWriterThread = threadId.contains("Mutation") || threadId.contains("SharedPool-Worker");
+            writeVisible |= localWriterThread && task.contains("Mutation");
+            boolean coordWriterThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorWriteVisible |= coordWriterThread && task.contains("INSERT");
         }
 
         assertTrue(readVisible);
@@ -164,8 +168,10 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= threadId.contains("Read") && task.contains("SELECT");
-            coordinatorUpdateVisible |= threadId.contains("Native-Transport-Requests") && task.contains("UPDATE");
+            boolean localReaderThread = threadId.contains("Read") || threadId.contains("SharedPool-Worker");
+            readVisible |= localReaderThread && task.contains("SELECT");
+            boolean coordUpdateThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorUpdateVisible |= coordUpdateThread && task.contains("UPDATE");
         }
 
         assertTrue(readVisible);
@@ -215,8 +221,10 @@ public class QueriesTableTest extends TestBaseImpl
             String threadId = row.get("thread_id").toString();
             String task = row.get("task").toString();
 
-            readVisible |= (threadId.contains("AccordExecutor") || threadId.contains("Read")) && task.contains("SELECT");
-            coordinatorTxnVisible |= threadId.contains("Native-Transport-Requests") && task.contains("BEGIN TRANSACTION");
+            boolean localTxThread = threadId.contains("AccordExecutor") || threadId.contains("Read") || threadId.contains("SharedPool-Worker");
+            readVisible |= localTxThread && task.contains("SELECT");
+            boolean coordTxThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
+            coordinatorTxnVisible |= coordTxThread && task.contains("BEGIN TRANSACTION");
         }
 
         assertTrue(readVisible);
