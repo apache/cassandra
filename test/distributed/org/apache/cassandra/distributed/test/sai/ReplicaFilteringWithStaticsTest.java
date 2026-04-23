@@ -158,6 +158,47 @@ public class ReplicaFilteringWithStaticsTest extends TestBaseImpl
         assertRows(CLUSTER.coordinator(1).execute(select, ConsistencyLevel.ALL), row(0, 1, 2, 6, 7));
     }
 
+    @Test
+    public void testRangeTombstoneWithStaticSAI()
+    {
+        testRangeTombstoneWithStatic(true);
+    }
+
+    @Test
+    public void testRangeTombstoneWithStatic()
+    {
+        testRangeTombstoneWithStatic(false);
+    }
+
+    private void testRangeTombstoneWithStatic(boolean sai)
+    {
+        String table = "range_tombstone_with_static" + (sai ? "_sai" : "");
+        CLUSTER.schemaChange(withKeyspace("CREATE TABLE %s." + table + " (pk0 int, ck0 boolean, ck1 double, s1 int static, v0 boolean," + " PRIMARY KEY (pk0, ck0, ck1)) WITH read_repair = 'NONE'"));
+        disableCompaction(CLUSTER, KEYSPACE, table);
+
+        if (sai)
+        {
+            CLUSTER.schemaChange(withKeyspace("CREATE INDEX ON %s." + table + "(s1) USING 'sai'"));
+            SAIUtil.waitForIndexQueryable(CLUSTER, KEYSPACE);
+        }
+
+        // Node 3 gets a row at ck0=false with an old s1 value. This will be locally live but globally dead once the range tombstone on node 2 is considered.
+        CLUSTER.get(3).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, ck0, ck1, s1, v0) VALUES (1, false, 1.0, 99, false) USING TIMESTAMP 1"));
+
+        // Node 2 gets a range tombstone covering all rows (ck0 is boolean, <= true covers everything). Nodes 1 and 3 never receive this.
+        CLUSTER.get(2).executeInternal(withKeyspace("DELETE FROM %s." + table + " USING TIMESTAMP 2 WHERE pk0 = 1 AND ck0 <= true"));
+
+        // Node 2 also gets a new surviving row at ck0=true with a new s1 value. This is the only row that should be visible after reconciliation.
+        CLUSTER.get(2).executeInternal(withKeyspace("INSERT INTO %s." + table + " (pk0, ck0, ck1, s1, v0) VALUES (1, true, 5.0, 42, true) USING TIMESTAMP 3"));
+
+        // The query on s1=42 should return only the single surviving row, and the first pass input to RFP get exactly that.
+        // However, since there is an unresolved static, RFP completion reads for nodes 1 and 3 must read the entire partition.
+        // This returns the rows written before the deletion, which never arrived there. If the range tombstone from
+        // node 2 is not included in the first pass query, it will not be available to shadow the logically deleted rows.
+        String select = withKeyspace("SELECT ck0, ck1 FROM %s." + table + " WHERE s1 = 42" + (sai ? "" : " ALLOW FILTERING"));
+        assertRows(CLUSTER.coordinator(1).executeWithPaging(select, ALL, 1), row(true, 5.0));
+    }
+
     @AfterClass
     public static void shutDownCluster()
     {
