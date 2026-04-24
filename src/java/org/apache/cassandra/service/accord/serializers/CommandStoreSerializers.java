@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 
 import accord.api.RoutingKey;
@@ -32,7 +33,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
-import accord.utils.TriFunction;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.UnversionedSerializer;
@@ -53,9 +53,9 @@ public class CommandStoreSerializers
     {
         final UnversionedSerializer<T> valueSerializer;
         final IntFunction<T[]> newValueArray;
-        final TriFunction<Boolean, RoutingKey[], T[], R> constructor;
+        final BiFunction<RoutingKey[], T[], R> constructor;
 
-        public ReducingRangeMapSerializer(UnversionedSerializer<T> valueSerializer, IntFunction<T[]> newValueArray, TriFunction<Boolean, RoutingKey[], T[], R> constructor)
+        public ReducingRangeMapSerializer(UnversionedSerializer<T> valueSerializer, IntFunction<T[]> newValueArray, BiFunction<RoutingKey[], T[], R> constructor)
         {
             this.valueSerializer = valueSerializer;
             this.newValueArray = newValueArray;
@@ -65,7 +65,7 @@ public class CommandStoreSerializers
         @Override
         public void serialize(R map, DataOutputPlus out) throws IOException
         {
-            out.writeBoolean(map.inclusiveEnds());
+            out.writeBoolean(true);
             int mapSize = map.size();
             out.writeUnsignedVInt32(mapSize);
 
@@ -81,7 +81,7 @@ public class CommandStoreSerializers
         @Override
         public R deserialize(DataInputPlus in) throws IOException
         {
-            boolean inclusiveEnds = in.readBoolean();
+            in.readBoolean();
             int mapSize = in.readUnsignedVInt32();
             RoutingKey[] keys = new RoutingKey[mapSize + 1];
             T[] values = newValueArray.apply(mapSize);
@@ -92,7 +92,7 @@ public class CommandStoreSerializers
             }
             if (mapSize > 0)
                 keys[mapSize] = KeySerializers.routingKey.deserialize(in);
-            return constructor.apply(inclusiveEnds, keys, values);
+            return constructor.apply(keys, values);
         }
 
         @Override
@@ -113,7 +113,7 @@ public class CommandStoreSerializers
         }
     }
 
-    public static UnversionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new UnversionedSerializer<>()
+    public static UnversionedSerializer<DurableBefore> durableBefore = new ReducingRangeMapSerializer<>(NullableSerializer.wrap(new UnversionedSerializer<DurableBefore.Entry>()
     {
         @Override
         public void serialize(DurableBefore.Entry t, DataOutputPlus out) throws IOException

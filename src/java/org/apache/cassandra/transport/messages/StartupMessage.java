@@ -25,6 +25,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.AuthenticatorNegotiator;
 import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
@@ -128,11 +129,14 @@ public class StartupMessage extends Message.Request
         ClientState clientState = state.getClientState();
         clientState.setClientOptions(options);
         String driverName = options.get(DRIVER_NAME);
+        String driverVersion = options.get(DRIVER_VERSION);
         if (null != driverName)
         {
             clientState.setDriverName(driverName);
-            clientState.setDriverVersion(options.get(DRIVER_VERSION));
+            clientState.setDriverVersion(driverVersion);
         }
+
+        Guardrails.minimumClientDriverVersion.guard(driverName, driverVersion, clientState);
 
         Set<String> clientAuthenticators = Set.of(StringUtils.defaultIfEmpty(options.get(AUTHENTICATORS), StringUtils.EMPTY).split(","));
 

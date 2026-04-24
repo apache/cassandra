@@ -119,7 +119,8 @@ if [ $buildxml_version != $git_version ]; then
    echo "Warning: build.xml version ($buildxml_version) not matching git/dpkg derived version ($git_version)">&2
 fi
 
-# build package
+# build package (gen-asciidoc needs to happen before quilt patches are applied)
+ant gen-doc -Dcheck.skip=true
 dpkg-buildpackage -rfakeroot -uc -us -tc --source-option=--tar-ignore=.git
 
 set +e

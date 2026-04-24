@@ -22,7 +22,9 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -53,6 +55,7 @@ import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE;
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN;
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_FULL_STARTUP;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
@@ -65,6 +68,30 @@ import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
 
 public class InProgressSequenceCoordinationTest extends FuzzTestBase
 {
+    private boolean skipReconfiguation;
+
+    @Before
+    public void setup()
+    {
+        // Skip the automatic, speculative CMS reconfiguration after join/replace operations.
+        // These can cause tests to run long or hang as peers start to shutdown while they are
+        // in flight. If the node initiating the reconfiguration sees the current CMS node as
+        // DOWN, a reconfiguration is triggered which cannot be be completed in a timely fashion.
+        // Previously, this was hidden because LegacyStateListener would queue up gossip tasks
+        // on a separate executor and the backlog of these prevented the failure detector from
+        // marking any nodes DOWN. Since making LegacyStateListener run synchronously on the
+        // log follower thread, the joining node does see the CMS node as DOWN and so tries to
+        // perform a reconfiguration.
+        skipReconfiguation = TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.getBoolean();
+        TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.setBoolean(true);
+    }
+
+    @After
+    public void tearDown()
+    {
+        TCM_SKIP_CMS_RECONFIGURATION_AFTER_TOPOLOGY_CHANGE.setBoolean(skipReconfiguation);
+    }
+
     @Test
     public void bootstrapProgressTest() throws Throwable
     {

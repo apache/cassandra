@@ -1707,6 +1707,35 @@ dynamic_snitch_reset_interval: 600000ms
 # until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 1.0
 
+# Paxos variant for lightweight transactions (LWTs)
+# Options:
+#   v1
+#          - Legacy Paxos. Expect 4RTs for a write and 3RTs for a read. (default)
+#
+#   v1_without_linearizable_reads_or_rejected_writes
+#          - Legacy Paxos. Expect 4RTs for a write and 2RTs for a read.
+#            With legacy semantics for read/read and rejected write linearizability, i.e. not guaranteed.
+#
+#   v2
+#          - Optimized Paxos. Expect 2RTs for a write, and either 1RT or 2RT for a read. (recommended)
+#
+#   v2_without_linearizable_reads
+#          - Optimized Paxos. Expect 2RTs for a write and 1RT for a read.
+#
+#   v2_without_linearizable_reads_or_rejected_writes
+#          - Optimized Paxos. Expect 2RTs for a write and 1RT for a read.
+#            With legacy semantics for read/read and rejected write linearizability, i.e. not guaranteed.
+#
+# To upgrade from v1:
+#   1. Ensure all nodes are on same Cassandra version 4.1+.
+#   2. Run `nodetool repair --full -pr` on each node.
+#   3. Set paxos_variant: v2 on each node and rolling restart.
+#   Rollback is safe: revert to v1 and rolling restart. No data migration needed.
+#
+# With any v2 variant and `paxos_state_purging: repaired` it is safe to use ANY Commit consistency.
+#
+#paxos_variant: v1
+
 # Configures Java crypto provider. By default, it will use DefaultCryptoProvider
 # which will install Amazon Correto Crypto Provider.
 #
@@ -2712,6 +2741,27 @@ max_security_label_length: 48
 # compressed by dictionary compressor and training_min_frequency is set to 0m (the default when unset).
 #unset_training_min_frequency_enabled: true
 
+# Minimum client driver versions. Connections from drivers whose version is below
+# the configured minimum will be warned or rejected. Connections that do not report
+# a driver name or version are considered valid unless 'unset' config entry is specified.
+# The map key is the driver name as reported in the native protocol STARTUP message.
+# The value is the minimum version string, which has to be a valid semver.
+# An operator can use special "unknown" and "unset" entries for both guardrails with a placeholder version.
+# A connection will fail / will be warned when a driver id is not among known entries when "unknown" entry is specified.
+# A connection will fail / will be warned when a driver id is not set at all when "unset" entry is specified.
+#minimum_client_driver_versions_warned:
+#  DataStax Java Driver: "4.0.0"
+#  DataStax Python Driver: "3.0.0"
+#  github.com/apache/cassandra-gocql-driver: "2.0.0"
+#  unknown: "0.0.0"
+#  unset: "0.0.0"
+#minimum_client_driver_versions_disallowed:
+#  DataStax Java Driver: "4.0.0"
+#  DataStax Python Driver: "3.0.0"
+#  github.com/apache/cassandra-gocql-driver: "2.0.0"
+#  unknown: "0.0.0"
+#  unset: "0.0.0"
+
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
 # Uncomment the startup checks and configure them appropriately to cover your needs.
@@ -2725,12 +2775,16 @@ max_security_label_length: 48
 #    enabled: false
 #    ownership_token: "sometoken" # (overriden by "CassandraOwnershipToken" system property)
 #    ownership_filename: ".cassandra_fs_ownership" # (overriden by "cassandra.fs_ownership_filename")
-# Enable this property to fail startup if the node is down for longer than gc_grace_seconds, to potentially
-# prevent data resurrection on tables with deletes. By default, this will run against all keyspaces and tables
-# except the ones specified on excluded_keyspaces and excluded_tables.
+# Enable this property to fail startup if the node is down for longer than max(gc_grace_seconds, minimum_threshold),
+# to potentially prevent data resurrection on tables with deletes.
+# By default, this will run against all keyspaces and tables except the
+# ones specified on excluded_keyspaces and excluded_tables.
 #  check_data_resurrection:
 #    enabled: false
-# file where Cassandra periodically writes the last time it was known to run
+#    # Minimum grace period for the check, defaults to 0. Useful when gc_grace_seconds is very
+#    # small (e.g. 0) to avoid blocking startup immediately.
+#    minimum_threshold: 3h
+#    #file where Cassandra periodically writes the last time it was known to run
 #    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
@@ -2791,11 +2845,7 @@ storage_compatibility_mode: NONE
 # repair as anti-compaction during repair may contribute to additional space temporarily.
 # if you want to disable this feature (the recommendation is not to, but if you want to disable it for whatever reason)
 # then set the ratio to 0.0
-# repair_disk_headroom_reject_ratio: 0.2;
-
-# This is the deprecated config which was used to safeguard incremental repairs. Use repair_disk_headroom_reject_ratio
-# instead as it safeguards against all repairs.
-# incremental_repair_disk_headroom_reject_ratio: 0.2;
+# repair_disk_headroom_reject_ratio: 0.2
 
 # Configuration for Auto Repair Scheduler.
 #

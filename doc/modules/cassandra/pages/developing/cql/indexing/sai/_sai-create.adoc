@@ -1,7 +1,9 @@
 = Create SAI index
 :description: Create SAI index for CQL table schema using `cqlsh`.
 
-To create an SAI index, you must define the index name, table name, and column name for the column to be indexed. 
+To create an SAI index, you must define the index name, table name, and column name for the column to be indexed.
+
+include::cassandra:partial$index-naming.adoc[]
  
 To create a simple SAI index:
 

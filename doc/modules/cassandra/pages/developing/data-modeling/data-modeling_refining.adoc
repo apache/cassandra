@@ -23,7 +23,7 @@ In order to calculate the size of partitions, use the following formula:
 
 The number of values (or cells) in the partition (N~v~) is equal to the
 number of static columns (N~s~) plus the product of the number of rows
-(N~r~) and the number of of values per row. The number of values per row
+(N~r~) and the number of values per row. The number of values per row
 is defined as the number of columns (N~c~) minus the number of primary
 key columns (N~pk~) and static columns (N~s~).
 
@@ -188,7 +188,7 @@ the original design is shown in the figure below. While the `month`
 column is partially duplicative of the `date`, it provides a nice way of
 grouping related data in a partition that will not get too large.
 
-image::data_modeling_hotel_bucketing.png[image]
+image::images/data_modeling_hotel_bucketing.png[image]
 
 If you really felt strongly about preserving a wide partition design,
 you could instead add the `room_id` to the partition key, so that each

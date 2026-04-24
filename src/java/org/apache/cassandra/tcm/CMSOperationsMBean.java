@@ -50,4 +50,7 @@ public interface CMSOperationsMBean
     public Map<Long, Map<String, String>> dumpLog(long startEpoch, long endEpoch);
 
     public void resumeDropAccordTable(String tableId);
+
+    public boolean getLegacyStateListenerSyncLocalUpdates();
+    public void setLegacyStateListenerSyncLocalUpdates(boolean sync);
 }

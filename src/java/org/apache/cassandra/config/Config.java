@@ -1025,6 +1025,9 @@ public class Config
     public volatile boolean unset_training_min_frequency_warned = true;
     public volatile boolean unset_training_min_frequency_enabled = true;
 
+    public volatile Map<String, String> minimum_client_driver_versions_warned = Collections.emptyMap();
+    public volatile Map<String, String> minimum_client_driver_versions_disallowed = Collections.emptyMap();
+
     public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
     public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound sai_string_term_size_warn_threshold = new DataStorageSpec.LongBytesBound("1KiB");
@@ -1519,6 +1522,7 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
     public volatile DurationSpec.LongSecondsBound discovery_timeout = new DurationSpec.LongSecondsBound("30s");
     public boolean unsafe_tcm_mode = false;
+    public boolean legacy_state_listener_sync_local_updates = true;
 
     public enum TriggersPolicy
     {

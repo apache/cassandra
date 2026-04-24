@@ -121,7 +121,6 @@ public abstract class LocalLog implements Closeable
 
         private final Set<LogListener> listeners = new HashSet<>();
         private final Set<ChangeListener> changeListeners = new HashSet<>();
-        private final Set<ChangeListener.Async> asyncChangeListeners = new HashSet<>();
 
         private LogSpec()
         {
@@ -157,7 +156,7 @@ public abstract class LocalLog implements Closeable
         public LogSpec withDefaultListeners(boolean withDefaultListeners)
         {
             if (withDefaultListeners &&
-                !(listeners.isEmpty() && changeListeners.isEmpty() && asyncChangeListeners.isEmpty()))
+                !(listeners.isEmpty() && changeListeners.isEmpty()))
             {
                 throw new IllegalStateException("LogSpec can only require all listeners OR specific listeners");
             }
@@ -178,10 +177,7 @@ public abstract class LocalLog implements Closeable
         {
             if (defaultListeners)
                 throw new IllegalStateException("LogSpec can only require all listeners OR specific listeners");
-            if (listener instanceof ChangeListener.Async)
-                asyncChangeListeners.add((ChangeListener.Async) listener);
-            else
-                changeListeners.add(listener);
+            changeListeners.add(listener);
             return this;
         }
 
@@ -257,7 +253,6 @@ public abstract class LocalLog implements Closeable
     protected final LogStorage storage;
     protected final Set<LogListener> listeners;
     protected final Set<ChangeListener> changeListeners;
-    protected final Set<ChangeListener.Async> asyncChangeListeners;
     protected final LogSpec spec;
 
     // for testing - used to inject filters which cause entries to be dropped before appending
@@ -277,7 +272,6 @@ public abstract class LocalLog implements Closeable
         this.storage = logSpec.storage;
         listeners = Sets.newConcurrentHashSet();
         changeListeners = Sets.newConcurrentHashSet();
-        asyncChangeListeners = Sets.newConcurrentHashSet();
         entryFilters = Lists.newCopyOnWriteArrayList();
     }
 
@@ -596,10 +590,7 @@ public abstract class LocalLog implements Closeable
 
     public void addListener(ChangeListener listener)
     {
-        if (listener instanceof ChangeListener.Async)
-            this.asyncChangeListeners.add((ChangeListener.Async) listener);
-        else
-            this.changeListeners.add(listener);
+        this.changeListeners.add(listener);
     }
 
     public void removeListener(ChangeListener listener)
@@ -619,16 +610,12 @@ public abstract class LocalLog implements Closeable
     {
         for (ChangeListener listener : changeListeners)
             listener.notifyPreCommit(before, after, fromSnapshot);
-        for (ChangeListener.Async listener : asyncChangeListeners)
-            ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPreCommit(before, after, fromSnapshot));
     }
 
     private void notifyPostCommit(ClusterMetadata before, ClusterMetadata after, boolean fromSnapshot)
     {
         for (ChangeListener listener : changeListeners)
             listener.notifyPostCommit(before, after, fromSnapshot);
-        for (ChangeListener.Async listener : asyncChangeListeners)
-            ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPostCommit(before, after, fromSnapshot));
     }
 
     public void addFilter(Predicate<Entry> filter)
@@ -680,7 +667,6 @@ public abstract class LocalLog implements Closeable
             logger.info("Adding specified listeners to LocalLog");
             spec.listeners.forEach(this::addListener);
             spec.changeListeners.forEach(this::addListener);
-            spec.asyncChangeListeners.forEach(this::addListener);
         }
 
         logger.info("Notifying all registered listeners of both pre and post commit event");
@@ -917,7 +903,6 @@ public abstract class LocalLog implements Closeable
     {
         listeners.clear();
         changeListeners.clear();
-        asyncChangeListeners.clear();
 
         addListener(snapshotListener());
         addListener(new InitializationListener());

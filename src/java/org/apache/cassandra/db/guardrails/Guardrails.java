@@ -19,12 +19,14 @@
 package org.apache.cassandra.db.guardrails;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -570,6 +572,16 @@ public final class Guardrails implements GuardrailsMBean
                      (isWarning, value) ->
                      isWarning ? "Disk usage in keyspace datacenter exceeds warning threshold"
                                : "Write request failed because disk usage exceeds failure threshold in keyspace datacenter.");
+
+    /**
+     * Guardrail on client driver versions. Warns or rejects connections from drivers
+     * whose version is below the configured minimum for that driver name.
+     * Connections that do not report a driver name or version are considered valid.
+     */
+    public static final ClientDriverVersionGuardrail minimumClientDriverVersion =
+    new ClientDriverVersionGuardrail(
+            state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumClientDriverVersionsWarned(),
+            state -> CONFIG_PROVIDER.getOrCreate(state).getMinimumClientDriverVersionsDisallowed());
 
     /**
      * Guardrail on passwords for CREATE / ALTER ROLE statements.
@@ -1851,6 +1863,62 @@ public final class Guardrails implements GuardrailsMBean
     public boolean getUnsetTrainingMinFrequencyEnabled()
     {
         return DEFAULT_CONFIG.getUnsetTrainingMinFrequencyEnabled();
+    }
+
+    @Override
+    public String getMinimumClientDriverVersionsWarned()
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(DEFAULT_CONFIG.getMinimumClientDriverVersionsWarned());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize minimum_client_driver_versions_warned configuration: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public String getMinimumClientDriverVersionsDisallowed()
+    {
+        try
+        {
+            return JsonUtils.JSON_OBJECT_MAPPER.writeValueAsString(DEFAULT_CONFIG.getMinimumClientDriverVersionsDisallowed());
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException("Unable to serialize minimum_client_driver_versions_disallowed configuration: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public void setMinimumClientDriverVersionsWarned(String value)
+    {
+        try
+        {
+            Map<String, String> map = JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {});
+            GuardrailsOptions.validateAndSanitizeClientDriverVersions(map, "minimum_client_driver_versions_warned");
+            DEFAULT_CONFIG.setMinimumClientDriverVersionsWarned(map);
+        }
+        catch (JsonProcessingException t)
+        {
+            throw new RuntimeException("Unable to deserialize payload for minimum_client_driver_versions_warned: " + t.getMessage());
+        }
+    }
+
+    @Override
+    public void setMinimumClientDriverVersionsDisallowed(String value)
+    {
+        try
+        {
+            Map<String, String> map = JsonUtils.JSON_OBJECT_MAPPER.readValue(value, new TypeReference<>() {});
+            GuardrailsOptions.validateAndSanitizeClientDriverVersions(map, "minimum_client_driver_versions_disallowed");
+            DEFAULT_CONFIG.setMinimumClientDriverVersionsDisallowed(map);
+        }
+        catch (JsonProcessingException t)
+        {
+            throw new RuntimeException("Unable to deserialize minimum_client_driver_versions_disallowed: " + t.getMessage());
+        }
     }
 
     private static String toCSV(Set<String> values)

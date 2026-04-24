@@ -75,17 +75,17 @@ public class AccordCoordinatorMetrics
     /**
      * A histogram of the time to preaccept on this coordinator
      */
-    public final Histogram preacceptLatency;
+    public final Timer preacceptLatency;
 
     /**
      * A histogram of the time to begin execution on this coordinator
      */
-    public final Histogram executeLatency;
+    public final Timer executeLatency;
 
     /**
      * A histogram of the time to complete execution on this coordinator
      */
-    public final Histogram applyLatency;
+    public final Timer applyLatency;
 
     /**
      * The number of epochs used to coordinate the transaction
@@ -161,9 +161,9 @@ public class AccordCoordinatorMetrics
     {
         DefaultNameFactory coordinator = new DefaultNameFactory(ACCORD_COORDINATOR, scope);
         dependencies = Metrics.histogram(coordinator.createMetricName(COORDINATOR_DEPENDENCIES), true);
-        preacceptLatency = Metrics.histogram(coordinator.createMetricName(COORDINATOR_PREACCEPT_LATENCY), true);
-        executeLatency = Metrics.histogram(coordinator.createMetricName(COORDINATOR_EXECUTE_LATENCY), true);
-        applyLatency = Metrics.histogram(coordinator.createMetricName(COORDINATOR_APPLY_LATENCY), true);
+        preacceptLatency = Metrics.timer(coordinator.createMetricName(COORDINATOR_PREACCEPT_LATENCY));
+        executeLatency = Metrics.timer(coordinator.createMetricName(COORDINATOR_EXECUTE_LATENCY));
+        applyLatency = Metrics.timer(coordinator.createMetricName(COORDINATOR_APPLY_LATENCY));
         epochs = Metrics.histogram(coordinator.createMetricName(COORDINATOR_EPOCHS), true);
         keys = Metrics.histogram(coordinator.createMetricName(COORDINATOR_KEYS), true);
         tables = Metrics.histogram(coordinator.createMetricName(COORDINATOR_TABLES), true);
@@ -230,7 +230,7 @@ public class AccordCoordinatorMetrics
             if (metrics != null)
             {
                 long now = AccordTimeService.nowMicros();
-                metrics.preacceptLatency.update(Math.max(0, now - txnId.hlc()));
+                metrics.preacceptLatency.update(Math.max(0, now - txnId.hlc()), MICROSECONDS);
             }
         }
 
@@ -243,7 +243,7 @@ public class AccordCoordinatorMetrics
             {
                 metrics.dependencies.update(deps.txnIdCount());
                 long now = AccordTimeService.nowMicros();
-                metrics.executeLatency.update(Math.max(0, now - txnId.hlc()));
+                metrics.executeLatency.update(Math.max(0, now - txnId.hlc()), MICROSECONDS);
                 if (path != null)
                 {
                     switch (path)
@@ -264,7 +264,7 @@ public class AccordCoordinatorMetrics
             if (metrics != null)
             {
                 long now = AccordTimeService.nowMicros();
-                metrics.applyLatency.update(Math.max(0, now - txnId.hlc()));
+                metrics.applyLatency.update(Math.max(0, now - txnId.hlc()), MICROSECONDS);
             }
         }
 

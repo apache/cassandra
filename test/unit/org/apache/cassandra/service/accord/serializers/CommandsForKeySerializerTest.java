@@ -188,7 +188,7 @@ public class CommandsForKeySerializerTest
             builder.durability(isDurable ? AllQuorums : NotDurable);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
             {
-                try (KeyDeps.Builder keyBuilder = KeyDeps.builder();)
+                try (KeyDeps.Builder keyBuilder = KeyDeps.builder())
                 {
                     for (TxnId id : deps)
                         keyBuilder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
@@ -718,7 +718,7 @@ public class CommandsForKeySerializerTest
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }
         }; }
-        @Override public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kind.Kinds testKind, TestStartedAt testStartedAt, Timestamp testStartAtTimestamp, ComputeIsDep computeIsDep, AllCommandVisitor visit) { return false; }
+        @Override public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kind.Kinds testKind, SupersedingCommandVisitor visit) { return false; }
         @Override public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kind.Kinds testKind, ActiveCommandVisitor<P1, P2> visit, P1 p1, P2 p2) { }
     }
 

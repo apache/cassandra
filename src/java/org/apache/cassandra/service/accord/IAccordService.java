@@ -47,6 +47,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.TxnId;
 import accord.topology.EpochReady;
 import accord.topology.TopologyManager;
 import accord.utils.Invariants;
@@ -83,8 +84,8 @@ public interface IAccordService
     IVerbHandler<? extends Request> requestHandler();
     IVerbHandler<? extends Reply> responseHandler();
 
-    AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
-    AsyncChain<Void> sync(@Nullable Timestamp minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
+    AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
+    AsyncChain<Void> sync(@Nullable TxnId minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
     AsyncChain<Timestamp> maxConflict(Ranges ranges);
 
     @Nonnull
@@ -215,13 +216,13 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
@@ -405,13 +406,13 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote);
         }

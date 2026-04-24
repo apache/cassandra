@@ -117,7 +117,7 @@ public class AuthConfigTest
         expectedException.expect(ConfigurationException.class);
         expectedException.expectMessage("require_authentication");
         expectedException.expectMessage("AllowAllAuthenticator");
-        
+
         Config config = load("cassandra-auth-negotiation-invalid.yaml");
         DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
     }

@@ -125,6 +125,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -926,6 +927,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         ActiveRepairService.instance().start();
         StreamManager.instance.start();
         PaxosState.startAutoRepairs();
+        StorageService.instance.doAutoRepairSetup();
         CassandraDaemon.getInstanceForTesting().completeSetup();
     }
 
@@ -1024,6 +1026,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
+                                () -> AutoRepair.instance.shutdownBlocking(),
                                 () -> EpochAwareDebounce.instance.close(),
                                 SnapshotManager.instance::close,
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),

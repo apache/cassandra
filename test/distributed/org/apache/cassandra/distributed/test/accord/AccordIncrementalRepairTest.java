@@ -44,7 +44,6 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Status;
-import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResult;
@@ -90,7 +89,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable Timestamp onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, 10L, TimeUnit.MINUTES).map(v -> {
                 executedBarriers = true;
@@ -99,7 +98,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable Timestamp onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
                 executedBarriers = true;

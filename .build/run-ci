@@ -82,6 +82,8 @@ def base_job_name(args) -> str:
                 # TODO: add new version each release branching
                 if version.startswith("5.0."):
                     base_job_name._cached_result = "cassandra-5.0"
+                elif version.startswith("6.0"):
+                    base_job_name._cached_result = "cassandra-6.0"
                 else:
                     base_job_name._cached_result = "cassandra"
                 break

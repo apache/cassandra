@@ -275,14 +275,6 @@ public class CassandraDaemon
         Keyspace.setInitialized();
         CommitLog.instance.start();
 
-        SnapshotManager.instance.start(false);
-        SnapshotManager.instance.clearExpiredSnapshots();
-        SnapshotManager.instance.clearEphemeralSnapshots();
-        SnapshotManager.instance.resumeSnapshotCleanup();
-        SnapshotManager.instance.registerMBean();
-
-        // clearing of snapshots above here will in fact clear all ephemeral snapshots
-        // which were cleared as part of startup checks before CASSANDRA-18111
         runStartupChecks();
 
         try
@@ -308,6 +300,17 @@ public class CassandraDaemon
         {
             exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
+
+        // SnapshotManager is started after Startup.initialize so that ClusterMetadata is available,
+        // allowing SnapshotLoader to resolve tableId for pre-2.1 tables via ColumnFamilyStore.
+        // This means ephemeral/expired snapshot cleanup now runs later in startup than before
+        // CASSANDRA-21173. No default StartupChecks depend on snapshot state, but custom
+        // StartupCheck implementations that check disk space may observe stale snapshots.
+        SnapshotManager.instance.start(false);
+        SnapshotManager.instance.clearExpiredSnapshots();
+        SnapshotManager.instance.clearEphemeralSnapshots();
+        SnapshotManager.instance.resumeSnapshotCleanup();
+        SnapshotManager.instance.registerMBean();
 
         QueryProcessor.registerStatementInvalidatingListener();
 

@@ -205,6 +205,8 @@ public enum CassandraRelevantProperties
     /** Controls the type of bufffer (heap/direct) used for shared scratch buffers */
     DATA_OUTPUT_BUFFER_ALLOCATE_TYPE("cassandra.dob.allocate_type"),
     DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE("cassandra.data_output_stream_plus_temp_buffer_size", "8192"),
+    DATA_RESPONSE_BUFFER_INITIAL_SIZE_MAX("cassandra.data_response_buffer_initial_size_max", "4096"),
+    DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN("cassandra.data_response_buffer_initial_size_min", "128"),
     DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT("cassandra.dehr_stripe_count", "2"),
     DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES("default.provide.overlapping.tombstones"),
     /** determinism properties for testing */
@@ -473,6 +475,8 @@ public enum CassandraRelevantProperties
      */
     RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
     RING_DELAY("cassandra.ring_delay_ms"),
+    /** How often a role's password can be changed */
+    ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS("cassandra.role_password_update_min_interval_in_ms", "5000"),
 
     // SAI specific properties
 
@@ -532,7 +536,7 @@ public enum CassandraRelevantProperties
      */
     SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
     SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR("cassandra.serialization.emptytype.nonempty_behavior"),
-    SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
+    SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "false"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
     SIMULATOR_ITERATIONS("simulator.iterations", "3"),
     SIMULATOR_SEED("cassandra.simulator.seed"),
@@ -585,6 +589,7 @@ public enum CassandraRelevantProperties
     SUN_STDERR_ENCODING("sun.stderr.encoding"),
     SUN_STDOUT_ENCODING("sun.stdout.encoding"),
     SUPERUSER_SETUP_DELAY_MS("cassandra.superuser_setup_delay_ms", "10000"),
+    SYNC_SYSTEM_PEERS_TABLES_AT_STARTUP("cassandra.sync_system_peers_tables_at_startup", "true"),
     SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),
     SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
     SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
