@@ -111,24 +111,6 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         return ALTERABLE_ROLE_OPTIONS;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Set<IRoleManager.Option> getSupportedRoleOptions()
-    {
-        return SUPPORTED_ROLE_OPTIONS;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Set<IRoleManager.Option> getAlterableRoleOptions()
-    {
-        return ALTERABLE_ROLE_OPTIONS;
-    }
-
     // No anonymous access.
     @Override
     public boolean requireAuthentication()
