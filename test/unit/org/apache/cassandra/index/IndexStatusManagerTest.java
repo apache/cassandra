@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.index;
 
+import java.io.UTFDataFormatException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +37,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -41,11 +45,15 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class IndexStatusManagerTest
@@ -437,5 +445,84 @@ public class IndexStatusManagerTest
         ConsistencyLevel mock = Mockito.mock(ConsistencyLevel.class);
         Mockito.when(mock.blockFor(Mockito.any())).thenReturn(required);
         return mock;
+    }
+
+    @Test
+    public void shouldFailWhenTooManyIndexesExceedGossipLimit()
+    {
+        Map<String, Index.Status> statusMap = new HashMap<>();
+        for (int ks = 0; ks < 100; ks++)
+        {
+            for (int idx = 0; idx < 200; idx++)
+            {
+                statusMap.put("keyspace_" + ks + ".my_table_index_name" + idx, Index.Status.BUILD_SUCCEEDED);
+            }
+        }
+
+        String serialized = IndexStatusManager.toSerializedFormat(statusMap);
+        byte[] utf8Bytes = serialized.getBytes(StandardCharsets.UTF_8);
+
+        assertTrue("Serialized size " + utf8Bytes.length + " should exceed 65535",
+                   utf8Bytes.length > 65535);
+
+        VersionedValue value = VersionedValue.unsafeMakeVersionedValue(serialized, 1);
+        DataOutputBuffer out = new DataOutputBuffer();
+
+        assertThatThrownBy(() -> VersionedValue.serializer.serialize(value, out, 0))
+                .isInstanceOf(UTFDataFormatException.class);
+    }
+
+    @Test
+    public void testVersionGatingAllowsWriteFor6x()
+    {
+        assertTrue(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("6.0.0")));
+        assertTrue(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("6.1.0")));
+        assertTrue(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("7.0.0")));
+    }
+
+    @Test
+    public void testVersionGatingBlocksWriteForPre6x()
+    {
+        assertFalse(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("5.0.0")));
+        assertFalse(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("5.0.2")));
+        assertFalse(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("4.1.0")));
+    }
+
+    @Test
+    public void testProcessEventsUpdatesPeerIndexStatus()
+    {
+        IndexStatusManager manager = IndexStatusManager.instance;
+        InetAddressAndPort peer = InetAddressAndPort.getByNameUnchecked("127.0.0.100");
+
+        Map<String, Index.Status> peerStatuses = new HashMap<>();
+        manager.peerIndexStatus.put(peer, peerStatuses);
+
+        assertEquals(Index.Status.UNKNOWN, manager.getIndexStatus(peer, "ks1", "idx1"));
+        peerStatuses.put("ks1.idx1", Index.Status.BUILD_SUCCEEDED);
+        assertEquals(Index.Status.BUILD_SUCCEEDED, manager.getIndexStatus(peer, "ks1", "idx1"));
+    }
+
+    @Test
+    public void testProcessEventsHandlesDropped()
+    {
+        IndexStatusManager manager = IndexStatusManager.instance;
+        InetAddressAndPort peer = InetAddressAndPort.getByNameUnchecked("127.0.0.101");
+
+        Map<String, Index.Status> peerStatuses = new HashMap<>();
+        peerStatuses.put("ks1.idx1", Index.Status.BUILD_SUCCEEDED);
+        manager.peerIndexStatus.put(peer, peerStatuses);
+
+        assertEquals(Index.Status.BUILD_SUCCEEDED, manager.getIndexStatus(peer, "ks1", "idx1"));
+
+        peerStatuses.remove("ks1.idx1");
+
+        assertEquals(Index.Status.UNKNOWN, manager.getIndexStatus(peer, "ks1", "idx1"));
+    }
+
+    @Test
+    public void testResetLastPollTimestamp()
+    {
+        IndexStatusManager manager = IndexStatusManager.instance;
+        manager.resetLastPollTimestamp();
     }
 }

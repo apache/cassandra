@@ -944,6 +944,7 @@ public class Config
 
     public volatile String default_secondary_index = CassandraIndex.NAME;
     public volatile boolean default_secondary_index_enabled = true;
+    public volatile int index_status_poll_interval_in_seconds = 30;
 
     public volatile boolean uncompressed_tables_enabled = true;
     public volatile boolean compact_tables_enabled = true;

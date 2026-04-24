@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.sai;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,6 +38,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexStatusManager;
@@ -44,6 +46,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -54,6 +57,8 @@ import static org.apache.cassandra.distributed.test.sai.SAIUtil.waitForIndexQuer
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class IndexAvailabilityTest extends TestBaseImpl
 {
@@ -398,6 +403,102 @@ public class IndexAvailabilityTest extends TestBaseImpl
         public int hashCode()
         {
             return Objects.hashCode(keyspace, index, node);
+        }
+    }
+
+    @Test
+    public void verifyIndexStatusPropagationViaTablePolling() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK)
+                                                                       .set("index_status_poll_interval_in_seconds", 5)).start()))
+        {
+            String ks = "poll_test_ks";
+            String cf = "cf1";
+            String index = "cf1_poll_idx";
+
+            cluster.schemaChange(String.format(CREATE_KEYSPACE, ks, 2));
+            cluster.schemaChange(String.format(CREATE_TABLE, ks, cf));
+            cluster.schemaChange(String.format(CREATE_INDEX, index, ks, cf, "v1"));
+            waitForIndexQueryable(cluster, ks);
+
+            await().atMost(15, TimeUnit.SECONDS)
+                   .until(() -> cluster.get(2).callOnInstance(() -> {
+                       InetAddressAndPort node1Address = InetAddressAndPort.getByNameUnchecked("127.0.0.1");
+                       int port = FBUtilities.getBroadcastAddressAndPort().getPort();
+                       InetAddressAndPort node1 = InetAddressAndPort.getByAddressOverrideDefaults(node1Address.getAddress(), port);
+                       return IndexStatusManager.instance.getIndexStatus(node1, ks, index) == Index.Status.BUILD_SUCCEEDED;
+                   }));
+        }
+    }
+
+
+    @Test
+    public void verifyMaxSizeIndexTest() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(1)
+                .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                .withInstanceInitializer(MixedPatchVersionHelper::setVersions)
+                .start()))
+        {
+            LogAction logs = cluster.get(1).logs();
+            long mark = logs.mark();
+
+            cluster.get(1).runOnInstance(() -> {
+                Map<String, Index.Status> localStatusMap =
+                        IndexStatusManager.instance.peerIndexStatus
+                                .computeIfAbsent(FBUtilities.getBroadcastAddressAndPort(), k -> new HashMap<>());
+
+                for (int ks = 0; ks < 100; ks++)
+                    for (int idx = 0; idx < 200; idx++)
+                        localStatusMap.put("keyspace_" + ks + ".my_table_index_name" + idx, Index.Status.BUILD_SUCCEEDED);
+
+                IndexStatusManager.instance.propagateLocalIndexStatus("keyspace_trigger", "trigger_idx", Index.Status.BUILD_SUCCEEDED);
+            });
+
+            assertFalse(logs.watchFor(mark, "exceeds limit").getResult().isEmpty());
+        }
+    }
+
+
+    @Test
+    public void verifyMixedVersionSkipsTableWritesAndUsesGossip() throws Exception
+    {
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .withInstanceInitializer(MixedMajorVersionHelper::setVersions)
+                                           .start()))
+        {
+            String ks = "mixed_ks";
+            String cf = "cf1";
+            String index1 = "cf1_idx1";
+
+            cluster.schemaChange(String.format(CREATE_KEYSPACE, ks, 2));
+            cluster.schemaChange(String.format(CREATE_TABLE, ks, cf));
+            cluster.schemaChange(String.format(CREATE_INDEX, index1, ks, cf, "v1"));
+            waitForIndexQueryable(cluster, ks);
+
+            waitForIndexingStatus(cluster.get(2), ks, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
+
+            cluster.get(1).runOnInstance(() -> {
+                java.util.Map<java.util.UUID, java.util.Map<String, Index.Status>> allStatuses =
+                        SystemDistributedKeyspace.allIndexStatuses();
+                assertTrue("index_build_status table should be empty in mixed-version cluster, but has " + allStatuses.size() + " entries",
+                           allStatuses.isEmpty());
+            });
+
+            markIndexNonQueryable(cluster.get(1), ks, cf, index1);
+            waitForIndexingStatus(cluster.get(2), ks, index1, cluster.get(1), Index.Status.BUILD_FAILED);
+
+            cluster.get(1).runOnInstance(() -> {
+                java.util.Map<java.util.UUID, java.util.Map<String, Index.Status>> allStatuses =
+                        SystemDistributedKeyspace.allIndexStatuses();
+                assertTrue("index_build_status table should still be empty in mixed-version cluster",
+                           allStatuses.isEmpty());
+            });
+
+            markIndexQueryable(cluster.get(1), ks, cf, index1);
+            waitForIndexingStatus(cluster.get(2), ks, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
         }
     }
 

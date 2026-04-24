@@ -4710,6 +4710,16 @@ public class DatabaseDescriptor
         conf.default_secondary_index_enabled = enabled;
     }
 
+    public static int getIndexStatusPollInterval()
+    {
+        return conf.index_status_poll_interval_in_seconds;
+    }
+
+    public static void setIndexStatusPollInterval(int seconds)
+    {
+        conf.index_status_poll_interval_in_seconds = seconds;
+    }
+
     public static boolean isTransientReplicationEnabled()
     {
         return conf.transient_replication_enabled;

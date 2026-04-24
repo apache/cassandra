@@ -20,6 +20,8 @@ package org.apache.cassandra.schema;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -55,6 +57,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -89,10 +92,11 @@ public final class SystemDistributedKeyspace
      * gen 6: add denylist table
      * gen 7: add auto_repair_history and auto_repair_priority tables for AutoRepair feature
      * gen 8: add compression_dictionaries for dictionary-based compression algorithms (e.g. zstd)
+     * gen 9: add index_build_status and index_events tables for CASSANDRA-21264
      *
      * // TODO: TCM - how do we evolve these tables?
      */
-    public static final long GENERATION = 8;
+    public static final long GENERATION = 9;
 
     public static final String REPAIR_HISTORY = "repair_history";
 
@@ -108,10 +112,15 @@ public final class SystemDistributedKeyspace
 
     public static final String COMPRESSION_DICTIONARIES = "compression_dictionaries";
 
+    public static final String INDEX_BUILD_STATUS = "index_build_status";
+
+    public static final String INDEX_EVENTS = "index_events";
+
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY,
                                                                   VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE,
                                                                   AUTO_REPAIR_HISTORY, AUTO_REPAIR_PRIORITY,
-                                                                  COMPRESSION_DICTIONARIES);
+                                                                  COMPRESSION_DICTIONARIES, INDEX_BUILD_STATUS,
+                                                                  INDEX_EVENTS);
 
     public static final String REPAIR_HISTORY_CQL = "CREATE TABLE IF NOT EXISTS %s ("
                                                      + "keyspace_name text,"
@@ -210,6 +219,30 @@ public final class SystemDistributedKeyspace
     private static final TableMetadata CompressionDictionariesTable =
         parse(COMPRESSION_DICTIONARIES, "Compression dictionaries for applicable tables", COMPRESSION_DICTIONARIES_CQL).build();
 
+    public static final String INDEX_BUILD_STATUS_CQL = "CREATE TABLE IF NOT EXISTS %s (" +
+                                                        "host_id uuid," +
+                                                        "keyspace_name text," +
+                                                        "index_name text," +
+                                                        "status text," +
+                                                        "PRIMARY KEY (host_id, keyspace_name, index_name))";
+    private static final TableMetadata IndexBuildStatus =
+            parse(INDEX_BUILD_STATUS, "Index build status", INDEX_BUILD_STATUS_CQL).build();
+
+    private static final String INDEX_EVENTS_CQL = "CREATE TABLE IF NOT EXISTS %s (" +
+                                                   "date text," +
+                                                   "event_time timestamp," +
+                                                   "index_name text," +
+                                                   "host_id UUID," +
+                                                   "event text," +
+                                                   "PRIMARY KEY (date, event_time, index_name, host_id)) " +
+                                                   "WITH CLUSTERING ORDER BY (event_time DESC)";
+
+    private static final TableMetadata IndexEventsTable =
+        parse(INDEX_EVENTS, "Index events for applicable tables", INDEX_EVENTS_CQL)
+        .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
+        .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
+                                                          "compaction_window_size","1"))).build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -223,9 +256,9 @@ public final class SystemDistributedKeyspace
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                        KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())),
                                        Tables.of(RepairHistory, ParentRepairHistory,
-                                                 ViewBuildStatus, PartitionDenylistTable,
+                                                 ViewBuildStatus, IndexBuildStatus, PartitionDenylistTable,
                                                  AutoRepairHistoryTable, AutoRepairPriorityTable,
-                                                 CompressionDictionariesTable));
+                                                 CompressionDictionariesTable, IndexEventsTable));
     }
 
     public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -408,6 +441,110 @@ public final class SystemDistributedKeyspace
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
         forceBlockingFlush(VIEW_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
+    }
+
+    public static void updateIndexStatus(UUID hostId, String keyspace, String index, Index.Status status)
+    {
+        String query = "INSERT INTO %s.%s (host_id, keyspace_name, index_name, status) VALUES (?, ?, ?, ?)";
+        QueryProcessor.process(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
+                               ConsistencyLevel.ONE,
+                               Lists.newArrayList(bytes(hostId),
+                                                  bytes(keyspace),
+                                                  bytes(index),
+                                                  bytes(status.toString())));
+    }
+
+    public static void setIndexRemoved(UUID hostId, String keyspaceName, String indexName)
+    {
+        String buildReq = "DELETE FROM %s.%s WHERE host_id = ? AND keyspace_name = ? AND index_name = ?";
+        QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
+                                       hostId, keyspaceName, indexName);
+        forceBlockingFlush(INDEX_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
+    }
+
+    public static Map<UUID, Map<String, Index.Status>> allIndexStatuses()
+    {
+        String query = "SELECT host_id, keyspace_name, index_name, status FROM %s.%s";
+        UntypedResultSet results;
+
+        try
+        {
+            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
+                                             ConsistencyLevel.ONE);
+        }
+        catch (Exception e)
+        {
+            logger.warn("Unable to load index statuses from system table: {}", e.getMessage());
+            return Collections.emptyMap();
+        }
+
+        Map<UUID, Map<String, Index.Status>> allStatuses = new HashMap<>();
+        for (UntypedResultSet.Row row : results)
+        {
+            UUID hostId = row.getUUID("host_id");
+            String identifier = row.getString("keyspace_name") + '.' + row.getString("index_name");
+            Index.Status status = Index.Status.valueOf(row.getString("status"));
+            allStatuses.computeIfAbsent(hostId, k -> new HashMap<>()).put(identifier, status);
+        }
+
+        return allStatuses;
+    }
+
+    public static Map<String, Index.Status> allIndexStatusesForHost(UUID hostId)
+    {
+        String query = "SELECT keyspace_name, index_name, status FROM %s.%s WHERE host_id = ?";
+        UntypedResultSet results;
+
+        try
+        {
+            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
+                                             ConsistencyLevel.ONE,
+                                             hostId);
+        }
+        catch (Exception e)
+        {
+            logger.warn("Unable to load index statuses from system table for host {}: {}", hostId, e.getMessage());
+            return Collections.emptyMap();
+        }
+
+        Map<String, Index.Status> statuses = new HashMap<>();
+        for (UntypedResultSet.Row row : results)
+        {
+            statuses.put(row.getString("keyspace_name") + '.' + row.getString("index_name"),
+                         Index.Status.valueOf(row.getString("status")));
+        }
+
+        return statuses;
+    }
+
+    public static void recordIndexEvent(UUID hostId, String keyspace, String index, Index.Status status)
+    {
+        String query = "INSERT INTO %s.%s (date, event_time, index_name, host_id, event) VALUES (?, to_timestamp(now()), ?, ?, ?)";
+        QueryProcessor.process(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS),
+                               ConsistencyLevel.ONE,
+                               Lists.newArrayList(bytes(LocalDate.now(ZoneOffset.UTC).toString()),
+                                                  bytes(keyspace + '.' + index),
+                                                  bytes(hostId),
+                                                  bytes(status.toString())));
+    }
+
+    public static UntypedResultSet queryIndexEvents(String date, long sinceTimestampMillis)
+    {
+        String query = "SELECT index_name, host_id, event FROM %s.%s WHERE date = ? AND event_time > ? ";
+        UntypedResultSet status;
+        try
+        {
+            status = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS),
+                                             ConsistencyLevel.ONE,
+                                             date,
+                                             new java.util.Date(sinceTimestampMillis));
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+
+        return status;
     }
 
     /**
