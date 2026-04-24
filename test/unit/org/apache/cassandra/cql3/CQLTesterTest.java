@@ -42,7 +42,7 @@ public class CQLTesterTest extends CQLTester
         testGetCreateIndexName(KEYSPACE, "idx", "CREATE CUSTOM INDEX idx ON t (c) USING 'class'");
         testGetCreateIndexName(KEYSPACE, "idx", "CREATE CUSTOM INDEX idx ON %s (c) USING 'class'");
 
-        // with an unqouted case-sensitive index name
+        // with an unquoted case-sensitive index name
         testGetCreateIndexName("k", "idx", "CREATE INDEX iDx ON k.t (c)");
         testGetCreateIndexName(KEYSPACE, "idx", "CREATE INDEX iDx ON t (c)");
         testGetCreateIndexName(KEYSPACE, "idx", "CREATE INDEX iDx ON %s (c)");

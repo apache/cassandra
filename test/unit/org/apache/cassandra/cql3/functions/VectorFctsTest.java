@@ -57,7 +57,7 @@ public class VectorFctsTest extends CQLTester
         createTable(KEYSPACE, "CREATE TABLE %s (pk int PRIMARY KEY, value vector<float, 2>, " +
                               "l list<float>, " + // lists shouldn't be accepted by the functions
                               "fl frozen<list<float>>, " + // frozen lists shouldn't be accepted by the functions
-                              "v1 vector<float, 1>, " + // 1-dimension vector to test missmatching dimensions
+                              "v1 vector<float, 1>, " + // 1-dimension vector to test mismatching dimensions
                               "v_int vector<int, 2>, " + // int vectors shouldn't be accepted by the functions
                               "v_double vector<double, 2>)");// double vectors shouldn't be accepted by the functions
 

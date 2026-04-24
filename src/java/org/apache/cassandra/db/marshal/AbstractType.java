@@ -800,7 +800,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
-     * This must be overriden by subclasses if necessary so that for any
+     * This must be overridden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).
      *
      * Note that for backwards compatibility this includes the full classname.

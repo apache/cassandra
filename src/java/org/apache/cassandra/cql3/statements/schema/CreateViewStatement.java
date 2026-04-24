@@ -457,7 +457,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
                 throw ire("Bind variables are not allowed in CREATE MATERIALIZED VIEW statements");
 
             if (null == partitionKeyColumns)
-                throw ire("No PRIMARY KEY specifed for view '%s' (exactly one required)", viewName);
+                throw ire("No PRIMARY KEY specified for view '%s' (exactly one required)", viewName);
 
             return new CreateViewStatement(keyspaceName,
                                            tableName.getName(),

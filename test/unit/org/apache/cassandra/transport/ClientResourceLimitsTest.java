@@ -259,7 +259,7 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
     {
         try (SimpleClient client = client(true))
         {
-            // wait for the completion of the intial messages created by the client connection
+            // wait for the completion of the initial messages created by the client connection
             Awaitility.await()
                       .pollDelay(1, TimeUnit.SECONDS)
                       .atMost(30, TimeUnit.SECONDS)
@@ -286,7 +286,7 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
                 }
                 catch (Exception e)
                 {
-                    // ignore interuption and barrier exceptions
+                    // ignore interruption and barrier exceptions
                 }
                 return new SimpleDataSet(tableMetadata);
             });

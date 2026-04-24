@@ -48,7 +48,7 @@ public class SamplerTest
     @BeforeClass
     public static void initMessagingService() throws ConfigurationException
     {
-        // required so the rejection policy doesnt fail on initializing
+        // required so the rejection policy doesn't fail on initializing
         // static MessagingService resources
         DatabaseDescriptor.daemonInitialization();
     }
@@ -132,7 +132,7 @@ public class SamplerTest
             sampler.beginSampling(10, 1000000);
         } catch (RuntimeException e)
         {
-            Assert.fail(); // shouldnt fail on first call
+            Assert.fail(); // shouldn't fail on first call
         }
         // should throw Exception
         sampler.beginSampling(10, 1000000);
@@ -149,7 +149,7 @@ public class SamplerTest
             sampler.beginSampling(10, 10);
         } catch (RuntimeException e)
         {
-            Assert.fail(); // shouldnt fail on first call
+            Assert.fail(); // shouldn't fail on first call
         }
         clock.advance(11, TimeUnit.MILLISECONDS);
         sampler.beginSampling(10, 1000000);

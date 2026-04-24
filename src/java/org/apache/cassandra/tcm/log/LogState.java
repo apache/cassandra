@@ -317,7 +317,7 @@ public class LogState
                 Optional<Epoch> highestPending = log.highestPending();
                 if (highestPending.isPresent())
                 {
-                    // We should not call maybeCatchup fom this stage
+                    // We should not call maybeCatchup from this stage
                     ScheduledExecutors.optionalTasks.submit(() -> ClusterMetadataService.instance().fetchLogFromCMS(highestPending.get()));
                 }
                 else if (ClusterMetadata.current().epoch.isBefore(message.payload.latestEpoch()))

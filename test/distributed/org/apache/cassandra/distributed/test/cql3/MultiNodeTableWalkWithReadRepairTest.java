@@ -35,7 +35,7 @@ public class MultiNodeTableWalkWithReadRepairTest extends MultiNodeTableWalkBase
     {
         // if a failing seed is detected, populate here
         // Example: builder.withSeed(42L);
-        // CQL operations may have opertors such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
+        // CQL operations may have operators such as +, -, and / (example 4 + 4), to "apply" them to get a constant value
         // CQL_DEBUG_APPLY_OPERATOR = true;
         // When mutations look to be lost as seen by more complex SELECTs, it can be useful to just SELECT the partition/row right after to write to see if it was safe at the time.
         // READ_AFTER_WRITE = true;

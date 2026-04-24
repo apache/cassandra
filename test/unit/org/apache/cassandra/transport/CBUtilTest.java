@@ -53,7 +53,7 @@ public class CBUtilTest
             Assertions.assertThat(body.readableBytes()).isEqualTo(expectedSize);
             // In CASSANDRA-20234 the sizeOf method now reflects the write method, but the work to do this in read
             // was not done; read took a stance that it wants to limit things in CASSANDRA-8101 but that never made
-            // it to the other methods... write and read are not compatable with the full domain of UTF-8, and fixing
+            // it to the other methods... write and read are not compatible with the full domain of UTF-8, and fixing
             // that was higher bar than CASSANDRA-20234 wanted to tackle out of fear of unknown regressions it would cause.
         });
     }

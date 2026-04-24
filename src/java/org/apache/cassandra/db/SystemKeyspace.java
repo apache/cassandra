@@ -194,7 +194,7 @@ public final class SystemKeyspace
 
     /**
      * By default the system keyspace tables should be stored in a single data directory to allow the server
-     * to handle more gracefully disk failures. Some tables through can be split accross multiple directories
+     * to handle more gracefully disk failures. Some tables through can be split across multiple directories
      * as the server can continue operating even if those tables lost some data.
      */
     public static final Set<String> TABLES_SPLIT_ACROSS_MULTIPLE_DISKS = ImmutableSet.of(BATCHES,
@@ -690,7 +690,7 @@ public final class SystemKeyspace
 
         // If this node has not yet been registered in cluster metadata, record the initialization location provided
         // by the configured Locator, this will also be used when registering an new node in cluster metadata during its
-        // intial startup.
+        // initial startup.
         // If the node is present in cluster metadata (i.e. has been registered already and we have replayed the
         // metadata log), then get the location from there (via the Locator).
         // We do this in case either the Locator config or location in metadata has been modified in any way, as cluster

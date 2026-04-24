@@ -188,7 +188,7 @@ public class Slice
      *
      * @param comparator   the comparator for the table this is a filter for.
      * @param lastReturned the last clustering that was returned for the query we are paging for. The
-     *                     resulting slices will be such that only results coming stricly after {@code lastReturned} are returned
+     *                     resulting slices will be such that only results coming strictly after {@code lastReturned} are returned
      *                     (where coming after means "greater than" if {@code !reversed} and "lesser than" otherwise).
      * @param inclusive    whether we want to include the {@code lastReturned} in the newly returned page of results.
      * @param reversed     whether the query we're paging for is reversed or not.

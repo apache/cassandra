@@ -125,7 +125,7 @@ public class InternalNodeProbe extends NodeProbe
         return Keyspace.open(ks).getColumnFamilyStore(cf);
     }
 
-    // The below methods are only used by the commands (i.e. Info, TableHistogram, TableStats, etc.) that display informations. Not useful for dtest, so disable it.
+    // The below methods are only used by the commands (i.e. Info, TableHistogram, TableStats, etc.) that display information. Not useful for dtest, so disable it.
     @Override
     public Object getCacheMetric(String cacheType, String metricName)
     {

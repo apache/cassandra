@@ -20,9 +20,9 @@ package org.apache.cassandra.db.rows;
 import org.apache.cassandra.db.DeletionTime;
 
 /**
- * An iterator over the rows of a given partition that also includes deletion informations.
+ * An iterator over the rows of a given partition that also includes deletion information.
  * <p>
- * An {@code UnfilteredRowIterator} contains a few partition top-level informations and is an
+ * An {@code UnfilteredRowIterator} contains a few partition top-level information and is an
  * iterator of {@code Unfiltered}, that is of either {@code Row} or {@code RangeTombstoneMarker}.
  * An implementation of {@code UnfilteredRowIterator} <b>must</b> provide the following
  * guarantees:

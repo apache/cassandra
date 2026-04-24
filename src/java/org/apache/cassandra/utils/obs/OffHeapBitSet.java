@@ -51,7 +51,7 @@ public class OffHeapBitSet implements IBitSet
         }
         catch (OutOfMemoryError e)
         {
-            throw new RuntimeException("Out of native memory occured, You can avoid it by increasing the system ram space or by increasing bloom_filter_fp_chance.");
+            throw new RuntimeException("Out of native memory occurred, You can avoid it by increasing the system ram space or by increasing bloom_filter_fp_chance.");
         }
         // flush/clear the existing memory.
         clear();

@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * will be attmpted to be linked against. As Java doesn't have the equivalent
  * of a #ifdef, this means if a native method like posix_fadvise is defined in the
  * class but not available on the target operating system (e.g.
- * posix_fadvise is not availble on Darwin/Mac) this will cause the entire
+ * posix_fadvise is not available on Darwin/Mac) this will cause the entire
  * initial linking and initialization of JNA to fail. This means other
  * native calls that are supported on that target operating system will be
  * unavailable simply because of one native defined method not supported

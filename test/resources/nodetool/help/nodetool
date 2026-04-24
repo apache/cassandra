@@ -41,10 +41,10 @@ The most commonly used nodetool commands are:
     enableauditlog                      Enable the audit log
     enableautocompaction                Enable autocompaction for the given keyspace and table
     enablebackup                        Enable incremental backup
-    enablebinary                        Reenable native transport (binary protocol)
+    enablebinary                        Re-enable native transport (binary protocol)
     enablefullquerylog                  Enable full query logging, defaults for the options are configured in cassandra.yaml
-    enablegossip                        Reenable gossip
-    enablehandoff                       Reenable future hints storing on the current node
+    enablegossip                        Re-enable gossip
+    enablehandoff                       Re-enable future hints storing on the current node
     enablehintsfordc                    Enable hints for a data center that was previsouly disabled
     enableoldprotocolversions           Enable old protocol versions
     failuredetector                     Shows the failure detector information for the cluster

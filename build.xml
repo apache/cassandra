@@ -995,7 +995,7 @@
 
     <target name="_artifacts-init" depends="jar">
       <!-- gen-doc should be depended on, but it requires antora and pandoc installed,
-            so for now it's seperated to artifacts-with-docs -->
+            so for now it's separated to artifacts-with-docs -->
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />

@@ -54,7 +54,7 @@ import static org.apache.cassandra.utils.ExecutorUtils.shutdownAndWait;
  * A position of a counter value is the same for every thread for the same counter id.
  * Piggyback volatile visibility is expected for readers who execute getCount method to see recent writes to thread local arrays.
  * If a metric is not used anymore the position in the array is reused. Phantom references are used to track aliveness of metric users.
- * When a thread died the counter values accumulated by it are transfered to a shared summaryValues collection.
+ * When a thread died the counter values accumulated by it are transferred to a shared summaryValues collection.
  * Threads death is tracked using 2 approaches: FastThreadLocal.onRemoval callback and phantom references to Thread objects.
  */
 public class ThreadLocalMetrics
@@ -185,7 +185,7 @@ public class ThreadLocalMetrics
     private void release()
     {
         // Using this lock while moving we want to avoid races with readers in getCount
-        // such races can cause a transfered value lost or its double-counting by a reader
+        // such races can cause a transferred value lost or its double-counting by a reader
         Lock lock = summaryLock.writeLock();
         lock.lock();
         try

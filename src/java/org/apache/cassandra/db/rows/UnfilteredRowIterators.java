@@ -201,7 +201,7 @@ public abstract class UnfilteredRowIterators
         // TODO: in practice we could completely skip digesting the columns since they are more informative of what the
         // iterator may contain, and digesting the actual content is enough. And in fact, that would be more correct
         // (since again, the columns could be different without the information represented by the iterator being
-        // different), but removing them entirely is stricly speaking a breaking change (it would create mismatches on
+        // different), but removing them entirely is strictly speaking a breaking change (it would create mismatches on
         // upgrade) so we can only do on the next protocol version bump.
         if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
             iterator.columns().statics.digest(digest);

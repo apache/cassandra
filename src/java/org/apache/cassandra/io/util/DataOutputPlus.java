@@ -203,7 +203,7 @@ public interface DataOutputPlus extends DataOutput
 
     /**
      * Returns the current position of the underlying target like a file-pointer
-     * or the position withing a buffer. Not every implementation may support this
+     * or the position within a buffer. Not every implementation may support this
      * functionality. Whether or not this functionality is supported can be checked
      * via the {@link #hasPosition()}.
      *

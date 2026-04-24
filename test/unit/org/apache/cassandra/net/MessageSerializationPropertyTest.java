@@ -121,7 +121,7 @@ public class MessageSerializationPropertyTest implements Serializable
                                       + "\nsecond=%s\n",
                                       version,
                                       message.header.verb,
-                                      // toString methods are not relyable for messages, so use reflection to generate one
+                                      // toString methods are not reliable for messages, so use reflection to generate one
                                       new Object() { public String toString() { return CassandraGenerators.toStringRecursive(message); } },
                                       new Object() { public String toString() { return CassandraGenerators.toStringRecursive(read); } })
                                   .isEqualTo(ByteBufferUtil.bytesToHex(first.buffer()));

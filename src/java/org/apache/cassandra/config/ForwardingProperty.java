@@ -24,7 +24,7 @@ import org.yaml.snakeyaml.introspector.Property;
 
 /**
  * This class delegates all calls of {@link Property} to a {@link #delegate()}, used for cases where a small number of
- * methods want to be overriden from the delegate.
+ * methods want to be overridden from the delegate.
  *
  * This class acts as a decorator to a {@link Property} and allows decorating any method.
  */

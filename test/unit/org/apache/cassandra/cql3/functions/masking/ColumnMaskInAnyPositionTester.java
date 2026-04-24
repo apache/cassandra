@@ -33,7 +33,7 @@ import static java.lang.String.format;
 /**
  * {@link ColumnMaskTester} verifying that masks can be applied to columns in any position (partition key columns,
  * clustering key columns, static columns and regular columns). The columns of any depending materialized views should
- * be udpated accordingly.
+ * be updated accordingly.
  */
 @RunWith(Parameterized.class)
 public abstract class ColumnMaskInAnyPositionTester extends ColumnMaskTester

@@ -92,7 +92,7 @@ public final class NativeLibrary
         }
 
         // detect the OS type the JVM is running on and then set the CLibraryWrapper
-        // instance to a compatable implementation of CLibraryWrapper for that OS type
+        // instance to a compatible implementation of CLibraryWrapper for that OS type
         osType = getOsType();
         switch (osType)
         {

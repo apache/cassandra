@@ -368,7 +368,7 @@ final class HintsDispatcher implements AutoCloseable
             // We had a hint that was supposed to be done on Accord for the batch log (otherwise address would be non-null),
             // but Accord no longer manages that table/range and now we don't know which nodes (if any) are missing the Mutation.
             // Convert them to per replica hints *after* all the hints in this page have been applied so we can be reasonably sure
-            // this page isn't going to be played again thus avoiding any futher amplification from the same hint being
+            // this page isn't going to be played again thus avoiding any further amplification from the same hint being
             // replayed and repeatedly converted to per replica hints
             if (address == null)
             {

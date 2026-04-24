@@ -164,7 +164,7 @@ public class CMSAdmin extends AbstractCommand
                 if (!rf.contains(":"))
                 {
                     if (args.size() > 1)
-                        throw new IllegalArgumentException("Simple placement can only specify a single replication factor accross all data centers");
+                        throw new IllegalArgumentException("Simple placement can only specify a single replication factor across all data centers");
                     int parsedRf;
                     try
                     {

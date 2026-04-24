@@ -98,7 +98,7 @@ public abstract class LocalLog implements Closeable
     private static final Logger logger = LoggerFactory.getLogger(LocalLog.class);
 
     protected final AtomicReference<ClusterMetadata> committed;
-    // Indicates that, during process startup, the intial replay of persisted log entries has been performed
+    // Indicates that, during process startup, the initial replay of persisted log entries has been performed
     // and the log made ready for use. This involves adding the listeners and firing a one time post-commit
     // notification to them all.
     private final AtomicBoolean replayComplete = new AtomicBoolean();

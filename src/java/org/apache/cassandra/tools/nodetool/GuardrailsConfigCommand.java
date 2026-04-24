@@ -219,7 +219,7 @@ public abstract class GuardrailsConfigCommand extends AbstractCommand
                 else
                     reason = ex.getMessage();
 
-                throw new IllegalStateException(format("Error occured when setting the config for setter %s with arguments %s: %s",
+                throw new IllegalStateException(format("Error occurred when setting the config for setter %s with arguments %s: %s",
                                                        snakeCaseName, methodArgs, reason));
             }
         }
@@ -463,7 +463,7 @@ public abstract class GuardrailsConfigCommand extends AbstractCommand
         }
         catch (Throwable e)
         {
-            throw new RuntimeException("Error occured when getting the guardrails config", e);
+            throw new RuntimeException("Error occurred when getting the guardrails config", e);
         }
     }
 

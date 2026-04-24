@@ -115,9 +115,9 @@ public class PreV5Handlers
             channelPayloadBytesInFlight -= itemSize;
             boolean globalInFlightBytesBelowLimit = endpointPayloadTracker.release(itemSize) == ResourceLimits.Outcome.BELOW_LIMIT;
 
-            // Now check to see if we need to reenable the channel's autoRead.
+            // Now check to see if we need to re-enable the channel's autoRead.
             //
-            // If the current payload bytes in flight is zero, we must reenable autoread as
+            // If the current payload bytes in flight is zero, we must re-enable autoread as
             // 1) we allow no other thread/channel to do it, and
             // 2) there are no other events following this one (becuase we're at zero bytes in flight),
             // so no successive to trigger the other clause in this if-block.

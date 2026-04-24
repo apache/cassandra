@@ -660,7 +660,7 @@ public class DecayingEstimatedHistogramReservoirTest
 
                         for (int sampleIdx = 0; sampleIdx < 50; sampleIdx++)
                         {
-                            // add some noise so that low value samples do not race with the same likelyhood as the high value samples
+                            // add some noise so that low value samples do not race with the same likelihood as the high value samples
                             Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(1, 10), MILLISECONDS);
                             histogram.update(1109);
                         }

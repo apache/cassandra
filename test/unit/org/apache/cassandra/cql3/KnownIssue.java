@@ -23,12 +23,12 @@ import java.util.EnumSet;
 /**
  * In order to have a clean CI some known issues must be excluded from some tests until those issues are addressed.
  *
- * This type exists to make it easier to descover known issues and places in the code that account for them
+ * This type exists to make it easier to discover known issues and places in the code that account for them
  */
 public enum KnownIssue
 {
     SAI_INET_MIXED("https://issues.apache.org/jira/browse/CASSANDRA-19492",
-                   "SAI converts ipv4 to ipv6 to simplify the index, this causes issues with range search as it starts to mix the values, which isn't always desirable or intuative"),
+                   "SAI converts ipv4 to ipv6 to simplify the index, this causes issues with range search as it starts to mix the values, which isn't always desirable or intuitive"),
     CUSTOM_INDEX_MAX_COLUMN_48("https://issues.apache.org/jira/browse/CASSANDRA-19897",
                                "Columns can be up to 50 chars, but CREATE CUSTOM INDEX only allows up to 48"),
     SHORT_AND_VARINT_GET_INT_FUNCTIONS("https://issues.apache.org/jira/browse/CASSANDRA-19874",

@@ -348,7 +348,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private Object[][] searchWithPageAndLimit(float[] queryVector, int pageSize, int limit)
     {
-        // we don't know how many will be returned in case of paging, because coordinator resumes from last-returned-row's partiton
+        // we don't know how many will be returned in case of paging, because coordinator resumes from last-returned-row's partition
         return executeWithPaging("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, pageSize);
     }
 

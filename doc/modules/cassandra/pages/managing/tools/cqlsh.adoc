@@ -107,7 +107,7 @@ Options:
   highest version supported by the server will be used.
   Examples: "3.0.3", "3.1.0"
 `--protocol-version=PROTOCOL_VERSION`::
-  Specify a specific protcol version otherwise the
+  Specify a specific protocol version otherwise the
   client will default and downgrade as necessary
 `-e EXECUTE` `--execute=EXECUTE`::
   Execute the statement and quit.

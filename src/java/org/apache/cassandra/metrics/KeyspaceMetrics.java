@@ -116,7 +116,7 @@ public class KeyspaceMetrics
     public final LatencyMetrics idealCLWriteLatency;
     /** Speculative retries **/
     public final Counter speculativeRetries;
-    /** Speculative retry occured but still timed out **/
+    /** Speculative retry occurred but still timed out **/
     public final Counter speculativeFailedRetries;
     /** Needed to speculate, but didn't have enough replicas **/
     public final Counter speculativeInsufficientReplicas;

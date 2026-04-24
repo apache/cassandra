@@ -21,7 +21,7 @@ import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
 
-@Command(name = "enablegossip", description = "Reenable gossip")
+@Command(name = "enablegossip", description = "Re-enable gossip")
 public class EnableGossip extends AbstractCommand
 {
     @Override

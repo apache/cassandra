@@ -334,7 +334,7 @@ public abstract class Constants
 
             CQL3Type.Native nt = (CQL3Type.Native)receiverType;
 
-            // If the receiver type match the prefered type we can straight away return an exact match
+            // If the receiver type match the preferred type we can straight away return an exact match
             if (nt.getType().equals(preferedType))
                 return AssignmentTestable.TestResult.EXACT_MATCH;
 
@@ -420,7 +420,7 @@ public abstract class Constants
             // be use for any numerical type, including date, time, ...) so they don't have an exact type. And in fact,
             // for good or bad, any literal is valid for custom types, so we can never claim an exact type.
             // But really, the reason it's fine to return null here is that getExactTypeIfKnown is only used to
-            // implement testAssignment() in Selectable and that method is overriden above.
+            // implement testAssignment() in Selectable and that method is overridden above.
             return null;
         }
 

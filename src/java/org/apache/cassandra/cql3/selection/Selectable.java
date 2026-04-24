@@ -79,9 +79,9 @@ public interface Selectable extends AssignmentTestable
      *
      * @param keyspace the keyspace on which the statement for which this is a
      * {@code Selectable} is on.
-     * @return the type of this {@code Selectable} if inferrable, or {@code null}
+     * @return the type of this {@code Selectable} if inferable, or {@code null}
      * otherwise (for instance, the type isn't inferable for a bind marker. Even for
-     * literals, the exact type is not inferrable since they are valid for many
+     * literals, the exact type is not inferable since they are valid for many
      * different types and so this will return {@code null} too).
      */
     public AbstractType<?> getExactTypeIfKnown(String keyspace);

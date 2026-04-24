@@ -29,7 +29,7 @@ package org.apache.cassandra.index.transactions;
  *   {@code SecondaryIndexManager#newUpdateTransaction}
  *
  * * {@code CompactionTransaction}
- *   Used during compaction when stale entries which have been superceded are cleaned up from the index. As rows in a
+ *   Used during compaction when stale entries which have been superseded are cleaned up from the index. As rows in a
  *   partition are merged during the compaction, index entries for any purged rows are cleaned from the index to
  *   compensate for the fact that they may not have been removed at write time if the data in the base table had been
  *   already flushed to disk (and so was processed as an insert, not an update by the UpdateTransaction). These

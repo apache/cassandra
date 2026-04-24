@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.AbstractGuavaIterator;
  * Range iterators contain primary keys, in sorted order, with no duplicates.  They also
  * know their minimum and maximum keys, and an upper bound on the number of keys they contain.
  * <p>
- * Only certain methods are designed to be overriden.  The others are marked private or final.
+ * Only certain methods are designed to be overridden.  The others are marked private or final.
  */
 @NotThreadSafe
 public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey> implements Closeable

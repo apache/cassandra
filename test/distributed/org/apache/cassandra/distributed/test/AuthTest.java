@@ -70,7 +70,7 @@ public class AuthTest extends TestBaseImpl
 
     /**
      * CASSANDRA-12525 has solved this issue in a way that was reconciling the passwords (ie any override of the password would
-     * supercede default password as soon as node learns about existence of other peers). With transactional metadata, this
+     * supersede default password as soon as node learns about existence of other peers). With transactional metadata, this
      * issue simply does not exist since nodes always know about the auth placements.
      */
     @Test

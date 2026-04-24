@@ -104,7 +104,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public interface OnPostTransferTo extends Listener
     {
-        void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException;
+        void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transferred) throws IOException;
     }
 
     public interface OnPreTransferFrom extends Listener
@@ -114,7 +114,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public interface OnPostTransferFrom extends Listener
     {
-        void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException;
+        void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transferred) throws IOException;
     }
 
     public interface OnPreWrite extends Listener
@@ -373,9 +373,9 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostTransferTo(PathFilter filter, OnPostTransferTo callback)
     {
-        return onPostTransferTo((path, channel, position, count, target, transfered) -> {
+        return onPostTransferTo((path, channel, position, count, target, transferred) -> {
             if (filter.accept(path))
-                callback.postTransferTo(path, channel, position, count, target, transfered);
+                callback.postTransferTo(path, channel, position, count, target, transferred);
         });
     }
 
@@ -399,9 +399,9 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostTransferFrom(PathFilter filter, OnPostTransferFrom callback)
     {
-        return onPostTransferFrom((path, channel, src, position, count, transfered) -> {
+        return onPostTransferFrom((path, channel, src, position, count, transferred) -> {
             if (filter.accept(path))
-                callback.postTransferFrom(path, channel, src, position, count, transfered);
+                callback.postTransferFrom(path, channel, src, position, count, transferred);
         });
     }
 
@@ -780,18 +780,18 @@ public class ListenableFileSystem extends ForwardingFileSystem
         public long transferTo(long position, long count, WritableByteChannel target) throws IOException
         {
             notifyListeners(onPreTransferTo, l -> l.preTransferTo(path, this, position, count, target));
-            long transfered = super.transferTo(position, count, target);
-            notifyListeners(onPostTransferTo, l -> l.postTransferTo(path, this, position, count, target, transfered));
-            return transfered;
+            long transferred = super.transferTo(position, count, target);
+            notifyListeners(onPostTransferTo, l -> l.postTransferTo(path, this, position, count, target, transferred));
+            return transferred;
         }
 
         @Override
         public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException
         {
             notifyListeners(onPreTransferFrom, l -> l.preTransferFrom(path, this, src, position, count));
-            long transfered = super.transferFrom(src, position, count);
-            notifyListeners(onPostTransferFrom, l -> l.postTransferFrom(path, this, src, position, count, transfered));
-            return transfered;
+            long transferred = super.transferFrom(src, position, count);
+            notifyListeners(onPostTransferFrom, l -> l.postTransferFrom(path, this, src, position, count, transferred));
+            return transferred;
         }
 
         @Override

@@ -92,7 +92,7 @@ public class StaticColumnsTest extends CQLTester
         flush(forceFlush);
         assertRows(execute("SELECT * FROM %s"),row(0, 1, 24, 1));
 
-        // But that explicitely deleting the static column does remove it
+        // But that explicitly deleting the static column does remove it
         execute("DELETE s FROM %s WHERE k=0");
         flush(forceFlush);
         assertRows(execute("SELECT * FROM %s"), row(0, 1, null, 1));

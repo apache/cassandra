@@ -521,7 +521,7 @@ public class SSTablePartitionsTest extends OfflineToolUtils
     }
 
     /**
-     * Test the flag for specifying partiton keys to be considered.
+     * Test the flag for specifying partition keys to be considered.
      */
     @Test
     public void testIncludedKeys()
@@ -566,7 +566,7 @@ public class SSTablePartitionsTest extends OfflineToolUtils
     }
 
     /**
-     * Test the flag for specifying partiton keys to be excluded.
+     * Test the flag for specifying partition keys to be excluded.
      */
     @Test
     public void testExcludedKeys()

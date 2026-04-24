@@ -75,7 +75,7 @@ public interface ClusteringIndexFilter
      * @param lastReturned the last clustering that was returned for the query we are paging for. The
      * resulting filter will be such that results coming after {@code lastReturned} are returned
      * (where coming after means "greater than" if the filter is not reversed, "lesser than" otherwise;
-     * futher, whether the comparison is strict or not depends on {@code inclusive}).
+     * further, whether the comparison is strict or not depends on {@code inclusive}).
      * @param inclusive whether or not we want to include the {@code lastReturned} in the newly returned
      * page of results.
      *

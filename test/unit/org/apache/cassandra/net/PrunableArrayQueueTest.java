@@ -144,13 +144,13 @@ public class PrunableArrayQueueTest
 
         logger.info("Testing unreliable pruner with random seed {}...", seed);
 
-        int iteratons = 100;
+        int iterations = 100;
         int startingQueueSize = 1024;
         double pruneChance = 0.1;
         double errorOnKeptChance = 0.00005;
         double errorOnPruneChance = 0.00002;
 
-        for (int i = 0; i < iteratons; i++)
+        for (int i = 0; i < iterations; i++)
         {
             int failureValue = rand.nextInt(startingQueueSize);
 

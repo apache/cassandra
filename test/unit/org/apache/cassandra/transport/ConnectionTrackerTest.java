@@ -50,7 +50,7 @@ public class ConnectionTrackerTest
     @BeforeClass
     public static void beforeClass()
     {
-        // perform daemon initialization to intialize core components (like authenticator) that ConnectionTracker
+        // perform daemon initialization to initialize core components (like authenticator) that ConnectionTracker
         // depends on.
         DatabaseDescriptor.daemonInitialization();
     }
@@ -164,7 +164,7 @@ public class ConnectionTrackerTest
         Mockito.when(spyChannel.attr(Connection.attributeKey)).thenThrow(new IllegalArgumentException("Unexpected behavior"));
         connectionTracker.addConnection(spyChannel, connection);
 
-        // When calling countConnectedClients, we expect that expection to be propagated as we can't get a correct calculation.
+        // When calling countConnectedClients, we expect that exception to be propagated as we can't get a correct calculation.
         connectionTracker.countConnectedClients(PREDICATE_TRUE);
     }
 

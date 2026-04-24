@@ -244,7 +244,7 @@ public final class MemtableParams
                 factory = (Memtable.Factory) factoryField.get(null);
             }
             if (!parametersCopy.isEmpty())
-                throw new ConfigurationException("Memtable class " + className + " does not accept any futher parameters, but " +
+                throw new ConfigurationException("Memtable class " + className + " does not accept any further parameters, but " +
                                                  parametersCopy + " were given.");
             return factory;
         }

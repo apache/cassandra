@@ -240,7 +240,7 @@ public abstract class CQLSSTableWriterTest
     @Test
     public void testSyncWithinPartition() throws Exception
     {
-        // Check that the write respect the buffer size even if we only insert rows withing the same partition (#7360)
+        // Check that the write respect the buffer size even if we only insert rows within the same partition (#7360)
         // To do that simply, we use a writer with a buffer of 1MiB, and write 2 rows in the same partition with a value
         // > 1MiB and validate that this created more than 1 sstable.
         String schema = "CREATE TABLE " + qualifiedTable + " ("

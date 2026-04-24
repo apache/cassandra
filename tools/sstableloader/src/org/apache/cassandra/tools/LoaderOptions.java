@@ -553,7 +553,7 @@ public class LoaderOptions
                     logger.info("ssl storage port is deprecated and not used, all communication goes though storage port " +
                                 "which is able to handle encrypted communication too.");
 
-                // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
+                // Copy the encryption options and apply the config so that argument parsing can access isEnabled.
                 clientEncOptionsBuilder = new EncryptionOptions.ClientEncryptionOptions.Builder(config.client_encryption_options);
                 clientEncOptions = clientEncOptionsBuilder.build();
                 serverEncOptionsBuilder = new EncryptionOptions.ServerEncryptionOptions.Builder(config.server_encryption_options);

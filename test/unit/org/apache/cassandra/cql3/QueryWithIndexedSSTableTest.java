@@ -52,7 +52,7 @@ public class QueryWithIndexedSSTableTest extends CQLTester
         compact();
 
         // Sanity check that we're testing what we want to test, that is that we're reading from an indexed
-        // sstable. Note that we'll almost surely have a single indexed sstable in practice, but it's theorically
+        // sstable. Note that we'll almost surely have a single indexed sstable in practice, but it's theoretically
         // possible for a compact strategy to yield more than that and as long as one is indexed we're pretty
         // much testing what we want. If this check ever fails on some specific setting, we'll have to either
         // tweak ROWS and VALUE_LENGTH, or skip the test on those settings.

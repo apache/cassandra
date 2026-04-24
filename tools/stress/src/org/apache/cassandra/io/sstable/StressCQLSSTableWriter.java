@@ -169,7 +169,7 @@ public class StressCQLSSTableWriter implements Closeable
      * Adds a new row to the writer.
      * <p>
      * Each provided value type should correspond to the types of the CQL column
-     * the value is for. The correspondance between java type and CQL type is the
+     * the value is for. The correspondence between java type and CQL type is the
      * same one than the one documented at
      * www.datastax.com/drivers/java/2.0/apidocs/com/datastax/driver/core/DataType.Name.html#asJavaClass().
      * <p>
@@ -208,7 +208,7 @@ public class StressCQLSSTableWriter implements Closeable
      * <a href="http://cassandra.apache.org/doc/cql3/CQL.html#identifiers">case-sensitive quoted identifier</a>
      * (in which case the map key must use the exact case of the column).
      *
-     * @param values a map of colum name to column values representing the new
+     * @param values a map of column name to column values representing the new
      * row to add. Note that if a column is not part of the map, it's value will
      * be {@code null}. If the map contains keys that does not correspond to one
      * of the column of the insert statement used when creating this writer, the
@@ -298,7 +298,7 @@ public class StressCQLSSTableWriter implements Closeable
      * values in the order of the insert statement used during construction of
      * this write.
      *
-     * @param values a map of colum name to column values representing the new
+     * @param values a map of column name to column values representing the new
      * row to add. Note that if a column is not part of the map, it's value will
      * be {@code null}. If the map contains keys that does not correspond to one
      * of the column of the insert statement used when creating this writer, the

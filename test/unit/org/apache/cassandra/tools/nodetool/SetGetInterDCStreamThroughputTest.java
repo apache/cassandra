@@ -68,7 +68,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     public void testSmallPositive()
     {
         // As part of CASSANDRA-15234 we had to do some tweaks with precision. This test has to ensure no regressions
-        // happen, hopefully. Internally data rate parameters values and rate limitter are set in double. Users can set
+        // happen, hopefully. Internally data rate parameters values and rate limiter are set in double. Users can set
         // and get only integers
         assertSetGetValidThroughput(1, 1 * BYTES_PER_MEGABIT);
         assertSetGetValidThroughputMiB(1, 1 * StreamRateLimiter.BYTES_PER_MEBIBYTE);

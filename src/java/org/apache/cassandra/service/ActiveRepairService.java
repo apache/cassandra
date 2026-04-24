@@ -863,7 +863,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
         ParticipateState state = participate(parentRepairSession);
         if (state != null)
-            state.phase.success("Cleanup message recieved");
+            state.phase.success("Cleanup message received");
     }
 
     private void failRepair(TimeUUID parentRepairSession, String errorMsg)

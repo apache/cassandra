@@ -2219,7 +2219,7 @@ def main(cmdline, pkgpath):
                              'by default the highest version supported by the server will be used.'
                              ' Examples: "3.0.3", "3.1.0"')
     parser.add_argument("--protocol-version", type=int, default=None,
-                        help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+                        help='Specify a specific protocol version otherwise the client will default and downgrade as necessary')
 
     parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
     parser.add_argument("--connect-timeout", default=Shell.DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',

@@ -21,7 +21,7 @@ import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
 
-@Command(name = "enablebinary", description = "Reenable native transport (binary protocol)")
+@Command(name = "enablebinary", description = "Re-enable native transport (binary protocol)")
 public class EnableBinary extends AbstractCommand
 {
     @Override

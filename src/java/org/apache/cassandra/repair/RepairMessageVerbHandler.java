@@ -313,7 +313,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     CleanupMessage cleanup = (CleanupMessage) message.payload;
                     ParticipateState state = ctx.repair().participate(cleanup.parentRepairSession);
                     if (state != null)
-                        state.phase.success("Cleanup message recieved");
+                        state.phase.success("Cleanup message received");
                     ctx.repair().removeParentRepairSession(cleanup.parentRepairSession);
                     sendAck(message);
                 }

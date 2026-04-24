@@ -169,7 +169,7 @@ public class DefaultSslContextFactoryTest
         // Now we should have checked the private key's expiry
         Assert.assertTrue(defaultSslContextFactoryImpl2.keystoreContext.checkedExpiry);
 
-        // Make sure that new factory object preforms the fresh private key expiry check
+        // Make sure that new factory object performs the fresh private key expiry check
         DefaultSslContextFactory defaultSslContextFactoryImpl3 = new DefaultSslContextFactory(config);
         Assert.assertFalse(defaultSslContextFactoryImpl3.keystoreContext.checkedExpiry);
         defaultSslContextFactoryImpl3.buildKeyManagerFactory();
@@ -219,7 +219,7 @@ public class DefaultSslContextFactoryTest
         Assert.assertTrue(defaultSslContextFactoryImpl2.outboundKeystoreContext.checkedExpiry);
         Assert.assertFalse(defaultSslContextFactoryImpl2.keystoreContext.checkedExpiry);
 
-        // Make sure that new factory object preforms the fresh private key expiry check
+        // Make sure that new factory object performs the fresh private key expiry check
         DefaultSslContextFactory defaultSslContextFactoryImpl3 = new DefaultSslContextFactory(config);
         Assert.assertFalse(defaultSslContextFactoryImpl3.outboundKeystoreContext.checkedExpiry);
         defaultSslContextFactoryImpl3.buildOutboundKeyManagerFactory();

@@ -21,7 +21,7 @@ import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
 
-@Command(name = "enablehandoff", description = "Reenable future hints storing on the current node")
+@Command(name = "enablehandoff", description = "Re-enable future hints storing on the current node")
 public class EnableHandoff extends AbstractCommand
 {
     @Override

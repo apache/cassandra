@@ -28,7 +28,7 @@ import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.tcm.membership.Location;
 
 /**
- * Holds token range informations for the sake of {@link StorageService#describeRing}.
+ * Holds token range information for the sake of {@link StorageService#describeRing}.
  *
  * This class mostly exists for the sake of {@link StorageService#describeRing},
  * which used to rely on a thrift class which this is the equivalent of. This is

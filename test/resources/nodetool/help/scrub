@@ -15,7 +15,7 @@ OPTIONS
             Node hostname or ip address
 
         -j <jobs>, --jobs <jobs>
-            Number of sstables to scrub simultanously, set to 0 to use all
+            Number of sstables to scrub simultaneously, set to 0 to use all
             available compaction threads
 
         -n, --no-validate

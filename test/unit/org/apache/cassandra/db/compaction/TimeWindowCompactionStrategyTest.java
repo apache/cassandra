@@ -333,7 +333,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
-        // Create a second sstable without TTL and with a row superceded by the expiring row
+        // Create a second sstable without TTL and with a row superseded by the expiring row
         new RowUpdateBuilder(cfs.metadata(), timestamp - 1000, key.getKey())
             .clustering("column")
             .add("val", value).build().applyUnsafe();

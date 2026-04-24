@@ -1165,12 +1165,12 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | <identifier> NOT IN '(' ( <term> ( ',' <term>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' NOT IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
-             | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
+             | TOKEN '(' <identifier> ( ',' <identifier>)* ')' <op> <term>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY | NOT CONTAINS | NOT CONTAINS KEY
 <group-by> ::= (<identifier>,)* (<identifier> | <function>)
 <order-by> ::= <ordering> ( ',' <odering> )*
-<ordering> ::= <identifer> ( ASC | DESC )?
+<ordering> ::= <identifier> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
 
 <select-options> ::= <select-option> ( AND <select-option> )*
@@ -1872,7 +1872,7 @@ bc(syntax)..
 
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
-p. The following table gives additional informations on the native data types, and on which kind of "constants":#constants each type supports:
+p. The following table gives additional information on the native data types, and on which kind of "constants":#constants each type supports:
 
 |_. type    |_. constants supported|_. description|
 |@ascii@    |   strings            |ASCII character string|
@@ -2403,7 +2403,7 @@ CREATE FUNCTION fct_using_udt ( udtarg frozen<custom_type> )
 
 User-defined functions can be used in "@SELECT@":#selectStmt, "@INSERT@":#insertStmt and "@UPDATE@":#updateStmt statements.
 
-The implicitly available @udfContext@ field (or binding for script UDFs) provides the neccessary functionality to create new UDT and tuple values.
+The implicitly available @udfContext@ field (or binding for script UDFs) provides the necessary functionality to create new UDT and tuple values.
 
 bc(sample). 
 CREATE TYPE custom_type (txt text, i int);
@@ -2566,7 +2566,7 @@ The @to_json()@ function may be used similarly to @SELECT JSON@, but for a singl
 
 h2(#appendixA). Appendix A: CQL Keywords
 
-CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywords cannot be used as identifier, they are truly reserved for the language (but one can enclose a reserved keyword by double-quotes to use it as an identifier). Non-reserved keywords however only have a specific meaning in certain context but can used as identifer otherwise. The only _raison d'être_ of these non-reserved keywords is convenience: some keyword are non-reserved when it was always easy for the parser to decide whether they were used as keywords or not.
+CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywords cannot be used as identifier, they are truly reserved for the language (but one can enclose a reserved keyword by double-quotes to use it as an identifier). Non-reserved keywords however only have a specific meaning in certain context but can used as identifier otherwise. The only _raison d'être_ of these non-reserved keywords is convenience: some keyword are non-reserved when it was always easy for the parser to decide whether they were used as keywords or not.
 
 |_. Keyword      |_. Reserved? |
 | @ADD@          | yes |
@@ -2798,7 +2798,7 @@ h3. 3.3.0
 * User-defined functions are now supported through "@CREATE FUNCTION@":#createFunctionStmt and "@DROP FUNCTION@":#dropFunctionStmt.
 * User-defined aggregates are now supported through "@CREATE AGGREGATE@":#createAggregateStmt and "@DROP AGGREGATE@":#dropAggregateStmt.
 * Allows double-dollar enclosed strings literals as an alternative to single-quote enclosed strings.
-* Introduces Roles to supercede user based authentication and access control
+* Introduces Roles to supersede user based authentication and access control
 * "@Date@":#usingdates and "@Time@":usingtime data types have been added
 * "@JSON@":#json support has been added
 * @Tinyint@ and @Smallint@ data types have been added

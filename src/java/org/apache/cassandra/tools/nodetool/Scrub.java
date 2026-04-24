@@ -64,7 +64,7 @@ public class Scrub extends AbstractCommand
 
     @Option(paramLabel = "jobs",
             names = { "-j", "--jobs" },
-            description = "Number of sstables to scrub simultanously, set to 0 to use all available compaction threads")
+            description = "Number of sstables to scrub simultaneously, set to 0 to use all available compaction threads")
     private int jobs = 2;
 
     @Override

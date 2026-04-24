@@ -14,7 +14,7 @@ OPTIONS
             Node hostname or ip address
 
         -j <jobs>, --jobs <jobs>
-            Number of sstables to cleanup simultanously, set to 0 to use all
+            Number of sstables to cleanup simultaneously, set to 0 to use all
             available compaction threads
 
         -p <port>, --port <port>

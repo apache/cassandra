@@ -304,7 +304,7 @@ public abstract class CQLTester
         @Override
         public void onClusterClose(EventLoopGroup eventLoopGroup)
         {
-            // shutdown driver connection immediatelly
+            // shutdown driver connection immediately
             eventLoopGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS).syncUninterruptibly();
         }
     };
@@ -487,7 +487,7 @@ public abstract class CQLTester
         SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
     }
 
-    // So derived classes can get enough intialization to start setting DatabaseDescriptor options
+    // So derived classes can get enough initialization to start setting DatabaseDescriptor options
     public static void daemonInitialization()
     {
         ServerTestUtils.daemonInitialization();
@@ -2135,7 +2135,7 @@ public abstract class CQLTester
     private static boolean isEmptyContainerNull(AbstractType<?> type,
                                                 ByteBuffer expectedByteValue, ByteBuffer actualValue)
     {
-        // MAINTANCE : this MUST be in-sync with the DataType version
+        // MAINTENANCE : this MUST be in-sync with the DataType version
 
         // TODO confirm this isn't a bug...
         // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
@@ -2153,7 +2153,7 @@ public abstract class CQLTester
                                                 com.datastax.driver.core.ProtocolVersion version,
                                                 ByteBuffer expectedByteValue, ByteBuffer actualValue)
     {
-        // MAINTANCE : this MUST be in-sync with the AbstractType version
+        // MAINTENANCE : this MUST be in-sync with the AbstractType version
 
         // TODO confirm this isn't a bug...
         // There is an edge case, UDTs... its always UDTs that cause problems.... :shakes-fist:
@@ -2175,9 +2175,9 @@ public abstract class CQLTester
      * Determine whether the source and target TableMetadata is equal without compare the table name and dropped columns.
      * @param source the source TableMetadata
      * @param target the target TableMetadata
-     * @param compareParams wether compare table's params
-     * @param compareIndexes wether compare table's indexes
-     * @param compareIndexWithOutName wether ignore indexes' name when doing index comparison
+     * @param compareParams whether compare table's params
+     * @param compareIndexes whether compare table's indexes
+     * @param compareIndexWithOutName whether ignore indexes' name when doing index comparison
      *                                if true then compare the index without name
      * */
     protected boolean equalsWithoutTableNameAndDropCns(TableMetadata source, TableMetadata target, boolean compareParams, boolean compareIndexes, boolean compareIndexWithOutName)
@@ -3740,7 +3740,7 @@ public abstract class CQLTester
 
         /**
          * Used by {@link #cleanupFileSystemListeners()} to know if file system listeners should be removed at the start
-         * of a test; can disable for cases where listeners are needed cross mutliple tests.
+         * of a test; can disable for cases where listeners are needed cross multiple tests.
          */
         protected static boolean cleanupFileSystemListeners = true;
 

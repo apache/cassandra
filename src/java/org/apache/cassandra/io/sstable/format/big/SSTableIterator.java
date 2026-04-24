@@ -157,7 +157,7 @@ public class SSTableIterator extends AbstractSSTableIterator<RowIndexEntry>
         {
             while (true)
             {
-                // Our previous read might have made us cross an index block boundary. If so, update our informations.
+                // Our previous read might have made us cross an index block boundary. If so, update our information.
                 // If we read from the beginning of the partition, this is also what will initialize the index state.
                 indexState.updateBlock();
 

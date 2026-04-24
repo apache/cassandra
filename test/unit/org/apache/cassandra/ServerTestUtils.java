@@ -78,7 +78,7 @@ import org.apache.cassandra.utils.Sortable;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 /**
- * Utility methodes used by SchemaLoader and CQLTester to manage the server and its state.
+ * Utility methods used by SchemaLoader and CQLTester to manage the server and its state.
  *
  */
 public final class ServerTestUtils
@@ -318,7 +318,7 @@ public final class ServerTestUtils
         // SchemaLoader.prepareServer
         // |-- SchemaLoader.prepareServerNoRegister
         // |   |-- ServerTestUtils.daemonInitialization();        # sets DD.partitioner according to yaml (i.e. BOP)
-        // |   |-- ServerTestUtils.prepareServer();               # includes inititial CMS using DD partitioner
+        // |   |-- ServerTestUtils.prepareServer();               # includes initial CMS using DD partitioner
         // |-- StorageService.instance.setPartitionerUnsafe(M3P)  # test wants to use LongToken
         // |-- ServerTestUtils.recreateCMS                        # recreates the CMS using the updated partitioner
         ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());

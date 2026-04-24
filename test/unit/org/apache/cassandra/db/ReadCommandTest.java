@@ -1457,7 +1457,7 @@ public class ReadCommandTest
         new RowUpdateBuilder(cfs.metadata.get(), 0, ByteBufferUtil.bytes("key-0")).clustering("cc").add("a", ByteBufferUtil.bytes("a")).build().apply();
         Util.flush(cfs);
         cfs.getLiveSSTables().forEach(sstable -> mutateRepaired(cfs, sstable, 111, null));
-        // Fully deleted partition (static and regular rows) in an unrepaired sstable, so not included in the intial digest
+        // Fully deleted partition (static and regular rows) in an unrepaired sstable, so not included in the initial digest
         RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key-1")).apply();
         RowUpdateBuilder.deleteRow(cfs.metadata(), 0, ByteBufferUtil.bytes("key-1"), "cc").apply();
         Util.flush(cfs);

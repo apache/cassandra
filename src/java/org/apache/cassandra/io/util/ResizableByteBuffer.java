@@ -35,7 +35,7 @@ public class ResizableByteBuffer
      * Loads the length (UnsignedShort) from the data reader, and then loads the new data into the buffer.
      *
      * @param dataReader data source
-     * @return true if the underlying array/buffer had to be resized to accomodate the new data, false otherwise
+     * @return true if the underlying array/buffer had to be resized to accommodate the new data, false otherwise
      * @throws IOException
      */
     public final boolean loadShortLength(RandomAccessReader dataReader) throws IOException
@@ -49,7 +49,7 @@ public class ResizableByteBuffer
      *
      * @param dataReader data source
      * @param newLength new data length
-     * @return true if the underlying array/buffer had to be resized to accomodate the new data, false otherwise
+     * @return true if the underlying array/buffer had to be resized to accommodate the new data, false otherwise
      * @throws IOException
      */
     public final boolean load(RandomAccessReader dataReader, int newLength) throws IOException
@@ -101,7 +101,7 @@ public class ResizableByteBuffer
      *
      * @param dataReader data source
      * @param partLength new data length
-     * @return true if the underlying array/buffer had to be resized to accomodate the new data, false otherwise
+     * @return true if the underlying array/buffer had to be resized to accommodate the new data, false otherwise
      * @throws IOException
      */
     public final boolean loadPart(RandomAccessReader dataReader, int partLength) throws IOException

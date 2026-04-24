@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.memory.ByteBufferCloner;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 /**
- * Represents an identifer for a CQL column definition.
+ * Represents an identifier for a CQL column definition.
  * TODO : should support light-weight mode without text representation for when not interned
  */
 public class ColumnIdentifier implements IMeasurableMemory, Comparable<ColumnIdentifier>

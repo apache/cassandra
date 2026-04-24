@@ -101,7 +101,7 @@ public class TermSelectionTest extends CQLTester
 
         assertRows(execute("SELECT [1, min(ck), max(ck)] FROM %s"), row(list(1, 1, 3)));
         assertRows(execute("SELECT {1, min(ck), max(ck)} FROM %s"), row(set(1, 1, 3)));
-        assertRows(execute("SELECT (map<text, int>) {'litteral' : 1, 'min' : min(ck), 'max' : max(ck)} FROM %s"), row(map("litteral", 1, "min", 1, "max", 3)));
+        assertRows(execute("SELECT (map<text, int>) {'literal' : 1, 'min' : min(ck), 'max' : max(ck)} FROM %s"), row(map("literal", 1, "min", 1, "max", 3)));
 
         // Test List nested within Lists
         assertRows(execute("SELECT [[], [min(ck), max(ck)]] FROM %s"),
@@ -385,7 +385,7 @@ public class TermSelectionTest extends CQLTester
                    row(userType("t", userType("a", 1, "b", 1, "c", timestampInMicros))));
 
 
-        // Test Litteral Set with Duration elements
+        // Test Literal Set with Duration elements
         assertInvalidMessage("Durations are not allowed inside sets: set<duration>",
                              "SELECT pk, ck, (set<duration>){2d, 1mo} FROM %s");
 

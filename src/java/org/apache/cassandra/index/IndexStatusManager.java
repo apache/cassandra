@@ -61,7 +61,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
  * Handles the status of an index across the ring, updating the status per index and endpoint
  * in a per-endpoint map.
  * <p>
- * Peer status changes are recieved via the {@link StorageService} {@link org.apache.cassandra.gms.IEndpointStateChangeSubscriber}.
+ * Peer status changes are received via the {@link StorageService} {@link org.apache.cassandra.gms.IEndpointStateChangeSubscriber}.
  * <p>
  * Local status changes are propagated to the {@link Gossiper} using an async executor.
  */

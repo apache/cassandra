@@ -178,7 +178,7 @@ public abstract class Guardrail
      * Note: this method is not thread safe and should only be used during guardrail initialization
      *
      * @param shouldThrow if exception should throw when Guardrail is violated,
-     *                    default false means don't throw expection when client state is not provided.
+     *                    default false means don't throw exception when client state is not provided.
      * @return current guardrail
      */
     Guardrail throwOnNullClientState(boolean shouldThrow)

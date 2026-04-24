@@ -114,7 +114,7 @@ public class ErrorCollectorTest
     @Test
     public void testAppendSnippetWithInvalidToken()
     {
-        String query = "select * fom users";
+        String query = "select * from users";
 
         ErrorCollector collector = new ErrorCollector(query);
 

@@ -27,7 +27,7 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * Represents {@code [a, b, c, d]} in CQL.  Mutliple {@link org.apache.cassandra.db.marshal.AbstractType} use array literals,
+ * Represents {@code [a, b, c, d]} in CQL.  Multiple {@link org.apache.cassandra.db.marshal.AbstractType} use array literals,
  * so this class is meant to act as a proxy once the real type is known.
  */
 public class ArrayLiteral extends Term.Raw

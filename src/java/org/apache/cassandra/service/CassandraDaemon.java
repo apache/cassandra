@@ -482,9 +482,9 @@ public class CassandraDaemon
             return;
 
         // We can face several cases:
-        //  1) The system data are spread accross the data file locations and need to be moved to
+        //  1) The system data are spread across the data file locations and need to be moved to
         //     the first data location (upgrade to 4.0)
-        //  2) The system data are spread accross the data file locations and need to be moved to
+        //  2) The system data are spread across the data file locations and need to be moved to
         //     the system keyspace location configured by the user (upgrade to 4.0)
         //  3) The system data are stored in the first data location and need to be moved to
         //     the system keyspace location configured by the user (system_data_file_directory has been configured)

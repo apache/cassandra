@@ -760,14 +760,14 @@ public class ConnectionTest
         // The reserved capacity (pendingBytes) at the end of the round should equal to K - N * M,
         //   which you can find in the assertion.
         test((inbound, outbound, endpoint) -> {
-            // max capacity equals to permit-free sendQueueCapacity + the minimun of endpoint and global reserve
+            // max capacity equals to permit-free sendQueueCapacity + the minimum of endpoint and global reserve
             double maxSendQueueCapacity = outbound.settings().applicationSendQueueCapacityInBytes +
                                           Double.min(outbound.settings().applicationSendQueueReserveEndpointCapacityInBytes,
                                                      outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());
             int concurrency = 100;
             int attempts = 10000;
             int acquireCount = concurrency * attempts;
-            long acquireStep = Math.round(maxSendQueueCapacity * 1.2 / acquireCount / 2); // It is guranteed to acquire (~20%) more
+            long acquireStep = Math.round(maxSendQueueCapacity * 1.2 / acquireCount / 2); // It is guaranteed to acquire (~20%) more
             // The total overly acquired amount divides the amount acquired in each step. Get the ceil value so not to miss the acquire that just exceeds.
             long maxFailures = (long) Math.ceil((acquireCount * acquireStep * 2 - maxSendQueueCapacity) / acquireStep); // The result must be in the range of lone
             AtomicLong acquisitionFailures = new AtomicLong();
@@ -783,7 +783,7 @@ public class ConnectionTest
                     outbound.unsafeReleaseCapacity(acquireStep);
             };
 
-            // Start N acquirer and releaser to contend for capcaity
+            // Start N acquirer and releaser to contend for capacity
             List<Runnable> submitOrder = new ArrayList<>(concurrency * 2);
             for (int i = 0 ; i < concurrency ; ++i)
                 submitOrder.add(acquirer);

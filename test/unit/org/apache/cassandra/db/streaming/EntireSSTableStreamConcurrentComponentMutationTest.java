@@ -173,7 +173,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
 
     /**
      * Entire-sstable-streaming receiver will throw checksum validation failure because concurrent stats metadata
-     * update causes the actual transfered file size to be different from the one in {@link ComponentManifest}
+     * update causes the actual transferred file size to be different from the one in {@link ComponentManifest}
      */
     @Test
     public void testStreamWithStatsMutation() throws Throwable

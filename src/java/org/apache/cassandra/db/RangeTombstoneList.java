@@ -414,7 +414,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         if (start == finish)
         {
-            // We want to make sure the range are stricly included within the queried slice as this
+            // We want to make sure the range are strictly included within the queried slice as this
             // make it easier to combine things when iterating over successive slices.
             ClusteringBound<?> s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
             ClusteringBound<?> e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
@@ -432,7 +432,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                 if (idx >= size || idx > finish)
                     return endOfData();
 
-                // We want to make sure the range are stricly included within the queried slice as this
+                // We want to make sure the range are strictly included within the queried slice as this
                 // make it easier to combine things when iterating over successive slices. This means that
                 // for the first and last range we might have to "cut" the range returned.
                 if (idx == start && comparator.compare(starts[idx], slice.start()) < 0)
@@ -462,7 +462,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         if (start == finish)
         {
-            // We want to make sure the range are stricly included within the queried slice as this
+            // We want to make sure the range are strictly included within the queried slice as this
             // make it easier to combine things when iterator over successive slices.
             ClusteringBound<?> s = comparator.compare(starts[start], slice.start()) < 0 ? slice.start() : starts[start];
             ClusteringBound<?> e = comparator.compare(slice.end(), ends[start]) < 0 ? slice.end() : ends[start];
@@ -479,7 +479,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             {
                 if (idx < 0 || idx < finish)
                     return endOfData();
-                // We want to make sure the range are stricly included within the queried slice as this
+                // We want to make sure the range are strictly included within the queried slice as this
                 // make it easier to combine things when iterator over successive slices. This means that
                 // for the first and last range we might have to "cut" the range returned.
                 if (idx == start && comparator.compare(slice.end(), ends[idx]) < 0)

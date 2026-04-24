@@ -467,7 +467,7 @@ public class DatabaseDescriptorTest
     @Test
     public void testCalculateDefaultSpaceInMiB()
     {
-        // check prefered size is used for a small storage volume
+        // check preferred size is used for a small storage volume
         int preferredInMiB = 667;
         int numerator = 2;
         int denominator = 3;

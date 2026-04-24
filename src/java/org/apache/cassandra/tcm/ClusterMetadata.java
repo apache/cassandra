@@ -345,7 +345,7 @@ public class ClusterMetadata
     }
 
     /**
-     * Run through all inflight MultiStepOperations and if any impact the specifed node, apply their metadata
+     * Run through all inflight MultiStepOperations and if any impact the specified node, apply their metadata
      * transformations. Only used outside of tests by @{link localWriteRangesAllSettled} to identify how placements for
      * the local node will be affected by in flight operations. In that case, the result is cached so this should be
      * called at most once for a given ClusterMetadata instance.

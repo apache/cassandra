@@ -606,7 +606,7 @@ Table of Contents
           [string] and <type> is an [option] that corresponds to the description
           (what this description is depends a bit on the context: in results to
           selects, this will be either the user chosen alias or the selection used
-          (often a colum name, but it can be a function call too). In results to
+          (often a column name, but it can be a function call too). In results to
           a PREPARE, this will be either the name of the corresponding bind variable
           or the column name for the variable if it is "anonymous") and type of
           the corresponding result. The option for <type> is either a native

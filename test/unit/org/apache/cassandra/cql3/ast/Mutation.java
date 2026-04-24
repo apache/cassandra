@@ -213,7 +213,7 @@ public abstract class Mutation implements Statement
             this.ttl = ttl;
             this.timestamp = timestamp;
             if (ttl.isEmpty() && timestamp.isEmpty())
-                throw new IllegalStateException("Empty USING isnt allowed");
+                throw new IllegalStateException("Empty USING isn't allowed");
         }
 
         public static Optional<Using> create(Optional<TTL> ttl, Optional<Timestamp> timestamp)
