@@ -217,8 +217,8 @@ public class ConsensusMigrationMutationHelper
         for (TableId tableId : mutation.getTableIds())
         {
             boolean test = tokenShouldBeWrittenThroughAccord(cm, tableId, token, TransactionalMode::nonSerialWritesThroughAccord, TransactionalMigrationFromMode::nonSerialWritesThroughAccord);
-            containsAccordMutation = containsAccordMutation || test;
-            containsNormalMutation = containsNormalMutation || !test;
+            containsAccordMutation |= test;
+            containsNormalMutation |= !test;
 
             if (containsAccordMutation && containsNormalMutation)
                 return true;
