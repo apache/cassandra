@@ -2043,7 +2043,8 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting /* Only for testing */
-    public static void setAuthenticatorNegotationEnabled(boolean isEnabled) {
+    public static void setAuthenticatorNegotationEnabled(boolean isEnabled)
+    {
         conf.authenticator_negotiation.enabled = isEnabled;
     }
 
@@ -2055,12 +2056,12 @@ public class DatabaseDescriptor
 
     public static List<IAuthenticator> getNegotiableAuthenticators()
     {
-        return DatabaseDescriptor.negotiableAuthenticators;
+        return negotiableAuthenticators;
     }
 
     public static void setNegotiableAuthenticators(List<IAuthenticator> authenticators)
     {
-        DatabaseDescriptor.negotiableAuthenticators = new ArrayList<>(authenticators);
+        negotiableAuthenticators = new ArrayList<>(authenticators);
         updateAuthenticationRequired();
     }
 
@@ -2108,7 +2109,7 @@ public class DatabaseDescriptor
 
     public static void setDefaultAuthenticator(IAuthenticator authenticator)
     {
-        DatabaseDescriptor.defaultAuthenticator = authenticator;
+        defaultAuthenticator = authenticator;
         updateAuthenticationRequired();
     }
 
@@ -2124,38 +2125,22 @@ public class DatabaseDescriptor
             authenticationRequired = negotiableAuthenticators.stream()
                 .anyMatch(IAuthenticator::requireAuthentication);
         }
-        else if (defaultAuthenticator != null)
-        {
-            // Fallback to default authenticator for non-negotiation mode
-            authenticationRequired = defaultAuthenticator.requireAuthentication();
-        }
         else
         {
-            // Not yet initialized
-            authenticationRequired = false;
+            // Fallback to default authenticator for non-negotiation mode
+            authenticationRequired = defaultAuthenticator != null && defaultAuthenticator.requireAuthentication();
         }
     }
 
     /**
      * Indicates if this node uses an authenticator that requires authentication. With authenticator negotiation,
      * returns true if ANY negotiable authenticator requires authentication. This determines whether authentication
-     * infrastructure (caches, role management) should be enabled, as well as to determine whether anonymous (i.e.
-     * unauthenticated) users can elevate permissions to perform CREATE/DROP TRIGGER and other operations.
+     * infrastructure (caches, role management) should be enabled, and whether anonymous (i.e. unauthenticated)
+     * users can elevate permissions to perform CREATE/DROP TRIGGER and other operations.
      */
     public static boolean isAuthenticationRequired()
     {
         return authenticationRequired;
-    }
-
-    /**
-     * Indicates if this node is configured with an authenticator of the specified type.
-     * @param clazz The class of the authenticator.
-     * @return True if this node has an authenticator of the specified type, false otherwise.
-     */
-    private static boolean hasAuthenticator(Class<? extends IAuthenticator> clazz)
-    {
-        return negotiableAuthenticators.stream()
-                                       .anyMatch(auth -> clazz.isAssignableFrom(auth.getClass()));
     }
 
     public static IAuthorizer getAuthorizer()

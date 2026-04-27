@@ -89,7 +89,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
                     Map<String, List<String>> supportedOptions = new HashMap<>();
                     if (DatabaseDescriptor.isAuthenticatorNegotiationEnabled())
-                            supportedOptions.put(StartupMessage.AUTHENTICATORS, new ArrayList<>());
+                        supportedOptions.put(StartupMessage.AUTHENTICATORS, List.of());
                     supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
                     supportedOptions.put(StartupMessage.COMPRESSION, compressions);
                     supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());

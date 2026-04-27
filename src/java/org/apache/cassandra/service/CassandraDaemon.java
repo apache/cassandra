@@ -693,7 +693,7 @@ public class CassandraDaemon
     }
 
     @VisibleForTesting
-    public static boolean authSetupCalled()
+    public static boolean isAuthSetupCalled()
     {
         return authSetupCalled.get();
     }

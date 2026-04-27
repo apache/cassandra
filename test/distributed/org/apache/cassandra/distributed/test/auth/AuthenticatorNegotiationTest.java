@@ -38,10 +38,10 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Exercises authenticator negotation for non-negotiating clients. When negotiation is enabled, non-negotiating
- * clients should always get the configured default authenticator. In addition, clients authenticating through
- * the AllowAllAuthenticator should authenticate as 'anonymous' and, because negotiation is enabled with at least
- * authenticator that requires authentication, should not have elevated super-user privileges (required to, for
- * example, create, drop or list roles, or create or drop triggers.
+ * clients should always get the configured default authenticator. In addition, when negotiation is enabled with at
+ * least one authenticator that requires authentication, clients authenticating through the AllowAllAuthenticator (or
+ * any other authenticator that does not require authentication) should authenticate as 'anonymous' and should not be
+ * granted super-user privileges by default.
  * <p/>
  * This is in contrast to 'anonymous' behavior when negotiation is not enabled. In that case, all clients use the
  * same authenticator, and if that authenticator does not require authentication the 'anonymous' user will default
@@ -50,15 +50,14 @@ import static org.junit.Assert.assertTrue;
 public class AuthenticatorNegotiationTest extends TestBaseImpl
 {
     /**
-     * Tests that unauthenticated clients get the anonymous role (not superuser bypass) when
-     * authentication is required globally. This validates the security fix in ClientState.isSuper()
-     * where it checks DatabaseDescriptor.isAuthenticationRequired() instead of per-connection
-     * authenticator.requireAuthentication().
+     * Tests that unauthenticated clients do not receive automatic superuser privileges when authentication is
+     * required globally. This validates the security fix in ClientState.isSuper() where it checks
+     * DatabaseDescriptor.isAuthenticationRequired() instead of per-connection authenticator.requireAuthentication().
      * 
      * Configuration: negotiation enabled with PasswordAuthenticator in negotiable list,
      * but default=AllowAllAuthenticator so non-negotiating clients connect unauthenticated.
      * Since ANY negotiable authenticator requires auth, unauthenticated clients should NOT
-     * get superuser bypass.
+     * receive automatic superuser privileges.
      */
     @Test
     public void testUnauthenticatedClientsGetAnonymousRole() throws IOException
@@ -90,16 +89,12 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
                                         })
                                         .start())
         {
-            // Non-negotiating client connects without credentials, falls back to AllowAllAuthenticator
-            // Gets anonymous user, but should NOT get superuser bypass because isAuthenticationRequired() is true
+            // Non-negotiating client connects without credentials, falls back to AllowAllAuthenticator. Gets
+            // anonymous user, but should NOT receive automatic superuser privileges because isAuthenticationRequired()
+            // is true.
             com.datastax.driver.core.Cluster.Builder builder = 
                 com.datastax.driver.core.Cluster.builder()
                     .addContactPoint("127.0.0.1");
-            /*
-                    .withSocketOptions(new com.datastax.driver.core.SocketOptions()
-                        .setConnectTimeoutMillis(60000)  // 60 seconds
-                        .setReadTimeoutMillis(60000));   // 60 seconds
-             */
 
             try (com.datastax.driver.core.Cluster c = builder.build(); 
                  Session session = c.connect())
@@ -115,11 +110,11 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
                 assertTrue("Should get at least one row", rs.iterator().hasNext());
                 
                 // Negative test: Anonymous user should NOT be able to create roles (requires superuser)
-                // This verifies no superuser bypass is granted
+                // This verifies no automatic superuser privileges are granted
                 try
                 {
                     session.execute("CREATE ROLE test_role");
-                    org.junit.Assert.fail("Anonymous user should not be able to create roles (no superuser bypass)");
+                    org.junit.Assert.fail("Anonymous user should not be able to create roles (no automatic superuser privileges)");
                 }
                 catch (com.datastax.driver.core.exceptions.UnauthorizedException e)
                 {
@@ -132,13 +127,10 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
     }
 
     /**
-     * Tests that the ClientState.isSuper() bypass is disabled when authentication is required globally.
-     * This directly tests the security fix where isSuper() checks DatabaseDescriptor.isAuthenticationRequired()
-     * instead of the per-connection authenticator.requireAuthentication().
-     * 
-     * CREATE TRIGGER calls ClientState.ensureIsSuperuser() which delegates to isSuper(), making it
-     * the perfect test for the bypass logic.
-     * 
+     * Tests that automatic superuser privileges are not granted to unauthenticated clients when authentication
+     * is required globally. This directly tests the security fix where isSuper() checks
+     * DatabaseDescriptor.isAuthenticationRequired() instead of the per-connection authenticator.requireAuthentication().
+     *
      * Configuration: negotiation enabled with PasswordAuthenticator in negotiable list,
      * but default=AllowAllAuthenticator so non-negotiating clients connect unauthenticated.
      * Since ANY negotiable authenticator requires auth, isSuper() should return false for anonymous.
@@ -177,11 +169,8 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
             com.datastax.driver.core.Cluster.Builder authBuilder = 
                 com.datastax.driver.core.Cluster.builder()
                     .addContactPoint("127.0.0.1")
-                    .withAuthProvider(new PlainTextAuthProvider("cassandra", "cassandra"))
-                    .withSocketOptions(new com.datastax.driver.core.SocketOptions()
-                        .setConnectTimeoutMillis(60000)
-                        .setReadTimeoutMillis(60000));
-            
+                    .withAuthProvider(new PlainTextAuthProvider("cassandra", "cassandra"));
+
             try (com.datastax.driver.core.Cluster c = authBuilder.build(); 
                  Session session = c.connect())
             {
@@ -192,10 +181,7 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
             // Non-negotiating client connects without credentials, falls back to AllowAllAuthenticator
             com.datastax.driver.core.Cluster.Builder anonBuilder = 
                 com.datastax.driver.core.Cluster.builder()
-                    .addContactPoint("127.0.0.1")
-                    .withSocketOptions(new com.datastax.driver.core.SocketOptions()
-                        .setConnectTimeoutMillis(60000)
-                        .setReadTimeoutMillis(60000));
+                    .addContactPoint("127.0.0.1");
 
             try (com.datastax.driver.core.Cluster c = anonBuilder.build(); 
                  Session session = c.connect())
@@ -208,11 +194,11 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
                 try
                 {
                     session.execute("CREATE TRIGGER test_trigger ON test_ks.test_table USING 'org.apache.cassandra.triggers.AuditTrigger'");
-                    org.junit.Assert.fail("Anonymous user should not be able to create triggers (superuser bypass disabled)");
+                    org.junit.Assert.fail("Anonymous user should not be able to create triggers (no automatic superuser privileges)");
                 }
                 catch (com.datastax.driver.core.exceptions.UnauthorizedException e)
                 {
-                    // Expected - isSuper() returned false, no bypass granted
+                    // Expected - isSuper() returned false, no automatic superuser privileges granted
                     assertTrue("Should get superuser required message",
                               e.getMessage().contains("Only superusers are allowed to perform CREATE TRIGGER queries"));
                 }
@@ -228,9 +214,9 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
     }
 
     /**
-     * Tests that authenticated superusers retain their privileges when authenticator negotiation
-     * is enabled. This is a positive control test to ensure the permission system works correctly
-     * and isn't just blocking everything.
+     * Tests that authenticated superusers retain their privileges when authenticator negotiation is enabled.
+     * This is a positive control test to ensure the permission system works correctly and isn't just blocking
+     * all privileged access.
      * 
      * Configuration: default=PasswordAuthenticator, negotiable=[PasswordAuthenticator, AllowAllAuthenticator]
      * Non-negotiating client falls back to PasswordAuthenticator and must authenticate.
@@ -270,11 +256,8 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
             com.datastax.driver.core.Cluster.Builder authBuilder = 
                 com.datastax.driver.core.Cluster.builder()
                     .addContactPoint("127.0.0.1")
-                    .withAuthProvider(new PlainTextAuthProvider("cassandra", "cassandra"))
-                    .withSocketOptions(new com.datastax.driver.core.SocketOptions()
-                        .setConnectTimeoutMillis(60000)
-                        .setReadTimeoutMillis(60000));
-            
+                    .withAuthProvider(new PlainTextAuthProvider("cassandra", "cassandra"));
+
             try (com.datastax.driver.core.Cluster c = authBuilder.build(); 
                  Session session = c.connect())
             {
@@ -336,8 +319,9 @@ public class AuthenticatorNegotiationTest extends TestBaseImpl
             // Use DataStax driver which doesn't support negotiation protocol
             // It should fall back to default (PasswordAuthenticator) and require credentials
             com.datastax.driver.core.Cluster.Builder builder =
-                com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1")
-                                                          .withAuthProvider(new PlainTextAuthProvider("cassandra", "cassandra"));
+                com.datastax.driver.core.Cluster.builder()
+                                                .addContactPoint("127.0.0.1")
+                                                .withAuthProvider(new PlainTextAuthProvider("cassandra", "cassandra"));
 
 
             try (com.datastax.driver.core.Cluster c = builder.build(); 

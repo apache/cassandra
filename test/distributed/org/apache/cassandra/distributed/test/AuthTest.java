@@ -63,7 +63,7 @@ public class AuthTest extends TestBaseImpl
             await().pollDelay(1, SECONDS)
                    .pollInterval(1, SECONDS)
                    .atMost(10, SECONDS)
-                   .until(() -> instance.callOnInstance(() -> CassandraDaemon.authSetupCalled()));
+                   .until(() -> instance.callOnInstance(() -> CassandraDaemon.isAuthSetupCalled()));
         }
     }
 

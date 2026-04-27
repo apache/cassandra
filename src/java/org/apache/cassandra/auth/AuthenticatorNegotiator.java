@@ -48,21 +48,18 @@ public class AuthenticatorNegotiator
      */
     public static IAuthenticator negotiateAuthenticator(@Nonnull Set<String> clientAuthenticators)
     {
-        if (DatabaseDescriptor.isAuthenticatorNegotiationEnabled())
-        {
-            Set<IAuthenticator.AuthenticationMode> clientAuthenticationModes =
-                clientAuthenticators.stream()
-                                    .map(name -> new IAuthenticator.AuthenticationMode(name) {})
-                                    .collect(Collectors.toSet());
+        Set<IAuthenticator.AuthenticationMode> clientAuthenticationModes =
+            clientAuthenticators.stream()
+                                .map(name -> new IAuthenticator.AuthenticationMode(name) {})
+                                .collect(Collectors.toSet());
 
-            for (IAuthenticator authenticator : DatabaseDescriptor.getNegotiableAuthenticators())
+        for (IAuthenticator authenticator : DatabaseDescriptor.getNegotiableAuthenticators())
+        {
+            if (!Collections.disjoint(clientAuthenticationModes, authenticator.getSupportedAuthenticationModes()))
             {
-                if (!Collections.disjoint(clientAuthenticationModes, authenticator.getSupportedAuthenticationModes()))
-                {
-                    logger.info("Negotiated authenticator with client with options {}: selected {}",
-                                clientAuthenticationModes, authenticator.getClass().getName());
-                    return authenticator;
-                }
+                logger.info("Negotiated authenticator with client with options {}: selected {}",
+                            clientAuthenticationModes, authenticator.getClass().getName());
+                return authenticator;
             }
         }
 
