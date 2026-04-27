@@ -43,6 +43,7 @@
             <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
                  <exclude name=".asf.yaml"/>
+                 <exclude name=".claude/**/*"/>
                  <exclude name=".git-blame-ignore-revs"/>
                  <exclude name=".idea/codeStyles/Project.xml"/>
                  <exclude name=".idea/codeStyles/codeStyleConfig.xml"/>

@@ -1118,6 +1118,7 @@
           <!-- AI stuff -->
           <exclude name="AGENTS.md" />
           <exclude name="CLAUDE.md" />
+          <exclude name=".claude/**" />
         </tarfileset>
 
         <!-- python driver -->
@@ -1170,6 +1171,7 @@
           <!-- AI stuff -->
           <exclude name="AGENTS.md" />
           <exclude name="CLAUDE.md" />
+          <exclude name=".claude/**" />
         </tarfileset>
         <!-- Shell includes in bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
