@@ -19,7 +19,6 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -36,6 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.log.Entry;
@@ -339,32 +339,25 @@ public class Commit
     }
 
     @VisibleForTesting
-    public static IVerbHandler<Commit> handlerForTests(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
+    public static IVerbHandler<Commit> handlerForTests(Processor processor, Replicator replicator)
     {
-        return new Handler(processor, replicator, messagingService, () -> LOCAL);
+        return new Handler(processor, replicator, () -> LOCAL);
     }
 
     static class Handler implements IVerbHandler<Commit>
     {
         private final Processor processor;
         private final Replicator replicator;
-        private final BiConsumer<Message<?>, InetAddressAndPort> messagingService;
         private final Supplier<ClusterMetadataService.State> cmsStateSupplier;
 
         Handler(Processor processor, Replicator replicator, Supplier<ClusterMetadataService.State> cmsStateSupplier)
         {
-            this(processor, replicator, MessagingService.instance()::send, cmsStateSupplier);
-        }
-
-        Handler(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService, Supplier<ClusterMetadataService.State> cmsStateSupplier)
-        {
             this.processor = processor;
             this.replicator = replicator;
-            this.messagingService = messagingService;
             this.cmsStateSupplier = cmsStateSupplier;
         }
 
-        public void doVerb(Message<Commit> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<Commit> message) throws IOException
         {
             checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
@@ -377,12 +370,12 @@ public class Commit
                 logger.info("Responding with full result {} to sender {}", result, message.from());
                 // TODO: this response message can get lost; how do we re-discover this on the other side?
                 // TODO: what if we have holes after replaying?
-                messagingService.accept(message.responseWith(result), message.from());
+                messaging.send(message.responseWith(result), message.from());
             }
             else
             {
                 Result.Failure failure = result.failure();
-                messagingService.accept(message.responseWith(failure), message.from());
+                messaging.send(message.responseWith(failure), message.from());
             }
         }
 

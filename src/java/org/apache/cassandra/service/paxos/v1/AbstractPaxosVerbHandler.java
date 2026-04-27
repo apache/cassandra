@@ -28,7 +28,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -38,7 +38,7 @@ public abstract class AbstractPaxosVerbHandler implements IVerbHandler<Commit>
     private static final Logger logger = LoggerFactory.getLogger(AbstractPaxosVerbHandler.class);
     private static final String logMessageTemplate = "Received paxos request from {} for token {} outside valid range for keyspace {}";
 
-    public void doVerb(Message<Commit> message)
+    public void doVerb(MessageDelivery messaging, Message<Commit> message)
     {
         Commit commit = message.payload;
         DecoratedKey key = commit.update.partitionKey();
@@ -50,20 +50,20 @@ public abstract class AbstractPaxosVerbHandler implements IVerbHandler<Commit>
             // Log at most 1 message per second
                 NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), commit.update.metadata().keyspace);
 
-            sendFailureResponse(message);
+            sendFailureResponse(messaging, message);
         }
         else
         {
-            processMessage(message);
+            processMessage(messaging, message);
         }
     }
 
-    abstract void processMessage(Message<Commit> message);
+    abstract void processMessage(MessageDelivery messaging, Message<Commit> message);
 
-    private static void sendFailureResponse(Message<?> respondTo)
+    private static void sendFailureResponse(MessageDelivery messaging, Message<?> respondTo)
     {
         Message reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
-        MessagingService.instance().send(reply, respondTo.from());
+        messaging.send(reply, respondTo.from());
     }
 
     private static boolean isOutOfRangeCommit(String keyspace, DecoratedKey key)

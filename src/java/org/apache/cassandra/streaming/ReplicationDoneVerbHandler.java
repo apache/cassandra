@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.StorageService;
 
 public class ReplicationDoneVerbHandler implements IVerbHandler
@@ -31,10 +31,10 @@ public class ReplicationDoneVerbHandler implements IVerbHandler
 
     private static final Logger logger = LoggerFactory.getLogger(ReplicationDoneVerbHandler.class);
 
-    public void doVerb(Message msg)
+    public void doVerb(MessageDelivery messaging, Message msg)
     {
         StorageService.instance.confirmReplication(msg.from());
         logger.debug("Replying to {}@{}", msg.id(), msg.from());
-        MessagingService.instance().send(msg.emptyResponse(), msg.from());
+        messaging.send(msg.emptyResponse(), msg.from());
     }
 }

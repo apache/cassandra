@@ -41,7 +41,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
@@ -77,9 +77,9 @@ public final class VirtualMutation implements IMutation
         }
     };
 
-    public static final IVerbHandler<VirtualMutation> handler = message -> {
+    public static final IVerbHandler<VirtualMutation> handler = (messaging, message) -> {
         message.payload.apply();
-        MessagingService.instance().respond(NoPayload.noPayload, message);
+        messaging.respond(NoPayload.noPayload, message);
     };
 
     private final String keyspaceName;

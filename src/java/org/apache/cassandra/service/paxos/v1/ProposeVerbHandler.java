@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.paxos.v1;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 
@@ -32,10 +32,10 @@ public class ProposeVerbHandler extends AbstractPaxosVerbHandler
     }
 
     @Override
-    public void processMessage(Message<Commit> message)
+    public void processMessage(MessageDelivery messaging, Message<Commit> message)
     {
         Boolean response = doPropose(message.payload);
         Message<Boolean> reply = message.responseWith(response);
-        MessagingService.instance().send(reply, message.from());
+        messaging.send(reply, message.from());
     }
 }

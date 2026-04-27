@@ -54,7 +54,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
@@ -105,7 +104,7 @@ public class WatermarkCollector implements TopologyListener
 
     public final IVerbHandler<Void> handler = new IVerbHandler<>()
     {
-        public void doVerb(Message<Void> message)
+        public void doVerb(MessageDelivery messaging, Message<Void> message)
         {
             Invariants.require(AccordService.started());
             Snapshot snapshot;
@@ -117,7 +116,7 @@ public class WatermarkCollector implements TopologyListener
                 syncedSnapshot.putAll(synced);
                 snapshot = new Snapshot(closedSnapshot, retiredSnapshot, syncedSnapshot);
             }
-            MessagingService.instance().respond(snapshot, message);
+            messaging.respond(snapshot, message);
         }
     };
 

@@ -61,6 +61,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -215,7 +216,7 @@ public abstract class ConsensusKeyMigrationState
                     .executor(ImmediateExecutor.INSTANCE)
                     .build(LOADING_FUNCTION);
 
-    public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = message -> {
+    public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = (messaging, message) -> {
         saveConsensusKeyMigrationLocally(message.payload.partitionKey, message.payload.tableId, message.payload.consensusMigratedAt);
     };
 

@@ -31,6 +31,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -116,9 +117,9 @@ public class PaxosUpdateLowBallot extends AsyncFuture<Void> implements RequestCa
 
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
-        return (in) -> {
+        return (messaging, in) -> {
             PaxosState.ballotTracker().updateLowBound(Ballot.atUnixMicrosWithLsb(in.payload.lowBound, 0, Flag.GLOBAL));
-            ctx.messaging().respond(noPayload, in);
+            messaging.respond(noPayload, in);
         };
     }
 

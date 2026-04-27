@@ -19,13 +19,14 @@ package org.apache.cassandra.batchlog;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.utils.TimeUUID;
 
 public final class BatchRemoveVerbHandler implements IVerbHandler<TimeUUID>
 {
     public static final BatchRemoveVerbHandler instance = new BatchRemoveVerbHandler();
 
-    public void doVerb(Message<TimeUUID> message)
+    public void doVerb(MessageDelivery messaging, Message<TimeUUID> message)
     {
         BatchlogManager.remove(message.payload);
     }

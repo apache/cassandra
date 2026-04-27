@@ -32,7 +32,8 @@ public interface IVerbHandler<T>
      * Note that the caller should not be holding any locks when calling this method
      * because the implementation may be synchronized.
      *
+     * @param messaging - the messaging service to use for sending responses or forwarding messages.
      * @param message - incoming message that needs handling.
      */
-    void doVerb(Message<T> message) throws IOException;
+    void doVerb(MessageDelivery messaging, Message<T> message) throws IOException;
 }

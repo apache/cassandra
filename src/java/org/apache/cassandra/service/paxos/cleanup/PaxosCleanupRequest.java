@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
@@ -77,7 +78,7 @@ public class PaxosCleanupRequest
 
     public static IVerbHandler<PaxosCleanupRequest> createVerbHandler(SharedContext ctx)
     {
-        return in -> {
+        return (messaging, in) -> {
             PaxosCleanupRequest request = in.payload;
 
             boolean isUrgent = in.header.hasFlag(MessageFlag.URGENT);
@@ -89,7 +90,7 @@ public class PaxosCleanupRequest
                 String msg = String.format("Rejecting cleanup request %s from %s. Some ranges are not replicated (%s)",
                                            request.session, in.from(), request.ranges);
                 Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, msg), isUrgent);
-                ctx.messaging().send(response, in.respondTo());
+                messaging.send(response, in.respondTo());
                 return;
             }
 
@@ -100,18 +101,18 @@ public class PaxosCleanupRequest
                 public void onSuccess(@Nullable PaxosCleanupResponse finished)
                 {
                     Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, coordinator.getNow(), isUrgent);
-                    ctx.messaging().send(response, in.respondTo());
+                    messaging.send(response, in.respondTo());
                 }
 
                 public void onFailure(Throwable throwable)
                 {
                     Message<PaxosCleanupResponse> response = Message.out(PAXOS2_CLEANUP_RSP2, PaxosCleanupResponse.failed(request.session, throwable.getMessage()), isUrgent);
-                    ctx.messaging().send(response, in.respondTo());
+                    messaging.send(response, in.respondTo());
                 }
             });
 
             // ack the request so the coordinator knows we've started
-            ctx.messaging().respond(noPayload, in);
+            messaging.respond(noPayload, in);
 
             coordinator.start();
         };

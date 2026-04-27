@@ -19,15 +19,15 @@ package org.apache.cassandra.batchlog;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 
 public final class BatchStoreVerbHandler implements IVerbHandler<Batch>
 {
     public static final BatchStoreVerbHandler instance = new BatchStoreVerbHandler();
 
-    public void doVerb(Message<Batch> message)
+    public void doVerb(MessageDelivery messaging, Message<Batch> message)
     {
         BatchlogManager.store(message.payload);
-        MessagingService.instance().send(message.emptyResponse(), message.from());
+        messaging.send(message.emptyResponse(), message.from());
     }
 }

@@ -23,6 +23,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.tracing.Tracing;
@@ -35,13 +36,13 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
-    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress, Map<ParamType, Object> params)
+    private void respond(MessageDelivery messaging, Message<?> respondTo, InetAddressAndPort respondToAddress, Map<ParamType, Object> params)
     {
         Tracing.trace("Enqueuing response to {}", respondToAddress);
         Message<?> response = respondTo.emptyResponse();
         if (!params.isEmpty())
             response = response.withParams(params);
-        MessagingService.instance().send(response, respondToAddress);
+        messaging.send(response, respondToAddress);
     }
 
     private void failed()
@@ -49,7 +50,7 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         Tracing.trace("Payload application resulted in WriteTimeout, not replying");
     }
 
-    public void doVerb(Message<Mutation> message)
+    public void doVerb(MessageDelivery messaging, Message<Mutation> message)
     {
         if (approxTime.now() > message.expiresAtNanos())
         {
@@ -64,12 +65,12 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 
         ForwardingInfo forwardTo = message.forwardTo();
         if (forwardTo != null)
-            forwardToLocalNodes(message, forwardTo);
+            forwardToLocalNodes(messaging, message, forwardTo);
 
         InetAddressAndPort respondToAddress = message.respondTo();
         try
         {
-            processMessage(message, respondToAddress);
+            processMessage(messaging, message, respondToAddress);
         }
         catch (WriteTimeoutException wto)
         {
@@ -77,13 +78,13 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         }
     }
 
-    protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
+    protected void applyMutation(MessageDelivery messaging, Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
         Map<ParamType, Object> params = MessageParams.capture();
-        message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress, params), wto -> failed());
+        message.payload.applyFuture().addCallback(o -> respond(messaging, message, respondToAddress, params), wto -> failed());
     }
 
-    private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)
+    private static void forwardToLocalNodes(MessageDelivery messaging, Message<Mutation> originalMessage, ForwardingInfo forwardTo)
     {
         Message.Builder<Mutation> builder =
             Message.builder(originalMessage)
@@ -96,7 +97,7 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         forwardTo.forEach((id, target) ->
         {
             Tracing.trace("Enqueuing forwarded write to {}", target);
-            MessagingService.instance().send(message, target);
+            messaging.send(message, target);
         });
     }
 }

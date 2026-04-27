@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.NoPayload;
 
 /**
@@ -36,7 +37,7 @@ public final class SchemaPullVerbHandler implements IVerbHandler<NoPayload>
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaPullVerbHandler.class);
 
-    public void doVerb(Message<NoPayload> message)
+    public void doVerb(MessageDelivery messaging, Message<NoPayload> message)
     {
         logger.warn("Schema pull request from {} ignored - please upgrade", message.from());
     }

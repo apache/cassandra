@@ -56,6 +56,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
@@ -600,12 +601,12 @@ public class PaxosRepair extends AbstractPaxosRepair
     public static class RequestHandler implements IVerbHandler<PaxosRepair.Request>
     {
         @Override
-        public void doVerb(Message<PaxosRepair.Request> message)
+        public void doVerb(MessageDelivery messaging, Message<PaxosRepair.Request> message)
         {
             PaxosRepair.Request request = message.payload;
             if (!isInRangeAndShouldProcess(message.from(), request.partitionKey, request.table, false))
             {
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                messaging.respondWithFailure(UNKNOWN, message);
                 return;
             }
 
@@ -627,7 +628,7 @@ public class PaxosRepair extends AbstractPaxosRepair
             }
 
             Response response = new Response(latestWitnessed, acceptedButNotCommited, committed);
-            MessagingService.instance().respond(response, message);
+            messaging.respond(response, message);
         }
     }
 

@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
 import org.apache.cassandra.service.snapshot.SnapshotType;
@@ -35,7 +35,7 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
     public static final SnapshotVerbHandler instance = new SnapshotVerbHandler();
     private static final Logger logger = LoggerFactory.getLogger(SnapshotVerbHandler.class);
 
-    public void doVerb(Message<SnapshotCommand> message)
+    public void doVerb(MessageDelivery messaging, Message<SnapshotCommand> message)
     {
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
@@ -60,6 +60,6 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         }
 
         logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from());
-        MessagingService.instance().send(message.emptyResponse(), message.from());
+        messaging.send(message.emptyResponse(), message.from());
     }
 }

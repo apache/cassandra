@@ -45,6 +45,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
@@ -185,7 +186,7 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
 
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
-        return in -> {
+        return (messaging, in) -> {
             if (DatabaseDescriptor.getAccordTransactionsEnabled())
                 ClusterMetadataService.instance().fetchLogFromPeerOrCMS(in.from(), in.epoch());
             ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
@@ -194,7 +195,7 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
             Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
             PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
             Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));
-            ctx.messaging().send(out, in.respondTo());
+            messaging.send(out, in.respondTo());
         };
     }
 

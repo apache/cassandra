@@ -30,6 +30,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.PrepareMessage;
@@ -94,10 +95,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     }
 
     @Override
-    public void doVerb(final Message<RepairMessage> message)
+    public void doVerb(MessageDelivery messaging, final Message<RepairMessage> message)
     {
         if (DatabaseDescriptor.getAccordTransactionsEnabled()
-            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(message)))
+            && ctx.cms().maybeFetchLogFromPeerOrCMSAsync(ctx.messaging(), message, () -> doVerb(messaging, message)))
             return;
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;

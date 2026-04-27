@@ -29,7 +29,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.tcm.log.LogState;
 
 public class FetchPeerLog
@@ -75,7 +75,7 @@ public class FetchPeerLog
         public static Handler instance = new Handler();
         private static final Logger logger = LoggerFactory.getLogger(Handler.class);
 
-        public void doVerb(Message<FetchPeerLog> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<FetchPeerLog> message) throws IOException
         {
             FetchPeerLog request = message.payload;
 
@@ -84,7 +84,7 @@ public class FetchPeerLog
             LogState delta = ClusterMetadataService.instance().log().storage().getLogState(message.payload.start);
             TCMMetrics.instance.peerLogEntriesServed(message.payload.start, delta.latestEpoch());
             logger.info("Responding with log delta: {}", delta);
-            MessagingService.instance().send(message.responseWith(delta), message.from());
+            messaging.send(message.responseWith(delta), message.from());
         }
     }
 }

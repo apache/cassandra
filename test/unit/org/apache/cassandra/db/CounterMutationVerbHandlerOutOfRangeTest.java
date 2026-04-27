@@ -108,7 +108,7 @@ public class CounterMutationVerbHandlerOutOfRangeTest
         int value = randomInt();
         int key = 30;
         CounterMutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
 
         // unlike non-counter mutations, we can't verify the response message for a successful write.
         // acting as the leader for the mutation, we'll try to forward the writes to the other replicas
@@ -136,7 +136,7 @@ public class CounterMutationVerbHandlerOutOfRangeTest
         int value = randomInt();
         int key = 50;
         CounterMutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
         verifyWrite(key, value);
         assertEquals(startingTotalMetricCount, StorageMetrics.totalOpsForInvalidToken.getCount());
         assertEquals(startingKeyspaceMetricCount, keyspaceMetricValue());
@@ -153,7 +153,7 @@ public class CounterMutationVerbHandlerOutOfRangeTest
         CounterMutation mutation = mutation(key, value);
         try
         {
-            handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+            handler.doVerb(MessagingService.instance(), Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
             fail("this should now throw exception");
         }
         catch (InvalidRoutingException ignore) {}

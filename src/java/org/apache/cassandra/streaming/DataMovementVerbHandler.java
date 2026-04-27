@@ -32,6 +32,7 @@ import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
@@ -44,9 +45,9 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
     public static final DataMovementVerbHandler instance = new DataMovementVerbHandler();
 
     @Override
-    public void doVerb(Message<DataMovement> message) throws IOException
+    public void doVerb(MessageDelivery messaging, Message<DataMovement> message) throws IOException
     {
-        MessagingService.instance().respond(NoPayload.noPayload, message); // let coordinator know we received the message
+        messaging.respond(NoPayload.noPayload, message); // let coordinator know we received the message
         StreamPlan streamPlan = new StreamPlan(StreamOperation.fromString(message.payload.streamOperation));
         ClusterMetadata metadata = ClusterMetadata.current();
         Schema.instance.getNonLocalStrategyKeyspaces().stream().forEach((ksm) -> {

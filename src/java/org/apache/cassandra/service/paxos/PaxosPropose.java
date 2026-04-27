@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -410,7 +411,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     public static class RequestHandler implements IVerbHandler<Request>
     {
         @Override
-        public void doVerb(Message<Request> message)
+        public void doVerb(MessageDelivery messaging, Message<Request> message)
         {
             ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
 
@@ -418,14 +419,14 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             {
                 AcceptResult acceptResult = execute(message.payload.proposal, message.from());
                 if (acceptResult == null)
-                    MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                    messaging.respondWithFailure(UNKNOWN, message);
                 else
-                    MessagingService.instance().respond(acceptResult, message);
+                    messaging.respond(acceptResult, message);
             }
             catch (RetryOnDifferentSystemException e)
             {
                 // Should not actually be thrown here, but continue to catch and response with the error just in case
-                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+                messaging.respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
             }
         }
 

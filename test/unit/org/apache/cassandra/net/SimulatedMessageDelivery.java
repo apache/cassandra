@@ -318,7 +318,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
                 try
                 {
                     //noinspection unchecked
-                    onMessage.doVerb(msg);
+                    onMessage.doVerb(SimulatedMessageDelivery.this, msg);
                 }
                 catch (Throwable t)
                 {
@@ -339,13 +339,13 @@ public class SimulatedMessageDelivery implements MessageDelivery
         }
 
         @Override
-        public void doVerb(Message msg) throws IOException
+        public void doVerb(MessageDelivery messaging, Message msg) throws IOException
         {
             IVerbHandler<?> handler = handlers.get(msg.verb());
             if (handler == null)
                 throw new AssertionError("Unexpected verb: " + msg.verb());
             //noinspection unchecked
-            handler.doVerb(msg);
+            handler.doVerb(messaging, msg);
         }
     }
 

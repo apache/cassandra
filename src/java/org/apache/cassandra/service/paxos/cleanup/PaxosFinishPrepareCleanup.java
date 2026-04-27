@@ -26,6 +26,7 @@ import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
@@ -72,7 +73,7 @@ public class PaxosFinishPrepareCleanup extends AsyncFuture<Void> implements Requ
 
     public static IVerbHandler<PaxosCleanupHistory> createVerbHandler(SharedContext ctx)
     {
-        return ctx.paxosRepairState()::addCleanupHistory;
+        return (messaging, message) -> ctx.paxosRepairState().addCleanupHistory(message);
     }
 
     public static final IVerbHandler<PaxosCleanupHistory> verbHandler = createVerbHandler(SharedContext.Global.instance);

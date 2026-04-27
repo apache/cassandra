@@ -189,7 +189,7 @@ public class DiscoverySimulationTest
                     logger.info("{} sending request to {}", addr, to);
                     callbacks.put(message.id(), cb);
                     IVerbHandler<REQ> handler = (IVerbHandler<REQ>) node.handlers.get(message.verb());
-                    handler.doVerb(message);
+                    handler.doVerb(node, message);
                 }
                 else
                 {

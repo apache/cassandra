@@ -27,6 +27,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.mockito.Mockito;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
@@ -35,8 +37,11 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
@@ -53,6 +58,9 @@ import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class ReadCommandVerbHandlerTest
 {
@@ -103,7 +111,7 @@ public class ReadCommandVerbHandlerTest
     {
         TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
         assertFalse(command.isTrackingRepairedData());
-        handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, (ReadCommand) command)
                               .from(peer())
                               .withFlag(MessageFlag.TRACK_REPAIRED_DATA)
                               .withId(messageId())
@@ -116,7 +124,7 @@ public class ReadCommandVerbHandlerTest
     {
         TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
         assertFalse(command.isTrackingRepairedData());
-        handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, (ReadCommand) command)
                               .from(peer())
                               .withId(messageId())
                               .withParam(ParamType.TRACE_SESSION, nextTimeUUID())
@@ -129,7 +137,7 @@ public class ReadCommandVerbHandlerTest
     {
         TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
         assertFalse(command.isTrackingRepairedData());
-        handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, (ReadCommand) command)
                               .withId(messageId())
                               .from(peer())
                               .build());
@@ -140,7 +148,7 @@ public class ReadCommandVerbHandlerTest
     public void rejectsRequestWithNonMatchingTransientness()
     {
         ReadCommand command = new TrackingSinglePartitionReadCommand(metadata_with_transient);
-        handler.doVerb(Message.builder(READ_REQ, command)
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, command)
                               .from(peer())
                               .withId(messageId())
                               .build());
@@ -202,5 +210,66 @@ public class ReadCommandVerbHandlerTest
     private static DecoratedKey key(TableMetadata metadata, int key)
     {
         return metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key));
+    }
+
+    /**
+     * Tests that use mock MessageDelivery to verify failure response behavior
+     * without needing the full MessagingService infrastructure.
+     */
+
+    @Test
+    public void respondsWithRetryOnDifferentSystemWhenReadThrowsRetryException()
+    {
+        // Handler that always throws RetryOnDifferentSystemException from doRead
+        ReadCommandVerbHandler failingHandler = new ReadCommandVerbHandler()
+        {
+            @Override
+            public ReadResponse doRead(ReadCommand command, boolean trackRepairedData)
+            {
+                throw new RetryOnDifferentSystemException();
+            }
+        };
+
+        MessageDelivery mockMessaging = mock(MessageDelivery.class);
+        ReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
+        Message<ReadCommand> message = Message.builder(READ_REQ, command)
+                                              .from(peer())
+                                              .withId(messageId())
+                                              .build();
+
+        failingHandler.doVerb(mockMessaging, message);
+
+        verify(mockMessaging).respondWithFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+    }
+
+    @Test
+    public void noResponseSentWhenReadTimesOut()
+    {
+        // Handler where doRead returns null (simulating QueryCancelledException path)
+        // and the command reports incomplete (timed out)
+        ReadCommandVerbHandler timeoutHandler = new ReadCommandVerbHandler()
+        {
+            @Override
+            public ReadResponse doRead(ReadCommand command, boolean trackRepairedData)
+            {
+                // Return null to simulate the path after QueryCancelledException is caught
+                return null;
+            }
+        };
+
+        MessageDelivery mockMessaging = mock(MessageDelivery.class);
+        // Create a command that will report as not complete (timed out)
+        ReadCommand command = Mockito.spy(new TrackingSinglePartitionReadCommand(metadata));
+        Mockito.doReturn(false).when(command).complete();
+
+        Message<ReadCommand> message = Message.builder(READ_REQ, command)
+                                              .from(peer())
+                                              .withId(messageId())
+                                              .build();
+
+        timeoutHandler.doVerb(mockMessaging, message);
+
+        // No response should be sent when the read times out - message is just dropped
+        verifyNoInteractions(mockMessaging);
     }
 }

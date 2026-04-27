@@ -30,6 +30,7 @@ import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -53,7 +54,7 @@ class AccordResponseVerbHandler<T extends Reply> implements IVerbHandler<T>
     }
 
     @Override
-    public void doVerb(Message message)
+    public void doVerb(MessageDelivery messaging, Message message)
     {
         Node.Id from = endpointMapper.mappedIdOrNull(message.from(), message);
         if (from == null)

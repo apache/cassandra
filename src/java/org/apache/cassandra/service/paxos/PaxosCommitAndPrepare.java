@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
@@ -124,15 +124,15 @@ public class PaxosCommitAndPrepare
     public static class RequestHandler implements IVerbHandler<Request>
     {
         @Override
-        public void doVerb(Message<Request> message)
+        public void doVerb(MessageDelivery messaging, Message<Request> message)
         {
             ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
 
             PaxosPrepare.Response response = execute(message.payload, message.from());
             if (response == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                messaging.respondWithFailure(UNKNOWN, message);
             else
-                MessagingService.instance().respond(response, message);
+                messaging.respond(response, message);
         }
 
         private static PaxosPrepare.Response execute(Request request, InetAddressAndPort from)

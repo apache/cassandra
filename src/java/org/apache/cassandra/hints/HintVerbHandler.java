@@ -29,7 +29,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
@@ -51,7 +51,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
 
     private static final Logger logger = LoggerFactory.getLogger(HintVerbHandler.class);
 
-    public void doVerb(Message<HintMessage> message)
+    public void doVerb(MessageDelivery messaging, Message<HintMessage> message)
     {
         UUID hostId = message.payload.hostId;
         Hint hint = message.payload.hint;
@@ -68,7 +68,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
                              address,
                              hostId,
                              message.payload.unknownTableID);
-            respond(message);
+            respond(messaging, message);
             return;
         }
 
@@ -80,7 +80,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         catch (MarshalException e)
         {
             logger.warn("Failed to validate a hint for {}: {} - skipped", address, hostId);
-            respond(message);
+            respond(messaging, message);
             return;
         }
 
@@ -93,14 +93,14 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             // post-upgrade node id for this peer, the node is not the final destination of the hint (must have gotten
             // it from a decommissioning node), so just store it locally, to be delivered later.
             HintsService.instance.write(hostId, hint);
-            respond(message);
+            respond(messaging, message);
         }
         else if (!StorageProxy.instance.appliesLocally(hint.mutation))
         {
             // the topology has changed, and we are no longer a replica of the mutation - since we don't know which node(s)
             // it has been handed over to, re-address the hint to all replicas; see CASSANDRA-5902.
             HintsService.instance.writeForAllReplicas(hint);
-            respond(message);
+            respond(messaging, message);
         }
         else
         {
@@ -110,7 +110,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
                 hint.applyFuture().addCallback(
                 o -> {
                     HintsServiceMetrics.hintsApplySucceeded.mark();
-                    respond(message);
+                    respond(messaging, message);
                 },
                 e -> {
                     HintsServiceMetrics.hintsApplyFailed.mark();
@@ -119,13 +119,13 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
             }
             catch (RetryOnDifferentSystemException e)
             {
-                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+                messaging.respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
             }
         }
     }
 
-    private static void respond(Message<HintMessage> respondTo)
+    private static void respond(MessageDelivery messaging, Message<HintMessage> respondTo)
     {
-        MessagingService.instance().send(respondTo.emptyResponse(), respondTo.from());
+        messaging.send(respondTo.emptyResponse(), respondTo.from());
     }
 }

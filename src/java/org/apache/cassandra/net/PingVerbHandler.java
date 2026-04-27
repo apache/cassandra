@@ -22,7 +22,7 @@ class PingVerbHandler implements IVerbHandler<PingRequest>
     static final PingVerbHandler instance = new PingVerbHandler();
 
     @Override
-    public void doVerb(Message<PingRequest> message)
+    public void doVerb(MessageDelivery messaging, Message<PingRequest> message)
     {
         MessagingService.instance().send(message.emptyResponse(), message.from(), message.payload.connectionType);
     }

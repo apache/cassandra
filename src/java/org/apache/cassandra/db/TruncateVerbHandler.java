@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.tracing.Tracing;
 
 public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
@@ -31,7 +31,7 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
 
     private static final Logger logger = LoggerFactory.getLogger(TruncateVerbHandler.class);
 
-    public void doVerb(Message<TruncateRequest> message)
+    public void doVerb(MessageDelivery messaging, Message<TruncateRequest> message)
     {
         TruncateRequest truncation = message.payload;
         Tracing.trace("Applying truncation of {}.{}", truncation.keyspace, truncation.table);
@@ -43,6 +43,6 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
         TruncateResponse response = new TruncateResponse(truncation.keyspace, truncation.table, true);
         if (logger.isTraceEnabled())
             logger.trace("{} applied.  Enqueuing response to {}@{} ", truncation, message.id(), message.from());
-        MessagingService.instance().send(message.responseWith(response), message.from());
+        messaging.send(message.responseWith(response), message.from());
     }
 }

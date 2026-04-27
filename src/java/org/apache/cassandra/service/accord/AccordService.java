@@ -310,20 +310,20 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static IVerbHandler<Void> watermarkHandlerOrNoop()
     {
-        if (!isSetup()) return ignore -> {};
+        if (!isSetup()) return (messaging, ignore) -> {};
         AccordService i = (AccordService) instance();
         return i.topologyService().watermarkCollector().handler;
     }
 
     public static IVerbHandler<? extends Request> requestHandlerOrNoop()
     {
-        if (instance == null) return ignore -> {};
+        if (instance == null) return (messaging, ignore) -> {};
         return instance.requestHandler();
     }
 
     public static IVerbHandler<? extends Reply> responseHandlerOrNoop()
     {
-        if (unsafeInstance == null) return ignore -> {};
+        if (unsafeInstance == null) return (messaging, ignore) -> {};
         return unsafeInstance.responseHandler();
     }
 

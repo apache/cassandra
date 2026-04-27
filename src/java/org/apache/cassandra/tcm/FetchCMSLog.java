@@ -31,7 +31,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.FBUtilities;
@@ -101,7 +101,7 @@ public class FetchCMSLog
             this.logStateSupplier = logStateSupplier;
         }
 
-        public void doVerb(Message<FetchCMSLog> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<FetchCMSLog> message) throws IOException
         {
             FetchCMSLog request = message.payload;
 
@@ -117,7 +117,7 @@ public class FetchCMSLog
             LogState delta = logStateSupplier.apply(message.payload.lowerBound, consistentFetch);
             TCMMetrics.instance.cmsLogEntriesServed(message.payload.lowerBound, delta.latestEpoch());
             logger.info("Responding to {}({}) with log delta: {}", message.from(), request, delta);
-            MessagingService.instance().send(message.responseWith(delta), message.from());
+            messaging.send(message.responseWith(delta), message.from());
         }
     }
 }

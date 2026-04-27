@@ -39,6 +39,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
@@ -155,10 +156,10 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
 
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
-        return (in) -> {
+        return (messaging, in) -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
             cfs.onPaxosRepairComplete(in.payload.ranges, in.payload.lowBound);
-            ctx.messaging().respond(noPayload, in);
+            messaging.respond(noPayload, in);
         };
     }
 

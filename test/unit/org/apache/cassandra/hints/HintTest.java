@@ -249,7 +249,7 @@ public class HintTest
         long totalHintCount = StorageProxy.instance.getTotalHints();
         // Process hint message.
         HintMessage message = new HintMessage(localId, hint);
-        HINT_REQ.handler().doVerb(Message.out(HINT_REQ, message));
+        HINT_REQ.handler().doVerb(MessagingService.instance(), Message.out(HINT_REQ, message));
 
         // hint should not be applied as we no longer are a replica
         assertNoPartitions(key, TABLE0);
@@ -291,7 +291,7 @@ public class HintTest
             long totalHintCount = StorageMetrics.totalHints.getCount();
             // Process hint message.
             HintMessage message = new HintMessage(localId, hint);
-            HINT_REQ.<HintMessage>handler().doVerb(
+            HINT_REQ.<HintMessage>handler().doVerb(MessagingService.instance(),
                     Message.builder(HINT_REQ, message).from(local).build());
 
             // hint should not be applied as we no longer are a replica

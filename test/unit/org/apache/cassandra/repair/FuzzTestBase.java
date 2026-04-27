@@ -900,27 +900,27 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     private final IVerbHandler<PaxosCleanupResponse> paxosCleanupResponse = PaxosCleanupResponse.createVerbHandler(Node.this);
                     private final IVerbHandler<PaxosCleanupComplete.Request> paxosCleanupComplete = PaxosCleanupComplete.createVerbHandler(Node.this);
                     @Override
-                    public void doVerb(Message message) throws IOException
+                    public void doVerb(MessageDelivery messaging, Message message) throws IOException
                     {
                         switch (message.verb())
                         {
                             case PAXOS2_CLEANUP_START_PREPARE_REQ:
-                                paxosStartPrepareCleanup.doVerb(message);
+                                paxosStartPrepareCleanup.doVerb(messaging, message);
                                 break;
                             case PAXOS2_CLEANUP_REQ:
-                                paxosCleanupRequestIVerbHandler.doVerb(message);
+                                paxosCleanupRequestIVerbHandler.doVerb(messaging, message);
                                 break;
                             case PAXOS2_CLEANUP_FINISH_PREPARE_REQ:
-                                paxosFinishPrepareCleanup.doVerb(message);
+                                paxosFinishPrepareCleanup.doVerb(messaging, message);
                                 break;
                             case PAXOS2_CLEANUP_RSP2:
-                                paxosCleanupResponse.doVerb(message);
+                                paxosCleanupResponse.doVerb(messaging, message);
                                 break;
                             case PAXOS2_CLEANUP_COMPLETE_REQ:
-                                paxosCleanupComplete.doVerb(message);
+                                paxosCleanupComplete.doVerb(messaging, message);
                                 break;
                             default:
-                                repairVerbHandler.doVerb(message);
+                                repairVerbHandler.doVerb(messaging, message);
                         }
                     }
                 });

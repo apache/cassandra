@@ -19,7 +19,7 @@ package org.apache.cassandra.db;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 
 public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
@@ -30,9 +30,9 @@ public class ReadRepairVerbHandler extends AbstractMutationVerbHandler<Mutation>
         mutation.apply();
     }
 
-    void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
+    void applyMutation(MessageDelivery messaging, Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
         applyMutation(message.payload);
-        MessagingService.instance().send(message.emptyResponse(), respondToAddress);
+        messaging.send(message.emptyResponse(), respondToAddress);
     }
 }
