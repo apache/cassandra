@@ -341,6 +341,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @Test
     public void testSinglePartitionKeyBatch() throws Throwable
     {
+        String KEYSPACE = "ks" + System.currentTimeMillis();
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
                                           "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
                                           "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
@@ -363,6 +364,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     @Test
     public void testSinglePartitionKeyBatchWrittenToBatchLog() throws Throwable
     {
+        String KEYSPACE = "ks" + System.currentTimeMillis();
         DatabaseDescriptor.daemonInitialization();
         List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
                                           "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
@@ -392,7 +394,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                                  SystemKeyspace.BATCHES);
 
                     Iterator<UntypedResultSet.Row> r = QueryProcessor.executeInternal(query).iterator();
-                    assert (r.hasNext());
+                    assertTrue(r.hasNext());
                     UntypedResultSet.Row row = r.next();
 
                     int version = row.getInt("version");
@@ -405,7 +407,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                     }
                     catch (Exception e)
                     {
-                        logger.info("Deserialization failed");
+                        fail("Deserialization failed");
                     }
                 });
         });
