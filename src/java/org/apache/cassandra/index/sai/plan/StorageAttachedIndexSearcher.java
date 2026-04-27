@@ -503,7 +503,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 queryContext.partitionsRead++;
                 queryContext.checkpoint();
 
-                List<Row> filtered = filterPartition(partition, filterTree, queryContext);
+                // If there is an unresolved static expression during RFP, completion reads to silent replicas will 
+                // fetch entire partitions. If we don't return range tombstones in this initial read, there may not be 
+                // enough information at the coordinator for RFP to shadow logically deleted rows from those replicas.
+                List<Unfiltered> filtered = filterPartition(partition, filterTree, queryContext, command.rowFilter().hasStaticExpression());
 
                 // Note that we record the duration of the read after post-filtering, which actually
                 // materializes the rows from disk.
@@ -523,11 +526,11 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
     }
 
-    private static List<Row> filterPartition(UnfilteredRowIterator partition, FilterTree tree, QueryContext context)
+    private static List<Unfiltered> filterPartition(UnfilteredRowIterator partition, FilterTree tree, QueryContext context, boolean matchTombstones)
     {
         Row staticRow = partition.staticRow();
         DecoratedKey partitionKey = partition.partitionKey();
-        List<Row> matches = new ArrayList<>();
+        List<Unfiltered> matches = new ArrayList<>();
         boolean hasMatch = false;
 
         while (partition.hasNext())
@@ -540,9 +543,14 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
                 if (tree.isSatisfiedBy(partitionKey, (Row) unfiltered, staticRow))
                 {
-                    matches.add((Row) unfiltered);
+                    matches.add(unfiltered);
                     hasMatch = true;
                 }
+            }
+            else if (matchTombstones && unfiltered.isRangeTombstoneMarker())
+            {
+                // Note that range tombstones do not constitute matches, and will be discarded if no actual rows match.
+                matches.add(unfiltered);
             }
         }
 
@@ -571,9 +579,9 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
     private static class SinglePartitionIterator extends AbstractUnfilteredRowIterator
     {
-        private final Iterator<Row> rows;
+        private final Iterator<Unfiltered> rows;
 
-        public SinglePartitionIterator(UnfilteredRowIterator partition, Row staticRow, Iterator<Row> rows)
+        public SinglePartitionIterator(UnfilteredRowIterator partition, Row staticRow, Iterator<Unfiltered> rows)
         {
             super(partition.metadata(),
                   partition.partitionKey(),
@@ -766,7 +774,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 queryContext.partitionsRead++;
                 queryContext.checkpoint();
 
-                List<Row> clusters = filterPartition(partition, filterTree, queryContext);
+                // Scored queries do not involve RFP, and therefore can ignore range tombstones.
+                List<Unfiltered> clusters = filterPartition(partition, filterTree, queryContext, false);
 
                 if (clusters == null)
                 {
@@ -794,7 +803,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         processedKeys.add(pk);
                         return null;
                     }
-                    representativeRow = clusters.get(0);
+                    representativeRow = (Row) clusters.get(0);
                     assert clusters.size() == 1 : "Expect 1 result row, but got: " + clusters.size();
                 }
 
