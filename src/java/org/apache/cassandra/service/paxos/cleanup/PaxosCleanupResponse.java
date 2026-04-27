@@ -28,7 +28,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.UUIDSerializer;
 

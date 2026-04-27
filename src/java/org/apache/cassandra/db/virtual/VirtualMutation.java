@@ -41,7 +41,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
