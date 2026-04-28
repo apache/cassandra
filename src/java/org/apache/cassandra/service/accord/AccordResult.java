@@ -66,8 +66,9 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
     final RequestBookkeeping bookkeeping;
     final long startedAtNanos, deadlineAtNanos;
     final boolean isTxnRequest;
+    final @Nullable accord.api.Tracing tracing;
 
-    public AccordResult(@Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAtNanos, long deadlineAtNanos, boolean isTxnRequest)
+    public AccordResult(@Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAtNanos, long deadlineAtNanos, boolean isTxnRequest, @Nullable accord.api.Tracing tracing)
     {
         this.txnId = txnId;
         this.keysOrRanges = keysOrRanges;
@@ -75,6 +76,7 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
         this.startedAtNanos = startedAtNanos;
         this.deadlineAtNanos = deadlineAtNanos;
         this.isTxnRequest = isTxnRequest;
+        this.tracing = tracing;
     }
 
     @Override
@@ -124,6 +126,12 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
         // TODO (expected): increment counters after super.tryFailure
         if (isDone())
             return false;
+
+        if (tracing != null)
+        {
+            tracing.trace(null, "Failed: " + fail);
+            tracing.done();
+        }
 
         RequestExecutionException report;
         CoordinationFailed coordinationFailed = findCoordinationFailed(fail);
@@ -215,7 +223,17 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
         if (success == RetryWithNewProtocolResult.instance)
         {
             bookkeeping.markRetryDifferentSystem();
+            if (tracing != null) tracing.trace(null, "Got retry different system error from Accord, will retry");
+            // TODO (expected): proxy this through the accord Tracing system to avoid duplicate tracing
             Tracing.trace("Got retry different system error from Accord, will retry");
+        }
+        else
+        {
+            if (tracing != null)
+            {
+                tracing.trace(null, "Success");
+                tracing.done();
+            }
         }
         return true;
     }

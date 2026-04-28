@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMicros;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordTimeService implements TimeService
@@ -45,8 +46,7 @@ public class AccordTimeService implements TimeService
 
     public static long nowMicros()
     {
-        return PRECISE_MICROS ? FBUtilities.preciseTimestampMicros()
-                              : FBUtilities.timestampMicros();
+        return PRECISE_MICROS ? currentTimeMicros() : FBUtilities.timestampMicros();
     }
 
     @Override

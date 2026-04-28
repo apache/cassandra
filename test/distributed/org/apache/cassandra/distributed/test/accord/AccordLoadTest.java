@@ -23,8 +23,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -38,8 +40,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.IntSupplier;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
@@ -53,6 +53,11 @@ import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.local.CommandStore;
+import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
+import accord.primitives.PartialDeps;
+import accord.primitives.TxnId;
 import accord.utils.Functions;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -81,13 +86,17 @@ import org.apache.cassandra.service.accord.debug.CoordinationKinds;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static accord.coordinate.Coordination.CoordinationKind.Client;
+import static accord.coordinate.Coordination.CoordinationKind.Execute;
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.LEAKY;
+import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.RING;
 import static org.apache.cassandra.service.accord.debug.AccordTracing.BucketMode.SLOWEST;
 
 public class AccordLoadTest extends AccordTestBase
@@ -104,10 +113,11 @@ public class AccordLoadTest extends AccordTestBase
                   .set("accord.shard_durability_target_splits", "8")
                   .set("accord.shard_durability_max_splits", "16")
                   .set("accord.shard_durability_cycle", "1m")
-                  .set("accord.queue_submission_model", "SEMI_SYNC")
+                  .set("accord.queue_submission_model", "SIGNAL")
+//                  .set("accord.queue_submission_model", "SEMI_SYNC")
                   .set("accord.command_store_shard_count", "8")
-                  .set("concurrent_accord_operations", "8")
-                  .set("accord.queue_shard_count", "2")
+                  .set("accord.queue_thread_count", "4")
+                  .set("accord.queue_shard_count", "1")
                   .set("accord.replica_execution", "ALL")
                   .set("accord.send_stable", "TO_ALL_REPLICA_EXECUTABLE_ELSE_FOR_READS")
                   .set("accord.send_minimal", "false")
@@ -138,6 +148,7 @@ public class AccordLoadTest extends AccordTestBase
         final IntSupplier keySelector;
         final boolean readBeforeWrite;
         final float traceSlowest;
+        final int traceLast;
         final int[][] artificialLatencies;
 
         Settings(SettingsBuilder builder)
@@ -163,6 +174,7 @@ public class AccordLoadTest extends AccordTestBase
             this.readBeforeWrite = builder.readBeforeWrite;
             this.artificialLatencies = builder.artificialLatencies;
             this.traceSlowest = builder.traceSlowest;
+            this.traceLast = builder.traceLast;
         }
     }
 
@@ -189,6 +201,7 @@ public class AccordLoadTest extends AccordTestBase
         IntSupplier keySelector;
         boolean readBeforeWrite;
         float traceSlowest;
+        int traceLast;
         int[][] artificialLatencies;
 
         public SettingsBuilder setRepairInterval(int repairInterval)
@@ -302,6 +315,12 @@ public class AccordLoadTest extends AccordTestBase
         public SettingsBuilder setTraceSlowest(float traceSlowest)
         {
             this.traceSlowest = traceSlowest;
+            return this;
+        }
+
+        public SettingsBuilder setTraceLast(int traceLast)
+        {
+            this.traceLast = traceLast;
             return this;
         }
 
@@ -475,12 +494,29 @@ public class AccordLoadTest extends AccordTestBase
                 }
             }
 
+            if (settings.traceLast > 0)
+            {
+                int traceLast = settings.traceLast;
+                for (int i = 0 ; i < cluster.size() ; ++i)
+                {
+                    cluster.get(i + 1).runOnInstance(() -> {
+                        AccordTracing tracing = ((AccordAgent) AccordService.unsafeInstance().agent()).tracing();
+                        tracing.setPattern(2, pattern -> pattern.withKinds(TxnKindsAndDomains.parse("{KW}"))
+                                                                    .withTraceNew(CoordinationKinds.ALL),
+                                           RING, -1, traceLast, LEAKY, 10, 1, CoordinationKinds.ALL);
+                    });
+                }
+            }
+
             final AtomicBoolean stop = new AtomicBoolean();
+            final AtomicBoolean pauseOrStop = new AtomicBoolean();
+            final WaitQueue waitQueue = WaitQueue.newWaitQueue();
             Random random = new Random();
             Semaphore completed = new Semaphore(0);
             AtomicIntegerArray coordinatorIndexes = new AtomicIntegerArray(clientCount);
             final List<java.util.concurrent.Future<?>> clients = new ArrayList<>();
             final AtomicReferenceArray<RateLimiter> rateLimiters = new AtomicReferenceArray<>(clientCount);
+            final ConcurrentHashMap<TxnId, Boolean> debugLatency = new ConcurrentHashMap<>();
             final AtomicReference<EstimatedHistogram> readHistogram = new AtomicReference<>(new EstimatedHistogram(200));
             final AtomicReference<EstimatedHistogram> writeHistogram = new AtomicReference<>(new EstimatedHistogram(200));
             if (settings.clients >= cluster.size())
@@ -496,8 +532,18 @@ public class AccordLoadTest extends AccordTestBase
                 coordinatorIndexes.set(client, client + 1);
                 clients.add(clientExecutor.submit(() -> {
                     final Semaphore inFlight = new Semaphore(settings.clientConcurrency);
-                    while (!stop.get())
+                    while (true)
                     {
+                        while (pauseOrStop.get())
+                        {
+                            if (stop.get())
+                                break;
+
+                            WaitQueue.Signal signal = waitQueue.register();
+                            if (pauseOrStop.get()) signal.awaitThrowUncheckedOnInterrupt();
+                            else signal.cancel();
+                        }
+
                         int coordinatorIdx = coordinatorIndexes.get(clientIndex);
                         ICoordinator coordinator = cluster.coordinator(coordinatorIdx);
                         try
@@ -519,7 +565,8 @@ public class AccordLoadTest extends AccordTestBase
                                     completed.release();
                                     if (fail == null)
                                     {
-                                        writeHistogram.get().add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                        long elapsed = System.nanoTime() - commandStart;
+                                        writeHistogram.get().add(NANOSECONDS.toMicros(elapsed));
                                         synchronized (initialised)
                                         {
                                             keys.forEachInt(initialised::set);
@@ -549,7 +596,10 @@ public class AccordLoadTest extends AccordTestBase
                                     inFlight.release();
                                     completed.release();
                                     if (fail == null)
-                                        writeHistogram.get().add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                    {
+                                        long elapsed = System.nanoTime() - commandStart;
+                                        writeHistogram.get().add(NANOSECONDS.toMicros(elapsed));
+                                    }
                                     else
                                         logger.error("{}", fail.toString());
                                 }, "BEGIN TRANSACTION\n" +
@@ -713,10 +763,9 @@ public class AccordLoadTest extends AccordTestBase
                 Long nowMillis = System.currentTimeMillis();
                 EstimatedHistogram reads = readHistogram.getAndSet(new EstimatedHistogram(200));
                 EstimatedHistogram writes = writeHistogram.getAndSet(new EstimatedHistogram(200));
-                float traceSlowest = settings.traceSlowest;
-                if (traceSlowest > 0f)
+                if (settings.traceSlowest > 0f)
                 {
-                cluster.forEach(() -> {
+                    cluster.forEach(() -> {
                         AccordTracing tracing = ((AccordAgent)AccordService.instance().agent()).tracing();
 
                         tracing.forEach(Functions.alwaysTrue(), (txnId, state) -> {
@@ -733,6 +782,135 @@ public class AccordLoadTest extends AccordTestBase
                         });
                         tracing.eraseAll();
                     });
+                }
+                if (settings.traceLast > 0)
+                {
+                    pauseOrStop.set(true);
+                    Map<String, List<List<String>>> print = new HashMap<>();
+                    for (int i = 1 ; i <= cluster.size() ; ++i)
+                    {
+                        cluster.get(i).acceptOnInstance(out -> {
+                            AccordService service = (AccordService)AccordService.instance();
+                            AccordTracing tracing = ((AccordAgent)AccordService.instance().agent()).tracing();
+                            PriorityQueue<SortedByElapsed> candidates = new PriorityQueue<>(Comparator.comparingLong(c -> -c.elapsedMicros));
+                            tracing.forEach(Functions.alwaysTrue(), (txnId, events) -> {
+                                events.forEach(event -> {
+                                    if (event.kind == Client)
+                                    {
+                                        long doneAtMicros = event.doneAtMicros();
+                                        long elapsedMicros = doneAtMicros - event.txnId().hlc();
+                                        if (elapsedMicros > 350000 && elapsedMicros < 390000)
+                                            candidates.add(new SortedByElapsed(txnId, elapsedMicros));
+                                    }
+                                });
+                            });
+
+                            AtomicInteger storeId = new AtomicInteger();
+                            while (!candidates.isEmpty())
+                            {
+                                SortedByElapsed sortedCandidate = candidates.poll();
+                                if (sortedCandidate.elapsedMicros < 300000)
+                                    return;
+
+                                TxnId candidate = sortedCandidate.txnId;
+                                storeId.lazySet(-1);
+                                tracing.forEach(candidate, events -> {
+                                    events.forEach(event -> {
+                                        if (storeId.get() >= 0)
+                                            return;
+                                        for (Message message : event.messages())
+                                        {
+                                            if (message.nodeId < 0 && message.commandStoreId >= 0)
+                                            {
+                                                storeId.set(message.commandStoreId);
+                                                break;
+                                            }
+                                        }
+                                    });
+                                });
+
+                                if (storeId.get() >= 0)
+                                {
+                                    CommandStore commandStore = service.node().commandStores().forId(storeId.get());
+                                    List<List<String>> result = AccordService.getBlocking(commandStore.submit(PreLoadContext.contextFor(candidate, "LoadTest"), safeStore -> {
+                                        SafeCommand safeCommand = safeStore.unsafeGet(candidate);
+                                        PartialDeps deps = safeCommand.current().partialDeps();
+                                        if (deps == null)
+                                            return null;
+                                        List<List<String>> infos = new ArrayList<>();
+                                        for (TxnId txnId : deps.txnIds())
+                                        {
+                                            List<String> info = new ArrayList<>();
+                                            info.add(txnId.toString());
+                                            infos.add(info);
+                                        }
+                                        List<String> info = new ArrayList<>();
+                                        info.add(candidate.toString());
+                                        infos.add(info);
+                                        return infos;
+                                    }));
+
+                                    if (result != null)
+                                    {
+                                        for (List<String> info : result)
+                                        {
+                                            TxnId txnId = TxnId.parse(info.get(0));
+                                            AccordService.getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, "LoadTest"), safeStore -> {
+                                                SafeCommand safeCommand = safeStore.unsafeGet(txnId);
+                                                if (safeCommand.current().executeAt != null)
+                                                    info.add(safeCommand.current().executeAt.toString());
+                                            }));
+                                        }
+
+                                        out.put(candidate.toString(), result);
+                                        return;
+                                    }
+                                }
+                            }
+                        }, print);
+                    }
+
+                    for (int i = 1 ; i <= cluster.size() ; ++i)
+                    {
+                        cluster.get(i).acceptOnInstance(out -> {
+                            AccordTracing tracing = ((AccordAgent)AccordService.instance().agent()).tracing();
+                            for (Map.Entry<String, List<List<String>>> e : out.entrySet())
+                            {
+                                TxnId parentId = TxnId.parse(e.getKey());
+                                for (List<String> infos : e.getValue())
+                                {
+                                    TxnId depId = TxnId.parse(infos.get(0));
+                                    tracing.forEach(depId, events -> {
+                                        events.forEach(event -> {
+                                            infos.add(event.kind + ": [" + (event.idMicros - parentId.hlc()) + "..." + (event.doneAtMicros() - parentId.hlc()) + "][" + (event.idMicros - depId.hlc()) + "..." + (event.doneAtMicros() - depId.hlc()) + "]");
+                                            if (event.kind == Execute)
+                                            {
+                                                for (Message message : event.messages())
+                                                {
+                                                    if (message.nodeId == parentId.node.id)
+                                                    {
+                                                        long atMicros = (event.idMicros + (message.atNanos - event.atNanos)/1000) - parentId.hlc();
+                                                        infos.add(atMicros + ": " + message.message);
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    });
+                                }
+                            }
+                        }, print);
+                    }
+
+                    for (Map.Entry<String, List<List<String>>> e : print.entrySet())
+                    {
+                        System.out.println("======" + e.getKey() + "======");
+                        for (List<String> infos : e.getValue())
+                            System.out.println(infos);
+                    }
+                    if (!print.isEmpty())
+                        System.out.println();
+                    pauseOrStop.set(false);
+                    waitQueue.signalAll();
                 }
                 cluster.forEach(() -> {
                     refresh(AccordExecutorMetrics.INSTANCE.elapsedRunning);
@@ -879,16 +1057,17 @@ public class AccordLoadTest extends AccordTestBase
             ws[i] = iw;
         }
         System.out.println(Arrays.toString(ws));
+        Arrays.fill(ws, 0);
         for (int i = 0 ; i < qs.length ; ++i)
         {
-            int wj = i == 0 ? 1 : 0;
-            for (int j = 1 ; j < qs.length ; ++j)
+            for (int j = 0 ; j < qs.length ; ++j)
             {
                 if (j == i) continue;
-                if (qs[j] > qs[wj])
-                    wj = j;
+                if (qs[j] > 2*qs[i]) continue;
+                int w = qs[i] + 4*qs[j] + LATENCIES[i][j];
+                if (w > ws[i])
+                    ws[i] = w;
             }
-            ws[i] = qs[i] + 4*qs[wj] + LATENCIES[i][wj];
         }
         System.out.println(Arrays.toString(ws));
     }
@@ -900,11 +1079,33 @@ public class AccordLoadTest extends AccordTestBase
         DistributedTestBase.beforeClass();
         AccordLoadTest.setUp();
         AccordLoadTest test = new AccordLoadTest();
-        test.setup();
-        test.testLoad(withArtificialLatencies(ycsbA(new SettingsBuilder(), 100_000)
-                                              .setRatePerSecond(1600).setMinRatePerSecond(200)
-                                              .setIncreaseRatePerSecondInterval(5000)
-//                                              .setTraceSlowest(0.5f)
-        ).build());
+        try
+        {
+            test.setup();
+            test.testLoad(withArtificialLatencies(ycsbA(new SettingsBuilder(), 100_000)
+//                                                  .setRatePerSecond(400).setMinRatePerSecond(200)
+//                                                  .setRatePerSecond(800).setMinRatePerSecond(200)
+                                                  .setRatePerSecond(1600).setMinRatePerSecond(200)
+                                                  .setIncreaseRatePerSecondInterval(5000)
+//                                                  .setTraceLast(5000)
+            ).build());
+        }
+        finally
+        {
+            test.tearDown();
+        }
     }
+
+    static class SortedByElapsed
+    {
+        final TxnId txnId;
+        final long elapsedMicros;
+
+        SortedByElapsed(TxnId txnId, long elapsedMicros)
+        {
+            this.txnId = txnId;
+            this.elapsedMicros = elapsedMicros;
+        }
+    }
+
 }

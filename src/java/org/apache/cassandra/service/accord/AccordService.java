@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.ProtocolModifiers;
+import accord.api.Tracing;
 import accord.coordinate.CoordinateMaxConflict;
 import accord.coordinate.CoordinateTransaction;
 import accord.coordinate.KeyBarriers;
@@ -162,6 +163,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.FastExecution.MAY_BYPASS_SAFESTORE;
+import static accord.coordinate.Coordination.CoordinationKind.Client;
 import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
 import static accord.local.durability.DurabilityService.SyncLocal.Self;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
@@ -180,7 +182,6 @@ import static org.apache.cassandra.config.AccordConfig.CatchupMode.FALLBACK_TO_H
 import static org.apache.cassandra.config.AccordConfig.CatchupMode.HARD;
 import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.RESET;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityCycle;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordShardDurabilityMaxSplits;
@@ -465,7 +466,7 @@ public class AccordService implements IAccordService, Shutdownable
                              topologyService,
                              time, new AtomicUniqueTimeWithStaleReservation(time),
                              () -> dataStore,
-                             new KeyspaceSplitter(new EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())),
+                             new KeyspaceSplitter(new EvenSplit<>(getAccord().commandStoreShardCount(), getPartitioner().accordSplitter())),
                              agent,
                              new DefaultRandom(),
                              scheduler,
@@ -1013,7 +1014,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static <V> V getBlocking(AsyncChain<V> async, @Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
     {
-        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest, null);
         async.begin(result);
         return result.awaitAndGet();
     }
@@ -1025,7 +1026,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     public static <V> V getBlocking(AsyncResult<V> async, @Nullable TxnId txnId, Seekables<?, ?> keysOrRanges, RequestBookkeeping bookkeeping, long startedAt, long deadline, boolean isTxnRequest)
     {
-        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest);
+        AccordResult<V> result = new AccordResult<>(txnId, keysOrRanges, bookkeeping, startedAt, deadline, isTxnRequest, null);
         async.invoke(result);
         return result.awaitAndGet();
     }
@@ -1130,7 +1131,8 @@ public class AccordService implements IAccordService, Shutdownable
         ClientRequestBookkeeping bookkeeping = txn.isWrite() ? accordWriteBookkeeping : accordReadBookkeeping;
         bookkeeping.metrics.keySize.update(txn.keys().size());
         long deadlineNanos = requestTime.computeDeadline(timeout);
-        AccordResult<TxnResult> result = new AccordResult<>(txnId, txn.keys(), bookkeeping, requestTime.startedAtNanos(), deadlineNanos, true);
+        Tracing tracing = agent().tracing().trace(txnId, txn.keys(), Client);
+        AccordResult<TxnResult> result = new AccordResult<>(txnId, txn.keys(), bookkeeping, requestTime.startedAtNanos(), deadlineNanos, true, tracing);
         node.coordinate(txnId, txn, minEpoch, deadlineNanos).begin((BiConsumer) result);
         return result;
     }

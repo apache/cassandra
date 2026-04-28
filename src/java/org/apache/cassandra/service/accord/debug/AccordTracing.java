@@ -49,6 +49,7 @@ import accord.coordinate.Coordination.CoordinationKind;
 import accord.local.CommandStore;
 import accord.local.Node;
 import accord.primitives.Participants;
+import accord.primitives.Routables;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.SortedListMap;
@@ -181,6 +182,11 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         public long doneAtNanos()
         {
             return atNanos + elapsedNanos;
+        }
+
+        public long doneAtMicros()
+        {
+            return idMicros + elapsedNanos/1000;
         }
 
         @Override
@@ -552,7 +558,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             return new TracePattern(kinds, intersects, traceNew, traceFailures, chance);
         }
 
-        boolean matches(TxnId txnId, @Nullable Participants<?> participants, CoordinationKind kind, NewOrFailure newOrFailure)
+        boolean matches(TxnId txnId, @Nullable Routables<?> participants, CoordinationKind kind, NewOrFailure newOrFailure)
         {
             if (kinds != null && !kinds.matches(txnId))
                 return false;
@@ -561,7 +567,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             if (testKind == null || !testKind.contains(kind))
                 return false;
 
-            if (intersects != null && (participants == null || !intersects.intersects(participants)))
+            if (intersects != null && (participants == null || !participants.intersects(intersects)))
                 return false;
 
             return chance >= 1.0f || ThreadLocalRandom.current().nextFloat() <= chance;
@@ -632,7 +638,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
             return txnIds.get(index);
         }
 
-        TxnEvents maybeAdd(TxnId txnId, @Nullable Participants<?> participants, CoordinationKind kind, NewOrFailure newOrFailure)
+        TxnEvents maybeAdd(TxnId txnId, @Nullable Routables<?> participants, CoordinationKind kind, NewOrFailure newOrFailure)
         {
             if (!pattern.matches(txnId, participants, kind, newOrFailure))
                 return null;
@@ -892,7 +898,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
     final CopyOnWriteArrayList<TracePatternState> traceNewPatterns = new CopyOnWriteArrayList<>();
     final GlobalCount globalCount = new GlobalCount();
 
-    public Tracing trace(TxnId txnId, @Nullable Participants<?> participants, CoordinationKind kind)
+    public Tracing trace(TxnId txnId, @Nullable Routables<?> participants, CoordinationKind kind)
     {
         if (kind == CoordinationKind.FetchDurableBefore)
             return (cs, msg) -> logger.info("Catchup/FetchDurableBefore: {}", msg.length() <= 100 ? msg : msg.substring(0, 100));
@@ -1121,6 +1127,16 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         });
     }
 
+    public void forEach(TxnId txnId, Consumer<TxnEvents> forEach)
+    {
+        // ensure lock is held for duration of callback
+        txnIdMap.compute(txnId, (id, cur) -> {
+            if (cur != null)
+                forEach.accept(cur);
+            return cur;
+        });
+    }
+
     public void setPattern(int id, Function<TracePattern, TracePattern> pattern, BucketMode newBucketMode, int newBucketSeen, int newBucketSize, BucketMode newTraceBucketMode, int newTraceBucketSize, int newTraceBucketSubSize, CoordinationKinds newTraceEvents)
     {
         synchronized (allPatterns)
@@ -1227,7 +1243,7 @@ public class AccordTracing extends AccordCoordinatorMetrics.Listener
         }
     }
 
-    private TxnEvents maybeTrace(TxnId txnId, @Nullable Participants<?> participants, CoordinationKind kind, NewOrFailure newOrFailure, List<TracePatternState> patterns)
+    private TxnEvents maybeTrace(TxnId txnId, @Nullable Routables<?> participants, CoordinationKind kind, NewOrFailure newOrFailure, List<TracePatternState> patterns)
     {
         if (patterns.isEmpty())
             return null;

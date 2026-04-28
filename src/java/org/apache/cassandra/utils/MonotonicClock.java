@@ -268,7 +268,7 @@ public interface MonotonicClock
         // class to ACC_PUBLIC, and ensured proper testing relationship from both the surrounding and nested class.
         public SystemClock()
         {
-            super(FBUtilities::preciseTimestampMicros, MICROSECONDS);
+            super(Clock.Global::currentTimeMicros, MICROSECONDS);
         }
 
         @Override

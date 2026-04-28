@@ -61,7 +61,7 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     @Override
     void awaitExclusive() throws InterruptedException
     {
-        if (submitted.isEmpty())
+        if (!hasUnqueued())
             awaitWork();
     }
 

@@ -20,8 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 
+import org.junit.Assert;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 
 import accord.api.RoutingKey;
 import accord.local.AbstractMaxConflictsTest;
@@ -47,7 +47,7 @@ public class MaxConflictsIntegrationTest extends AbstractMaxConflictsTest
     @Override
     protected void assertTrue(boolean isTrue)
     {
-        Assertions.assertTrue(isTrue);
+        Assert.assertTrue(isTrue);
     }
 
     @Test

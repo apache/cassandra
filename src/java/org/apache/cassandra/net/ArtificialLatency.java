@@ -118,31 +118,6 @@ public class ArtificialLatency extends ExecutorLocals.Impl
 
     static class Sink implements OutboundSink.AsyncFilter, Interruptible.Task
     {
-        final Interruptible executor = executorFactory().infiniteLoop("ArtificialLatency", this, SAFE, DAEMON, UNSYNCHRONIZED);
-
-        static Sink start()
-        {
-            Sink sink = new Sink();
-            instance().outboundSink.add(sink);
-            return sink;
-        }
-
-        void stop()
-        {
-            isShutdown = true;
-            artificialLatencyNanos = ignore -> 0;
-            instance().outboundSink.remove(this);
-            executor.shutdownNow();
-            try
-            {
-                executor.awaitTermination(1, TimeUnit.DAYS);
-            }
-            catch (InterruptedException e)
-            {
-                throw new UncheckedInterruptedException(e);
-            }
-        }
-
         static class Delayed implements Comparable<Delayed>
         {
             final Message<?> message;
@@ -174,11 +149,34 @@ public class ArtificialLatency extends ExecutorLocals.Impl
         // note that this queue is not ordered, so that if the artificial delay is modified
         // it may not take effect until the difference between the two delays elapses
         final PriorityQueue<Delayed> out = new PriorityQueue<>();
+        final Interruptible executor = executorFactory().infiniteLoop("ArtificialLatency", this, SAFE, DAEMON, UNSYNCHRONIZED);
 
         volatile Thread waiting;
         volatile long waitingUntil;
-        volatile long minQueued = Long.MAX_VALUE;
-        private static final AtomicLongFieldUpdater<Sink> minQueuedUpdater = AtomicLongFieldUpdater.newUpdater(Sink.class, "minQueued");
+        private static final AtomicLongFieldUpdater<Sink> waitingUntilUpdater = AtomicLongFieldUpdater.newUpdater(Sink.class, "waitingUntil");
+
+        static Sink start()
+        {
+            Sink sink = new Sink();
+            instance().outboundSink.add(sink);
+            return sink;
+        }
+
+        void stop()
+        {
+            isShutdown = true;
+            artificialLatencyNanos = ignore -> 0;
+            instance().outboundSink.remove(this);
+            executor.shutdownNow();
+            try
+            {
+                executor.awaitTermination(1, TimeUnit.DAYS);
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+        }
 
         @Override
         public void filter(Message<?> message, InetAddressAndPort to, ConnectionType type, OutboundSink.Sink next)
@@ -206,12 +204,18 @@ public class ArtificialLatency extends ExecutorLocals.Impl
             Delayed delay = new Delayed(message, to, type, deadline, next);
             in.add(delay);
 
-            minQueuedUpdater.accumulateAndGet(this, deadline, Long::min);
-            if (deadline < waitingUntil)
+            while (true)
             {
-                Thread thread = waiting;
-                if (thread != null)
-                    LockSupport.unpark(thread);
+                long curWaitingUntil = waitingUntil;
+                if (deadline >= curWaitingUntil)
+                    break;
+
+                if (waitingUntilUpdater.compareAndSet(this, curWaitingUntil, Long.MIN_VALUE))
+                {
+                    Thread thread = waiting;
+                    if (thread != null)
+                        LockSupport.unpark(thread);
+                }
             }
 
             if (isShutdown && in.remove(delay))
@@ -231,20 +235,24 @@ public class ArtificialLatency extends ExecutorLocals.Impl
                 }
                 case NORMAL:
                 {
-                    long deadline = out.isEmpty() ? Long.MAX_VALUE : out.peek().deadline;
                     waiting = Thread.currentThread();
-                    waitingUntil = deadline;
-
-                    while (minQueued >= deadline)
+                    while (true)
                     {
+                        long deadline;
+                        while (true)
+                        {
+                            drainIn();
+                            deadline = out.isEmpty() ? Long.MAX_VALUE : out.peek().deadline;
+                            if (waitingUntil == deadline)
+                                break;
+                            waitingUntil = deadline;
+                        }
+
                         long waitNanos = deadline - nanoTime();
                         if (waitNanos <= 0)
                             break;
                         LockSupport.parkNanos(waitNanos);
                     }
-
-                    minQueued = Long.MAX_VALUE;
-                    drainIn();
                 }
                 case INTERRUPTED:
                 {

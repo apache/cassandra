@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiPredicate;
 
 import javax.annotation.Nullable;
 
@@ -255,7 +254,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         Config.setOverrideLoadConfig(() -> {
             Config config = new YamlConfigurationLoader().loadConfig();
             config.accord.queue_shard_count = new OptionaldPositiveInt(1);
-            config.concurrent_accord_operations = 1;
+            config.accord.queue_thread_count = new OptionaldPositiveInt(1);
             config.accord.command_store_shard_count = new OptionaldPositiveInt(1);
             config.accord.enable_virtual_debug_only_keyspace = true;
             return config;

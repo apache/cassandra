@@ -26,8 +26,8 @@ import org.slf4j.LoggerFactory;
 import accord.api.Tracing;
 import accord.local.MapReduceCommandStores;
 import accord.local.Node;
-import accord.messages.Request;
 import accord.messages.AbstractRequest;
+import accord.messages.Request;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.net.IVerbHandler;
