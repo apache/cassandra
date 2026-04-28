@@ -721,6 +721,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     }
 
     /**
+     * determine which endpoint started up earlier
+     */
+    public int compareEndpointStartup(InetAddressAndPort addr1, InetAddressAndPort addr2)
+    {
+        EndpointState ep1 = getEndpointStateForEndpoint(addr1);
+        EndpointState ep2 = getEndpointStateForEndpoint(addr2);
+        assert ep1 != null && ep2 != null;
+        return ep1.getHeartBeatState().getGeneration() - ep2.getHeartBeatState().getGeneration();
+    }
+
+    /**
      * Quarantines the endpoint for QUARANTINE_DELAY
      *
      * @param endpoint
@@ -944,7 +955,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(endpoint);
         if (nodeId == null)
-            return false;
+            return true;
         return NodeState.isPreJoin(metadata.directory.states.get(nodeId));
     }
 

@@ -163,6 +163,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster runBeforeClusterUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
+        private boolean noNodesToUpgrade = false;
         private Consumer<IInstanceConfig> configConsumer;
         private Consumer<UpgradeableCluster.Builder> builderConsumer;
         private TokenSupplier tokenSupplier;
@@ -370,7 +371,7 @@ public class UpgradeTestBase extends DistributedTestBase
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
                 runAfterNodeUpgrade = (c, n) -> {};
-            if (nodesToUpgrade.isEmpty())
+            if (nodesToUpgrade.isEmpty() && !noNodesToUpgrade)
                 for (int n = 1; n <= nodeCount; n++)
                     nodesToUpgrade.add(n);
 
@@ -416,6 +417,11 @@ public class UpgradeTestBase extends DistributedTestBase
 
         public TestCase nodesToUpgrade(int ... nodes)
         {
+            if (nodes.length == 0)
+            {
+                noNodesToUpgrade = true;
+                return this;
+            }
             Set<Integer> set = new HashSet<>(nodes.length);
             for (int n : nodes)
             {
