@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -41,7 +42,6 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
-import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
 
@@ -60,8 +60,7 @@ public class NewGossiper
     public Map<InetAddressAndPort, EndpointState> doShadowRound()
     {
         Set<InetAddressAndPort> peers = new HashSet<>(SystemKeyspace.loadHostIds().keySet());
-        if (peers.isEmpty())
-            peers.addAll(DatabaseDescriptor.getSeeds());
+        peers.addAll(DatabaseDescriptor.getSeeds());
         if (peers.equals(Collections.singleton(getBroadcastAddressAndPort())))
             return GossipHelper.storedEpstate();
 
@@ -94,18 +93,18 @@ public class NewGossiper
         return srh != null && !srh.isDone();
     }
 
-    void onAck( Map<InetAddressAndPort, EndpointState> epStateMap)
+    void onAck(InetAddressAndPort from, Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         ShadowRoundHandler srh = handler;
         if (srh != null && !srh.isDone())
-            srh.onAck(epStateMap);
+            srh.onAck(from, epStateMap);
     }
 
     public static class ShadowRoundHandler
     {
         private volatile boolean isDone = false;
         private final Set<InetAddressAndPort> peers;
-        private final Accumulator<Map<InetAddressAndPort, EndpointState>> responses;
+        private final Map<InetAddressAndPort, Map<InetAddressAndPort, EndpointState>> responses;
         private final int requiredResponses;
         private final MessageDelivery messageDelivery;
         private final Promise<Map<InetAddressAndPort, EndpointState>> promise = new AsyncPromise<>();
@@ -117,9 +116,10 @@ public class NewGossiper
 
         public ShadowRoundHandler(Set<InetAddressAndPort> peers, MessageDelivery messageDelivery)
         {
-            this.peers = peers;
-            requiredResponses = Math.max(peers.size() / 10, 1); // todo: is 10% reasonable?
-            responses = new Accumulator<>(requiredResponses);
+            this.peers = ConcurrentHashMap.newKeySet();
+            this.peers.addAll(peers);
+            responses = new ConcurrentHashMap<>();
+            requiredResponses = this.peers.size() < 3 ? 1 : Math.max(this.peers.size() / 5, 2); // require response from 20% of the cluster
             this.messageDelivery = messageDelivery;
         }
 
@@ -146,18 +146,21 @@ public class NewGossiper
             return promise;
         }
 
-        public void onAck(Map<InetAddressAndPort, EndpointState> epStateMap)
+        public void onAck(InetAddressAndPort from, Map<InetAddressAndPort, EndpointState> epStateMap)
         {
             if (!isDone)
             {
                 if (!epStateMap.isEmpty())
-                    responses.add(epStateMap);
+                {
+                    responses.put(from, epStateMap);
+                    peers.addAll(epStateMap.keySet()); // when retrying we should query the endpoints we learned about in the previous round
+                }
 
                 logger.debug("Received {} responses. {} required.", responses.size(), requiredResponses);
                 if (responses.size() >= requiredResponses)
                 {
                     isDone = true;
-                    Map<InetAddressAndPort, EndpointState> merged = merge(responses.snapshot());
+                    Map<InetAddressAndPort, EndpointState> merged = merge(responses.values());
                     if (GossipHelper.isValidForClusterMetadata(merged))
                         promise.setSuccess(merged);
                     else

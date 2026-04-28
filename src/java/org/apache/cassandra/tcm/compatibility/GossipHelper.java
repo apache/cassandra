@@ -22,6 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -33,7 +34,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -344,8 +344,41 @@ public class GossipHelper
         return epstates;
     }
 
+    /**
+     * During upgrade, in gossip mode we allow nodes to change IP, this means that we can't decide the
+     * nodeId based on the sorting of the ip address, since that might change during the upgrade
+     *
+     * Instead we sort by hostId which can't change - replacements are not allowed etc.
+     *
+     * If a node has no hostId, we add the endpoints to the end, sorted by ip (if a node doesn't have a hostid it can't change ip)
+     *
+     */
+    public static List<InetAddressAndPort> sortEndpointsByHostId(Map<InetAddressAndPort, EndpointState> epStates)
+    {
+        Map<String, InetAddressAndPort> hostIdToEndpoint = new HashMap<>();
+        List<InetAddressAndPort> noHostId = new ArrayList<>();
+        for (Map.Entry<InetAddressAndPort, EndpointState> entry : epStates.entrySet())
+        {
+            VersionedValue vv = entry.getValue().getApplicationState(HOST_ID);
+            if (vv == null)
+                noHostId.add(entry.getKey());
+            else
+                hostIdToEndpoint.put(vv.value, entry.getKey());
+        }
+        List<InetAddressAndPort> sorted = new ArrayList<>(epStates.size());
+        List<String> hostIds = new ArrayList<>(hostIdToEndpoint.keySet());
+        Collections.sort(hostIds);
+        for (String hostId : hostIds)
+            sorted.add(hostIdToEndpoint.get(hostId));
+        Collections.sort(noHostId);
+        sorted.addAll(noHostId);
+        return sorted;
+    }
+
     @VisibleForTesting
-    public static ClusterMetadata fromEndpointStates(Map<InetAddressAndPort, EndpointState> epStates, IPartitioner partitioner, DistributedSchema schema)
+    public static ClusterMetadata fromEndpointStates(Map<InetAddressAndPort, EndpointState> epStates,
+                                                     IPartitioner partitioner,
+                                                     DistributedSchema schema)
     {
         Directory directory = new Directory().withLastModified(Epoch.UPGRADE_GOSSIP);
         TokenMap tokenMap = new TokenMap(partitioner).withLastModified(Epoch.UPGRADE_GOSSIP);
@@ -355,8 +388,7 @@ public class GossipHelper
         // generation if there is a duplicate hostid.
         if (containsDuplicateHostIds(epStates))
             epStates = cleanupDuplicateHostIds(epStates);
-        List<InetAddressAndPort> sortedEps = Lists.newArrayList(epStates.keySet());
-        Collections.sort(sortedEps);
+        List<InetAddressAndPort> sortedEps = sortEndpointsByHostId(epStates);
         Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>();
         for (InetAddressAndPort endpoint : sortedEps)
         {
