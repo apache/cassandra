@@ -45,11 +45,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Tests the authentication negotiation protocol flow for a server that is configured to support authenticator
- * negotiation, including compatibility scenarios defined in CEP-50. Covers the compatibility matrix for
- * negotiating and non-negotiating clients.
+ * Tests the protocol flow for a server that is configured to support authenticator negotiation, including
+ * compatibility scenarios defined in CEP-50. Covers the compatibility matrix for negotiating and non-negotiating
+ * clients.
  */
-public class NegotiatedAuthenticationTest extends CQLTester
+public class AuthenticatorNegotiationTest extends CQLTester
 {
     @BeforeClass
     public static void setup()
@@ -158,7 +158,8 @@ public class NegotiatedAuthenticationTest extends CQLTester
         }
     }
 
-    // Scenario 4: Full negotiation - no matching authenticators, falls back to default
+    // Scenario 4: Negotating client + Negotiating server
+    // Full negotiation but no matching authenticators: falls back to default authenticator
     @Test
     public void testFullNegotiationNoMatch()
     {
@@ -188,7 +189,8 @@ public class NegotiatedAuthenticationTest extends CQLTester
         }
     }
 
-    // Scenario 5: Full negotiation - failed authentication
+    // Scenario 5: Negotating client + Negotiating server
+    // Successful negotiation but failed authentication should result in ERROR to client
     @Test
     public void testNegotiatedAuthenticationFailure()
     {

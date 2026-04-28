@@ -289,7 +289,7 @@ public interface IAuthenticator
             if (this == o) return true;
             if (!(o instanceof AuthenticationMode)) return false;
             AuthenticationMode that = (AuthenticationMode) o;
-            return normalizedDisplayName.equalsIgnoreCase(that.normalizedDisplayName);
+            return normalizedDisplayName.equals(that.normalizedDisplayName);
         }
 
         @Override

@@ -91,16 +91,18 @@ public final class AuthConfig
         AuthenticatorConfig authConfig = loadAuthenticatorConfig(conf);
 
         // the configuration options regarding credentials caching are only guaranteed to
-        // work with PasswordAuthenticator, so log a message if some other authenticator
-        // is in use and non-default values are detected
-        if (!(authConfig.defaultAuthenticator instanceof PasswordAuthenticator || authConfig.defaultAuthenticator instanceof MutualTlsAuthenticator)
+        // work with PasswordAuthenticator and MutualTlsAuthenticator, so log a message if none of the
+        // configured authenticators use credentials caching and non-default values are detected
+        boolean hasCredentialsCaching = authConfig.negotiableAuthenticators.stream()
+            .anyMatch(auth -> auth instanceof PasswordAuthenticator || auth instanceof MutualTlsAuthenticator);
+
+        if (!hasCredentialsCaching
             && (conf.credentials_update_interval != null
                 || conf.credentials_validity.toMilliseconds() != 2000
                 || conf.credentials_cache_max_entries != 1000))
         {
             logger.info("Configuration options credentials_update_interval, credentials_validity and " +
-                        "credentials_cache_max_entries may not be applicable for the configured authenticator ({})",
-                        authConfig.defaultAuthenticator.getClass().getName());
+                        "credentials_cache_max_entries may not be applicable for the configured authenticators");
         }
 
         DatabaseDescriptor.setDefaultAuthenticator(authConfig.defaultAuthenticator);
@@ -153,7 +155,7 @@ public final class AuthConfig
         // Validate at last to have authenticator, authorizer, role-manager and internode-auth setup
         // in case these rely on each other.
 
-        authConfig.defaultAuthenticator.validateConfiguration();
+        authConfig.negotiableAuthenticators.forEach(IAuthenticator::validateConfiguration);
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
         networkAuthorizer.validateConfiguration();
@@ -195,21 +197,21 @@ public final class AuthConfig
     private static void validateRequireAuthentication(AuthenticatorConfig authConfig)
     {
         // Check all negotiable authenticators (includes default)
-        for (IAuthenticator auth : authConfig.negotiableAuthenticators)
+        for (IAuthenticator authenticator : authConfig.negotiableAuthenticators)
         {
-            if (!auth.requireAuthentication())
+            if (!authenticator.requireAuthentication())
             {
                 if (authConfig.requireAuthentication)
                 {
                     throw new ConfigurationException(
                         "require_authentication is true but authenticator doesn't require authentication: " 
-                        + auth.getClass().getName(), false);
+                        + authenticator.getClass().getName(), false);
                 }
                 else
                 {
                     logger.warn("require_authentication is false and authenticator doesn't require authentication: {}. " +
-                               "This allows unauthenticated access. Set require_authentication: true to enforce authentication.",
-                               auth.getClass().getName());
+                               "This may allow unauthenticated access.",
+                               authenticator.getClass().getName());
                 }
             }
         }
@@ -227,20 +229,18 @@ public final class AuthConfig
         if (!authorizer.requireAuthorization())
             return;
 
-        // Legacy mode: simple check
-        if (!authConfig.isNegotiationEnabled)
+        // If negotiating, all authenticators have to work with the authorizer (require authentication).
+        if (authConfig.isNegotiationEnabled)
         {
-            if (!authConfig.defaultAuthenticator.requireAuthentication())
-            {
-                throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
-                                               authConfig.defaultAuthenticator.getClass().getName() + " to enable authentication", false);
-            }
+            validateAuthorizerCompatibility(authConfig, authorizer.getClass().getName(),
+                                            "limited access based on 'anonymous' role permissions");
             return;
         }
-        
-        // Negotiation mode: check all authenticators
-        validateAuthorizerCompatibility(authConfig, authorizer.getClass().getName(), 
-                                       "limited access based on 'anonymous' role permissions");
+
+        // Otherwise, just the default authenticator has to work with the authorizer.
+        if (!authConfig.defaultAuthenticator.requireAuthentication())
+            throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
+                                             authConfig.defaultAuthenticator.getClass().getName() + " to enable authentication", false);
     }
 
     /**
@@ -252,20 +252,18 @@ public final class AuthConfig
         if (!networkAuthorizer.requireAuthorization())
             return;
 
-        // Legacy mode: simple check
-        if (!authConfig.isNegotiationEnabled)
+        // If negotiating, all authenticators have to work with the authorizer (require authentication).
+        if (authConfig.isNegotiationEnabled)
         {
-            if (!authConfig.defaultAuthenticator.requireAuthentication())
-            {
-                throw new ConfigurationException(networkAuthorizer.getClass().getName() + " can't be used with " + 
-                                               authConfig.defaultAuthenticator.getClass().getName(), false);
-            }
+            validateAuthorizerCompatibility(authConfig, networkAuthorizer.getClass().getName(),
+                                            "limited network access");
             return;
         }
-        
-        // Negotiation mode: check all authenticators
-        validateAuthorizerCompatibility(authConfig, networkAuthorizer.getClass().getName(), 
-                                       "limited network access");
+
+        // Otherwise, just the default authenticator has to work with the authorizer.
+        if (!authConfig.defaultAuthenticator.requireAuthentication())
+            throw new ConfigurationException(networkAuthorizer.getClass().getName() + " can't be used with " +
+                                             authConfig.defaultAuthenticator.getClass().getName(), false);
     }
 
     /**
@@ -277,20 +275,18 @@ public final class AuthConfig
         if (!cidrAuthorizer.requireAuthorization())
             return;
 
-        // Legacy mode: simple check
-        if (!authConfig.isNegotiationEnabled)
+        // If negotiating, all authenticators have to work with the authorizer (require authentication).
+        if (authConfig.isNegotiationEnabled)
         {
-            if (!authConfig.defaultAuthenticator.requireAuthentication())
-            {
-                throw new ConfigurationException(cidrAuthorizer.getClass().getName() + " can't be used with " + 
-                                               authConfig.defaultAuthenticator.getClass().getName(), false);
-            }
+            validateAuthorizerCompatibility(authConfig, cidrAuthorizer.getClass().getName(),
+                                            "limited CIDR-based access");
             return;
         }
-        
-        // Negotiation mode: check all authenticators
-        validateAuthorizerCompatibility(authConfig, cidrAuthorizer.getClass().getName(), 
-                                       "limited CIDR-based access");
+
+        // Otherwise, just the default authenticator has to work with the authorizer.
+        if (!authConfig.defaultAuthenticator.requireAuthentication())
+            throw new ConfigurationException(cidrAuthorizer.getClass().getName() + " can't be used with " +
+                                             authConfig.defaultAuthenticator.getClass().getName(), false);
     }
 
     /**
@@ -302,7 +298,7 @@ public final class AuthConfig
                                                         String accessDescription)
     {
         boolean hasNonAuthenticating = authConfig.negotiableAuthenticators.stream()
-            .anyMatch(auth -> !auth.requireAuthentication());
+            .anyMatch(authenticator -> !authenticator.requireAuthentication());
         
         if (hasNonAuthenticating)
         {
@@ -329,13 +325,13 @@ public final class AuthConfig
      */
     private static AuthenticatorConfig loadAuthenticatorConfig(Config conf)
     {
-        // Determine if authenticator_negotiation was configured
-        boolean negotiationConfigured = conf.authenticator_negotiation.enabled;
+        // Determine if authenticator_negotiation was enabled
+        boolean negotiationEnabled = conf.authenticator_negotiation.enabled;
 
         // Determine default authenticator based on configuration precedence
         IAuthenticator defaultAuthenticator;
 
-        if (negotiationConfigured)
+        if (negotiationEnabled)
         {
             ParameterizedClass defaultAuthenticatorConfig = conf.authenticator_negotiation.default_authenticator;
 
@@ -358,7 +354,7 @@ public final class AuthConfig
 
         List<IAuthenticator> negotiableAuthenticators = new ArrayList<>();
 
-        if (negotiationConfigured)
+        if (negotiationEnabled)
         {
             logger.info("Authentication negotiation enabled: initializing authenticators");
             List<ParameterizedClass> authenticators = conf.authenticator_negotiation.authenticators;
@@ -370,24 +366,10 @@ public final class AuthConfig
                     // We generally can't instantiate multiple instances of an authenticator, so if the
                     // default is also in the list of negotiable authenticators, just re-use the instance
                     // that we have.
-                    // TODO - This comparison is potentially broken because depending on how the authenticator
-                    //  is configured in YAML, this equals() may or may not work. The parameterized class created
-                    //  from 'default_authenticator: PasswordAuthenticator' or
-                    //  'default_authenticator:\n\tclass_name: PasswordAuthenticator'
-                    //  is different from that created from
-                    //  'default_authenticator:\n\t- class_name: PasswordAuthenticator'.
-                    //  The latter, inadvertantly, attempts to set default_authenticator to a list (indicated by the '-').
-                    //  Since default_authenticator isn't a list, SnakeYAML grabs the first list element and constructs
-                    //  the ParameterizedClass instance using the default constructor and reflection, which results in
-                    //  'parameters' being null instead of being an empty map which is what the first two forms will
-                    //  create. This causes ParameterizedClass.equals() to return 'false' when a ParameterizedClass
-                    //  generated from the 'authenticators' list is compared to the default_authenticator if the default
-                    //  authenticator was specified using that third form (list style). This results in the default
-                    //  authenticator being placed at the end of the authenticators list instead of in its
-                    //  configured order, which can lead to the negotiator picking a weaker authenticator than the order
-                    //  of authenticators in the configuration indicates. I'm not sure how to resolve this right now.
-                    //  One possibility is to 'fix' the equals() and hashCode() methods in ParameterizedClass to treat
-                    //  null and empty 'parameters' the same (by coercing null to empty).
+                    // TODO - ParameterizedClass.equals() fails when comparing configs with null vs empty parameters
+                    //  (e.g., 'default_authenticator: PasswordAuthenticator' vs 'default_authenticator:\n\t- class_name: PasswordAuthenticator').
+                    //  This causes duplicate authenticator instances and incorrect negotiation order.
+                    //  Fix: Normalize null to empty map in ParameterizedClass.equals()/hashCode().
                     //  https://issues.apache.org/jira/browse/CASSANDRA-21238
                     if (clazz.equals(conf.authenticator_negotiation.default_authenticator))
                     {
@@ -424,7 +406,7 @@ public final class AuthConfig
             defaultAuthenticator,
             negotiableAuthenticators,
             conf.authenticator_negotiation.require_authentication,
-            negotiationConfigured
+            negotiationEnabled
         );
     }
 }

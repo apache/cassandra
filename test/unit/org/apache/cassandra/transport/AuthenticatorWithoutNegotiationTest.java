@@ -44,7 +44,7 @@ import static org.junit.Assert.fail;
  * Tests authentication protocol flow when server does NOT support negotiation.
  * Covers scenario 3 from CEP-50: Negotiating client + Non-negotiating server.
  */
-public class NonNegotiatedAuthenticationTest extends CQLTester
+public class AuthenticatorWithoutNegotiationTest extends CQLTester
 {
     @BeforeClass
     public static void setup()
@@ -88,7 +88,6 @@ public class NonNegotiatedAuthenticationTest extends CQLTester
             fail("Error establishing connection: " + e.getMessage());
         }
     }
-
 
     // Scenario 2: Stubborn negotiating client + Non-negotiating server.
     // Client sends OPTIONS, server SUPPORTED lacks AUTHENTICATORS, client sends authenticators with STARTUP message

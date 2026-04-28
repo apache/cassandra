@@ -226,7 +226,7 @@ public class DatabaseDescriptor
     private static AbstractCryptoProvider cryptoProvider;
 
     // Cached value: true if any authenticator requires authentication
-    private static boolean authenticationRequired;
+    private static boolean isAuthenticationRequired;
     private static List<IAuthenticator> negotiableAuthenticators = List.of();
     private static IAuthenticator defaultAuthenticator;
 
@@ -2062,7 +2062,7 @@ public class DatabaseDescriptor
     public static void setNegotiableAuthenticators(List<IAuthenticator> authenticators)
     {
         negotiableAuthenticators = new ArrayList<>(authenticators);
-        updateAuthenticationRequired();
+        isAuthenticationRequired = computeAuthenticationRequired();
     }
 
     /**
@@ -2110,26 +2110,23 @@ public class DatabaseDescriptor
     public static void setDefaultAuthenticator(IAuthenticator authenticator)
     {
         defaultAuthenticator = authenticator;
-        updateAuthenticationRequired();
+        isAuthenticationRequired = computeAuthenticationRequired();
     }
 
     /**
-     * Recomputes and caches whether authentication is required.
-     * Called when authenticators are set/updated.
+     * Computes whether authentication is required based on current authenticator configuration.
+     * Checks both the default authenticator and any negotiable authenticators.
+     * Returns true if ANY authenticator requires authentication, false otherwise.
      */
-    private static void updateAuthenticationRequired()
+    private static boolean computeAuthenticationRequired()
     {
-        if (isAuthenticatorNegotiationEnabled())
-        {
-            // Check if ANY negotiable authenticator requires authentication
-            authenticationRequired = negotiableAuthenticators.stream()
-                .anyMatch(IAuthenticator::requireAuthentication);
-        }
-        else
-        {
-            // Fallback to default authenticator for non-negotiation mode
-            authenticationRequired = defaultAuthenticator != null && defaultAuthenticator.requireAuthentication();
-        }
+        // Check default authenticator first (handles legacy setAuthenticator() calls)
+        if (defaultAuthenticator != null && defaultAuthenticator.requireAuthentication())
+            return true;
+
+        // Also check negotiable authenticators list
+        return negotiableAuthenticators.stream()
+                                       .anyMatch(IAuthenticator::requireAuthentication);
     }
 
     /**
@@ -2140,7 +2137,7 @@ public class DatabaseDescriptor
      */
     public static boolean isAuthenticationRequired()
     {
-        return authenticationRequired;
+        return isAuthenticationRequired;
     }
 
     public static IAuthorizer getAuthorizer()
