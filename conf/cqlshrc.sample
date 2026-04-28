@@ -74,6 +74,14 @@
 ;
 ;browser =
 
+;; When set to true, cqlsh will remain in interactive mode after executing
+;; a command supplied via -e/--execute or -f/--file, or after reading from
+;; a non-interactive stdin (e.g. a pipe). Without this, cqlsh exits
+;; immediately after the supplied commands finish. Equivalent to the
+;; -i/--ingteractive command line option, which always takes precedence
+;; over this setting.
+; interactive = false
+
 [cql]
 ;; A version of CQL to use (this should almost never be set)
 ; version = 3.2.1

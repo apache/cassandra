@@ -2068,8 +2068,8 @@ def read_options(cmdlineargs, parser, config_file, cql_dir, environment=os.envir
     argvalues.execute = None
     argvalues.insecure_password_without_warning = False
     argvalues.disable_history = option_with_default(configs.getboolean, 'history', 'disabled', False)
+    argsvalues.interactive = option_with_default(configs.getboolean, 'ui', 'interactive', False)
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
-    argvalues.interactive = False
 
     # Credentials from cqlshrc will be expanded,
     # credentials from the command line are also expanded if there is a space...

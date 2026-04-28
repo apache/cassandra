@@ -121,7 +121,11 @@ Options:
 `-v` `--v`::
   Print the current version of cqlsh.
 `-i` `--interactive`::
-  With -f or -e become interactive instead of exiting
+  With -f or -e (or when reading from a non-interactive stdin) remain in an
+  interactive prompt instead of exiting after the supplied commands complete.
+  This option can also be enabled permanently in the `[ui]` section of cqlshrc
+  by setting `interactive = true`. The command line flag always takes precedence
+  over the configuration file.
 
 == Special Commands
 
