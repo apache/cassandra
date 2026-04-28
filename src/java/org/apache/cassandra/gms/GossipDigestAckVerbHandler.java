@@ -56,7 +56,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             if (logger.isDebugEnabled())
                 logger.debug("Received an ack from {}, which may trigger exit from shadow round", from);
 
-            NewGossiper.instance.onAck(epStateMap);
+            NewGossiper.instance.onAck(message.from(), epStateMap);
             return;
         }
         if (epStateMap.size() > 0)
