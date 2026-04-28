@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.accord.serializers;
 
-import accord.api.Result;
+import accord.api.Result.PersistableResult;
 
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -27,17 +27,17 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 public class ResultSerializers
 {
     // TODO (desired): this is meant to encode e.g. whether the transaction's condition met or not for clients to later query
-    public static final Result APPLIED = new Result(){};
+    public static final PersistableResult APPLIED = new PersistableResult(){};
 
-    public static final UnversionedSerializer<Result> result = new UnversionedSerializer<>()
+    public static final UnversionedSerializer<PersistableResult> result = new UnversionedSerializer<>()
     {
-        public void serialize(Result t, DataOutputPlus out) { }
-        public Result deserialize(DataInputPlus in)
+        public void serialize(PersistableResult t, DataOutputPlus out) { }
+        public PersistableResult deserialize(DataInputPlus in)
         {
             return APPLIED;
         }
 
-        public long serializedSize(Result t)
+        public long serializedSize(PersistableResult t)
         {
             return 0;
         }

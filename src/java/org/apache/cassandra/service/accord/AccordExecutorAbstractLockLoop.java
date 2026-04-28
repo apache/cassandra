@@ -19,25 +19,22 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.locks.Lock;
-import java.util.stream.Stream;
 
 import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 
-import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.accord.AccordExecutorLoops.LoopTask;
 import org.apache.cassandra.service.accord.debug.DebugExecution.DebugExecutorLoop;
-import org.apache.cassandra.utils.concurrent.ConcurrentLinkedStack;
 
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITH_LOCK;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 
-abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
+abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
 {
     private static final int YIELD_INTERVAL = DatabaseDescriptor.getAccord().queue_yield_interval;
-    final ConcurrentLinkedStack<Submittable> submitted = new ConcurrentLinkedStack<>();
+    int runningThreads;
     boolean shutdown;
 
     AccordExecutorAbstractLockLoop(Lock lock, int executorId, Agent agent)
@@ -49,14 +46,13 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     abstract void notifyWorkExclusive();
     void loopYieldExclusive() throws InterruptedException {}
     abstract void awaitExclusive() throws InterruptedException;
-    abstract AccordExecutorLoops loops();
-    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         // if we're a loop thread, we will poll the waitingToRun queue when we come around
         // NOTE: this assumes no synchronous blocking tasks are submitted to this executor
-        if (isInLoop() || isOwningThread()) submitted.push(async.apply(p1a, p2, p3, p4));
+        if (isInLoop() || isOwningThread()) push(async.apply(p1a, p2, p3, p4));
         else submitExternal(sync, async, p1s, p1a, p2, p3, p4);
     }
 
@@ -66,7 +62,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
         {
             try
             {
-                drainSubmittedExclusive();
+                drainUnqueuedExclusive();
             }
             catch (Throwable t)
             {
@@ -80,33 +76,6 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
         {
             notifyIfMoreWorkExclusive();
         }
-    }
-
-    public boolean hasTasks()
-    {
-        if (tasks > 0 || !submitted.isEmpty() || runningThreads > 0)
-            return true;
-
-        lock();
-        try
-        {
-            return tasks > 0 || !submitted.isEmpty() || runningThreads > 0;
-        }
-        finally
-        {
-            unlock();
-        }
-    }
-
-    final void updateWaitingToRunExclusive()
-    {
-        drainSubmittedExclusive();
-        super.updateWaitingToRunExclusive();
-    }
-
-    final void drainSubmittedExclusive()
-    {
-        submitted.drain(AccordExecutor::consumeExclusive, this, true);
     }
 
     final void notifyIfMoreWorkExclusive()
@@ -149,7 +118,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
         ++runningThreads;
     }
 
-    LoopTask task(String name, Mode mode)
+    LoopTask task(int index, String name, Mode mode)
     {
         return mode == RUN_WITH_LOCK ? runWithLock(name) : runWithoutLock(name);
     }
@@ -178,7 +147,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                                 setRunning(task);
                                 try
                                 {
-                                    task.preRunExclusive(self);
+                                    task.preRunExclusive();
                                     task.runInternal();
                                 }
                                 catch (Throwable t)
@@ -263,7 +232,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                             if (task != null)
                             {
                                 setRunning(task);
-                                task.preRunExclusive(self);
+                                task.preRunExclusive();
                                 if (DEBUG_EXECUTION) debug.onExitLock();
                                 exitLockLoop();
                                 break;
@@ -338,22 +307,9 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
     }
 
     @Override
-    public Stream<? extends DebuggableTaskRunner> active()
-    {
-        return loops().active();
-    }
-
-    @Override
     public void shutdown()
     {
         shutdown = true;
         notifyWork();
-    }
-
-    @Override
-    public Object shutdownNow()
-    {
-        shutdown();
-        return null;
     }
 }

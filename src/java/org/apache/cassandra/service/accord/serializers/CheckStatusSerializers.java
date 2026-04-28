@@ -21,7 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 import java.util.Objects;
 
-import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.api.RoutingKey;
 import accord.coordinate.Infer;
 import accord.messages.CheckStatus;
@@ -228,7 +228,7 @@ public class CheckStatusSerializers
                     PartialDeps committedDeps = DepsSerializers.nullablePartialDeps.deserialize(in);
                     Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
-                    Result result = null;
+                    PersistableResult result = null;
                     if (maxKnowledgeStatus.known.outcome().isOrWasApply())
                         result = ResultSerializers.APPLIED;
 

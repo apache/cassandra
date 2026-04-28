@@ -269,7 +269,7 @@ public class HintsServiceTest
                     {
                         accordTxnCount.incrementAndGet();
                         TxnId txnId = AccordTestUtils.txnId(42, 43, 44);
-                        AccordResult<TxnResult> result = new AccordResult<>(txnId, Keys.EMPTY, new LatencyRequestBookkeeping(null), requestTime.startedAtNanos(), requestTime.startedAtNanos(), true);
+                        AccordResult<TxnResult> result = new AccordResult<>(txnId, Keys.EMPTY, new LatencyRequestBookkeeping(null), requestTime.startedAtNanos(), requestTime.startedAtNanos(), true, null);
                         result.accept(new TxnData(), null);
                         return result;
                     }

@@ -65,7 +65,7 @@ public class AccordBootstrapTest extends FuzzTestBase
                                         .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP)
                                                                       .set("write_request_timeout", "2s")
                                                                       .set("request_timeout", "5s")
-                                                                      .set("concurrent_accord_operations", 2)
+                                                                      .set("accord.queue_thread_count", 2)
                                                                       .set("accord.shard_durability_target_splits", "1")
                                                                       .set("accord.shard_durability_max_splits", "4")
                                                                       .set("accord.catchup_on_start_fail_latency", "60s")
