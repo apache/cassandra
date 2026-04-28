@@ -30,7 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Key;
-import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.StoreParticipants;
@@ -134,7 +134,7 @@ public class AccordCommandStoreTest
         LargeBitSet waitingOnApply = new LargeBitSet(3);
         waitingOnApply.set(1);
         Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies.keyDeps.keys(), dependencies.rangeDeps, new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
-        Pair<Writes, Result> result = getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
+        Pair<Writes, PersistableResult> result = getBlocking(AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt));
 
         Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, AllQuorums, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,

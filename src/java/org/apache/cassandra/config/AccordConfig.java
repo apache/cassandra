@@ -66,11 +66,15 @@ public class AccordConfig
         /**
          * Same number of threads as queue shards, but the shard lock is held only while managing the queue,
          * so that submitting threads may queue load/save work.
+         *
+         * This is incompatible with QueueSubmissionModel.SIGNAL
          */
         THREAD_PER_SHARD,
 
         /**
          * Same number of threads as shards, and the shard lock is held for the duration of serving requests.
+         *
+         * This is incompatible with QueueSubmissionModel.SIGNAL
          */
         THREAD_PER_SHARD_SYNC_QUEUE,
 
@@ -102,6 +106,14 @@ public class AccordConfig
          * NOTE: EXPERIMENTAL
          */
         ASYNC,
+
+        /**
+         * Queue workers try to avoid competing for the lock, with the lock owner distributing work to any waiting threads
+         * and signalling them without them taking the lock
+         *
+         * NOTE: EXPERIMENTAL
+         */
+        SIGNAL,
 
         /**
          * The queue is backed by submission to a single-threaded plain executor.
@@ -151,7 +163,29 @@ public class AccordConfig
      */
     public volatile OptionaldPositiveInt queue_shard_count = OptionaldPositiveInt.UNDEFINED;
 
+    /**
+     * The total number of threads to share between queue shards
+     */
+    public volatile OptionaldPositiveInt queue_thread_count = OptionaldPositiveInt.UNDEFINED;
+
     public QueuePriorityModel queue_priority_model = HLC_FIFO;
+
+    /**
+     * If set, the signal loop does not match park/unpark pairs, but instead consumers perform timed-park spin waits
+     */
+    public DurationSpec.LongMicrosecondsBound queue_spin_interval;
+
+    /**
+     * If set, the signal loop reduces the number of threads it is using when the time spent parked exceeds real-time
+     * by this interval.
+     */
+    public DurationSpec.LongMicrosecondsBound queue_stop_check_interval;
+
+    /**
+     * If set, the signal loop reduces the number of threads it is using when the time spent parked exceeds real-time
+     * by this interval.
+     */
+    public DurationSpec.LongMicrosecondsBound queue_signal_stop_check_interval_credit;
 
     // yield to other executor threads after executing this many tasks in a row, if there are waiting threads and tasks
     public int queue_yield_interval = 100;
@@ -455,5 +489,10 @@ public class AccordConfig
         {
             return version.version;
         }
+    }
+
+    public int commandStoreShardCount()
+    {
+        return command_store_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
     }
 }

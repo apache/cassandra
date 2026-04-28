@@ -70,10 +70,11 @@ import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
-import org.apache.cassandra.service.accord.AccordExecutor.SubmittableTask;
+import org.apache.cassandra.service.accord.AccordExecutor.Task;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Clock;
@@ -100,9 +101,8 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_SCAN_RANGES;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
 import static org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask.SANITY_CHECK;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public abstract class AccordTask<R> extends SubmittableTask implements Function<SafeCommandStore, R>, Cancellable, DebuggableTask
+public abstract class AccordTask<R> extends Task implements Function<SafeCommandStore, R>, Cancellable, DebuggableTask
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
@@ -629,6 +629,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         if (SANITY_CHECK)
         {
+            DebugTask debug = DebugTask.get(this);
             if (debug.sanityCheck == null)
                 debug.sanityCheck = new ArrayList<>(commands.size());
             debug.sanityCheck.add(safeCommand.current());
@@ -637,13 +638,13 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     private void save(List<Journal.CommandUpdate> diffs, Runnable onFlush)
     {
-        if (SANITY_CHECK && debug.sanityCheck != null)
+        if (SANITY_CHECK && DebugTask.get(this).sanityCheck != null)
         {
             Condition condition = Condition.newOneTimeCondition();
             this.commandStore.appendCommands(diffs, condition::signal);
             condition.awaitUninterruptibly();
 
-            for (Command check : debug.sanityCheck)
+            for (Command check : DebugTask.get(this).sanityCheck)
                 this.commandStore.sanityCheckCommand(commandStore.unsafeGetRedundantBefore(), check);
 
             if (onFlush != null) onFlush.run();
@@ -655,7 +656,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     }
 
     @Override
-    protected void preRunExclusive(Thread assigned)
+    protected void preRunExclusive()
     {
         state(ASSIGNED);
         queued = null;
@@ -673,10 +674,10 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     public void runInternal()
     {
-        runningAt = nanoTime();
+        onRunning();
         logger.trace("Running {} with state {}", this, state);
         AccordSafeCommandStore safeStore = null;
-        try (Closeable close = locals.get())
+        try (Closeable close = resources.get())
         {
             if (Tracing.isTracing())
                 Tracing.trace(preLoadContext.describe());
@@ -717,7 +718,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
             commandStore.complete(safeStore);
             safeStore = null;
-            if (DEBUG_EXECUTION) debug.onRunComplete();
+            onRunComplete();
             if (!flush)
                 finish(result, null);
         }
@@ -757,9 +758,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     protected void cleanupExclusive(AccordExecutor executor)
     {
-        super.cleanupExclusive(executor);
         Invariants.expect(state.isExecuted());
         releaseResources(commandStore.cachesExclusive());
+        super.cleanupExclusive(executor);
         executor.keys.increment(commandsForKey == null ? 0 : commandsForKey.size(), runningAt);
         if (histogramBuffer != null)
         {
@@ -825,18 +826,21 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             {
                 rangeScanner.cleanup(caches);
                 rangeScanner = null;
+                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedRangeScanner();
             }
             if (commands != null)
             {
                 commands.forEach((k, v) -> caches.commands().release(v, this));
                 commands.clear();
                 commands = null;
+                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedCommands();
             }
             if (commandsForKey != null)
             {
                 commandsForKey.forEach((k, v) -> caches.commandsForKeys().release(v, this));
                 commandsForKey.clear();
                 commandsForKey = null;
+                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedCommandsForKeys();
             }
             if (waitingToLoad != null)
             {

@@ -20,13 +20,13 @@ package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 
 import org.agrona.collections.Long2ObjectHashMap;
 
 import accord.utils.Invariants;
+import accord.utils.TriFunction;
 
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.service.accord.AccordExecutor.Mode;
@@ -54,7 +54,7 @@ class AccordExecutorLoops
     private final AtomicInteger running = new AtomicInteger();
     private final Condition terminated = Condition.newOneTimeCondition();
 
-    public AccordExecutorLoops(Mode mode, int threads, IntFunction<String> loopName, BiFunction<String, Mode, LoopTask> loopFactory)
+    public AccordExecutorLoops(Mode mode, int threads, IntFunction<String> loopName, TriFunction<Integer, String, Mode, LoopTask> loopFactory)
     {
         Invariants.require(mode == RUN_WITH_LOCK ? threads == 1 : threads >= 1);
         running.addAndGet(threads);
@@ -63,7 +63,7 @@ class AccordExecutorLoops
         for (int i = 0; i < threads; ++i)
         {
             String name = loopName.apply(i);
-            LoopTask task = loopFactory.apply(name, mode);
+            LoopTask task = loopFactory.apply(i, name, mode);
             Thread thread = executorFactory().startThread(name, wrap(task), NON_DAEMON, INFINITE_LOOP);
             Thread conflict = loops.putIfAbsent(thread.getId(), thread);
             Invariants.require(conflict == null || !conflict.isAlive(), "Allocated two threads with the same threadId!");

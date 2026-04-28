@@ -245,26 +245,6 @@ public class AccordCommandStore extends CommandStore
         if (this.progressLog instanceof DefaultProgressLog)
             ((DefaultProgressLog)this.progressLog).unsafeSetConfig(DatabaseDescriptor.getAccordProgressLogConfig());
 
-        final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
-        final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
-        try (AccordExecutor.ExclusiveGlobalCaches exclusive = sharedExecutor.lockCaches())
-        {
-            commands = exclusive.commands.newInstance(this);
-            commandsForKey = exclusive.commandsForKey.newInstance(this);
-            this.caches = new ExclusiveCaches(sharedExecutor.unsafeLock(), exclusive.global, commands, commandsForKey);
-        }
-
-        this.exclusiveExecutor = sharedExecutor.executor(id);
-        {
-            AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
-            switch (mode)
-            {
-                default: throw new UnhandledEnum(mode);
-                case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
-                case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
-            }
-        }
-
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         maybeLoadSafeToRead(journal.loadSafeToRead(id()));
@@ -283,6 +263,26 @@ public class AccordCommandStore extends CommandStore
             Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
+
+        final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
+        final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
+        try (AccordExecutor.ExclusiveGlobalCaches exclusive = sharedExecutor.lockCaches())
+        {
+            commands = exclusive.commands.newInstance(this);
+            commandsForKey = exclusive.commandsForKey.newInstance(this);
+            this.caches = new ExclusiveCaches(sharedExecutor.unsafeLock(), exclusive.global, commands, commandsForKey);
+        }
+        this.exclusiveExecutor = sharedExecutor.executor(id);
+
+        {
+            AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
+            switch (mode)
+            {
+                default: throw new UnhandledEnum(mode);
+                case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
+                case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
+            }
+        }
 
         if (AccordService.isStarted())
             progressLog.unsafeStart();

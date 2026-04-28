@@ -26,7 +26,7 @@ import java.util.function.IntFunction;
 import accord.api.Agent;
 
 // WARNING: experimental - needs more testing
-class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
+public class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
 {
     private final AccordExecutorLoops loops;
     private final ReentrantLock lock;
@@ -61,7 +61,7 @@ class AccordExecutorSemiSyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     @Override
     void awaitExclusive() throws InterruptedException
     {
-        if (submitted.isEmpty())
+        if (!hasUnqueued())
             awaitWork();
     }
 

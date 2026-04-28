@@ -41,6 +41,7 @@ import accord.api.Journal;
 import accord.api.ProgressLog.NoOpProgressLog;
 import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
@@ -240,15 +241,15 @@ public class AccordTestUtils
         return Ballot.fromValues(epoch, hlc, new Node.Id(node));
     }
 
-    public static AsyncChain<Pair<Writes, Result>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
+    public static AsyncChain<Pair<Writes, PersistableResult>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
-        AtomicReference<AsyncChain<Pair<Writes, Result>>> result = new AtomicReference<>();
+        AtomicReference<AsyncChain<Pair<Writes, PersistableResult>>> result = new AtomicReference<>();
         getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test",
                                          safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
 
-    public static AsyncChain<Pair<Writes, Result>> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
+    public static AsyncChain<Pair<Writes, PersistableResult>> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
     {
         TxnRead read = (TxnRead) txn.read();
         return AsyncChains.allOf(read.keys().stream().map(key -> read.read(safeStore, key, executeAt))
@@ -256,7 +257,7 @@ public class AccordTestUtils
                                                .map(list -> {
                                                    Data data = list.stream().reduce(Data::merge).orElse(new TxnData());
                                                    return Pair.create(txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null,
-                                                                      txn.query().compute(txnId, executeAt, txn.keys(), data, txn.read(), txn.update()));
+                                                                      txn.query().compute(txnId, executeAt, txn.keys(), data, txn.read(), txn.update()).toPersistable());
                                                });
     }
 
