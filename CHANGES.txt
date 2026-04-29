@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Fix single token batch atomicity with Accord/non-Accord batches by using the batch log (CASSANDRA-20588)
  * Avoid CompactionOptions parsing for every read by WithoutPurgeableTombstones (CASSANDRA-21294)
  * Ensure schema created before 2.1 without tableId in folder name can be loaded in SnapshotLoader (CASSANDRA-21246)
  * Differentiate between legitimate cases where the first entry is the same as the last entry and empty bounds in SSTableCursorWriter#addIndexBlock() (CASSANDRA-21255)
