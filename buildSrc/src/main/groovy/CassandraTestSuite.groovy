@@ -30,11 +30,14 @@ class CassandraTestSuite {
         def arch = System.getProperty('os.arch', '')
         def xss = (arch == 'amd64' || arch == 'x86_64') ? '-Xss256k' : '-Xss384k'
 
+        // Use absolute path for storage-config to match ant behavior
+        def testConf = "${project.projectDir}/test/conf"
+
         def args = [
-            '-Dstorage-config=test/conf',
+            "-Dstorage-config=${testConf}",
             '-Djava.awt.headless=true',
             '-ea',
-            "-Djava.io.tmpdir=${project.layout.buildDirectory.get()}/test/tmp",
+            "-Djava.io.tmpdir=${project.layout.buildDirectory.get()}/tmp",
             '-Dcassandra.debugrefcount=true',
             '-Xms512M',
             xss,
@@ -42,11 +45,19 @@ class CassandraTestSuite {
             '-XX:ActiveProcessorCount=2',
             "-XX:HeapDumpPath=${project.layout.buildDirectory.get()}/test",
             '-Dcassandra.test.accord.allow_test_modes=true',
+            '-Dcassandra.test.driver.connection_timeout_ms=10000',
+            '-Dcassandra.test.driver.read_timeout_ms=24000',
             '-Dcassandra.memtable_row_overhead_computation_step=100',
+            '-Dcassandra.test.use_prepared=true',
             '-Dcassandra.test.sstableformatdevelopment=true',
             '-Djava.security.egd=file:/dev/urandom',
+            "-Dcassandra.testtag=_jdk${jdkVersion}",
+            '-Dcassandra.keepBriefBrief=true',
             '-Dcassandra.strict.runtime.checks=true',
             '-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true',
+            '-Dcassandra.test.flush_local_schema_changes=false',
+            '-Dcassandra.test.messagingService.nonGracefulShutdown=true',
+            '-Dcassandra.use_nix_recursive_delete=true',
             '-Dio.netty.allocator.useCacheForAllThreads=true',
             '-Dio.netty.allocator.maxOrder=11',
             '-DQT_SHRINKS=0',
@@ -66,6 +77,7 @@ class CassandraTestSuite {
         def testData = "${project.projectDir}/test/data"
         return [
             '-Dcassandra.ring_delay_ms=1000',
+            '-Dcassandra.tolerate_sstable_size=true',
             '-Dcassandra.skip_sync=true',
             "-Dlegacy-sstable-root=${testData}/legacy-sstables",
             "-Dinvalid-legacy-sstable-root=${testData}/invalid-legacy-sstables",
@@ -84,6 +96,7 @@ class CassandraTestSuite {
             '-Dcassandra.tolerate_sstable_size=true',
             '-Dcassandra.skip_sync=true',
             '-Dcassandra.debugrefcount=false',
+            '-Dcassandra.keepBriefBrief=false',
             '-Dcassandra.test.simulator.determinismcheck=strict',
             '-Dcassandra.test.simulator.print_asm=none',
             "-javaagent:${simLibDir}/simulator-asm.jar",
@@ -154,6 +167,8 @@ class CassandraTestSuite {
         } else {
             jvmArgs.addAll(standardSuiteArgs(project))
         }
+        // Set suitename for logback-test.xml log file path resolution
+        jvmArgs.add("-Dsuitename=${task.name}")
         task.jvmArgs(jvmArgs)
 
         // Working directory
@@ -167,7 +182,7 @@ class CassandraTestSuite {
 
         // Ensure build directories exist and resolve JAMM javaagent at execution time
         task.doFirst {
-            project.file("${project.layout.buildDirectory.get()}/test/tmp").mkdirs()
+            project.file("${project.layout.buildDirectory.get()}/tmp").mkdirs()
             project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
             project.file("${project.layout.buildDirectory.get()}/test/output").mkdirs()
 

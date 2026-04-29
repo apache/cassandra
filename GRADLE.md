@@ -1,5 +1,7 @@
 # Gradle Build
 
+Gradle 9 requires JDK 17, so doesn't work on trunk; need to downgrade to Gradle 8 to pick up JDK 11 support
+
 An alternative build interface for Cassandra. Ant remains the source of truth — this
 build parses the existing `.build/` POM files and `build.xml` properties at
 configuration time, so no Gradle files need updating when dependencies change.
