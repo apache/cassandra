@@ -41,13 +41,12 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
-import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
-import org.apache.cassandra.tcm.transformations.ForceSnapshot;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -83,17 +82,17 @@ public class GetLogStateTest
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(cms);
         log.readyUnchecked();
-        log.unsafeBootstrapForTesting(FBUtilities.getBroadcastAddressAndPort());
+
+        NodeAddresses addresses = NodeAddresses.current();
+        Location location = DatabaseDescriptor.getInitialLocationProvider().initialLocation();
+        log.unsafeBootstrapForTesting(addresses.broadcastAddress);
         // register first node & make it CMS as this affects how the meta strategy placements are calculated
-        ClusterMetadata withRegistered = ClusterMetadata.current()
-                                                        .transformer()
-                                                        .register(NodeAddresses.current(),
-                                                                  DatabaseDescriptor.getInitialLocationProvider().initialLocation(),
-                                                                  NodeVersion.CURRENT)
-                                                        .build().metadata;
-        NodeId id = withRegistered.directory.peerId(NodeAddresses.current().broadcastAddress);
-        ClusterMetadata withCMS = withRegistered.transformer().startJoiningCMS(id).finishJoiningCMS(id).build().metadata;
-        cms.commit(new ForceSnapshot(withCMS));
+        ClusterMetadata metadata =  ClusterMetadata.current().forceInitializedState(addresses.broadcastAddress.hashCode(),
+                                                                                    addresses,
+                                                                                    NodeVersion.CURRENT,
+                                                                                    location);
+        Initialize initialize = new Initialize(metadata);
+        cms.commit(initialize);
     }
 
     @Test
