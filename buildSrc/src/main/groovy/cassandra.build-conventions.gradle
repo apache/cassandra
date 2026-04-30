@@ -500,6 +500,7 @@ tasks.register('testSimulator', IsolatedJUnitTask) {
     workDir = project.projectDir
     maxHeapSize = '8g'
     minHeapSize = '512m'
+    perClassTimeoutMs = 1_800_000L  // 30 minutes per class, matches Ant test.simulation.timeout
 
     // JVM args: base + simulator-specific
     testJvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +

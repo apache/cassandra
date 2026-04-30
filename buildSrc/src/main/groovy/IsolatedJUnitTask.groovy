@@ -12,6 +12,8 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.options.Option
 import org.gradle.jvm.toolchain.JavaLauncher
 
+import java.util.concurrent.TimeUnit
+
 /**
  * Runs JUnit 4 tests in a clean JVM via the JUnit Platform ConsoleLauncher,
  * bypassing Gradle's Test task infrastructure (GradleWorkerMain, injected
@@ -42,6 +44,9 @@ class IsolatedJUnitTask extends DefaultTask {
 
     @Input @Optional
     String minHeapSize
+
+    @Input
+    long perClassTimeoutMs = 0
 
     @Internal
     File workDir
@@ -107,41 +112,77 @@ class IsolatedJUnitTask extends DefaultTask {
                 resolvedJvmArgs = jvmArgsTransformer.call(resolvedJvmArgs)
             }
 
-            def execResult = project.javaexec { spec ->
-                spec.executable = javaLauncher.get().executablePath.asFile.absolutePath
-                spec.classpath = testClasspath + launcherClasspath
-                spec.mainClass.set('org.junit.platform.console.ConsoleLauncher')
-                spec.args = clArgs
-                spec.jvmArgs = resolvedJvmArgs
-                if (maxHeapSize) spec.maxHeapSize = maxHeapSize
-                if (minHeapSize) spec.minHeapSize = minHeapSize
-                if (workDir) spec.workingDir = workDir
-                spec.ignoreExitValue = true
-            }
+            def cmd = new ArrayList<String>()
+            cmd.add(javaLauncher.get().executablePath.asFile.absolutePath)
+            cmd.addAll(resolvedJvmArgs)
+            if (maxHeapSize) cmd.add("-Xmx${maxHeapSize}".toString())
+            if (minHeapSize) cmd.add("-Xms${minHeapSize}".toString())
+            def cp = (testClasspath + launcherClasspath).files.collect { it.absolutePath }.join(File.pathSeparator)
+            cmd.addAll(['-cp', cp, 'org.junit.platform.console.ConsoleLauncher'])
+            cmd.addAll(clArgs)
 
-            // Rename XML to TEST-{className}.xml to match Gradle convention
-            def sourceXml = new File(tempReportDir, 'TEST-junit-vintage.xml')
-            if (sourceXml.exists()) {
-                def targetXml = new File(xmlOutputDir, "TEST-${className}.xml")
-                targetXml.text = sourceXml.text
+            def pb = new ProcessBuilder(cmd.collect { it.toString() })
+            pb.inheritIO()
+            if (workDir) pb.directory(workDir)
 
-                def xmlText = targetXml.text
-                def testCount = (xmlText =~ /tests="(\d+)"/)[0]?[1] ?: '0'
-                def failCount = (xmlText =~ /(?:failures|errors)="([1-9]\d*)"/).collect { it[1] }
-                totalTests += testCount as int
-                def classFailures = failCount.collect { it as int }.sum() ?: 0
-                totalFailures += classFailures
-                if (classFailures > 0) {
-                    failures << className
+            def process = pb.start()
+            int exitCode
+            boolean timedOut = false
+
+            if (perClassTimeoutMs > 0) {
+                if (!process.waitFor(perClassTimeoutMs, TimeUnit.MILLISECONDS)) {
+                    timedOut = true
+                    logger.warn("TIMEOUT: ${className} exceeded ${perClassTimeoutMs}ms — killing forked JVM")
+                    process.destroyForcibly()
+                    process.waitFor(10, TimeUnit.SECONDS)
                 }
+            } else {
+                process.waitFor()
             }
 
-            // Exit codes: 0=success, 1=test failure, 2=no tests found
-            if (execResult.exitValue == 2) {
-                throw new GradleException("No tests found for class '${className}' in task '${name}'")
-            }
-            if (execResult.exitValue != 0 && execResult.exitValue != 1) {
-                failures << "${className} (JVM crashed with exit code ${execResult.exitValue})"
+            if (timedOut) {
+                failures << "${className} (timed out after ${perClassTimeoutMs}ms)"
+                totalTests++
+                totalFailures++
+                def elapsedSeconds = String.format('%.1f', perClassTimeoutMs / 1000.0)
+                def syntheticXml = new File(xmlOutputDir, "TEST-${className}.xml")
+                syntheticXml.text = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="${className}" tests="1" failures="1" errors="0" time="${elapsedSeconds}">
+  <testcase name="(timeout)" classname="${className}" time="${elapsedSeconds}">
+    <failure message="Timed out after ${perClassTimeoutMs}ms" type="java.util.concurrent.TimeoutException">
+Test class exceeded per-class timeout of ${perClassTimeoutMs}ms and was forcibly killed.
+    </failure>
+  </testcase>
+</testsuite>
+"""
+            } else {
+                exitCode = process.exitValue()
+
+                // Rename XML to TEST-{className}.xml to match Gradle convention
+                def sourceXml = new File(tempReportDir, 'TEST-junit-vintage.xml')
+                if (sourceXml.exists()) {
+                    def targetXml = new File(xmlOutputDir, "TEST-${className}.xml")
+                    targetXml.text = sourceXml.text
+
+                    def xmlText = targetXml.text
+                    def testCount = (xmlText =~ /tests="(\d+)"/)[0]?[1] ?: '0'
+                    def failCount = (xmlText =~ /(?:failures|errors)="([1-9]\d*)"/).collect { it[1] }
+                    totalTests += testCount as int
+                    def classFailures = failCount.collect { it as int }.sum() ?: 0
+                    totalFailures += classFailures
+                    if (classFailures > 0) {
+                        failures << className
+                    }
+                }
+
+                // Exit codes: 0=success, 1=test failure, 2=no tests found
+                if (exitCode == 2) {
+                    throw new GradleException("No tests found for class '${className}' in task '${name}'")
+                }
+                if (exitCode != 0 && exitCode != 1) {
+                    failures << "${className} (JVM crashed with exit code ${exitCode})"
+                }
             }
         }
 
