@@ -33,6 +33,7 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.UnavailablePreferredHintsStreamingTargetException;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -132,7 +133,17 @@ public class UnbootstrapStreams implements LeaveStreams
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream acks.");
         streamSuccess.get();
-        hintsSuccess.get();
+        try
+        {
+            hintsSuccess.get();
+        }
+        catch (ExecutionException ex)
+        {
+            if (!(ex.getCause() instanceof UnavailablePreferredHintsStreamingTargetException))
+            {
+                throw ex;
+            }
+        }
 
         logger.debug("stream acks all received.");
     }

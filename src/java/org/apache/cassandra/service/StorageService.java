@@ -121,6 +121,7 @@ import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnavailableException;
+import org.apache.cassandra.exceptions.UnavailablePreferredHintsStreamingTargetException;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
@@ -3579,7 +3580,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (candidates.isEmpty())
         {
             logger.warn("Unable to stream hints since no live endpoints seen");
-            throw new RuntimeException("Unable to stream hints since no live endpoints seen");
+            throw new UnavailablePreferredHintsStreamingTargetException("Unable to stream hints since no live endpoints seen");
         }
         else
         {
