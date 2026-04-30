@@ -3,6 +3,7 @@ plugins {
     id 'checkstyle'
 }
 
+// To make sure that gradle doesn't touch the ant build dir, need to override gradle to write to another build dir
 project.layout.buildDirectory.set(file(cassandraBuildDir))
 
 logger.lifecycle("Cassandra Gradle build – convention plugin loaded (buildDir=${project.layout.buildDirectory.get()})")
