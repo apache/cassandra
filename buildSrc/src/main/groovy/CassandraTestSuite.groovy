@@ -96,6 +96,7 @@ class CassandraTestSuite {
             '-Dcassandra.tolerate_sstable_size=true',
             '-Dcassandra.skip_sync=true',
             '-Dcassandra.debugrefcount=false',
+            '-Dcassandra.keepBriefBrief=false',
             '-Dcassandra.test.simulator.determinismcheck=strict',
             '-Dcassandra.test.simulator.print_asm=none',
             "-javaagent:${simLibDir}/simulator-asm.jar",
@@ -106,6 +107,7 @@ class CassandraTestSuite {
             '-XX:CICompilerCount=1',
             '-XX:Tier4CompileThreshold=1000',
             '-XX:ReservedCodeCacheSize=256M',
+            '-Xmx8G',
             '-XX:MaxDirectMemorySize=8G',
         ]
     }
