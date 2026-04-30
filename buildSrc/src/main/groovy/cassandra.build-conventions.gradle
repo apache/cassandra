@@ -514,6 +514,61 @@ tasks.register('testSimulator', JavaExec) {
 }
 
 // ---------------------------------------------------------------------------
+// 13b. Simulator test via JUnit Platform ConsoleLauncher (experiment)
+// ---------------------------------------------------------------------------
+def junitConsoleLauncherConfig = configurations.create('junitConsoleLauncher') {
+    canBeConsumed = false
+    canBeResolved = true
+}
+dependencies {
+    junitConsoleLauncher 'org.junit.platform:junit-platform-console-standalone:1.9.1'
+}
+
+tasks.register('testSimulatorCL', JavaExec) {
+    description = 'Run Cassandra simulator tests via JUnit Platform ConsoleLauncher'
+    group = 'verification'
+    dependsOn simulatorAsmJar, simulatorBootstrapJar, 'testClasses'
+
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdkVersion) }
+
+    mainClass = 'org.junit.platform.console.ConsoleLauncher'
+
+    // Classpath: test runtime + the console launcher standalone jar
+    classpath = sourceSets.test.runtimeClasspath + junitConsoleLauncherConfig
+
+    workingDir = project.projectDir
+    maxHeapSize = '8g'
+    minHeapSize = '512m'
+
+    // JVM args: base + simulator
+    jvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +
+              CassandraTestSuite.simulatorSuiteArgs(project)
+
+    // ConsoleLauncher args (v1.9.x has no 'execute' subcommand)
+    def reportsDir = "${project.layout.buildDirectory.get()}/test/output/testSimulatorCL"
+    args = [
+        '--include-engine', 'junit-vintage',
+        '--select-class', 'org.apache.cassandra.simulator.test.TrivialSimulationTest',
+        '--reports-dir', reportsDir,
+        '--fail-if-no-tests',
+        '--disable-banner',
+    ]
+
+    doFirst {
+        project.file("${project.layout.buildDirectory.get()}/tmp").mkdirs()
+        project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
+        project.file(reportsDir).mkdirs()
+
+        def jammJar = CassandraTestSuite.resolveJammJar(project)
+        if (jammJar) {
+            def currentArgs = new ArrayList(jvmArgs)
+            currentArgs.add(0, "-javaagent:${jammJar}")
+            jvmArgs = currentArgs
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 14. Jar task configuration
 // ---------------------------------------------------------------------------
 tasks.named('jar') {
