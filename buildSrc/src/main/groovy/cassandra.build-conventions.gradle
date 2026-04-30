@@ -464,58 +464,17 @@ tasks.register('testDistributed', Test) {
     ])
 }
 
-// Experimental: Use JavaExec instead of Test task to avoid GradleWorkerMain,
-// injected system properties, and worker threads that may cause the simulator
-// to deadlock.  Runs JUnitCore directly, same as Ant's <junit> fork.
-tasks.register('testSimulator', JavaExec) {
-    description = 'Run Cassandra simulator tests (JavaExec experiment)'
-    group = 'verification'
-    dependsOn simulatorAsmJar, simulatorBootstrapJar, 'testClasses'
-
-    // Use the configured JDK toolchain
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdkVersion) }
-
-    // Run JUnit directly — same as Ant's <junit> fork
-    mainClass = 'org.junit.runner.JUnitCore'
-
-    // Test class(es) as args to JUnitCore
-    // Support -Ptest.name=ClassName to override
-    def testName = project.findProperty('test.name') ?: 'TrivialSimulationTest'
-    args = ["org.apache.cassandra.simulator.test.${testName}"]
-
-    // Classpath: match Ant's testmacrohelper classpath order
-    classpath = sourceSets.test.runtimeClasspath
-
-    // Working directory
-    workingDir = project.projectDir
-
-    // Heap settings (match Ant's maxmemory="8g" and -Xms512M from base args)
-    maxHeapSize = '8g'
-    minHeapSize = '512m'
-
-    // Assemble JVM args: base + simulator-specific (JAMM resolved at execution time)
-    jvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +
-              CassandraTestSuite.simulatorSuiteArgs(project)
-
-    // Resolve JAMM and prepend it at execution time (must be first javaagent)
-    doFirst {
-        // Ensure build directories exist
-        project.file("${project.layout.buildDirectory.get()}/tmp").mkdirs()
-        project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
-        project.file("${project.layout.buildDirectory.get()}/test/output").mkdirs()
-
-        def jammJar = CassandraTestSuite.resolveJammJar(project)
-        if (jammJar) {
-            def currentArgs = new ArrayList(jvmArgs)
-            currentArgs.add(0, "-javaagent:${jammJar}")
-            jvmArgs = currentArgs
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
-// 13b. Simulator test via JUnit Platform ConsoleLauncher (experiment)
+// 13b. Simulator tests — uses IsolatedJUnitTask instead of Gradle's Test task.
+//
+// The simulator's ASM agent intercepts all non-deterministic operations and
+// requires a clean JVM with no unexpected threads.  Gradle's Test task injects
+// worker threads (GradleWorkerMain) that the agent doesn't intercept, causing
+// deadlocks.  IsolatedJUnitTask forks a clean JVM per test class via
+// ConsoleLauncher, matching Ant's <junit forkmode="perTest">.
+// See gradle-simulator.md for the full investigation.
 // ---------------------------------------------------------------------------
+
 def junitConsoleLauncherConfig = configurations.create('junitConsoleLauncher') {
     canBeConsumed = false
     canBeResolved = true
@@ -524,47 +483,41 @@ dependencies {
     junitConsoleLauncher 'org.junit.platform:junit-platform-console-standalone:1.9.1'
 }
 
-tasks.register('testSimulatorCL', JavaExec) {
-    description = 'Run Cassandra simulator tests via JUnit Platform ConsoleLauncher'
+// Discover all simulator test classes at configuration time
+def simulatorTestClasses = CassandraTestSuite.scanTestClassPatterns(project, 'test/simulator/test')
+        .collect { it.replace('/', '.').replaceAll(/\.class$/, '') }
+
+tasks.register('testSimulator', IsolatedJUnitTask) {
+    description = 'Run Cassandra simulator tests'
     group = 'verification'
     dependsOn simulatorAsmJar, simulatorBootstrapJar, 'testClasses'
 
-    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdkVersion) }
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdkVersion) })
 
-    mainClass = 'org.junit.platform.console.ConsoleLauncher'
-
-    // Classpath: test runtime + the console launcher standalone jar
-    classpath = sourceSets.test.runtimeClasspath + junitConsoleLauncherConfig
-
-    workingDir = project.projectDir
+    testClasspath = sourceSets.test.runtimeClasspath
+    launcherClasspath = junitConsoleLauncherConfig
+    testClasses = simulatorTestClasses
+    workDir = project.projectDir
     maxHeapSize = '8g'
     minHeapSize = '512m'
 
-    // JVM args: base + simulator
-    jvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +
-              CassandraTestSuite.simulatorSuiteArgs(project)
+    // JVM args: base + simulator-specific
+    testJvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +
+                  CassandraTestSuite.simulatorSuiteArgs(project)
 
-    // ConsoleLauncher args (v1.9.x has no 'execute' subcommand)
-    def reportsDir = "${project.layout.buildDirectory.get()}/test/output/testSimulatorCL"
-    args = [
-        '--include-engine', 'junit-vintage',
-        '--select-class', 'org.apache.cassandra.simulator.test.TrivialSimulationTest',
-        '--reports-dir', reportsDir,
-        '--fail-if-no-tests',
-        '--disable-banner',
-    ]
-
-    doFirst {
+    // Resolve JAMM jar lazily at execution time and prepend it as the first javaagent.
+    // JAMM must load before simulator-asm to match Ant's agent ordering.
+    jvmArgsTransformer = { List<String> args ->
         project.file("${project.layout.buildDirectory.get()}/tmp").mkdirs()
         project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
-        project.file(reportsDir).mkdirs()
 
         def jammJar = CassandraTestSuite.resolveJammJar(project)
         if (jammJar) {
-            def currentArgs = new ArrayList(jvmArgs)
-            currentArgs.add(0, "-javaagent:${jammJar}")
-            jvmArgs = currentArgs
+            def modified = new ArrayList(args)
+            modified.add(0, "-javaagent:${jammJar}")
+            return modified
         }
+        return args
     }
 }
 
