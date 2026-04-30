@@ -7,6 +7,7 @@ Merged from 6.0:
  * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
 
 6.0-alpha2
+ * Avoid unit conversion in DatabaseDescriptor.getMaxValueSize() for every deserializing Cell (CASSANDRA-21295)
  * Fix single token batch atomicity with Accord/non-Accord batches by using the batch log (CASSANDRA-20588)
  * Avoid CompactionOptions parsing for every read by WithoutPurgeableTombstones (CASSANDRA-21294)
  * Synchronously publish changes to local gossip state following metadata updates (CASSANDRA-21239)
