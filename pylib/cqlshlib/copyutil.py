@@ -1754,6 +1754,18 @@ class ExportProcess(ChildProcess):
                               float_precision=cqltype.precision, nullval=self.nullval, quote=False,
                               decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                               boolean_styles=self.boolean_styles)
+
+        # Python 3.10 fixed bpo-12178: csv.writer now properly escapes the escapechar ('\')
+        # in all fields, including unquoted ones in QUOTE_MINIMAL mode. Before 3.10,
+        # csv.writer would silently write bare backslashes, relying on the pre-doubling
+        # performed by format_value_text/format_value_default (val.replace('\\', '\\\\'))
+        # so that csv.reader could restore them. In Python 3.10+, csv.writer also escapes
+        # those backslashes, resulting in quadruple-backslash sequences that csv.reader only
+        # halves — causing backslash counts to double on every COPY TO/FROM round-trip.
+        # Undo the pre-doubling here so that csv.writer's own escaping is the sole layer.
+        if sys.version_info >= (3, 10):
+            formatted = formatted.replace('\\\\', '\\')
+
         return formatted
 
     def close(self):
