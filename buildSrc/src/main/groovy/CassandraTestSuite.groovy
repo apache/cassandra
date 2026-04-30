@@ -96,7 +96,6 @@ class CassandraTestSuite {
             '-Dcassandra.tolerate_sstable_size=true',
             '-Dcassandra.skip_sync=true',
             '-Dcassandra.debugrefcount=false',
-            '-Dcassandra.keepBriefBrief=false',
             '-Dcassandra.test.simulator.determinismcheck=strict',
             '-Dcassandra.test.simulator.print_asm=none',
             "-javaagent:${simLibDir}/simulator-asm.jar",
@@ -151,6 +150,10 @@ class CassandraTestSuite {
         task.maxHeapSize = maxHeap
         task.testClassesDirs = project.sourceSets.test.output.classesDirs
 
+        // Match Ant's failureproperty="testfailed" behavior: always run all tests and
+        // generate reports, even when individual test JVMs crash (e.g. OOM).
+        task.ignoreFailures = true
+
         // Include only tests from the specified source directory
         def patterns = scanTestClassPatterns(project, sourceDir)
         if (patterns) {
@@ -167,8 +170,6 @@ class CassandraTestSuite {
         } else {
             jvmArgs.addAll(standardSuiteArgs(project))
         }
-        // Set suitename for logback-test.xml log file path resolution
-        jvmArgs.add("-Dsuitename=${task.name}")
         task.jvmArgs(jvmArgs)
 
         // Working directory
@@ -186,12 +187,26 @@ class CassandraTestSuite {
             project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
             project.file("${project.layout.buildDirectory.get()}/test/output").mkdirs()
 
-            // Add JAMM javaagent (resolved lazily to avoid configuration-time resolution)
+            // Add JAMM javaagent (resolved lazily to avoid configuration-time resolution).
+            // JAMM must be the FIRST jvmArg to match Ant's agent ordering: JAMM loads
+            // before simulator-asm, so ClassFileTransformers are applied in the same order.
             def jammJar = resolveJammJar(project)
             if (jammJar) {
-                task.jvmArgs("-javaagent:${jammJar}")
+                def currentArgs = new ArrayList(task.jvmArgs)
+                currentArgs.add(0, "-javaagent:${jammJar}")
+                task.jvmArgs = currentArgs
             }
         }
+
+        // Suppress system properties injected by Gradle's test worker infrastructure
+        // that have no Ant equivalent (file.encoding, user.country, user.language, user.variant).
+        // These are added by DefaultJavaForkOptions and can interfere with the simulator's
+        // determinism checks. Setting defaultCharacterEncoding to null prevents -Dfile.encoding.
+        // Explicitly removing user.* from systemProperties prevents those.
+        task.defaultCharacterEncoding = null
+        task.systemProperties.remove('user.country')
+        task.systemProperties.remove('user.language')
+        task.systemProperties.remove('user.variant')
 
         // Variant support
         def variant = project.findProperty('variant')
@@ -225,5 +240,27 @@ class CassandraTestSuite {
         task.reports.junitXml.outputLocation = project.layout.buildDirectory.dir("test/output/${task.name}")
         task.reports.html.required = true
         task.reports.html.outputLocation = project.layout.buildDirectory.dir("test/reports/${task.name}")
+
+        // Fail the build after reports are generated (mirrors Ant's failureproperty + <fail> pattern).
+        // ignoreFailures=true ensures XML/HTML reports are always written (even for JVM crashes),
+        // then this doLast checks results and throws to produce a non-zero exit code.
+        def testTaskName = task.name
+        def htmlReportLocation = task.reports.html.outputLocation
+        task.doLast {
+            def xmlDir = task.reports.junitXml.outputLocation.get().asFile
+            if (xmlDir.exists()) {
+                def failed = false
+                xmlDir.eachFileMatch(~/.*\.xml/) { f ->
+                    def text = f.text
+                    if (text =~ /failures="[1-9]/ || text =~ /errors="[1-9]/) {
+                        failed = true
+                    }
+                }
+                if (failed) {
+                    throw new org.gradle.api.GradleException(
+                        "There were failing tests. See the report at: ${htmlReportLocation.get().asFile}/index.html")
+                }
+            }
+        }
     }
 }

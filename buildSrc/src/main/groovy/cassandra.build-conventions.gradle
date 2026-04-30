@@ -159,16 +159,17 @@ project.version = "${baseVersion}-SNAPSHOT"
 def jdkVersion = JdkJvmArgs.detectJdkVersion()
 logger.lifecycle("Building with JDK ${jdkVersion}")
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(jdkVersion)
+    }
+}
+
 sourceSets {
     main {
         java { srcDirs = ['src/java', 'src/gen-java', 'tools/sstableloader/src', 'tools/fqltool/src'] }
         resources { srcDir 'src/resources' }
     }
-}
-
-java {
-    sourceCompatibility = JavaVersion.toVersion(jdkVersion)
-    targetCompatibility = JavaVersion.toVersion(jdkVersion)
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -331,21 +332,39 @@ def compileSimulatorAsm = tasks.register('compileSimulatorAsm', JavaCompile) {
     destinationDirectory = project.layout.buildDirectory.dir('classes/simulator-asm')
     sourceCompatibility = "${jdkVersion}"
     targetCompatibility = "${jdkVersion}"
-    options.encoding = 'UTF-8'
+    // Force generation of package-info.class even without annotations (matches Ant behavior)
+    options.compilerArgs.add('-Xpkginfo:always')
 }
 
 def simulatorAsmJar = tasks.register('simulatorAsmJar', Jar) {
     dependsOn compileSimulatorAsm
     from compileSimulatorAsm.get().destinationDirectory
+    // Bundle ASM jars inside (matches Ant's jar which includes asm-*.jar entries)
+    from(simulatorAsmConfig) { include '*.jar' }
     archiveFileName = 'simulator-asm.jar'
     destinationDirectory = simulatorTestLibDir
     manifest {
         attributes(
+            'Built-By': System.getProperty('user.name'),
             'Premain-Class': 'org.apache.cassandra.simulator.asm.InterceptAgent',
             'Agent-Class': 'org.apache.cassandra.simulator.asm.InterceptAgent',
             'Can-Redefine-Classes': 'true',
             'Can-Retransform-Classes': 'true',
         )
+    }
+    // Ant writes MANIFEST.MF to the classes dir which gets picked up by the fileset,
+    // resulting in a root-level MANIFEST.MF entry in addition to META-INF/MANIFEST.MF.
+    doFirst {
+        def builtBy = System.getProperty('user.name')
+        def manifestFile = compileSimulatorAsm.get().destinationDirectory.file('MANIFEST.MF').get().asFile
+        manifestFile.text = """\
+Manifest-Version: 1.0
+Built-By: ${builtBy}
+Premain-Class: org.apache.cassandra.simulator.asm.InterceptAgent
+Agent-Class: org.apache.cassandra.simulator.asm.InterceptAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+""".stripIndent()
     }
 }
 
@@ -356,15 +375,30 @@ def compileSimulatorBootstrap = tasks.register('compileSimulatorBootstrap', Java
     destinationDirectory = project.layout.buildDirectory.dir('classes/simulator-bootstrap')
     sourceCompatibility = "${jdkVersion}"
     targetCompatibility = "${jdkVersion}"
-    options.encoding = 'UTF-8'
     options.compilerArgs.add('-XDignore.symbol.file')
 }
 
 def simulatorBootstrapJar = tasks.register('simulatorBootstrapJar', Jar) {
     dependsOn compileSimulatorBootstrap
     from compileSimulatorBootstrap.get().destinationDirectory
+    // Bundle ASM jars inside (matches Ant)
+    from(simulatorAsmConfig) { include '*.jar' }
     archiveFileName = 'simulator-bootstrap.jar'
     destinationDirectory = simulatorTestLibDir
+    manifest {
+        attributes(
+            'Built-By': System.getProperty('user.name'),
+        )
+    }
+    // Ant writes MANIFEST.MF to the classes dir
+    doFirst {
+        def builtBy = System.getProperty('user.name')
+        def manifestFile = compileSimulatorBootstrap.get().destinationDirectory.file('MANIFEST.MF').get().asFile
+        manifestFile.text = """\
+Manifest-Version: 1.0
+Built-By: ${builtBy}
+""".stripIndent()
+    }
 }
 
 tasks.register('simulatorJars') {
@@ -430,19 +464,53 @@ tasks.register('testDistributed', Test) {
     ])
 }
 
-tasks.register('testSimulator', Test) {
-    description = 'Run Cassandra simulator tests'
+// Experimental: Use JavaExec instead of Test task to avoid GradleWorkerMain,
+// injected system properties, and worker threads that may cause the simulator
+// to deadlock.  Runs JUnitCore directly, same as Ant's <junit> fork.
+tasks.register('testSimulator', JavaExec) {
+    description = 'Run Cassandra simulator tests (JavaExec experiment)'
     group = 'verification'
-    dependsOn simulatorAsmJar, simulatorBootstrapJar
-    CassandraTestSuite.configure(it, [
-        project    : project,
-        jdkVersion : jdkVersion,
-        antProps   : antProps,
-        sourceDir  : 'test/simulator/test',
-        timeout    : 1_800_000L,
-        maxHeap    : '8g',
-        isSimulator: true,
-    ])
+    dependsOn simulatorAsmJar, simulatorBootstrapJar, 'testClasses'
+
+    // Use the configured JDK toolchain
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdkVersion) }
+
+    // Run JUnit directly — same as Ant's <junit> fork
+    mainClass = 'org.junit.runner.JUnitCore'
+
+    // Test class(es) as args to JUnitCore
+    // Support -Ptest.name=ClassName to override
+    def testName = project.findProperty('test.name') ?: 'TrivialSimulationTest'
+    args = ["org.apache.cassandra.simulator.test.${testName}"]
+
+    // Classpath: match Ant's testmacrohelper classpath order
+    classpath = sourceSets.test.runtimeClasspath
+
+    // Working directory
+    workingDir = project.projectDir
+
+    // Heap settings (match Ant's maxmemory="8g" and -Xms512M from base args)
+    maxHeapSize = '8g'
+    minHeapSize = '512m'
+
+    // Assemble JVM args: base + simulator-specific (JAMM resolved at execution time)
+    jvmArgs = CassandraTestSuite.baseTestJvmArgs(project, jdkVersion as int) +
+              CassandraTestSuite.simulatorSuiteArgs(project)
+
+    // Resolve JAMM and prepend it at execution time (must be first javaagent)
+    doFirst {
+        // Ensure build directories exist
+        project.file("${project.layout.buildDirectory.get()}/tmp").mkdirs()
+        project.file("${project.layout.buildDirectory.get()}/test/cassandra").mkdirs()
+        project.file("${project.layout.buildDirectory.get()}/test/output").mkdirs()
+
+        def jammJar = CassandraTestSuite.resolveJammJar(project)
+        if (jammJar) {
+            def currentArgs = new ArrayList(jvmArgs)
+            currentArgs.add(0, "-javaagent:${jammJar}")
+            jvmArgs = currentArgs
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
