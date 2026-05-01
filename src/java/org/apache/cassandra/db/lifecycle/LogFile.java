@@ -374,7 +374,7 @@ final class LogFile implements AutoCloseable
     private LogRecord makeAddRecord(SSTable table)
     {
         maybeCreateReplica(table);
-        return LogRecord.make(Type.ADD, table);
+        return LogRecord.makeAdd(table);
     }
 
     /**
