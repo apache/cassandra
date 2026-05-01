@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -1634,4 +1635,101 @@ public class LogTransactionTest extends AbstractTransactionalTest
             txnFile.abort(); // this should complete the txn
             txnFile.trackNew(dummySSTable()); // expect an IllegalStateException here
         }
-    }}
+    }
+
+    @Test
+    public void testMakeAddEquivalentToMake() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        LogRecord viaOldPath = LogRecord.make(LogRecord.Type.ADD, sstable);
+        LogRecord viaMakeAdd = LogRecord.makeAdd(sstable);
+
+        assertEquals(viaOldPath, viaMakeAdd);
+        assertEquals(viaOldPath.raw, viaMakeAdd.raw);
+
+        sstable.selfRef().release();
+    }
+
+    @Test
+    public void testMakeAddUnaffectedByExtraFilesInDirectory() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        LogRecord before = LogRecord.makeAdd(sstable);
+
+        final List<File> fakeDataFiles = generateDisjointComponents(sstable);
+
+        LogRecord after = LogRecord.makeAdd(sstable);
+        assertEquals(before, after);
+        assertEquals(before.raw, after.raw);
+
+        for (File file : fakeDataFiles)
+            file.tryDelete();
+
+        sstable.selfRef().release();
+    }
+
+    @Test
+    public void testDisjointComponentsAppearMidTransaction() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+
+        try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+        {
+            log.trackNew(sstable);
+            generateDisjointComponents(sstable);
+            log.untrackNew(sstable);
+            log.finish();
+        }
+
+        sstable.selfRef().release();
+        LogTransaction.waitForDeletions();
+
+        assertFiles(dataFolder.path(), Collections.emptySet());
+
+    }
+
+    @Test
+    public void testPreExistingDisjointComponents() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        File dataFolder = new Directories(cfs.metadata()).getDirectoryForNewSSTables();
+        SSTableReader sstable = sstable(dataFolder, cfs, 0, 128);
+        generateDisjointComponents(sstable);
+
+        try (LogTransaction log = new LogTransaction(OperationType.COMPACTION))
+        {
+            log.trackNew(sstable);
+            log.untrackNew(sstable);
+            log.finish();
+        }
+
+        sstable.selfRef().release();
+        LogTransaction.waitForDeletions();
+
+        assertFiles(dataFolder.path(), Collections.emptySet());
+
+    }
+
+    private static List<File> generateDisjointComponents(SSTableReader sstable)
+    {
+        int numComponents = 100;
+        final List<File> fakeComponents = new ArrayList<>(numComponents);
+        for (int i = 0; i < numComponents; i++)
+        {
+            File file = new File(sstable.descriptor.fileFor(Components.DATA).absolutePath()
+                                                   .replace(".db", i + "fake.db"));
+            file.createFileIfNotExists();
+            fakeComponents.add(file);
+
+        }
+        return fakeComponents;
+    }
+}

@@ -181,6 +181,12 @@ final class LogRecord
         return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
     }
 
+    static LogRecord makeAdd(SSTable table)
+    {
+        String absoluteTablePath = absolutePath(table.descriptor.baseFile());
+        return new LogRecord(Type.ADD, absoluteTablePath, 0, table.getAllFilePaths().size());
+    }
+
     public static Map<SSTable, LogRecord> make(Type type, Iterable<SSTableReader> tables)
     {
         // contains a mapping from sstable absolute path (everything up until the 'Data'/'Index'/etc part of the filename) to the sstable
