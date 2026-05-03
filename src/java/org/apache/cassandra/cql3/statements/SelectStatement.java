@@ -194,6 +194,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
      */
     private final ColumnComparator<List<ByteBuffer>> orderingComparator;
 
+    private final List<Function> functions;
+
     public final StatementSource source;
 
     // Used by forSelection below
@@ -228,6 +230,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         this.perPartitionLimit = perPartitionLimit;
         this.source = source;
         this.selectOptions = selectOptions;
+        this.functions = findAllFunctions();
     }
 
     @Override
@@ -245,8 +248,18 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     @Override
     public Iterable<Function> getFunctions()
     {
+        return functions;
+    }
+
+    private List<Function> findAllFunctions()
+    {
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
+        if (functions.isEmpty())
+        {
+            functions = Collections.emptyList(); // to avoid a new Iterator object creation during each authorization
+        }
+
         return functions;
     }
 
