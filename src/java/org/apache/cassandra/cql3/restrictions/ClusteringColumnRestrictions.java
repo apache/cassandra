@@ -131,8 +131,10 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     public Slices slices(QueryOptions options) throws InvalidRequestException
     {
         MultiCBuilder builder = new MultiCBuilder(comparator);
-        int keyPosition = 0;
+        if (restrictions.isEmpty()) // to avoid an iterator allocation for restrictions
+            return builder.buildSlices();
 
+        int keyPosition = 0;
         for (SingleRestriction r : restrictions)
         {
             if (handleInFilter(r, keyPosition))
