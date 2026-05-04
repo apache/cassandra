@@ -243,6 +243,33 @@ class CassandraTestSuite {
         task.reports.html.required = true
         task.reports.html.outputLocation = project.layout.buildDirectory.dir("test/reports/${task.name}")
 
+        // Post-process JUnit XML reports to append the testtag suffix to suite/class names
+        // and filenames, matching Ant's CassandraXMLJUnitResultFormatter behavior which
+        // appends "-<cassandra.testtag>" (e.g. "-_jdk17") to the testsuite name attribute.
+        def testtag = "_jdk${jdkVersion}"
+        task.doLast {
+            def xmlDir = task.reports.junitXml.outputLocation.get().asFile
+            if (xmlDir.exists()) {
+                xmlDir.eachFileMatch(~/.*\.xml/) { f ->
+                    def text = f.text
+                    // Append "-<testtag>" to the testsuite name attribute
+                    text = text.replaceAll(
+                        /(<testsuite\b[^>]*\bname=")([^"]+)(")/,
+                        "\$1\$2-${testtag}\$3"
+                    )
+                    // Append "-<testtag>" to each testcase classname attribute
+                    text = text.replaceAll(
+                        /(<testcase\b[^>]*\bclassname=")([^"]+)(")/,
+                        "\$1\$2-${testtag}\$3"
+                    )
+                    f.text = text
+                    // Rename the file to include the testtag (e.g. TEST-...Test-_jdk17.xml)
+                    def newName = f.name.replaceAll(/\.xml$/, "-${testtag}.xml")
+                    f.renameTo(new File(f.parentFile, newName))
+                }
+            }
+        }
+
         // Fail the build after reports are generated (mirrors Ant's failureproperty + <fail> pattern).
         // ignoreFailures=true ensures XML/HTML reports are always written (even for JVM crashes),
         // then this doLast checks results and throws to produce a non-zero exit code.
