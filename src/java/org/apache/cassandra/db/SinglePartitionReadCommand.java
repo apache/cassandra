@@ -1388,6 +1388,17 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                    ClusteringIndexFilter clusteringIndexFilter,
                                    PotentialTxnConflicts potentialTxnConflicts)
         {
+            if (partitionKeys.size() == 1)
+            {
+                return one(SinglePartitionReadCommand.create(metadata,
+                                                             nowInSec,
+                                                             columnFilter,
+                                                             rowFilter,
+                                                             limits,
+                                                             partitionKeys.get(0),
+                                                             clusteringIndexFilter,
+                                                             potentialTxnConflicts));
+            }
             List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
             for (DecoratedKey partitionKey : partitionKeys)
             {
