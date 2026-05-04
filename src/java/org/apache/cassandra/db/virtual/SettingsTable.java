@@ -111,15 +111,16 @@ public final class SettingsTable extends AbstractVirtualTable
         else if (value instanceof Map)
         {
             Map<String, Object> map = new HashMap<>();
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet())
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet())
             {
+                String key = String.valueOf(entry.getKey());
                 // this is done on best-effort basis as we do not have names in parameters
                 // inherently under control as this is what a user is responsible for
                 // when dealing with custom implementations
-                if (entry.getKey().endsWith("_password") || entry.getKey().equals("password"))
-                    map.put(entry.getKey(), Redacted.REDACTED_STRING);
+                if (key.endsWith("_password") || key.equals("password"))
+                    map.put(key, Redacted.REDACTED_STRING);
                 else
-                    map.put(entry.getKey(), entry.getValue());
+                    map.put(key, entry.getValue());
             }
 
             return tryConstructJson(map);
