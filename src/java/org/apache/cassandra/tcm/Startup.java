@@ -161,7 +161,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                             TimeUnit.MILLISECONDS.sleep(1000);  // TODO make configurable?
                             replayed = ClusterMetadata.current();
                         }
-                        logger.info("Any in flight CMS address changes have been processed, current epoch is {}", replayed.epoch.getEpoch());
+                        logger.info("In flight CMS address changes have been processed, current epoch is {}", replayed.epoch.getEpoch());
                     }
                     else
                     {
@@ -290,6 +290,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         if (newAddress.equals(oldAddress))
             return replayed;
 
+        logger.info("Initializing CMS lookup to submit STARTUP containing broadcast address change from {} to {}", oldAddress, newAddress);
         Map<NodeId, InetAddressAndPort> previousCMS = new HashMap<>();
         replayed.fullCMSMemberIds().forEach(id -> previousCMS.put(id, replayed.directory.endpoint(id)));
         Map<NodeId, InetAddressAndPort> confirmedCMS = new HashMap<>();

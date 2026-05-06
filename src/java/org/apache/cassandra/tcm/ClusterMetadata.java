@@ -332,7 +332,7 @@ public class ClusterMetadata
     {
         logger.info("Initializing CMS lookup on ClusterMetadata at epoch {}", epoch.getEpoch());
         boolean isInitial = cmsLookup.isUninitialized();
-        logger.debug("Current CMS lookup: {}, proposed: {}", cmsLookup, lookup);
+        logger.info("Current CMS lookup: {}, proposed: {}", cmsLookup, lookup);
         if (isInitial)
         {
             cmsLookup = lookup;
