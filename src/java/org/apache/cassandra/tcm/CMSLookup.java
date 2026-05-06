@@ -83,7 +83,7 @@ public class CMSLookup
 
     public CMSLookup rebuild(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
     {
-        logger.debug("Rebuilding CMS lookup {} with metadata from epoch {}", this, next.epoch.getEpoch());
+        logger.info("Rebuilding CMS lookup {} with metadata from epoch {}", this, next.epoch.getEpoch());
 
         // All address changes have been enacted, nothing to do
         if (state == State.RETIRED)
@@ -126,6 +126,7 @@ public class CMSLookup
             logger.info("No changes to endpoint overrides detected");
             return this;
         }
+
         logger.info("Proposed endpoint overrides: {}", nextOverrides);
         State state = nextOverrides.isEmpty() ? State.RETIRED : State.ACTIVE;
         return new CMSLookup(state, next.epoch, nextOverrides);
@@ -176,7 +177,7 @@ public class CMSLookup
         @Override
         public void notifyPreCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
         {
-            logger.debug("Reevaluating CMSLookup from {} at epoch {}", prev.epoch,  next.epoch);
+            logger.info("Reevaluating CMSLookup from {} at epoch {}", prev.epoch,  next.epoch);
             next.refreshCMSLookup(prev, fromSnapshot);
             if (next.cmsLookup.state == State.RETIRED)
             {
