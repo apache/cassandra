@@ -211,10 +211,32 @@ public class Discovery
             {
                 case TCM_DISCOVER_REQ:
                     logger.trace("Responding to discovery request from {}: {}", message.from(), cms);
-                    if (!cms.isEmpty())
+                    if (ClusterMetadataService.instance().log().isPaused())
+                    {
+                        // The fact that the LocalLog is currently paused implies that this node is currently starting
+                        // up and in the process of building a temporary overlay of addresses for the current CMS (see
+                        // Startup::initialize and Startup::initializeCMSLookup). In that case, we don't want to respond
+                        // with a definitive CMS_ONLY response containing the previous set of CMS endpoints. While these
+                        // may still be valid, they may be outdated if the CMS member address have changed. Returning a
+                        // CMS_ONLY response causes the requester to prioritise the returned endpoint. When those are
+                        // outdated, this can mean that the requester must wait for retries to time out and increase the
+                        // time taken to hit a valid CMS endpoint.
+                        logger.info("Responding to discovery request from {}, but this node is in the process of " +
+                                    "initializing CMSLookup so not responding with a definitive CMS_ONLY response. " +
+                                    "Discovered: {}, CMS: {}", message.from(), discovered, cms);
+                        Set<InetAddressAndPort> allKnown = new HashSet<>();
+                        allKnown.addAll(discovered);
+                        allKnown.addAll(cms);
+                        discoveredNodes = new DiscoveredNodes(allKnown, DiscoveredNodes.Kind.KNOWN_PEERS);
+                    }
+                    else if (!cms.isEmpty())
+                    {
                         discoveredNodes = new DiscoveredNodes(cms, DiscoveredNodes.Kind.CMS_ONLY);
+                    }
                     else
+                    {
                         discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
+                    }
                     messaging.get().send(message.responseWith(discoveredNodes), message.from());
                     break;
                 case TCM_DISCOVER_PEERS_REQ:
