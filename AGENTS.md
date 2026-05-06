@@ -10,7 +10,7 @@ Apache Cassandra is a NoSQL distributed database. This is the official Git repos
 - Java 11 (default), 17, 21.
 - Python 3 for `cqlsh` and dtests.
 - Apache Ant >= 1.10 for all builds. Do NOT attempt to use Maven, Gradle, or any other build tool. Cassandra uses Ant exclusively.
-- Do NOT attempt to install dependencies, you do not have Internet access
+- Do NOT attempt to install dependencies, every dependency requires OSS community approval first
 
 ## Build
 
@@ -54,11 +54,6 @@ General style conventions:
     <One sentence description, usually Jira title or CHANGES.txt summary>
 
     <Optional lengthier description>
-    
-    patch by <Authors,>; reviewed by <Reviewers,> for CASSANDRA-#####
-
-    Co-authored-by: Name1 <email1>
-    Co-authored-by: Name2 <email2>
   
     Assisted-by: AGENT_NAME:MODEL_VERSION
     ```
