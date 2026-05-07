@@ -131,7 +131,6 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -815,7 +814,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     private ReadQuery getSliceCommands(QueryOptions options, ClientState state, ColumnFilter columnFilter,
                                        RowFilter rowFilter, DataLimits limit, long nowInSec, PotentialTxnConflicts potentialTxnConflicts)
     {
-        Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options, state);
+        List<ByteBuffer> keys = restrictions.getPartitionKeys(options, state);
         if (keys.isEmpty())
             return ReadQuery.empty(table);
 
@@ -828,11 +827,21 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         if (filter == null || filter.isEmpty(table.comparator))
             return ReadQuery.empty(table);
 
-        List<DecoratedKey> decoratedKeys = new ArrayList<>(keys.size());
-        for (ByteBuffer key : keys)
+        List<DecoratedKey> decoratedKeys;
+        if (keys.size() == 1) // reduce allocations in collections for keys
         {
+            ByteBuffer key = keys.get(0);
             QueryProcessor.validateKey(key);
-            decoratedKeys.add(table.partitioner.decorateKey(ByteBufferUtil.clone(key)));
+            decoratedKeys = Collections.singletonList(table.partitioner.decorateKey(key));
+        }
+        else
+        {
+            decoratedKeys = new ArrayList<>(keys.size());
+            for (ByteBuffer key : keys)
+            {
+                QueryProcessor.validateKey(key);
+                decoratedKeys.add(table.partitioner.decorateKey(key));
+            }
         }
 
         SinglePartitionReadQuery.Group<? extends SinglePartitionReadQuery> group =
