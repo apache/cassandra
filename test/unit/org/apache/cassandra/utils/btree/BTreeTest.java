@@ -428,6 +428,26 @@ public class BTreeTest
         assertEquals(count, i);
     }
 
+    @Test
+    public void testFastBuilderResetClearsSavedState()
+    {
+        // Add >31 items to trigger overflow (savedBuffer/savedNextKey population)
+        try (BTree.FastBuilder<Integer> builder = BTree.fastBuilder())
+        {
+            for (int i = 0; i < 40; i++)
+                builder.add(i);
+            // Simulate an abandoned builder by closing without calling build().
+            // close() calls reset() then returns the builder to the pool.
+        }
+
+        // Reuse the pooled builder — it should be clean
+        try (BTree.FastBuilder<Integer> builder = BTree.fastBuilder())
+        {
+            assertTrue("FastBuilder should be empty after reset, but savedBuffer/savedNextKey leaked",
+                       builder.validateEmpty());
+        }
+    }
+
     /**
      * <code>UpdateFunction</code> that count the number of call made to apply for each value.
      */
