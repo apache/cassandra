@@ -1,4 +1,5 @@
 5.0.9
+ * BTree.FastBuilder.reset() fails to clear savedBuffer and savedNextKey, causing ClassCastException and SSTable header corruption during schema disagreement (CASSANDRA-21216, CASSANDRA-21260)
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
  * Ensure SAI sends range tombstones to the coordinator for queries on static columns (CASSANDRA-21332)
