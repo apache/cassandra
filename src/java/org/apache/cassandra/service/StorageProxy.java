@@ -2753,7 +2753,10 @@ public class StorageProxy implements StorageProxyMBean
                 try (ReadExecutionController controller = command.executionController(trackRepairedStatus);
                      UnfilteredPartitionIterator iterator = command.executeLocally(controller))
                 {
-                    response = command.createResponse(iterator, controller.getRepairedDataInfo());
+                    if (command.isLimitedToOnePartition() && !command.isDigestQuery())
+                        response = command.createLocalObjectResponse(iterator, controller.getRepairedDataInfo());
+                    else
+                        response = command.createResponse(iterator, controller.getRepairedDataInfo());
                 }
                 catch (RejectException e)
                 {

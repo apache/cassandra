@@ -21,16 +21,23 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -49,6 +56,8 @@ public abstract class ReadResponse
     // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
 
+    static final int IN_MEMORY_MAX_ROWS = CassandraRelevantProperties.DATA_RESPONSE_IN_MEMORY_MAX_ROWS.getInt();
+
     protected ReadResponse()
     {
     }
@@ -63,9 +72,15 @@ public abstract class ReadResponse
         return new LocalDataResponse(data, command, NO_OP_REPAIRED_DATA_INFO);
     }
 
-    public static ReadResponse createSimpleDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
+    static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
     {
-        return new LocalDataResponse(data, selection);
+        return createInMemoryDataResponse(data, command, rdi, IN_MEMORY_MAX_ROWS);
+    }
+
+    @VisibleForTesting
+    static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi, int maxRows)
+    {
+        return new InMemoryDataResponse(data, command, rdi, maxRows);
     }
 
     @VisibleForTesting
@@ -229,6 +244,9 @@ public abstract class ReadResponse
     {
         // Exponential moving average of response sizes, used to set initial size of output buffer.
         private static final MovingAverage estimatedResponseBytes = ExpMovingAverage.decayBy1000();
+
+        // Exponential moving average of overflow(!) sizes, used to set initial size of output buffer.
+        private static final MovingAverage estimatedOverflowBytes = ExpMovingAverage.decayBy1000();
         private static final int bufferInitialSizeMin = CassandraRelevantProperties.DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN.getInt();
         private static final int bufferInitialSizeMax = CassandraRelevantProperties.DATA_RESPONSE_BUFFER_INITIAL_SIZE_MAX.getInt();
 
@@ -240,9 +258,28 @@ public abstract class ReadResponse
                   DeserializationHelper.Flag.LOCAL);
         }
 
-        private LocalDataResponse(UnfilteredPartitionIterator iter, ColumnFilter selection)
+        private static ByteBuffer buildOverflow(UnfilteredRowIterator rowIter, ColumnFilter selection)
         {
-            super(build(iter, selection), null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            int initialBufferSize = bufferInitialSizeMin;
+
+            if (bufferInitialSizeMax > bufferInitialSizeMin)
+            {
+                double estimatedOverflowSize = estimatedOverflowBytes.get();
+                double bufferSizeEstimate = Double.isNaN(estimatedOverflowSize) ? bufferInitialSizeMin : estimatedOverflowSize * 1.1;
+                initialBufferSize = Math.min((int) bufferSizeEstimate, bufferInitialSizeMax);
+            }
+
+            try (DataOutputBuffer buffer = new DataOutputBuffer(initialBufferSize))
+            {
+                // NOTE: we use UnfilteredRowIteratorSerializer here, not UnfilteredPartitionIterators
+                UnfilteredRowIteratorSerializer.serializer.serialize(rowIter, selection, buffer, MessagingService.current_version);
+                estimatedOverflowBytes.update(buffer.position());
+                return buffer.buffer(false);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
@@ -354,6 +391,152 @@ public abstract class ReadResponse
         {
             return false;
         }
+
+        protected ByteBuffer getSerializedData()
+        {
+            return data;
+        }
+    }
+
+    // built on the coordinator for local single-partition reads; never sent over the network
+    private static class InMemoryDataResponse extends DataResponse
+    {
+        // rows up to the max-rows limit stored as an in-memory partition; null if the response was empty
+        private final ImmutableBTreePartition partition;
+        // rows beyond the max-rows limit serialized to a buffer; null if all rows fit in memory
+        private final ByteBuffer overflow;
+
+        private InMemoryDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi, int maxRows)
+        {
+            super(null, rdi.getDigest(), rdi.isConclusive(), MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+
+            if (!iter.hasNext())
+            {
+                this.partition = null;
+                this.overflow = null;
+                return;
+            }
+
+            try (UnfilteredRowIterator rowIter = iter.next())
+            {
+                LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, maxRows);
+                this.partition = ImmutableBTreePartition.create(limitedIter);
+                // Uses buildOverflow (row-iterator level) to match the UnfilteredRowIteratorSerializer
+                // deserializer used in makeIterator.
+                this.overflow = limitedIter.hasOverflow()
+                                ? LocalDataResponse.buildOverflow(rowIter, command.columnFilter())
+                                : null;
+            }
+        }
+
+        // Decorating iterator that stops after maxRows Unfiltered objects and records whether overflow occurred.
+        // Does NOT close the wrapped iterator on close() so the caller can continue reading overflow rows.
+        private static class LimitedUnfilteredRowIterator extends AbstractUnfilteredRowIterator
+        {
+            private final UnfilteredRowIterator wrapped;
+            private final int maxRows;
+            private int rowCount = 0;
+            private boolean hasOverflow = false;
+
+            private LimitedUnfilteredRowIterator(UnfilteredRowIterator wrapped, int maxRows)
+            {
+                super(wrapped.metadata(),
+                      wrapped.partitionKey(),
+                      wrapped.partitionLevelDeletion(),
+                      wrapped.columns(),
+                      wrapped.staticRow(),
+                      wrapped.isReverseOrder(),
+                      wrapped.stats());
+                this.wrapped = wrapped;
+                this.maxRows = maxRows;
+            }
+
+            boolean hasOverflow()
+            {
+                return hasOverflow;
+            }
+
+            @Override
+            protected Unfiltered computeNext()
+            {
+                if (rowCount >= maxRows)
+                {
+                    hasOverflow = wrapped.hasNext();
+                    return endOfData();
+                }
+                if (!wrapped.hasNext())
+                    return endOfData();
+                rowCount++;
+                return wrapped.next();
+            }
+        }
+
+        @Override
+        public UnfilteredPartitionIterator makeIterator(ReadCommand command)
+        {
+            if (partition == null)
+                return EmptyIterators.unfilteredPartition(command.metadata());
+
+            UnfilteredRowIterator inMemoryIter = partition.unfilteredIterator(command.columnFilter(), Slices.ALL, command.isReversed());
+
+            if (overflow == null)
+                return new SingletonUnfilteredPartitionIterator(command.metadata(), inMemoryIter);
+
+            // Deserialize the overflow and concatenate with the in-memory part.
+            // Buffer closing is not needed and actually is incorrect
+            // because the result iterator uses the buffer context
+            DataInputBuffer in = new DataInputBuffer(overflow, true);
+            try
+            {
+                UnfilteredRowIterator overflowIter = UnfilteredRowIteratorSerializer.serializer.deserialize(
+                        in, MessagingService.current_version, command.metadata(), command.columnFilter(), DeserializationHelper.Flag.LOCAL);
+                UnfilteredRowIterator combined = UnfilteredRowIterators.concat(inMemoryIter, overflowIter);
+                return new SingletonUnfilteredPartitionIterator(command.metadata(), combined);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        protected ByteBuffer getSerializedData()
+        {
+            throw new UnsupportedOperationException("InMemoryDataResponse cannot be serialized over the network");
+        }
+    }
+
+    private static class SingletonUnfilteredPartitionIterator extends AbstractUnfilteredPartitionIterator
+    {
+        private final TableMetadata metadata;
+        private final UnfilteredRowIterator partition;
+        private boolean returned = false;
+
+        private SingletonUnfilteredPartitionIterator(TableMetadata metadata, UnfilteredRowIterator partition)
+        {
+            this.metadata = metadata;
+            this.partition = partition;
+        }
+
+        public TableMetadata metadata() { return metadata; }
+
+        public boolean hasNext()
+        {
+            return !returned;
+        }
+
+        public UnfilteredRowIterator next()
+        {
+            if (returned) throw new NoSuchElementException();
+            returned = true;
+            return partition;
+        }
+
+        @Override
+        public void close()
+        {
+            partition.close();
+        }
     }
 
     private static class Serializer implements IVersionedSerializer<ReadResponse>
@@ -378,7 +561,7 @@ public abstract class ReadResponse
                 ByteBufferUtil.writeWithVIntLength(response.repairedDataDigest(), out);
                 out.writeBoolean(response.isRepairedDigestConclusive());
 
-                ByteBuffer data = ((DataResponse)response).data;
+                ByteBuffer data = ((DataResponse)response).getSerializedData();
                 ByteBufferUtil.writeWithVIntLength(data, out);
             }
         }
@@ -418,7 +601,7 @@ public abstract class ReadResponse
                 // In theory, we should deserialize/re-serialize if the version asked is different from the current
                 // version as the content could have a different serialization format. So far though, we haven't made
                 // change to partition iterators serialization since 3.0 so we skip this.
-                ByteBuffer data = ((DataResponse)response).data;
+                ByteBuffer data = ((DataResponse)response).getSerializedData();
                 size += ByteBufferUtil.serializedSizeWithVIntLength(data);
             }
             return size;

@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.junit.Before;
@@ -27,16 +29,24 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -50,6 +60,7 @@ public class ReadResponseTest
 {
     private final Random random = new Random();
     private TableMetadata metadata;
+    private TableMetadata metadataWithClustering;
 
     @BeforeClass
     public static void beforeClass()
@@ -60,13 +71,20 @@ public class ReadResponseTest
     @Before
     public void setup()
     {
-
         metadata = TableMetadata.builder("ks", "t1")
                                 .offline()
                                 .addPartitionKeyColumn("p", Int32Type.instance)
                                 .addRegularColumn("v", Int32Type.instance)
                                 .partitioner(Murmur3Partitioner.instance)
                                 .build();
+
+        metadataWithClustering = TableMetadata.builder("ks", "t2")
+                                              .offline()
+                                              .addPartitionKeyColumn("p", Int32Type.instance)
+                                              .addClusteringColumn("c", Int32Type.instance)
+                                              .addRegularColumn("v", Int32Type.instance)
+                                              .partitioner(Murmur3Partitioner.instance)
+                                              .build();
     }
 
     @Test
@@ -172,6 +190,192 @@ public class ReadResponseTest
         assertEquals(response1.digest(command1), response2.digest(command2));
     }
 
+    @Test
+    public void inMemoryResponseEmptyIteratorMatchesLocalDataResponse()
+    {
+        ReadCommand command = command(key(), metadata);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        ReadResponse localResponse = command.createResponse(EmptyIterators.unfilteredPartition(metadata), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(EmptyIterators.unfilteredPartition(metadata), rdi);
+
+        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+    }
+
+    @Test
+    public void inMemoryResponseWithRowsMatchesLocalDataResponse()
+    {
+        int key = key();
+        ReadCommand command = command(key, metadata);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        DecoratedKey dk = metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key));
+        Row row = buildRow(metadata, dk);
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, dk, row);
+
+        ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
+        ReadResponse inMemoryResponse = command.createLocalObjectResponse(singlePartitionIterator(update), rdi);
+
+        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+    }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void inMemoryResponseCannotBeSerialized()
+    {
+        ReadCommand command = command(key(), metadata);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        ReadResponse response = command.createLocalObjectResponse(EmptyIterators.unfilteredPartition(metadata), rdi);
+
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            ReadResponse.serializer.serialize(response, out, MessagingService.current_version);
+        }
+        catch (IOException e)
+        {
+            fail("Unexpected IOException: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void inMemoryResponseWithOverflowMatchesLocalDataResponse()
+    {
+        // 5 rows, only 2 fit in memory — 3 overflow into the serialized buffer
+        testMultipleRows(2, 5);
+    }
+
+    @Test
+    public void inMemoryResponseAllRowsInMemoryWhenUnderLimit()
+    {
+        // 3 rows, limit is 10 — all fit in memory with no overflow
+        testMultipleRows(10, 3);
+    }
+
+    @Test
+    public void inMemoryResponseWithZeroMaxRowsUsesOnlyOverflow()
+    {
+        // all rows go directly into the overflow buffer
+        testMultipleRows(0, 3);
+    }
+
+    private void testMultipleRows(int maxRows, int rows)
+    {
+        int key = key();
+        ReadCommand command = command(key, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, key, rows);
+
+        ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
+        ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update), command, rdi, maxRows);
+
+        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+    }
+
+    @Test
+    public void inMemoryResponseWithRangeTombstoneOnlyAllInMemory()
+    {
+        // Partition contains only a range tombstone (no rows); limit is large enough that nothing overflows
+        testWithTombstones(10, 0, 0, 5);
+    }
+
+    @Test
+    public void inMemoryResponseWithRangeTombstoneOnlyOverflow()
+    {
+        // 5 rows at clusterings 0-4 plus a range tombstone covering [6, 9];
+        // rows 0-1 go in-memory, rows 2-4 and the RT go to overflow
+        testWithTombstones(2, 5, 6, 9);
+    }
+
+    @Test
+    public void inMemoryResponseWithRangeTombstoneBetweenInMemoryAndOverflow()
+    {
+        // RT at [1, 2] sits between the in-memory rows (0) and the overflow rows (3-4)
+        testWithTombstones(1, 5, 1, 2);
+    }
+
+    private void testWithTombstones(int maxRows, int rows, int rtStart, int rtEnd)
+    {
+        int key = key();
+        ReadCommand command = command(key, metadataWithClustering);
+        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+        PartitionUpdate update = buildUpdateWithRowsAndRangeTombstone(metadataWithClustering, key, rows, rtStart, rtEnd);
+
+        ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
+        ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update), command, rdi, maxRows);
+
+        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+    }
+
+
+    private PartitionUpdate buildUpdateWithRowsAndRangeTombstone(TableMetadata metadata, int partitionKey,
+                                                                  int rowCount, int rtStart, int rtEnd)
+    {
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, ByteBufferUtil.bytes(partitionKey)).timestamp(0);
+        for (int i = 0; i < rowCount; i++)
+            builder.row(i).add("v", i);
+        builder.addRangeTombstone().start(rtStart).end(rtEnd);
+        return builder.build();
+    }
+
+    private void assertIteratorsEqual(ReadCommand command, ReadResponse expected, ReadResponse actual)
+    {
+        List<String> expectedUnfiltered = collectUnfiltered(command, expected);
+        List<String> actualUnfiltered = collectUnfiltered(command, actual);
+        assertEquals(expectedUnfiltered, actualUnfiltered);
+    }
+
+    private List<String> collectUnfiltered(ReadCommand command, ReadResponse response)
+    {
+        List<String> result = new ArrayList<>();
+        try (UnfilteredPartitionIterator iter = response.makeIterator(command))
+        {
+            while (iter.hasNext())
+            {
+                try (UnfilteredRowIterator partition = iter.next())
+                {
+                    while (partition.hasNext())
+                        result.add(partition.next().toString(partition.metadata(), true));
+                }
+            }
+        }
+        return result;
+    }
+
+    private Row buildRow(TableMetadata metadata, DecoratedKey key)
+    {
+        ColumnMetadata col = metadata.getColumn(ByteBufferUtil.bytes("v"));
+        Clustering<?> clustering = Clustering.EMPTY;
+        return BTreeRow.singleCellRow(clustering, BufferCell.live(col, FBUtilities.timestampMicros(), ByteBufferUtil.bytes(42)));
+    }
+
+    private PartitionUpdate buildMultiRowUpdate(TableMetadata metadata, int partitionKey, int rowCount)
+    {
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, ByteBufferUtil.bytes(partitionKey)).timestamp(0);
+        for (int i = 0; i < rowCount; i++)
+            builder.row(i).add("v", i);
+        return builder.build();
+    }
+
+    private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update)
+    {
+        UnfilteredRowIterator rowIter = update.unfilteredIterator();
+        return new AbstractUnfilteredPartitionIterator()
+        {
+            private boolean returned = false;
+
+            public TableMetadata metadata() { return update.metadata(); }
+
+            public boolean hasNext() { return !returned; }
+
+            public UnfilteredRowIterator next()
+            {
+                returned = true;
+                return rowIter;
+            }
+        };
+    }
+
     private void verifySerDe(ReadResponse response) {
         // check that roundtripping through ReadResponse.serializer behaves as expected
         for (MessagingService.Version version : MessagingService.Version.supportedVersions())
@@ -222,6 +426,11 @@ public class ReadResponseTest
         return new StubReadCommand(key, metadata, false);
     }
 
+    private ReadCommand command(int key)
+    {
+        return command(key, metadata);
+    }
+
     private static class StubRepairedDataInfo extends RepairedDataInfo
     {
         private final ByteBuffer repairedDigest;
@@ -262,11 +471,11 @@ public class ReadResponseTest
                   RowFilter.none(),
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
-                  null,
+                  new ClusteringIndexSliceFilter(Slices.ALL, false),
                   null,
                   false,
                   null);
-           
+
         }
 
         @Override
