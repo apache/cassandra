@@ -182,7 +182,8 @@ public class ExecutorUtils
             }
             else if (executor instanceof Shutdownable)
             {
-                if (wait <= 0 || !((Shutdownable)executor).awaitTermination(wait, NANOSECONDS))
+                Shutdownable shutdownable = (Shutdownable) executor;
+                if (wait <= 0 ? !shutdownable.isTerminated() : !shutdownable.awaitTermination(wait, NANOSECONDS))
                     throw new TimeoutException(executor + " did not terminate on time");
             }
             else if (executor instanceof Thread)

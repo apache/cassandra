@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -60,9 +61,9 @@ public class LengthFcts
         {
             // Do not deserialize
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(ProtocolVersion version, FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(version, context, 1);
             }
 
             @Override

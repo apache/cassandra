@@ -89,9 +89,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordJournal;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.AccordService;
@@ -100,8 +97,14 @@ import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfos;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyImage;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
+import org.apache.cassandra.service.accord.journal.MergeSerializer;
+import org.apache.cassandra.service.accord.journal.MergeSerializers;
+import org.apache.cassandra.service.accord.journal.MergeSerializers.CommandChangeSerializer;
+import org.apache.cassandra.service.accord.journal.Merger;
+import org.apache.cassandra.service.accord.journal.TopologyRecord;
+import org.apache.cassandra.service.accord.journal.TopologyRecord.TopologyImage;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
@@ -122,8 +125,9 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Image;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Repeat;
+import static org.apache.cassandra.service.accord.journal.MergeSerializers.TopologySerializer.INSTANCE;
+import static org.apache.cassandra.service.accord.journal.TopologyRecord.Kind.Image;
+import static org.apache.cassandra.service.accord.journal.TopologyRecord.Kind.Repeat;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -190,7 +194,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static IAccordService accord(AbstractCompactionController controller)
     {
         IAccordService accord = AccordService.tryGetUnsafe();
-        Invariants.require(accord != null || (!isAccordJournal(controller.cfs) && !isAccordCommandsForKey(controller.cfs)));
+        Invariants.require(accord != null || !isAccordSystemTable(controller.cfs.metadata()));
         return accord;
     }
 
@@ -251,19 +255,28 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private Transformation<UnfilteredRowIterator> purger(ColumnFamilyStore cfs, Supplier<AccordCompactionInfos> compactionInfos, Supplier<Version> version)
     {
-        if (isPaxos(cfs) && paxosStatePurging() != legacy)
+        TableMetadata metadata = cfs.metadata.get();
+
+        if (isPaxos(metadata) && paxosStatePurging() != legacy)
             return new PaxosPurger();
 
         // Topologies uses regular deletion so it can use a regular Purger
-        if (!requiresAccordSpecificPurger(cfs))
-            return new Purger(controller, nowInSec);
+        if (isAccordSystemTable(metadata))
+        {
+            if (isAccordJournal(metadata))
+                return new AccordJournalPurger(compactionInfos.get(), version.get(), cfs);
+            if (isAccordCommandsForKey(metadata))
+                return new AccordCommandsForKeyPurger(AccordKeyspace.CFKAccessor, compactionInfos);
 
-        if (isAccordJournal(cfs))
-            return new AccordJournalPurger(compactionInfos.get(), version.get(), cfs);
-        if (isAccordCommandsForKey(cfs))
-            return new AccordCommandsForKeyPurger(AccordKeyspace.CFKAccessor, compactionInfos);
+            // at time of writing there are no other accord system tables,
+            // but unless otherwise stated additional tables should be treated as normal
+        }
 
-        throw new IllegalArgumentException("Unhandled accord table: " + cfs.keyspace.getName() + '.' + cfs.name);
+        long nowInSec = this.nowInSec;
+        if (metadata.isAccordEnabled() || metadata.migratingFromAccord())
+            nowInSec = controller.gcBefore;
+
+        return new Purger(controller, nowInSec);
     }
 
     public TableMetadata metadata()
@@ -875,7 +888,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnMetadata versionColumn;
 
         JournalKey key;
-        AccordRowCompactor<?> compactor;
+        AccordRowCompactor<?, ?> compactor;
         final Version userVersion;
 
         public AccordJournalPurger(AccordCompactionInfos compactionInfos, Version version, ColumnFamilyStore cfs)
@@ -896,10 +909,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 switch (key.type)
                 {
                     case COMMAND_DIFF:
-                        compactor = new AccordCommandRowCompactor(infos, userVersion, nowInSec);
+                        compactor = new AccordCommandRowCompactor(infos, userVersion);
                         break;
                     case TOPOLOGY_UPDATE:
-                        compactor = new TopologyCompactor((FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator>) key.type.serializer, userVersion, infos.minEpoch);
+                        compactor = new TopologyCompactor(userVersion, infos.minEpoch);
                         break;
                     default:
                         compactor = new AccordMergingCompactor(key.type.serializer, userVersion);
@@ -939,11 +952,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static abstract class AccordRowCompactor<T extends FlyweightImage>
+    static abstract class AccordRowCompactor<V, T extends Merger>
     {
-        final FlyweightSerializer<Object, T> serializer;
+        final MergeSerializer<V, ? super T, T> serializer;
 
-        AccordRowCompactor(FlyweightSerializer<Object, T> serializer)
+        AccordRowCompactor(MergeSerializer<V, ? super T, T> serializer)
         {
             this.serializer = serializer;
         }
@@ -953,15 +966,15 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         abstract UnfilteredRowIterator result(JournalKey journalKey, DecoratedKey partitionKey) throws IOException;
     }
 
-    static class TopologyCompactor extends AccordMergingCompactor<AccordTopologyUpdate.Accumulator>
+    static class TopologyCompactor extends AccordMergingCompactor<TopologyRecord, MergeSerializers.TopologyMerger>
     {
         TopologyImage lastImage;
         boolean hasWritten;
         final long minEpoch;
 
-        TopologyCompactor(FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator> serializer, Version userVersion, long minEpoch)
+        TopologyCompactor(Version userVersion, long minEpoch)
         {
-            super(serializer, userVersion);
+            super(INSTANCE, userVersion);
             this.minEpoch = minEpoch;
         }
 
@@ -1004,7 +1017,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordMergingCompactor<T extends FlyweightImage> extends AccordRowCompactor<T>
+    static class AccordMergingCompactor<V, T extends Merger> extends AccordRowCompactor<V, T>
     {
         final T builder;
         final Version userVersion;
@@ -1012,7 +1025,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         long lastDescriptor;
         int lastOffset;
 
-        AccordMergingCompactor(FlyweightSerializer<Object, T> serializer, Version userVersion)
+        AccordMergingCompactor(MergeSerializer<V, ? super T, T> serializer, Version userVersion)
         {
             super(serializer);
             this.builder = serializer.mergerFor();
@@ -1072,7 +1085,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     static class AccordCommandRowEntry
     {
-        final AccordJournal.Builder builder = new AccordJournal.Builder();
+        final CommandChanges builder = new CommandChanges();
         Row row;
         boolean modified;
 
@@ -1094,27 +1107,25 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordCommandRowCompactor extends AccordRowCompactor<AccordJournal.Builder>
+    static class AccordCommandRowCompactor extends AccordRowCompactor<CommandChangeWriter, CommandChanges>
     {
         static final Object[] rowTemplate = BTree.build(BulkIterator.of(new Object[2]), 2, UpdateFunction.noOp);
         final long timestamp = ClientState.getTimestamp();
         final AccordCompactionInfos infos;
         final Version userVersion;
         final ColumnData userVersionCell;
-        final long nowInSec;
 
-        final AccordJournal.Builder mainBuilder = new AccordJournal.Builder();
+        final CommandChanges mainBuilder = new CommandChanges();
         final List<AccordCommandRowEntry> entries = new ArrayList<>();
         final ArrayDeque<AccordCommandRowEntry> reuseEntries = new ArrayDeque<>();
         AccordCompactionInfo info;
 
-        AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion, long nowInSec)
+        AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion)
         {
-            super((FlyweightSerializer<Object, AccordJournal.Builder>) JournalKey.Type.COMMAND_DIFF.serializer);
+            super((CommandChangeSerializer) JournalKey.Type.COMMAND_DIFF.serializer);
             this.infos = infos;
             this.userVersion = userVersion;
             this.userVersionCell = BufferCell.live(AccordKeyspace.JournalColumns.user_version, timestamp, Int32Type.instance.decompose(userVersion.version));
-            this.nowInSec = nowInSec;
         }
 
         @Override
@@ -1247,30 +1258,23 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    private static boolean isPaxos(ColumnFamilyStore cfs)
+    private static boolean isPaxos(TableMetadata metadata)
     {
-        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        return metadata.name.equals(SystemKeyspace.PAXOS) && metadata.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
-    private static boolean requiresAccordSpecificPurger(ColumnFamilyStore cfs)
+    private static boolean isAccordSystemTable(TableMetadata metadata)
     {
-        return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) &&
-               (cfs.getTableName().contains(AccordKeyspace.JOURNAL) ||
-                AccordKeyspace.COMMANDS_FOR_KEY.equals(cfs.getTableName()));
+        return metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 
-    private static boolean isAccordTable(ColumnFamilyStore cfs, String name)
+    private static boolean isAccordJournal(TableMetadata metadata)
     {
-        return cfs.name.equals(name) && cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+        return metadata.name.startsWith(AccordKeyspace.JOURNAL) && metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 
-    private static boolean isAccordJournal(ColumnFamilyStore cfs)
+    private static boolean isAccordCommandsForKey(TableMetadata metadata)
     {
-        return cfs.getKeyspaceName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME) && cfs.name.startsWith(AccordKeyspace.JOURNAL);
-    }
-
-    private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs)
-    {
-        return isAccordTable(cfs, AccordKeyspace.COMMANDS_FOR_KEY);
+        return metadata.name.equals(AccordKeyspace.COMMANDS_FOR_KEY) && metadata.keyspace.equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
     }
 }

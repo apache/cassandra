@@ -79,10 +79,10 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataKeyValue;
@@ -219,7 +219,7 @@ public class AccordInteropExecution implements ReadCoordinator
         //  Also this read scope doesn't reflect the contents of this particular read and is larger than it needs to be
         // TODO (required): understand interop and whether StableFastPath is appropriate
         AccordInteropStableThenRead commit = new AccordInteropStableThenRead(id, allTopologies, txnId, Kind.StableFastPath, executeAt, txn, deps, route, message.payload);
-        node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this));
+        node.send(id, commit, executor, new AccordInteropRead.ReadCallback(id, to, message, callback, this), null);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class AccordInteropExecution implements ReadCoordinator
         }
         Participants<?> readScope = Participants.singleton(txn.read().keys().domain(), new TokenKey(message.payload.getTableIds().iterator().next(), message.payload.key().getToken()));
         AccordInteropReadRepair readRepair = new AccordInteropReadRepair(id, executes, txnId, readScope, executeAt.epoch(), message.payload);
-        node.send(id, readRepair, executor, new AccordInteropReadRepair.ReadRepairCallback(id, to, message, callback, this));
+        node.send(id, readRepair, executor, new AccordInteropReadRepair.ReadRepairCallback(id, to, message, callback, this), null);
     }
 
     private List<AsyncChain<Data>> readChains(Dispatcher.RequestTime requestTime)
@@ -376,7 +376,7 @@ public class AccordInteropExecution implements ReadCoordinator
         {
             InetAddressAndPort endpoint = endpointMapper.mappedEndpointOrNull(to);
             if (endpoint != null && !contacted.contains(endpoint))
-                node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
+                node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
         }
     }
 
@@ -387,7 +387,7 @@ public class AccordInteropExecution implements ReadCoordinator
             for (Node.Id to : allTopologies.nodes())
             {
                 if (!executeTopology.contains(to))
-                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
+                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
             }
         }
         AsyncChain<Data> result;
@@ -423,7 +423,7 @@ public class AccordInteropExecution implements ReadCoordinator
             // and can be extended similar to MessageType which allows additional types not from Accord to be added
             // This commit won't necessarily execute before the interop read repair message so there could be an insufficient which is fine
             for (Node.Id to : executeTopology.nodes())
-                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps));
+                    node.send(to, new Commit(Kind.StableFastPath, to, allTopologies, txnId, txn, route, Ballot.ZERO, executeAt, deps), null);
             repairUpdate.runBRR(AccordInteropExecution.this);
             return new TxnData();
         });
@@ -455,7 +455,7 @@ public class AccordInteropExecution implements ReadCoordinator
     // Provide request callbacks with a way to send maximal commits on Insufficient responses
     public void sendMaximalCommit(Id to)
     {
-        node.send(to, new Commit(Kind.StableWithTxnAndDeps, to, allTopologies, txnId, txn, route, ballot, executeAt, deps));
+        node.send(to, new Commit(Kind.StableWithTxnAndDeps, to, allTopologies, txnId, txn, route, ballot, executeAt, deps), null);
     }
 
     public void maybeUpdateUniqueHlc(long uniqueHlc)

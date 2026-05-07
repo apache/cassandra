@@ -47,7 +47,7 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     void awaitExclusive() throws InterruptedException
     {
         lock.clearSignal();
-        if (submitted.isEmpty())
+        if (!hasUnqueued())
             lock.await();
     }
 

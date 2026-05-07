@@ -177,6 +177,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
+import static org.apache.cassandra.db.compaction.CompactionManager.NO_GC;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
@@ -408,8 +409,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         return () -> {
             for (Keyspace keyspace : Keyspace.all())
+            {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                {
+                    if (SchemaConstants.ACCORD_KEYSPACE_NAME.equals(cfs.keyspace.getName()))
+                        continue;
+
                     CompactionManager.instance.submitBackground(cfs);
+                }
+            }
+
         };
     }
 
@@ -1142,6 +1151,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
         final Memtable current = data.getView().getCurrentMemtable();
         return postFlushExecutor.submit(current::getCommitLogLowerBound);
+    }
+
+    public Future<Void> waitForPriorFlushes()
+    {
+        return postFlushExecutor.submit(() -> null);
     }
 
     public CommitLogPosition forceBlockingFlush(FlushReason reason)
@@ -2003,9 +2017,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return paxosRepairHistory.get().getBallotForToken(key.getToken());
     }
 
+    public long getDefaultGcBefore(long nowInSec)
+    {
+        // 2ndary indexes have ExpiringColumns too, so we need to purge tombstones deleted before now. We do not need to
+        // add any GcGrace however since 2ndary indexes are local to a node.
+        return isIndex() ? nowInSec : gcBefore(nowInSec);
+    }
+
     public long gcBefore(long nowInSec)
     {
-        return nowInSec - metadata().params.gcGraceSeconds;
+        TableMetadata metadata = metadata();
+        if (metadata.isAccordEnabled())
+            return NO_GC;
+        return nowInSec - metadata.params.gcGraceSeconds;
     }
 
     public RefViewFragment selectAndReference(Function<View, Iterable<SSTableReader>> filter)

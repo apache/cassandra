@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -120,9 +121,9 @@ public class UDAggregate extends UserFunction implements AggregateFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
-        return FunctionArguments.newInstanceForUdf(version, argumentTypes);
+        return FunctionArguments.newInstanceForUdf(version, context, argumentTypes);
     }
 
     public boolean hasReferenceTo(Function function)
@@ -230,7 +231,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
                 }
             }
 
-            public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+            public ByteBuffer compute(ProtocolVersion protocolVersion, FunctionContext context) throws InvalidRequestException
             {
                 maybeInit(protocolVersion);
 
@@ -242,7 +243,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
                 if (finalFunction instanceof UDFunction)
                 {
                     UDFunction udf = (UDFunction)finalFunction;
-                    Object result = udf.executeForAggregate(state, FunctionArguments.emptyInstance(protocolVersion));
+                    Object result = udf.executeForAggregate(state, context.noArguments(protocolVersion));
                     return resultType.decompose(protocolVersion, result);
                 }
                 throw new UnsupportedOperationException("UDAs only support UDFs");

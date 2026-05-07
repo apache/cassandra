@@ -38,8 +38,8 @@ import org.apache.cassandra.cql3.Operations;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.Relation;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.cql3.StatementSource;
-import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
@@ -96,7 +96,7 @@ public class UpdateStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, RowUpdateBuilder params)
     {
         if (updatesRegularRows())
         {
@@ -142,7 +142,7 @@ public class UpdateStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, RowUpdateBuilder builder)
     {
         throw new UnsupportedOperationException();
     }
@@ -220,7 +220,7 @@ public class UpdateStatement extends ModificationStatement
                 else
                 {
                     Operation operation = new Operation.SetValue(value).prepare(metadata, def, !conditions.isEmpty());
-                    operation.collectMarkerSpecification(bindVariables);
+                    operation.collectMarkerSpecification(bindVariables, attrs);
                     operations.add(operation, metadata);
                 }
             }
@@ -234,6 +234,7 @@ public class UpdateStatement extends ModificationStatement
                                                                            whereClause.build(),
                                                                            bindVariables,
                                                                            Collections.emptyList(),
+                                                                           attrs,
                                                                            applyOnlyToStaticColumns,
                                                                            false,
                                                                            false);
@@ -295,7 +296,7 @@ public class UpdateStatement extends ModificationStatement
                 else
                 {
                     Operation operation = new Operation.SetValue(raw).prepare(metadata, def, !conditions.isEmpty());
-                    operation.collectMarkerSpecification(bindVariables);
+                    operation.collectMarkerSpecification(bindVariables, attrs);
                     operations.add(operation, metadata);
                 }
             }
@@ -309,6 +310,7 @@ public class UpdateStatement extends ModificationStatement
                                                                            whereClause.build(),
                                                                            bindVariables,
                                                                            Collections.emptyList(),
+                                                                           attrs,
                                                                            applyOnlyToStaticColumns,
                                                                            false,
                                                                            false);
@@ -417,7 +419,7 @@ public class UpdateStatement extends ModificationStatement
                 ColumnMetadata def = metadata.getExistingColumn(entry.left);
                 checkFalse(def.isPrimaryKeyColumn(), UPDATING_PRIMARY_KEY_MESSAGE, def.name);
                 Operation operation = entry.right.prepare(metadata, def, !conditions.isEmpty() || isForTxn);
-                operation.collectMarkerSpecification(bindVariables);
+                operation.collectMarkerSpecification(bindVariables, attrs);
                 operations.add(operation, metadata);
             }
 
@@ -435,7 +437,8 @@ public class UpdateStatement extends ModificationStatement
                                                                  bindVariables,
                                                                  operations,
                                                                  whereClause,
-                                                                 conditions);
+                                                                 conditions,
+                                                                 attrs);
 
             return new UpdateStatement(type,
                                        bindVariables,

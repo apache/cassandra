@@ -38,6 +38,4 @@ public interface TxnResult extends Result
     }
 
     Kind kind();
-
-    long estimatedSizeOnHeap();
 }

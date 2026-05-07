@@ -103,21 +103,22 @@ public abstract class Operation
      * Collects the column specification for the bind variables of this operation.
      *
      * @param boundNames the list of column specification where to collect the
-     * bind variables of this term in.
+     *                   bind variables of this term in.
+     * @param owner
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
         if (t != null)
-            t.collectMarkerSpecification(boundNames);
+            t.collectMarkerSpecification(boundNames, owner);
     }
 
     /**
      * Execute the operation.
      *
      * @param partitionKey partition key for the update.
-     * @param params parameters of the update.
+     * @param builder      parameters of the update.
      */
-    public abstract void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException;
+    public abstract void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException;
 
     /**
      * A parsed raw UPDATE operation.

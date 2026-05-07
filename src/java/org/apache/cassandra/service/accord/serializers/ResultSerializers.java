@@ -19,7 +19,7 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import accord.api.Result;
-
+import accord.utils.Invariants;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -31,7 +31,10 @@ public class ResultSerializers
 
     public static final UnversionedSerializer<Result> result = new UnversionedSerializer<>()
     {
-        public void serialize(Result t, DataOutputPlus out) { }
+        public void serialize(Result t, DataOutputPlus out)
+        {
+            Invariants.require(t == APPLIED);
+        }
         public Result deserialize(DataInputPlus in)
         {
             return APPLIED;

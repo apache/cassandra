@@ -70,10 +70,11 @@ import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.metrics.LogLinearDecayingHistograms;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
 import org.apache.cassandra.service.accord.AccordCommandStore.Caches;
-import org.apache.cassandra.service.accord.AccordExecutor.SubmittableTask;
+import org.apache.cassandra.service.accord.AccordExecutor.Task;
 import org.apache.cassandra.service.accord.AccordExecutor.TaskQueue;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Clock;
@@ -85,12 +86,10 @@ import static accord.local.LoadKeysFor.RECOVERY;
 import static accord.local.LoadKeysFor.WRITE;
 import static accord.primitives.Routable.Domain.Key;
 import static accord.primitives.Txn.Kind.EphemeralRead;
-import static accord.utils.Invariants.illegalState;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.service.accord.AccordTask.State.ASSIGNED;
 import static org.apache.cassandra.service.accord.AccordTask.State.CANCELLED;
 import static org.apache.cassandra.service.accord.AccordTask.State.FAILED;
-import static org.apache.cassandra.service.accord.AccordTask.State.FAILING;
 import static org.apache.cassandra.service.accord.AccordTask.State.FINISHED;
 import static org.apache.cassandra.service.accord.AccordTask.State.INITIALIZED;
 import static org.apache.cassandra.service.accord.AccordTask.State.LOADING;
@@ -100,13 +99,13 @@ import static org.apache.cassandra.service.accord.AccordTask.State.SCANNING_RANG
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_LOAD;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RUN;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_SCAN_RANGES;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
+import static org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask.SANITY_CHECK;
 
-public abstract class AccordTask<R> extends SubmittableTask implements Function<SafeCommandStore, R>, Cancellable, DebuggableTask
+public abstract class AccordTask<R> extends Task implements Function<SafeCommandStore, R>, Cancellable, DebuggableTask
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordTask.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
-    private static final boolean SANITY_CHECK = DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean();
 
     static class ForFunction<R> extends AccordTask<R>
     {
@@ -162,12 +161,12 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         WAITING_TO_LOAD(INITIALIZED, SCANNING_RANGES),
         LOADING(INITIALIZED, SCANNING_RANGES, WAITING_TO_LOAD),
         WAITING_TO_RUN(INITIALIZED, SCANNING_RANGES, WAITING_TO_LOAD, LOADING),
-        RUNNING(WAITING_TO_RUN),
+        ASSIGNED(WAITING_TO_RUN),
+        RUNNING(ASSIGNED),
         PERSISTING(RUNNING),
-        FAILING(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING),
         FINISHED(RUNNING, PERSISTING),
         CANCELLED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN),
-        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING, FAILING);
+        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING);
 
         private final int permittedFrom;
 
@@ -220,8 +219,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Nullable private TaskQueue queued;
 
     private BiConsumer<? super R, Throwable> callback;
-    private List<Command> sanityCheck;
-    public long createdAt = nanoTime(), waitingToRunAt, runningAt, completedAt;
 
     public AccordTask(@Nonnull AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
@@ -313,23 +310,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         {
             Invariants.require(rangeScanner == null || rangeScanner.scanned);
             Invariants.require(loading == null && waitingToLoad == null, "WAITING_TO_RUN => no loading or waiting; found %s", this, AccordTask::toDescription);
-            waitingToRunAt = nanoTime();
-            commandStore.executor().elapsedPreparingToRun.increment(waitingToRunAt - createdAt, runningAt);
-        }
-        else if (state == RUNNING)
-        {
-            runningAt = nanoTime();
-            if (waitingToRunAt == 0)
-            {
-                waitingToRunAt = runningAt;
-                commandStore.executor().elapsedPreparingToRun.increment(waitingToRunAt - createdAt, runningAt);
-            }
-            commandStore.executor().elapsedWaitingToRun.increment(runningAt - waitingToRunAt, runningAt);
-            commandStore.executor().keys.increment(commandsForKey == null ? 0 : commandsForKey.size(), runningAt);
-        }
-        else if (state.isExecuted() && completedAt == 0)
-        {
-            completedAt = nanoTime();
         }
     }
 
@@ -347,13 +327,32 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             @Override
             protected Cancellable start(BiConsumer<? super R, Throwable> callback)
             {
-                Invariants.require(AccordTask.this.callback == null);
-                AccordTask.this.callback = callback;
-                commandStore.tryPreSetup(AccordTask.this);
+                preSetup(callback);
                 commandStore.executor().submit(AccordTask.this);
                 return AccordTask.this;
             }
         };
+    }
+
+    public AsyncChain<R> priorityChain()
+    {
+        return new AsyncChains.Head<>()
+        {
+            @Override
+            protected Cancellable start(BiConsumer<? super R, Throwable> callback)
+            {
+                preSetup(callback);
+                commandStore.executor().submitPriority(AccordTask.this);
+                return AccordTask.this;
+            }
+        };
+    }
+
+    private void preSetup(BiConsumer<? super R, Throwable> callback)
+    {
+        Invariants.require(this.callback == null);
+        this.callback = callback;
+        commandStore.tryPreSetup(this);
     }
 
     // to be invoked only by the CommandStore owning thread, to take references to objects already in use by the current execution
@@ -630,22 +629,22 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         if (SANITY_CHECK)
         {
-            if (sanityCheck == null)
-                sanityCheck = new ArrayList<>(commands.size());
-            sanityCheck.add(safeCommand.current());
+            DebugTask debug = DebugTask.get(this);
+            if (debug.sanityCheck == null)
+                debug.sanityCheck = new ArrayList<>(commands.size());
+            debug.sanityCheck.add(safeCommand.current());
         }
     }
 
     private void save(List<Journal.CommandUpdate> diffs, Runnable onFlush)
     {
-        if (sanityCheck != null)
+        if (SANITY_CHECK && DebugTask.get(this).sanityCheck != null)
         {
-            Invariants.require(SANITY_CHECK);
             Condition condition = Condition.newOneTimeCondition();
             this.commandStore.appendCommands(diffs, condition::signal);
             condition.awaitUninterruptibly();
 
-            for (Command check : sanityCheck)
+            for (Command check : DebugTask.get(this).sanityCheck)
                 this.commandStore.sanityCheckCommand(commandStore.unsafeGetRedundantBefore(), check);
 
             if (onFlush != null) onFlush.run();
@@ -659,7 +658,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     protected void preRunExclusive()
     {
-        state(RUNNING);
+        state(ASSIGNED);
         queued = null;
         if (rangeScanner != null)
         {
@@ -675,15 +674,15 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     public void runInternal()
     {
+        onRunning();
         logger.trace("Running {} with state {}", this, state);
         AccordSafeCommandStore safeStore = null;
-        try (Closeable close = locals.get())
+        try (Closeable close = resources.get())
         {
             if (Tracing.isTracing())
                 Tracing.trace(preLoadContext.describe());
 
-            if (state != RUNNING)
-                throw illegalState("Unexpected state " + toDescription());
+            state(RUNNING);
 
             safeStore = commandStore.begin(this, commandsForRanges);
             R result = apply(safeStore);
@@ -719,6 +718,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
             commandStore.complete(safeStore);
             safeStore = null;
+            onRunComplete();
             if (!flush)
                 finish(result, null);
         }
@@ -731,63 +731,40 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             }
             throw t;
         }
-        finally
-        {
-            logger.trace("Exiting {}", this);
-        }
     }
 
     public void fail(Throwable throwable)
     {
-        commandStore.agent().onException(throwable);
         if (state.isComplete())
             return;
 
-        if (commandStore.hasSafeStore())
-            commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
-
-        state(FAILING);
-        if (callback != null)
-            callback.accept(null, throwable);
-    }
-
-    public void failExclusive(Throwable throwable)
-    {
-        boolean newFailure = state != FAILING;
         try
         {
-            if (newFailure)
-            {
-                commandStore.agent().onException(throwable);
-                if (state.isComplete())
-                    return;
-
-                if (commandStore.hasSafeStore())
-                    commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
-            }
-
             state(FAILED);
+            commandStore.agent().onException(throwable);
         }
         finally
         {
-            if (newFailure && callback != null)
+            if (callback != null)
                 callback.accept(null, throwable);
         }
     }
 
-    protected void cleanupExclusive()
+    public void failExclusive(Throwable throwable)
     {
-        if (state == FAILING)
-            state(FAILED);
+        fail(throwable);
+    }
+
+    @Override
+    protected void cleanupExclusive(AccordExecutor executor)
+    {
         Invariants.expect(state.isExecuted());
         releaseResources(commandStore.cachesExclusive());
-        if (runningAt != 0)
-        {
-            commandStore.executor().elapsedRunning.increment(completedAt - runningAt, completedAt);
-        }
+        super.cleanupExclusive(executor);
+        executor.keys.increment(commandsForKey == null ? 0 : commandsForKey.size(), runningAt);
         if (histogramBuffer != null)
         {
-            histogramBuffer.flush(completedAt);
+            histogramBuffer.flush(cleanupAt);
             histogramBuffer = null;
         }
     }
@@ -806,16 +783,21 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     public void cancel()
     {
-        commandStore.executor().cancel(this);
+        if (!state.isComplete())
+            commandStore.executor().cancel(this);
     }
 
-    public void cancelExclusive()
+    void cancelExclusive()
     {
+        logger.info("Cancelling {}", preLoadContext);
         state(CANCELLED);
         if (rangeScanner != null)
             rangeScanner.cancelled = true;
         if (callback != null)
-            callback.accept(null, new CancellationException());
+        {
+            if (commandStore.executor().isInLoop()) callback.accept(null, new CancellationException());
+            else commandStore.executor().submit(() -> callback.accept(null, new CancellationException()));
+        }
     }
 
     void cancelExclusive(AccordExecutor owner)
@@ -844,18 +826,21 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             {
                 rangeScanner.cleanup(caches);
                 rangeScanner = null;
+                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedRangeScanner();
             }
             if (commands != null)
             {
                 commands.forEach((k, v) -> caches.commands().release(v, this));
                 commands.clear();
                 commands = null;
+                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedCommands();
             }
             if (commandsForKey != null)
             {
                 commandsForKey.forEach((k, v) -> caches.commandsForKeys().release(v, this));
                 commandsForKey.clear();
                 commandsForKey = null;
+                if (DEBUG_EXECUTION) DebugTask.get(this).onReleasedCommandsForKeys();
             }
             if (waitingToLoad != null)
             {
@@ -912,7 +897,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         for (AccordSafeState<K, V> safeState : map.values())
         {
-            if (safeState.invalidated()) continue;
+            if (safeState.isUnsafe()) continue;
             try { cache.release(safeState, this); }
             catch (Throwable t) { suppressedBy.addSuppressed(t); }
         }
@@ -922,7 +907,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         for (AccordSafeState<?, ?> safeState : map.values())
         {
-            if (safeState.invalidated()) continue;
+            if (safeState.isUnsafe()) continue;
             try { cache.release(safeState, this); }
             catch (Throwable t) { suppressedBy.addSuppressed(t); }
         }
@@ -1084,7 +1069,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     public class RangeTxnScanner extends AccordExecutor.AbstractIOTask
     {
         final Map<Timestamp, Summary> summaries = new HashMap<>();
-        final Map<Timestamp, Summary> mutexSummaries = Collections.synchronizedMap(summaries);
+        final Map<Timestamp, Summary> guardedSummaries = Collections.synchronizedMap(summaries);
 
         RangeIndex.Loader loader;
         boolean scanned;
@@ -1094,7 +1079,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         protected void runInternal()
         {
-            loader.load(mutexSummaries, () -> cancelled);
+            loader.load(guardedSummaries, () -> cancelled);
         }
 
         PreLoadContext preLoadContext()
@@ -1125,7 +1110,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         void startInternal(Caches caches)
         {
             loader = commandStore.rangeIndex().loader(preLoadContext.primaryTxnId(), preLoadContext.executeAt(), preLoadContext.loadKeysFor(), preLoadContext.keys());
-            loader.loadExclusive(mutexSummaries, caches);
+            loader.loadExclusive(guardedSummaries, caches);
         }
 
         public void scannedExclusive()
@@ -1144,7 +1129,8 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void cleanup(Caches caches)
         {
-            loader.cleanupExclusive(caches);
+            if (loader != null)
+                loader.cleanupExclusive(caches);
         }
 
         CommandSummaries finish(Caches caches)

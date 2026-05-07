@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -69,9 +70,9 @@ public class VectorFcts
         return new NativeScalarFunction(name, FloatType.instance, type, type)
         {
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(ProtocolVersion version, FunctionContext context)
             {
-                return new FunctionArguments(version,
+                return new FunctionArguments(version, context,
                                              (v, b) -> type.composeAsFloat(b),
                                              (v, b) -> type.composeAsFloat(b));
             }

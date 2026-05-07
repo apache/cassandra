@@ -31,6 +31,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.FunctionContext.RealTimeFunctionContext;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -53,7 +54,7 @@ import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
 /**
  * Options for a query.
  */
-public abstract class QueryOptions
+public abstract class QueryOptions implements RealTimeFunctionContext
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
                                                                        Collections.emptyList(),
@@ -116,7 +117,7 @@ public abstract class QueryOptions
                                        values,
                                        ByteArrayUtil.EMPTY_ARRAY_OF_BYTE_ARRAYS,
                                        skipMetadata,
-                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
+                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds, false),
                                        version);
     }
 
@@ -264,6 +265,11 @@ public abstract class QueryOptions
         return nowInSeconds != UNSET_NOWINSEC ? nowInSeconds : state.getNowInSeconds();
     }
 
+    public boolean isEligibleForArtificialLatency()
+    {
+        return getSpecificOptions().eligibleForArtificialLatency;
+    }
+
     /** The keyspace that this query is bound to, or null if not relevant. */
     public String getKeyspace() { return getSpecificOptions().keyspace; }
 
@@ -371,6 +377,12 @@ public abstract class QueryOptions
         {
             return abortThresholdBytes;
         }
+    }
+
+    @Override
+    public QueryOptions options()
+    {
+        return this;
     }
 
     static class DefaultQueryOptions extends QueryOptions
@@ -631,7 +643,7 @@ public abstract class QueryOptions
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, UNSET_NOWINSEC, false);
 
         private final int pageSize;
         private final PagingState state;
@@ -639,13 +651,15 @@ public abstract class QueryOptions
         private final long timestamp;
         private final String keyspace;
         private final long nowInSeconds;
+        private final boolean eligibleForArtificialLatency;
 
         private SpecificOptions(int pageSize,
                                 PagingState state,
                                 ConsistencyLevel serialConsistency,
                                 long timestamp,
                                 String keyspace,
-                                long nowInSeconds)
+                                long nowInSeconds,
+                                boolean eligibleForArtificialLatency)
         {
             this.pageSize = pageSize;
             this.state = state;
@@ -653,11 +667,12 @@ public abstract class QueryOptions
             this.timestamp = timestamp;
             this.keyspace = keyspace;
             this.nowInSeconds = nowInSeconds;
+            this.eligibleForArtificialLatency = eligibleForArtificialLatency;
         }
 
         public SpecificOptions withNowInSec(long nowInSec)
         {
-            return new SpecificOptions(pageSize, state, serialConsistency, timestamp, keyspace, nowInSec);
+            return new SpecificOptions(pageSize, state, serialConsistency, timestamp, keyspace, nowInSec, eligibleForArtificialLatency);
         }
     }
 
@@ -674,7 +689,9 @@ public abstract class QueryOptions
             TIMESTAMP,
             NAMES_FOR_VALUES,
             KEYSPACE,
-            NOW_IN_SECONDS;
+            NOW_IN_SECONDS,
+            ELIGIBLE_FOR_ARTIFICIAL_LATENCY,
+            ;
 
             private final int mask;
 
@@ -755,7 +772,8 @@ public abstract class QueryOptions
                 String keyspace = Flag.contains(flags, Flag.KEYSPACE) ? CBUtil.readString(body) : null;
                 long nowInSeconds = Flag.contains(flags, Flag.NOW_IN_SECONDS) ? CassandraUInt.toLong(body.readInt())
                                                                               : UNSET_NOWINSEC;
-                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
+                boolean eligibleForArtificialLatency = Flag.contains(flags, Flag.ELIGIBLE_FOR_ARTIFICIAL_LATENCY);
+                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds, eligibleForArtificialLatency);
             }
 
             DefaultQueryOptions opts = new DefaultQueryOptions(consistency, null, values, skipMetadata, options, version);

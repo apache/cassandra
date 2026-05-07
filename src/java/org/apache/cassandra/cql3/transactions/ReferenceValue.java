@@ -19,7 +19,7 @@
 package org.apache.cassandra.cql3.transactions;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -31,7 +31,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 public abstract class ReferenceValue
 {
-    public abstract TxnReferenceValue bindAndGet(QueryOptions options);
+    public abstract TxnReferenceValue bindAndGet(FunctionContext context);
 
     public static abstract class Raw extends Term.Raw
     {
@@ -48,9 +48,9 @@ public abstract class ReferenceValue
         }
 
         @Override
-        public TxnReferenceValue bindAndGet(QueryOptions options)
+        public TxnReferenceValue bindAndGet(FunctionContext context)
         {
-            return new TxnReferenceValue.Constant(term.bindAndGet(options));
+            return new TxnReferenceValue.Constant(term.bindAndGet(context));
         }
 
         public static class Raw extends ReferenceValue.Raw
@@ -104,9 +104,9 @@ public abstract class ReferenceValue
         }
 
         @Override
-        public TxnReferenceValue bindAndGet(QueryOptions options)
+        public TxnReferenceValue bindAndGet(FunctionContext context)
         {
-            return new TxnReferenceValue.Substitution(reference.toTxnReference(options).asColumn());
+            return new TxnReferenceValue.Substitution(reference.toTxnReference().asColumn());
         }
 
         public static class Raw extends ReferenceValue.Raw

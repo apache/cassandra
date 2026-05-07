@@ -140,9 +140,9 @@ public final class ElementExpression
      * @param boundNames the variables specification where to collect the
      * bind variables of the map key/collection element in.
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        keyOrIndex.collectMarkerSpecification(boundNames);
+        keyOrIndex.collectMarkerSpecification(boundNames, owner);
     }
 
     /**
@@ -158,12 +158,12 @@ public final class ElementExpression
     /**
      * Returns the ByteBuffer representation of the key or index.
      *
-     * @param options the query options
+     * @param context the query options
      * @return the ByteBuffer representation of the key or index.
      */
-    public ByteBuffer bindAndGet(QueryOptions options)
+    public ByteBuffer bindAndGet(FunctionContext context)
     {
-        return keyOrIndex.bindAndGet(options);
+        return keyOrIndex.bindAndGet(context);
     }
 
     public String toCQLString()

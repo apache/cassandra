@@ -24,6 +24,7 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.TypeSizes;
@@ -38,6 +39,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.cql3.functions.masking.ColumnMask.Masker.NOT_A_MASKER;
+
 public final class SimpleSelector extends Selector
 {
     protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
@@ -47,7 +50,7 @@ public final class SimpleSelector extends Selector
             ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
             ColumnMetadata column = metadata.getColumn(columnName);
             int idx = in.readInt();
-            return new SimpleSelector(column, idx, false, ProtocolVersion.CURRENT);
+            return new SimpleSelector(column, idx, false);
         }
     };
 
@@ -87,7 +90,7 @@ public final class SimpleSelector extends Selector
         @Override
         public Selector newInstance(QueryOptions options)
         {
-            return new SimpleSelector(column, idx, useForPostOrdering, options.getProtocolVersion());
+            return new SimpleSelector(column, idx, useForPostOrdering);
         }
 
         @Override
@@ -120,7 +123,7 @@ public final class SimpleSelector extends Selector
 
     public final ColumnMetadata column;
     private final int idx;
-    private final ColumnMask.Masker masker;
+    private ColumnMask.Masker masker;
     private ByteBuffer current;
     private ColumnTimestamps writetimes;
     private ColumnTimestamps ttls;
@@ -197,7 +200,7 @@ public final class SimpleSelector extends Selector
         return column.name.toString();
     }
 
-    private SimpleSelector(ColumnMetadata column, int idx, boolean useForPostOrdering, ProtocolVersion version)
+    private SimpleSelector(ColumnMetadata column, int idx, boolean useForPostOrdering)
     {
         super(Kind.SIMPLE_SELECTOR);
         this.column = column;
@@ -207,9 +210,13 @@ public final class SimpleSelector extends Selector
          - The column doesn't have a mask
          - This selector is for a query with ORDER BY post-ordering
           */
-        this.masker = useForPostOrdering || column.getMask() == null
-                      ? null
-                      : column.getMask().masker(version);
+        this.masker = useForPostOrdering || column.getMask() == null ? null : NOT_A_MASKER;
+    }
+
+    public void prepare(FunctionContext context)
+    {
+        if (masker != null)
+            masker = column.getMask().masker(context.options().getProtocolVersion(), context);
     }
 
     @Override

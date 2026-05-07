@@ -53,15 +53,18 @@ import accord.api.Journal;
 import accord.api.Key;
 import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog;
+import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
+import accord.coordinate.Coordinations;
+import accord.impl.AbstractReplayer;
 import accord.impl.AbstractSafeCommandStore;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
 import accord.local.Command;
+import accord.local.CommandBuilder;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
-import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
 import accord.local.PreLoadContext;
@@ -78,7 +81,7 @@ import accord.local.cfk.CommandsForKey.Unmanaged;
 import accord.local.cfk.SafeCommandsForKey;
 import accord.local.cfk.Serialize;
 import accord.local.durability.DurabilityService;
-import accord.messages.ReplyContext;
+import accord.messages.MessageType;
 import accord.primitives.Ballot;
 import accord.primitives.KeyDeps;
 import accord.primitives.Known;
@@ -87,6 +90,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
 import accord.primitives.Timestamp;
@@ -112,13 +116,13 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 
-import static accord.api.ProtocolModifiers.Toggles.setTransitiveDependenciesAreVisible;
+import static accord.api.ProtocolModifiers.Configure.setTransitiveDependenciesAreVisible;
 import static accord.local.cfk.CommandsForKey.NO_BOUNDS_INFO;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtErased;
 import static accord.primitives.Known.KnownExecuteAt.ExecuteAtUnknown;
@@ -177,14 +181,14 @@ public class CommandsForKeySerializerTest
             this.isDurable = isDurable;
         }
 
-        ICommand.Builder builder()
+        CommandBuilder builder()
         {
-            ICommand.Builder builder = new ICommand.Builder(txnId);
+            CommandBuilder builder = new CommandBuilder(txnId);
             if (saveStatus.known.isDefinitionKnown())
                 builder.partialTxn(txn);
 
             StoreParticipants participants = StoreParticipants.all(txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null)));
-            builder.setParticipants(participants);
+            builder.participants(participants);
             builder.durability(isDurable ? AllQuorums : NotDurable);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
             {
@@ -207,54 +211,14 @@ public class CommandsForKeySerializerTest
             {
                 if (txnId.is(Kind.Write))
                     builder.writes(new Writes(txnId, executeAt, txn.keys(), new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
-                builder.result(new TxnData());
+                builder.result(new TxnDataResult(executeAt.uniqueHlc()));
             }
             return builder;
         }
 
         Command toCommand()
         {
-            switch (saveStatus)
-            {
-                default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
-                case Uninitialised:
-                case NotDefined:
-                    return Command.NotDefined.notDefined(builder(), Ballot.ZERO);
-                case PreAccepted:
-                case PreAcceptedWithVote:
-                case PreAcceptedWithDeps:
-                    return Command.PreAccepted.preaccepted(builder(), saveStatus);
-                case AcceptedInvalidate:
-                    return Command.NotAcceptedWithoutDefinition.notAccepted(builder(), saveStatus);
-                case AcceptedMedium:
-                case AcceptedMediumWithDefinition:
-                case AcceptedMediumWithDefAndVote:
-                case AcceptedSlow:
-                case AcceptedSlowWithDefinition:
-                case AcceptedSlowWithDefAndVote:
-                case AcceptedInvalidateWithDefinition:
-                case PreCommittedWithDefinition:
-                case PreCommittedWithDefAndDeps:
-                case PreCommittedWithDefAndFixedDeps:
-                case PreCommittedWithDeps:
-                case PreCommittedWithFixedDeps:
-                case PreCommitted:
-                    return Command.Accepted.accepted(builder(), saveStatus);
-
-                case Committed:
-                    return Command.Committed.committed(builder(), saveStatus);
-
-                case Stable:
-                case ReadyToExecute:
-                    return Command.Committed.committed(builder(), saveStatus);
-
-                case PreApplied:
-                case Applied:
-                    return Command.Executed.executed(builder(), saveStatus);
-
-                case Invalidated:
-                    return Command.Truncated.invalidated(txnId, builder().participants());
-            }
+            return builder().build(saveStatus);
         }
 
         @Override
@@ -655,7 +619,7 @@ public class CommandsForKeySerializerTest
         @Override public AsyncChain<Void> chain(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
         @Override public <T> AsyncChain<T> chain(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
 
-        @Override public Journal.Replayer replayer() { throw new UnsupportedOperationException(); }
+        @Override public Journal.Replayer replayer(AbstractReplayer.Mode mode) { throw new UnsupportedOperationException(); }
 
         @Override protected void ensureDurable(Ranges ranges, RedundantBefore onSuccess) {}
         @Override public Agent agent() { return this; }
@@ -669,7 +633,6 @@ public class CommandsForKeySerializerTest
         @Override public long cfkHlcPruneDelta() { return 0; }
         @Override public int cfkPruneInterval() { return 0; }
         @Override public long maxConflictsHlcPruneDelta() { return 0; }
-        @Override public long maxConflictsPruneInterval() { return 0; }
         @Override public Txn emptySystemTxn(Kind kind, Routable.Domain domain) { throw new UnsupportedOperationException(); }
         @Override public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int retryCount) { return 0; }
         @Override public boolean isSlowCoordinator(long elapsed, TimeUnit units, TxnId txnId, int attempt) { return false; }
@@ -679,11 +642,11 @@ public class CommandsForKeySerializerTest
         @Override public long retryTopologyDelay(Node node, int attempt, TimeUnit units) { return 0; }
         @Override public long retryDurabilityDelay(Node node, int attempt, TimeUnit units) { return 0; }
         @Override public long expireEpochWait(TimeUnit units) { return 0; }
-        @Override public long expiresAt(ReplyContext replyContext, TimeUnit unit) { return 0; }
-        @Override public long selfSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
-        @Override public long selfExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit) { return 0; }
+        @Override public long selfSlowAt(TxnId txnId, MessageType type, TimeUnit unit) { return 0; }
+        @Override public long selfExpiresAt(TxnId txnId, MessageType type, TimeUnit unit) { return 0; }
         @Override public AsyncChain<TxnId> awaitStaleId(Node node, TxnId staleId, boolean isRequested) { return null; }
         @Override public long minStaleHlc(Node node, boolean requested) { return 0; }
+        @Override public boolean reportRemoteSuccess(Result success) { return false; }
     }
 
     public static class TestSafeCommandStore extends AbstractSafeCommandStore
@@ -715,8 +678,10 @@ public class CommandsForKeySerializerTest
             @Override public long currentStamp() { return 0; }
             @Override public void updateStamp() { throw new UnsupportedOperationException(); }
             @Override public boolean isReplaying() { return false; }
+            @Override public void reportLocalExecution(TxnId txnId, Route<?> route, Ballot ballot, Timestamp applyAt, Writes writes, Result result) {}
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }
+            @Override public Coordinations coordinations() { return new Coordinations(); }
         }; }
         @Override public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kind.Kinds testKind, SupersedingCommandVisitor visit) { return false; }
         @Override public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kind.Kinds testKind, ActiveCommandVisitor<P1, P2> visit, P1 p1, P2 p2) { }

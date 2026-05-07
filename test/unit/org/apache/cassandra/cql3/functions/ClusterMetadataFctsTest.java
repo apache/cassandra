@@ -23,6 +23,7 @@ import java.nio.charset.CharacterCodingException;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.tcm.Transformation;
@@ -41,7 +42,7 @@ public class ClusterMetadataFctsTest
         int max = -1;
         for (Transformation.Kind kind : Transformation.Kind.values())
         {
-            Arguments arguments = transformationKind.newArguments(ProtocolVersion.CURRENT);
+            Arguments arguments = transformationKind.newArguments(ProtocolVersion.CURRENT, FunctionContext.NONE);
             arguments.set(0, Int32Type.instance.decompose(kind.id));
             assertEquals(kind.name(), ByteBufferUtil.string(transformationKind.execute(arguments)));
             if (kind.id > max)
@@ -50,7 +51,7 @@ public class ClusterMetadataFctsTest
 
         for (int boundary : new int[]{-1, max+1})
         {
-            Arguments arguments = transformationKind.newArguments(ProtocolVersion.CURRENT);
+            Arguments arguments = transformationKind.newArguments(ProtocolVersion.CURRENT, FunctionContext.NONE);
             arguments.set(0, Int32Type.instance.decompose(boundary));
             try
             {

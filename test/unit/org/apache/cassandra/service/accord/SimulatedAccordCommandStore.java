@@ -39,8 +39,10 @@ import accord.api.Journal;
 import accord.api.LocalListeners;
 import accord.api.ProgressLog;
 import accord.api.RemoteListeners;
+import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
+import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultTimeouts;
 import accord.impl.SizeOfIntersectionSorter;
@@ -72,9 +74,11 @@ import accord.primitives.Routable;
 import accord.primitives.RoutableKey;
 import accord.primitives.Route;
 import accord.primitives.RoutingKeys;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
+import accord.primitives.Writes;
 import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.topology.TopologyManager;
@@ -83,6 +87,7 @@ import accord.utils.RandomSource;
 import accord.utils.async.AsyncResult;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -94,6 +99,9 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.RangeSearcher;
+import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Generators;
@@ -181,7 +189,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             }
 
             private final ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.NANOSECONDS, this::now);
-            final Timeouts timeouts = new DefaultTimeouts(this);
+            final Timeouts timeouts = new DefaultTimeouts(this, ImmediateExecutor.INSTANCE);
             long stamp;
 
             @Override public Timeouts timeouts() { return timeouts; }
@@ -250,6 +258,13 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             {
                 return false;
             }
+
+            @Override
+            public void reportLocalExecution(TxnId txnId, Route<?> route, Ballot ballot, Timestamp applyAt, Writes writes, Result result)
+            {
+            }
+
+            @Override public Coordinations coordinations() { return new Coordinations(); }
         };
 
         TestAgent.RethrowAgent agent = new TestAgent.RethrowAgent()
@@ -496,9 +511,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         commandStore.shutdown();
     }
 
-    private static class DefaultJournal extends InMemoryJournal implements JournalRangeSearcher.Supplier
+    private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
-        private final JournalSegmentRangeSearcher<?> index = new JournalSegmentRangeSearcher<>();
+        private final SegmentRangeSearcher<?> index = new SegmentRangeSearcher<>();
         private DefaultJournal(Node.Id id, RandomSource rs)
         {
             super(id, rs);
@@ -524,7 +539,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         }
 
         @Override
-        public JournalRangeSearcher rangeSearcher()
+        public RangeSearcher rangeSearcher()
         {
             return index;
         }

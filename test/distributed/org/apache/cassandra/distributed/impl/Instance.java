@@ -121,6 +121,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
+import org.apache.cassandra.net.ArtificialLatency;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -137,6 +138,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
@@ -374,7 +376,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     protected void registerMockMessaging(ICluster<?> cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (!internodeMessagingStarted)
             {
                 inInstancelogger.debug("Dropping outbound message {} to {} as internode messaging has not been started yet",
@@ -405,7 +407,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     protected void registerOutboundFilter(ICluster cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (isShutdown())
                 return false; // TODO: Simulator needs this to trigger a failure
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
@@ -566,6 +568,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             TraceState state = Tracing.instance.initializeFromMessage(header);
             if (state != null)
                 state.trace("{} message received from {}", header.verb, header.from);
+            AccordRemoteTracing.traceOffWire(header);
 
             if (runOnCaller)
             {
@@ -678,6 +681,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     partialStartup(cluster);
                 }
+                ArtificialLatency.touch();
             }
             catch (Throwable t)
             {
@@ -1004,6 +1008,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                 }
             };
+            error = parallelRun(error, executor,
+                    // If an index build completes as shutting down, setIndexBuild may trigger
+                    // a CFS.forceBlockingFlush
+                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES)
+            );
+
+            error = parallelRun(error, executor, () -> {
+                if (AccordService.isSetupOrStarting())
+                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
+            });
 
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
@@ -1014,7 +1028,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamManager.instance.stop(),
-                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),
@@ -1047,10 +1060,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
-            error = parallelRun(error, executor, () -> {
-                if (AccordService.isSetupOrStarting())
-                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
-            });
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it and
+            // before CommitLog, as any thread calling executeInternal could wait indefinitely
+            // on commitlog allocator (e.g. SSTableReader tidier on non-periodic calling
+            // SystemKeyspace.clearSSTableReadMeter)
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)

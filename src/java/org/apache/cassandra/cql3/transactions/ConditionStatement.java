@@ -93,7 +93,7 @@ public class ConditionStatement
             {
                 // In the IS NULL/IS NOT NULL case, the reference will always be on the LHS
                 RowDataReference reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
-                reference.collectMarkerSpecification(bindVariables);
+                reference.collectMarkerSpecification(bindVariables, null);
                 return new ConditionStatement(reference, kind, null, false);
             }
                 
@@ -124,8 +124,8 @@ public class ConditionStatement
                 throw new IllegalStateException("Either the left-hand or right-hand side must be a reference!");
             }
 
-            reference.collectMarkerSpecification(bindVariables);
-            value.collectMarkerSpecification(bindVariables);
+            reference.collectMarkerSpecification(bindVariables, null);
+            value.collectMarkerSpecification(bindVariables, null);
             return new ConditionStatement(reference, kind, value, reversed);
         }
     }
@@ -136,7 +136,7 @@ public class ConditionStatement
         {
             case IS_NOT_NULL:
             case IS_NULL:
-                return new TxnCondition.Exists(reference.toTxnReference(options), kind.toTxnKind(reversed));
+                return new TxnCondition.Exists(reference.toTxnReference(), kind.toTxnKind(reversed));
             case EQ:
             case NEQ:
             case GT:
@@ -144,7 +144,7 @@ public class ConditionStatement
             case LT:
             case LTE:
                 // TODO: Support for references on LHS and RHS
-                TxnReference ref = reference.toTxnReference(options);
+                TxnReference ref = reference.toTxnReference();
                 checkTrue(ref.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, ref.kind);
                 return new TxnCondition.Value(ref.asColumn(),
                                               kind.toTxnKind(reversed),

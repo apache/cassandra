@@ -57,7 +57,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static accord.api.ProtocolModifiers.Toggles.filterDuplicateDependenciesFromAcceptReply;
+import static accord.api.ProtocolModifiers.filterDuplicateDependenciesFromAcceptReply;
 import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.messages.Accept.Kind.SLOW;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;

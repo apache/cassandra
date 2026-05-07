@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +57,7 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
+import static org.apache.cassandra.net.MessageFlag.ARTIFICIAL_LATENCY;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.net.MessagingService.VERSION_60;
@@ -145,6 +145,18 @@ public class Message<T> implements ResponseContext
     public long expiresAtNanos()
     {
         return header.expiresAtNanos;
+    }
+
+    @Override
+    public boolean hasFlag(MessageFlag flag)
+    {
+        return header.hasFlag(flag);
+    }
+
+    @Override
+    public Map<ParamType, Object> params()
+    {
+        return header.params();
     }
 
     /** For how long the message has lived. */
@@ -246,18 +258,20 @@ public class Message<T> implements ResponseContext
         return outWithParam(nextId(), verb, 0, payload, flag.addTo(0), null, null);
     }
 
+    public static <T> Message<T> outWithFlag(Verb verb, T payload, Dispatcher.RequestTime requestTime, MessageFlag flag)
+    {
+        return outWithFlags(verb, payload, requestTime, flag.addTo(0));
+    }
+
     public static <T> Message<T> outWithFlags(Verb verb, T payload, MessageFlag flag1, MessageFlag flag2)
     {
         assert !verb.isResponse();
         return outWithParam(nextId(), verb, 0, payload, flag2.addTo(flag1.addTo(0)), null, null);
     }
 
-    public static <T> Message<T> outWithFlags(Verb verb, T payload, Dispatcher.RequestTime requestTime, List<MessageFlag> flags)
+    public static <T> Message<T> outWithFlags(Verb verb, T payload, Dispatcher.RequestTime requestTime, int encodedFlags)
     {
         assert !verb.isResponse();
-        int encodedFlags = 0;
-        for (MessageFlag flag : flags)
-            encodedFlags = flag.addTo(encodedFlags);
 
         return new Message<T>(new Header(nextId(),
                                          epochSupplier.get(),
@@ -294,6 +308,8 @@ public class Message<T> implements ResponseContext
         long createdAtNanos = approxTime.now();
         if (expiresAtNanos == 0)
             expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
+        if (ArtificialLatency.isEligibleForArtificialLatency())
+            flags = ARTIFICIAL_LATENCY.addTo(flags);
 
         return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue)), payload);
     }
@@ -355,7 +371,8 @@ public class Message<T> implements ResponseContext
 
     public static <T> Message<T> responseWith(T payload, ResponseContext respondTo)
     {
-        return outWithParam(respondTo.id(), respondTo.verb().responseVerb, respondTo.expiresAtNanos(), payload, null, null);
+        int flags = respondTo.hasFlag(ARTIFICIAL_LATENCY) ? ARTIFICIAL_LATENCY.addTo(0) : 0;
+        return outWithParam(respondTo.id(), respondTo.verb().responseVerb, respondTo.expiresAtNanos(), payload, flags, null, null);
     }
 
     /** Builds a response Message with no payload, and all the right fields inferred from request Message */
@@ -431,7 +448,7 @@ public class Message<T> implements ResponseContext
 
     private static Map<ParamType, Object> buildParams(ParamType type, Object value)
     {
-        Map<ParamType, Object> params = NO_PARAMS;
+        EnumMap<ParamType, Object> params = NO_PARAMS;
         if (Tracing.isTracing())
             params = Tracing.instance.addTraceHeaders(new EnumMap<>(ParamType.class));
 
@@ -443,6 +460,11 @@ public class Message<T> implements ResponseContext
         }
 
         return params;
+    }
+
+    private static EnumMap<ParamType, Object> toMutable(EnumMap<ParamType, Object> params)
+    {
+        return params.isEmpty() ? new EnumMap<>(ParamType.class) : params;
     }
 
     private static Map<ParamType, Object> addParam(Map<ParamType, Object> params, ParamType type, Object value)
@@ -590,9 +612,9 @@ public class Message<T> implements ResponseContext
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
         }
 
-        boolean isFinal()
+        boolean permitsArtificialLatency()
         {
-            return !MessageFlag.NOT_FINAL.isIn(flags);
+            return ARTIFICIAL_LATENCY.isIn(flags);
         }
 
         @Nullable
@@ -665,7 +687,7 @@ public class Message<T> implements ResponseContext
         private InetAddressAndPort from;
         private T payload;
         private int flags = 0;
-        private final Map<ParamType, Object> params = new EnumMap<>(ParamType.class);
+        private final EnumMap<ParamType, Object> params = new EnumMap<>(ParamType.class);
         private long createdAtNanos;
         private long expiresAtNanos;
         private long id;
@@ -725,6 +747,13 @@ public class Message<T> implements ResponseContext
         {
             if (Tracing.isTracing())
                 Tracing.instance.addTraceHeaders(params);
+            return this;
+        }
+
+        public Builder<T> maybeWithArtificialLatency()
+        {
+            if (ArtificialLatency.isEligibleForArtificialLatency())
+                flags = ARTIFICIAL_LATENCY.addTo(flags);
             return this;
         }
 

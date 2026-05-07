@@ -47,12 +47,14 @@ import accord.topology.Topologies;
 import accord.topology.Topology;
 import accord.topology.TopologyUtils;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class AccordMessageSinkTest
@@ -71,7 +73,7 @@ public class AccordMessageSinkTest
         DatabaseDescriptor.clientInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         ClusterMetadataService.initializeForClients();
-        sink = new AccordMessageSink(messaging, mapping, new RequestCallbacks(new AccordTimeService()));
+        sink = new AccordMessageSink(messaging, mapping, new RequestCallbacks(new AccordTimeService(), ImmediateExecutor.INSTANCE));
     }
 
     @Test
@@ -108,7 +110,7 @@ public class AccordMessageSinkTest
             Mockito.clearInvocations(messaging);
             try
             {
-                sink.reply(node, requestMessage, reply);
+                sink.reply(node, requestMessage, reply, null);
             }
             catch (Throwable t)
             {

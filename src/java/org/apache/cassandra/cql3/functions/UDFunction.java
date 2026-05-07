@@ -49,6 +49,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -232,9 +233,9 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(ProtocolVersion version, FunctionContext context)
     {
-        return FunctionArguments.newInstanceForUdf(version, argumentTypes);
+        return FunctionArguments.newInstanceForUdf(version, context, argumentTypes);
     }
 
     public static UDFunction tryCreate(FunctionName name,

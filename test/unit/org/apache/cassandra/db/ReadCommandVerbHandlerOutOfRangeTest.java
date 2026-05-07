@@ -91,7 +91,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
 
         MessagingService.instance().inboundSink.clear();
         MessagingService.instance().outboundSink.clear();
-        MessagingService.instance().outboundSink.add((message, to) -> false);
+        MessagingService.instance().outboundSink.add((message, to, type) -> false);
         MessagingService.instance().inboundSink.add((message) -> false);
 
         cfs = Keyspace.open(KEYSPACE_NONREPLICATED).getColumnFamilyStore(TABLE);

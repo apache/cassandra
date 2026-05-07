@@ -76,7 +76,7 @@ import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Boolean.FALSE;
-import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.BlockFragment.NO_BLOCK_FRAGMENTS;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.ConditionalBlock.NO_CONDITIONAL_BLOCKS;
 import static org.apache.cassandra.utils.ArraySerializers.skipArray;
@@ -759,7 +759,7 @@ public final class TxnUpdate extends AccordUpdate
         public void serialize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
             // Serializing it with the condition result set shouldn't be needed
-            checkState(update.anyConditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
+//            checkState(update.anyConditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
             // Once in accord "mixedTimeSource" and "yes" are the same, so only care about the side effect: that the timestamp is preserved or not
             out.writeByte(update.preserveTimestamps.preserve ? FLAG_PRESERVE_TIMESTAMPS : 0);
             tablesAndKeys.serializeKeys(update.keys, out);

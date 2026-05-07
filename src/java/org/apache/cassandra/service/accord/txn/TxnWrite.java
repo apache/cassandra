@@ -47,7 +47,7 @@ import accord.utils.SimpleBitSets;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 
-import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.RowUpdateBuilder;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DecoratedKey;
@@ -111,7 +111,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public long estimatedSizeOnHeap()
         {
             // we don't measure the key, as this is shared
-            return EMPTY_SIZE + ByteBufferUtil.estimatedSizeOnHeap(unsafeBytes());
+            if (latestVersionBytes == null)
+                return EMPTY_SIZE;
+            return EMPTY_SIZE + ByteBufferUtil.estimatedSizeOnHeap(latestVersionBytes);
         }
 
         @Override
@@ -305,7 +307,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                                                                                 baseUpdate.rowCount(),
                                                                                 baseUpdate.canHaveShadowedData());
 
-            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), key, index, timestamp);
+            RowUpdateBuilder up = parameters.updateBuilder(baseUpdate.metadata(), key, index, timestamp);
             TxnData data = parameters.getData();
             Row staticRow = applyUpdates(baseUpdate.staticRow(), referenceOps.statics, key, Clustering.STATIC_CLUSTERING, up, data);
 
@@ -352,7 +354,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                                                columns(current.regulars, referenceOps.regulars));
         }
 
-        private static Row applyUpdates(Row existing, List<TxnReferenceOperation> operations, DecoratedKey key, Clustering<?> clustering, UpdateParameters up, TxnData data)
+        private static Row applyUpdates(Row existing, List<TxnReferenceOperation> operations, DecoratedKey key, Clustering<?> clustering, RowUpdateBuilder up, TxnData data)
         {
             if (operations.isEmpty())
                 return existing;
@@ -518,8 +520,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
-        for (Update update : this)
-            size += update.estimatedSizeOnHeap();
+        for (int i = 0 ; i < size() ; ++i)
+            size += get(i).estimatedSizeOnHeap();
         return size;
     }
 

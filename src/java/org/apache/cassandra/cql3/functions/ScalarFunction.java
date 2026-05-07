@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -65,7 +66,7 @@ public interface ScalarFunction extends Function
      * </pre>
      * and such that for any value of {@code b} and {@code d}, {@code bar(b, d) == foo(3, b, 'bar', d)}.
      *
-     * @param protocolVersion protocol version used for arguments
+     * @param protocolVersion  protocol version used for arguments
      * @param partialArguments a list of input arguments for the function where some arguments can be {@link #UNRESOLVED}.
      *                         The input <b>must</b> be of size {@code this.argsType().size()}. For convenience, it is
      *                         allowed both to pass a list with all arguments being {@link #UNRESOLVED} (the function is
@@ -88,7 +89,8 @@ public interface ScalarFunction extends Function
 
         if (isPure() && unresolvedCount == 0)
         {
-            Arguments arguments = newArguments(protocolVersion);
+            // if isPure(), requires no FunctionContext
+            Arguments arguments = newArguments(protocolVersion, FunctionContext.NONE);
             for (int i = 0, m = partialArguments.size(); i < m; i++)
             {
                 arguments.set(i, partialArguments.get(i));

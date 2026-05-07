@@ -23,12 +23,20 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Tracing;
+import accord.local.MapReduceCommandStores;
 import accord.local.Node;
+import accord.messages.AbstractRequest;
 import accord.messages.Request;
+import accord.utils.Invariants;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import static org.apache.cassandra.net.ParamType.ACCORD_TRACING;
 
 public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 {
@@ -50,6 +58,12 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
         logger.trace("Receiving {} from {}", message.payload, message.from());
 
         T request = message.payload;
+        Tracing tracing = (Tracing) message.header.params().get(ACCORD_TRACING);
+        if (tracing != null && request instanceof AbstractRequest<?, ?>)
+        {
+            Invariants.require(tracing instanceof AccordRemoteTracing);
+            ((MapReduceCommandStores<?, ?>) request).setTracing(tracing);
+        }
 
         /*
          * TODO (desired): messages are retained on heap until the node catches up to waitForEpoch,

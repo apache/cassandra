@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.LockSupport;
@@ -45,6 +49,13 @@ import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.SequentialAsyncExecutor;
 import accord.local.cfk.CommandsForKey;
+import accord.messages.Accept;
+import accord.messages.Commit;
+import accord.messages.MessageType;
+import accord.messages.MessageType.StandardMessage;
+import accord.messages.Request;
+import accord.primitives.Ballot;
+import accord.primitives.SaveStatus;
 import accord.primitives.TxnId;
 import accord.utils.ArrayBuffers.BufferList;
 import accord.utils.IntrusivePriorityHeap;
@@ -68,6 +79,8 @@ import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.DebuggableTask.DebuggableTaskRunner;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.config.AccordConfig.QueuePriorityModel;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AccordCacheMetrics;
 import org.apache.cassandra.metrics.AccordExecutorMetrics;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
@@ -79,6 +92,9 @@ import org.apache.cassandra.metrics.ShardedDecayingHistograms.DecayingHistograms
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.SaveExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.UniqueSave;
+import org.apache.cassandra.service.accord.debug.DebugExecution.DebugExecutor;
+import org.apache.cassandra.service.accord.debug.DebugExecution.DebugSequentialExecutor;
+import org.apache.cassandra.service.accord.debug.DebugExecution.DebugTask;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.WithResources;
@@ -86,7 +102,10 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 import static accord.utils.Invariants.createIllegalState;
+import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.PHASE_HLC_FIFO;
 import static org.apache.cassandra.service.accord.AccordCache.CommandAdapter.COMMAND_ADAPTER;
 import static org.apache.cassandra.service.accord.AccordCache.CommandsForKeyAdapter.CFK_ADAPTER;
 import static org.apache.cassandra.service.accord.AccordCache.registerJfrListener;
@@ -96,6 +115,8 @@ import static org.apache.cassandra.service.accord.AccordTask.State.RUNNING;
 import static org.apache.cassandra.service.accord.AccordTask.State.SCANNING_RANGES;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_LOAD;
 import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RUN;
+import static org.apache.cassandra.service.accord.debug.DebugExecution.DEBUG_EXECUTION;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * NOTE: We assume that NO BLOCKING TASKS are submitted to this executor AND WAITED ON by another task executing on this executor.
@@ -104,7 +125,12 @@ import static org.apache.cassandra.service.accord.AccordTask.State.WAITING_TO_RU
 public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTask<?>, Boolean>, SaveExecutor, Shutdownable, AbstractAsyncExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordExecutor.class);
+
+    private static final long PRIORITY_BITS = 0x7000000000000000L;
+    private static final QueuePriorityModel PRIORITY_MODEL = DatabaseDescriptor.getAccord().queue_priority_model;
+    private static final long AGE_TO_FIFO = DatabaseDescriptor.getAccord().queue_priority_age_to_fifo.to(TimeUnit.MICROSECONDS);
     public static final ShardedDecayingHistograms HISTOGRAMS = new ShardedDecayingHistograms();
+    private static final FastThreadLocal<Lock> paranoidPriorityInversionCheck = new FastThreadLocal<>();
 
     public interface AccordExecutorFactory
     {
@@ -116,22 +142,20 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     // WARNING: this is a shared object, so close is NOT idempotent
     public static final class ExclusiveGlobalCaches extends GlobalCaches implements AutoCloseable
     {
-        final Lock lock;
         final AccordExecutor executor;
 
         public ExclusiveGlobalCaches(AccordExecutor executor, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand> commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKey)
         {
             super(global, commands, commandsForKey);
-            this.lock = executor.lock;
             this.executor = executor;
         }
 
         @Override
         public void close()
         {
-            executor.beforeUnlock();
-            global.tryShrinkOrEvict(lock);
-            lock.unlock();
+            executor.beforeUnlockExternal();
+            global.tryShrinkOrEvict(executor.lock);
+            executor.unlock();
         }
     }
 
@@ -149,7 +173,26 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    final Lock lock;
+    private static class WaitForCompletion
+    {
+        final long position;
+        long maybeNotify;
+        final Runnable run;
+
+        private WaitForCompletion(long position, Runnable run)
+        {
+            this.position = position;
+            this.maybeNotify = position - 1;
+            this.run = run;
+        }
+
+        public String toString()
+        {
+            return run.toString() + " @" + position;
+        }
+    }
+
+    private final Lock lock;
     final Agent agent;
     final int executorId;
     private final AccordCache cache;
@@ -172,27 +215,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     final LogLinearDecayingHistogram elapsedPreparingToRun;
     final LogLinearDecayingHistogram elapsedWaitingToRun;
     final LogLinearDecayingHistogram elapsedRunning;
+    final LogLinearDecayingHistogram elapsed;
     final LogLinearDecayingHistogram keys;
     public final AccordReplicaMetrics.Shard replicaMetrics;
-
-    private static class WaitForCompletion
-    {
-        final int position;
-        int maybeNotify;
-        final Runnable run;
-
-        private WaitForCompletion(int position, Runnable run)
-        {
-            this.position = position;
-            this.maybeNotify = position - 1;
-            this.run = run;
-        }
-
-        public String toString()
-        {
-            return run.toString() + " @" + position;
-        }
-    }
 
     /**
      * The maximum total number of loads we can queue at once - this includes loads for range transactions,
@@ -206,11 +231,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     private long maxWorkingSetSizeInBytes;
     private long maxWorkingCapacityInBytes;
-    private int nextPosition;
+    private long minPosition, nextPosition;
     private int activeLoads, activeRangeLoads;
     private boolean hasPausedLoading;
     int tasks;
-    int runningThreads;
+    final DebugExecutor debug = DebugExecutor.maybeDebug();
 
     AccordExecutor(Lock lock, int executorId, Agent agent)
     {
@@ -234,6 +259,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         this.elapsedPreparingToRun = AccordExecutorMetrics.INSTANCE.elapsedPreparingToRun.forShard(histogramsShard);
         this.elapsedWaitingToRun = AccordExecutorMetrics.INSTANCE.elapsedWaitingToRun.forShard(histogramsShard);
         this.elapsedRunning = AccordExecutorMetrics.INSTANCE.elapsedRunning.forShard(histogramsShard);
+        this.elapsed = AccordExecutorMetrics.INSTANCE.elapsed.forShard(histogramsShard);
         this.keys = AccordExecutorMetrics.INSTANCE.keys.forShard(histogramsShard);
         this.replicaMetrics = new AccordReplicaMetrics.Shard(histogramsShard);
     }
@@ -245,9 +271,71 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public ExclusiveGlobalCaches lockCaches()
     {
+        lock();
+        return caches;
+    }
+
+    abstract boolean isInLoop();
+
+    final Lock unsafeLock()
+    {
+        return lock;
+    }
+
+    final void lock()
+    {
+        if (Invariants.isParanoid()) paranoidLockExclusive();
         //noinspection LockAcquiredButNotSafelyReleased
         lock.lock();
-        return caches;
+        if (DEBUG_EXECUTION) debug.onEnterLock();
+    }
+
+    final void unlock()
+    {
+        if (Invariants.isParanoid()) paranoidUnlockExclusive();
+        if (DEBUG_EXECUTION) debug.onExitLock();
+        lock.unlock();
+    }
+
+    final void paranoidLockExclusive()
+    {
+        Lock locked = paranoidPriorityInversionCheck.getAndSet(lock);
+        Invariants.require(locked == null || locked == lock, "Tried to take multiple AccordExecutor locks on same thread - this is dangerous for progress");
+    }
+
+    final void paranoidUnlockExclusive()
+    {
+        paranoidPriorityInversionCheck.set(null);
+    }
+
+    final boolean tryLock()
+    {
+       return onTryLock(lock.tryLock());
+    }
+
+    final boolean onTryLock(boolean result)
+    {
+        if (DEBUG_EXECUTION && result) debug.onEnterLock();
+        if (Invariants.isParanoid())
+        {
+            if (result)
+            {
+                Lock locked = paranoidPriorityInversionCheck.getAndSet(lock);
+                if (locked != null && locked != lock)
+                {
+                    lock.unlock();
+                    paranoidPriorityInversionCheck.set(locked);
+                    Invariants.require(false, "Tried to take multiple AccordExecutor locks on same thread - this is dangerous for progress");
+                    return false;
+                }
+            }
+            else
+            {
+                Lock locked = paranoidPriorityInversionCheck.get();
+                Invariants.require(locked == null || locked == lock, "Tried to take multiple AccordExecutor locks on same thread - this is dangerous for progress");
+            }
+        }
+        return result;
     }
 
     public AccordCache cacheExclusive()
@@ -261,24 +349,38 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         return cache;
     }
 
-    boolean hasWaitingToRun()
+    final boolean hasWaitingToRun()
     {
         updateWaitingToRunExclusive();
-        return !waitingToRun.isEmpty();
+        return hasAlreadyWaitingToRun();
     }
 
-    Task pollWaitingToRunExclusive()
+    final boolean hasAlreadyWaitingToRun()
     {
-        updateWaitingToRunExclusive();
-        Task next = waitingToRun.poll();
-        if (next != null)
-            next.addToQueue(running);
-        return next;
+        return !waitingToRun.isEmpty();
     }
 
     void updateWaitingToRunExclusive()
     {
+        // TODO (expected): this should not be invoked on every update of waiting to run
         maybeUnpauseLoading();
+    }
+
+    final Task pollWaitingToRunExclusive()
+    {
+        updateWaitingToRunExclusive();
+        return pollAlreadyWaitingToRunExclusive();
+    }
+
+    final Task pollAlreadyWaitingToRunExclusive()
+    {
+        Task next = waitingToRun.poll();
+        if (next != null)
+        {
+            if (DEBUG_EXECUTION) DebugTask.get(next).onPolled();
+            next.addToQueue(running);
+        }
+        return next;
     }
 
     public Stream<? extends DebuggableTaskRunner> active()
@@ -289,10 +391,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     public void waitForQuiescence()
     {
         Condition condition;
-        lock.lock();
+        lock();
         try
         {
-            if (tasks == 0 && runningThreads == 0)
+            if (tasks == 0)
                 return;
 
             if (waitingForQuiescence == null)
@@ -302,7 +404,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
         finally
         {
-            lock.unlock();
+            unlock();
         }
         condition.awaitThrowUncheckedOnInterrupt();
     }
@@ -324,10 +426,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public void afterSubmittedAndConsequences(Runnable run)
     {
-        lock.lock();
+        lock();
         try
         {
-            if (tasks == 0 && runningThreads == 0)
+            if (tasks == 0)
             {
                 run.run();
                 return;
@@ -338,12 +440,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             if (waitingForCompletion == null)
                 waitingForCompletion = new ArrayDeque<>();
 
-            int position = nextPosition;
+            long position = nextPosition;
+            minPosition = position;
             waitingForCompletion.add(new WaitForCompletion(position, run));
         }
         finally
         {
-            lock.unlock();
+            unlock();
         }
     }
 
@@ -360,7 +463,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     }
 
     public abstract boolean hasTasks();
-    abstract void beforeUnlock();
+    abstract void beforeUnlockExternal();
     abstract boolean isOwningThread();
 
     private void enqueueLoadsExclusive()
@@ -483,17 +586,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    void consumeExclusive(Submittable object)
+    void consumeExclusive(Task task)
     {
-        try
-        {
-            if (object instanceof SubmittableTask) ((SubmittableTask) object).submitExclusive(this);
-            else ((SubmitAsync) object).submitExclusive(this);
-        }
-        catch (Throwable t)
-        {
-            agent.onException(t);
-        }
+        try { task.submitExclusive(this); }
+        catch (Throwable t) { agent.onException(t); }
     }
 
     private void updateQueue(AccordTask<?> task)
@@ -518,29 +614,31 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
     }
 
-    private void waitingToRun(AccordTask task)
+    private void waitingToRun(AccordTask<?> task)
     {
+        task.onWaitingToRun();
         task.addToQueue(task.commandStore.exclusiveExecutor);
     }
 
-    private void waitingToRun(SubmittableTask task, @Nullable SequentialExecutor queue)
+    private void waitingToRun(Task task, @Nullable SequentialExecutor queue)
     {
+        task.onWaitingToRun();
         task.addToQueue(queue == null ? waitingToRun : queue);
     }
 
     public SequentialExecutor executor()
     {
-        return new SequentialExecutor();
+        return new SequentialExecutor(this);
     }
 
     public SequentialExecutor executor(int commandStoreId)
     {
-        return new SequentialExecutor(commandStoreId);
+        return new SequentialExecutor(this, commandStoreId);
     }
 
     public SequentialAsyncExecutor newSequentialExecutor()
     {
-        return new SequentialExecutor();
+        return new SequentialExecutor(this);
     }
 
     public <R> void cancel(AccordTask<R> task)
@@ -548,7 +646,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         Invariants.require(task.commandStore.executor() == this,
                               "%s is a wrong command store for %s, should be %s",
                               this, task, task);
-        submit(AccordExecutor::cancelExclusive, CancelAsync::new, task);
+        submit(AccordExecutor::cancelExclusive, CancelTask::new, task);
     }
 
     @Override
@@ -563,43 +661,59 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         return submitPlainExclusive(null, new SaveRunnable(entry, identity, save));
     }
 
-    private <P1> void submit(BiConsumer<AccordExecutor, P1> sync, Function<P1, Submittable> async, P1 p1)
+    private <P1> void submit(BiConsumer<AccordExecutor, P1> sync, Function<P1, Task> async, P1 p1)
     {
         submit((e, c, p1a, p2a, p3) -> c.accept(e, p1a), (f, p1a, p2a, p3) -> f.apply(p1a), sync, async, p1, null, null);
     }
 
-    private <P1, P2> void submit(TriConsumer<AccordExecutor, P1, P2> sync, BiFunction<P1, P2, Submittable> async, P1 p1, P2 p2)
+    private <P1, P2> void submit(TriConsumer<AccordExecutor, P1, P2> sync, BiFunction<P1, P2, Task> async, P1 p1, P2 p2)
     {
         submit((e, c, p1a, p2a, p3) -> c.accept(e, p1a, p2a), (f, p1a, p2a, p3) -> f.apply(p1a, p2a), sync, async, p1, p2, null);
     }
 
-    private <P1, P2, P3> void submit(QuadConsumer<AccordExecutor, P1, P2, P3> sync, TriFunction<P1, P2, P3, Submittable> async, P1 p1, P2 p2, P3 p3)
+    private <P1, P2, P3> void submit(QuadConsumer<AccordExecutor, P1, P2, P3> sync, TriFunction<P1, P2, P3, Task> async, P1 p1, P2 p2, P3 p3)
     {
         submit((e, c, p1a, p2a, p3a) -> c.accept(e, p1a, p2a, p3a), TriFunction::apply, sync, async, p1, p2, p3);
     }
 
-    private <P1, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1, P2, P3, P4> sync, QuadFunction<P1, P2, P3, P4, Submittable> async, P1 p1, P2 p2, P3 p3, P4 p4)
+    private <P1, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1, P2, P3, P4> sync, QuadFunction<P1, P2, P3, P4, Task> async, P1 p1, P2 p2, P3 p3, P4 p4)
     {
         submit(sync, async, p1, p1, p2, p3, p4);
     }
 
-    abstract <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
+    abstract <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4);
 
     <R> void submit(AccordTask<R> operation)
     {
         submit(AccordExecutor::submitExclusive, i -> i, operation);
     }
 
+    <R> void submitPriority(AccordTask<R> operation)
+    {
+        submit(AccordExecutor::submitPriorityExclusive, i -> i, operation);
+    }
+
     void submitExclusive(AccordTask<?> task)
     {
         assignQueuePosition(task);
+        submitInternalExclusive(task);
+    }
+
+    void submitPriorityExclusive(AccordTask<?> task)
+    {
+        assignMinQueuePosition(task);
+        submitInternalExclusive(task);
+    }
+
+    private void submitInternalExclusive(AccordTask<?> task)
+    {
         task.setupExclusive();
         ++tasks;
         updateQueue(task);
         enqueueLoadsExclusive();
     }
 
-    void submitExclusive(Runnable runnable)
+    public void submitExclusive(Runnable runnable)
     {
         submitPlainExclusive(new PlainRunnable(null, runnable));
     }
@@ -621,21 +735,126 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         Invariants.require(isOwningThread());
         ++tasks;
         if (parent != null) inheritQueuePosition(parent, task);
-        else assignNewQueuePosition(task);
+        else assignFifoQueuePosition(task);
+        task.onWaitingToRun();
         waitingToRun.append(task);
         return task;
     }
 
     private void assignQueuePosition(Task task)
     {
-        if (task.queuePosition == 0)
-            assignNewQueuePosition(task);
+        if (task.queuePosition != 0) updateNextPosition(task);
+        else assignFifoQueuePosition(task);
     }
 
-    private void assignNewQueuePosition(Task task)
+    private void assignQueuePosition(AccordTask<?> task)
     {
-        if (nextPosition == 0) nextPosition++;
-        task.queuePosition = nextPosition++;
+        if (task.queuePosition != 0) updateNextPosition(task);
+        else
+        {
+            long priority_bits = PRIORITY_BITS;
+            TxnId txnId = null;
+            switch (PRIORITY_MODEL)
+            {
+                case ORIG_PHASE_HLC_FIFO:
+                case PHASE_HLC_FIFO:
+                {
+                    // TODO (expected): we should process messages for a TxnId together, to avoid processing delayed messages out of order
+                    PreLoadContext context = task.preLoadContext();
+                    if (context instanceof Request)
+                    {
+                        MessageType type = ((Request) context).type();
+                        if (type instanceof StandardMessage)
+                        {
+                            TxnId txnId0 = context.primaryTxnId();
+                            switch ((StandardMessage)type)
+                            {
+                                case APPLY_REQ:
+                                {
+                                    priority_bits = 0L;
+                                    txnId = txnId0;
+                                    break;
+                                }
+                                case READ_EPHEMERAL_REQ:
+                                case READ_REQ:
+                                case STABLE_THEN_READ_REQ:
+                                {
+                                    priority_bits = 1000000000000000L;
+                                    txnId = txnId0;
+                                    break;
+                                }
+                                case COMMIT_REQ:
+                                {
+                                    Commit commit = (Commit) context;
+                                    if (PRIORITY_MODEL == PHASE_HLC_FIFO || commit.ballot.equals(Ballot.ZERO))
+                                        txnId = commit.txnId;
+                                    if (commit.kind.saveStatus == SaveStatus.Stable) priority_bits = 1000000000000L;
+                                    else priority_bits = 2000000000000L;
+                                    break;
+                                }
+                                case ACCEPT_REQ:
+                                {
+                                    Accept accept = (Accept) context;
+                                    if (PRIORITY_MODEL == PHASE_HLC_FIFO || accept.ballot.equals(Ballot.ZERO))
+                                        txnId = accept.txnId;
+                                    priority_bits = 3000000000000L;
+                                    break;
+                                }
+                                case GET_EPHEMERAL_READ_DEPS_REQ:
+                                case PRE_ACCEPT_REQ:
+                                {
+                                    txnId = txnId0;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+                case HLC_FIFO:
+                {
+                    txnId = task.preLoadContext().primaryTxnId();
+                    break;
+                }
+                case FIFO:
+                {
+                    break;
+                }
+            }
+
+            if (txnId != null)
+            {
+                long hlc = txnId.hlc();
+                long delta = nextPosition - hlc;
+                if (delta < AGE_TO_FIFO)
+                {
+                    long position = hlc;
+                    if (delta <= 0) nextPosition = position + 1;
+                    else if (position < minPosition) position = minPosition;
+                    position |= priority_bits;
+                    task.queuePosition = position;
+                    return;
+                }
+            }
+
+            assignFifoQueuePosition(task);
+        }
+
+    }
+
+    private void assignMinQueuePosition(Task task)
+    {
+        task.queuePosition = minPosition | PRIORITY_BITS;
+    }
+
+    private void assignFifoQueuePosition(Task task)
+    {
+        task.queuePosition = nextPosition++ | PRIORITY_BITS;
+    }
+
+    private void updateNextPosition(Task task)
+    {
+        nextPosition = Math.max(nextPosition, (task.queuePosition & ~PRIORITY_BITS) + 1);
     }
 
     private void inheritQueuePosition(Task parent, Task task)
@@ -649,10 +868,10 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         //  - first take the position so that represents the just-executed task
         //  - call cleanup to submit any following task on the relevant sub-queue
         //  - remove the previous task from the running collection only if still present (SequentialExecutor will have removed it)
-        int position = task.queuePosition;
+        long position = task.queuePosition;
         try
         {
-            task.cleanupExclusive();
+            task.cleanupExclusive(this);
         }
         finally
         {
@@ -660,7 +879,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             if (running.contains(task))
                 running.remove(task);
 
-            if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify - position >= 0)
+            if (waitingForCompletion != null && waitingForCompletion.peek().maybeNotify <= position)
                 maybeNotifyWaitingForCompletion();
 
             cache.tryShrinkOrEvict(lock);
@@ -669,12 +888,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     private void maybeNotifyWaitingForCompletion()
     {
-        int min = minPosition(waitingToRun.peek(),
+        long min = minPosition(waitingToRun.peek(),
                     minPosition(waitingToLoad.peek(),
                       minPosition(waitingToLoadRangeTxns.peek(),
                         minPosition(running.peek(),
                           minPosition(loading.peek(),
-                            minPosition(scanningRanges.peek(), Integer.MAX_VALUE))))));
+                            minPosition(scanningRanges.peek(), Long.MAX_VALUE))))));
 
         while (!waitingForCompletion.isEmpty() && waitingForCompletion.peek().position - min <= 0)
             waitingForCompletion.poll().run.run();
@@ -684,22 +903,17 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             waitingForCompletion.peek().maybeNotify = min;
     }
 
-    private static int minPosition(@Nullable Task task, int min)
+    private static long minPosition(@Nullable Task task, long min)
     {
-        return task == null ? min : Integer.min(task.queuePosition, min);
+        return task == null ? min : Long.min(task.queuePosition, min);
     }
 
     void cancelExclusive(AccordTask<?> task)
     {
-        switch (task.state())
+        AccordTask.State state = task.state();
+        switch (state)
         {
-            default: throw new UnhandledEnum(task.state());
-            case INITIALIZED:
-                // we could be cancelled before we even reach the queue
-                try { task.cancelExclusive(); }
-                finally { task.cleanupExclusive(); }
-                break;
-
+            default: throw new UnhandledEnum(state);
             case SCANNING_RANGES:
             case LOADING:
             case WAITING_TO_LOAD:
@@ -710,7 +924,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
                 finally { completeTaskExclusive(task); }
                 break;
 
-            case FAILING:
+            case INITIALIZED:
+            case ASSIGNED:
             case RUNNING:
             case PERSISTING:
             case FINISHED:
@@ -814,15 +1029,15 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public void executeDirectlyWithLock(Runnable command)
     {
-        lock.lock();
+        lock();
         try
         {
             command.run();
         }
         finally
         {
-            beforeUnlock();
-            lock.unlock();
+            beforeUnlockExternal();
+            unlock();
         }
     }
 
@@ -899,13 +1114,78 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
     public static abstract class Task extends IntrusivePriorityHeap.Node
     {
-        int queuePosition;
+        private static final VarHandle nextHandle;
+        static
+        {
+            try { nextHandle = MethodHandles.lookup().findVarHandle(Task.class, "next", Task.class); }
+            catch (NoSuchFieldException | IllegalAccessException e) { throw new RuntimeException(e); }
+        }
+
+        public final WithResources resources;
+        Task next;
+        long queuePosition;
+        public long createdAt = nanoTime(), waitingToRunAt, runningAt, cleanupAt;
 
         protected Task()
         {
+            resources = DebugTask.maybeDebug(ExecutorLocals.propagate(), this);
+        }
+
+        boolean casNext(Task expect, Task update)
+        {
+            return nextHandle.compareAndSet(this, expect, update);
+        }
+
+        public final Task unwrap()
+        {
+            if (this instanceof SequentialQueueTask)
+                return ((SequentialQueueTask) this).queue.task;
+            return this;
+        }
+
+        final void setReadyToCleanup()
+        {
+            queuePosition |= Long.MIN_VALUE;
+        }
+
+        final boolean isReadyToCleanup()
+        {
+            return 0 != (queuePosition & Long.MIN_VALUE);
+        }
+
+        final void onRunning()
+        {
+            runningAt = nanoTime();
+            if (DEBUG_EXECUTION) ((DebugTask)resources).onRunning();
+        }
+
+        final void onRunComplete()
+        {
+            if (DEBUG_EXECUTION) ((DebugTask)resources).onRunComplete();
+        }
+
+        final void onWaitingToRun()
+        {
+            waitingToRunAt = nanoTime();
+        }
+
+        static Task reverse(Task unqueued)
+        {
+            Task prev = null;
+            Task cur = unqueued;
+            while (cur != null)
+            {
+                Task next = cur.next;
+                cur.next = prev;
+                prev = cur;
+                cur = next;
+            }
+            return prev;
         }
 
         public DebuggableTask debuggable() { return null; }
+
+        abstract void submitExclusive(AccordExecutor owner);
 
         /**
          * Prepare to run while holding the state cache lock
@@ -915,7 +1195,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         /**
          * Run the command; the state cache lock may or may not be held depending on the executor implementation
          */
-        abstract protected void runInternal();
+        protected abstract void runInternal();
+
         /**
          * Fail the command; the state cache lock may or may not be held depending on the executor implementation
          */
@@ -924,24 +1205,37 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         /**
          * Cleanup the command while holding the state cache lock
          */
-        abstract protected void cleanupExclusive();
+        protected void cleanupExclusive(AccordExecutor executor)
+        {
+            cleanupAt = nanoTime();
+            if (runningAt != 0)
+            {
+                if (waitingToRunAt == 0)
+                    waitingToRunAt = runningAt;
+                executor.elapsedWaitingToRun.increment(runningAt - waitingToRunAt, runningAt);
+                executor.elapsedPreparingToRun.increment(waitingToRunAt - createdAt, runningAt);
+                executor.elapsedRunning.increment(cleanupAt - runningAt, cleanupAt);
+                executor.elapsed.increment(cleanupAt - createdAt, cleanupAt);
+            }
+            if (DEBUG_EXECUTION) DebugTask.get(this).onCompleted(executor.debug);
+        }
 
         void cancelExclusive(AccordExecutor owner) {}
 
         abstract protected void addToQueue(TaskQueue queue);
     }
 
-    interface Submittable
+    // run the task even on a stopped commandStore
+    public interface Unstoppable extends PreLoadContext.Empty
     {
     }
 
-    static abstract class SubmittableTask extends Task implements Submittable
+    // run the task even on a termimated commandStore
+    public interface Unterminatable extends Unstoppable
     {
-        final WithResources locals = ExecutorLocals.propagate();
-        abstract void submitExclusive(AccordExecutor owner);
     }
 
-    static class SequentialQueueTask extends Task
+    static final class SequentialQueueTask extends Task
     {
         private final SequentialExecutor queue;
 
@@ -950,6 +1244,8 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             super();
             this.queue = queue;
         }
+
+        @Override void submitExclusive(AccordExecutor owner) { throw new UnsupportedOperationException(); }
 
         @Override
         protected void preRunExclusive()
@@ -970,7 +1266,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void cleanupExclusive()
+        protected void cleanupExclusive(AccordExecutor executor)
         {
             queue.cleanupTask();
         }
@@ -981,6 +1277,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             Invariants.require(queue.kind == RUNNING);
             queue.append(this);
         }
+
+        protected final boolean isInHeap()
+        {
+            return super.isInHeap();
+        }
     }
 
     private static final AtomicReferenceFieldUpdater<SequentialExecutor, Thread> ownerUpdater = AtomicReferenceFieldUpdater.newUpdater(SequentialExecutor.class, Thread.class, "owner");
@@ -990,38 +1291,68 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         final SequentialQueueTask selfTask;
         private Task task;
         private volatile Thread owner, waiting;
-        private boolean running;
+        private boolean stopped;
+        private volatile boolean visibleStopped;
+        private boolean terminated;
 
-        SequentialExecutor()
+        final DebugSequentialExecutor debug;
+
+        SequentialExecutor(AccordExecutor executor)
         {
-            this(-1);
+            this(executor, -1);
         }
 
-        SequentialExecutor(int commandStoreId)
+        SequentialExecutor(AccordExecutor executor, int commandStoreId)
         {
-            super(WAITING_TO_RUN);
+            super(WAITING_TO_RUN, commandStoreId < 0);
             this.commandStoreId = commandStoreId;
             this.selfTask = new SequentialQueueTask(this);
+            this.debug = DebugSequentialExecutor.maybeDebug(executor.debug, commandStoreId);
         }
 
         void preRunTask()
         {
             Invariants.require(task != null);
             task.preRunExclusive();
-            running = true;
         }
 
         void runTask()
         {
             Thread self = Thread.currentThread();
-            while (!ownerUpdater.compareAndSet(this, null, self))
+            if (!ownerUpdater.compareAndSet(this, null, self))
             {
+                if (DEBUG_EXECUTION) debug.onWaiting();
+                Invariants.require(self == Thread.currentThread());
                 waiting = self;
-                while (owner != null)
-                    LockSupport.park();
-                waiting = null;
+                outer: do
+                {
+                    while (true)
+                    {
+                        Thread owner = this.owner;
+                        if (owner == self) break outer;
+                        if (owner == null) continue outer;
+                        LockSupport.park();
+                    }
+                }
+                while (!ownerUpdater.compareAndSet(this, null, self));
             }
-            task.runInternal();
+            waiting = null;
+
+            if (stopped && reject(task))
+                task.fail(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + ((AccordTask<?>) task).preLoadContext()));
+            else
+                task.runInternal();
+            // NOTE: cannot safely release owner here, in case an immediate-execution runs before we can release our references and store their changes to the cache
+        }
+
+        private boolean reject(Task task)
+        {
+            if (!(task instanceof AccordTask<?>))
+                return true;
+
+            PreLoadContext context = ((AccordTask<?>) task).preLoadContext();
+
+            return !(terminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
         }
 
         void failTask(Throwable t)
@@ -1031,12 +1362,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         void cleanupTask()
         {
-            try { task.cleanupExclusive(); }
+            try { task.cleanupExclusive(AccordExecutor.this); }
             finally
             {
                 owner = null;
-                running = false;
                 task = super.poll();
+                if (DEBUG_EXECUTION) debug.onSetTask(task);
+
+                // it should only be possible for this method to be invoked once we're on the running queue
                 AccordExecutor.this.running.remove(selfTask);
                 if (task != null)
                 {
@@ -1052,57 +1385,87 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         {
             if (task != null)
             {
-                Invariants.require(running || waitingToRun.contains(selfTask));
+                Invariants.require(selfTask.isInHeap());
                 super.append(newTask);
             }
             else
             {
-                Invariants.require(!running && isEmpty());
+                Invariants.require(isEmpty());
                 task = newTask;
                 selfTask.queuePosition = newTask.queuePosition;
                 waitingToRun.append(selfTask);
+                if (DEBUG_EXECUTION) debug.onSetTask(newTask);
             }
         }
 
         @Override
         protected void remove(Task remove)
         {
-            Invariants.require(remove != null);
-            if (remove != task)
-            {
-                super.remove(remove);
-            }
-            else if (!running)
-            {
-                // cannot overwrite task while it is being executed - this cannot happen for AccordTask
-                // but can for other tasks that don't track their own state
+            if (remove == task) removeCurrentTask(remove);
+            else super.remove(remove);
+        }
 
-                task = super.poll();
-                if (waitingToRun.contains(selfTask))
-                {
-                    if (task == null) waitingToRun.remove(selfTask);
-                    else
-                    {
-                        selfTask.queuePosition = task.queuePosition;
-                        waitingToRun.update(selfTask);
-                    }
-                }
+        @Override
+        protected boolean removeIfContains(Task remove)
+        {
+            if (remove == task) return removeCurrentTask(remove);
+            else return super.removeIfContains(remove);
+        }
+
+        private boolean removeCurrentTask(Node remove)
+        {
+            if (running.contains(selfTask))
+                return false;
+
+            Invariants.require(remove == task);
+            // cannot overwrite task while it is being executed - this cannot happen for AccordTask
+            // but can for other tasks that don't track their own state
+
+            task = super.poll();
+            if (DEBUG_EXECUTION) debug.onSetTask(task);
+            if (selfTask.isInHeap())
+            {
+                if (task == null) waitingToRun.remove(selfTask);
                 else
                 {
-                    Invariants.expect(false, "%s should have been queued to run as it had the task %s pending, that has now been cancelled", this, remove);
-                    if (task != null)
-                    {
-                        selfTask.queuePosition = task.queuePosition;
-                        waitingToRun.append(selfTask);
-                    }
+                    selfTask.queuePosition = task.queuePosition;
+                    waitingToRun.update(selfTask);
                 }
             }
-            Invariants.require(task == null || running || waitingToRun.contains(selfTask));
+            else
+            {
+                Invariants.expect(false, "%s should have been queued to run as it had the task %s pending, that has now been cancelled", this, remove);
+                if (task != null)
+                {
+                    selfTask.queuePosition = task.queuePosition;
+                    waitingToRun.append(selfTask);
+                }
+            }
+            Invariants.require(task == null || waitingToRun.contains(selfTask));
+            return true;
         }
 
         public boolean inExecutor()
         {
             return owner == Thread.currentThread();
+        }
+
+        public boolean stopped()
+        {
+            return visibleStopped;
+        }
+
+        void stop()
+        {
+            Invariants.require(inExecutor());
+            this.stopped = true;
+            this.visibleStopped = true;
+        }
+
+        void terminate()
+        {
+            Invariants.require(inExecutor());
+            this.visibleStopped = this.terminated = this.stopped = true;
         }
 
         @Override
@@ -1120,13 +1483,13 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected boolean contains(Task contains)
         {
-            return super.contains(contains) || (task == contains && !running);
+            return super.contains(contains) || (task == contains && !running.contains(selfTask));
         }
 
         @Override
         public AsyncChain<Void> chain(Runnable run)
         {
-            int position = inheritQueuePosition();
+            long position = inheritQueuePosition();
             return new AsyncChains.Head<>()
             {
                 @Override
@@ -1140,7 +1503,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public <T> AsyncChain<T> chain(Callable<T> call)
         {
-            int position = inheritQueuePosition();
+            long position = inheritQueuePosition();
             return new AsyncChains.Head<>()
             {
                 @Override
@@ -1154,7 +1517,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public <T> AsyncChain<T> flatChain(Callable<? extends AsyncChain<T>> call)
         {
-            int position = inheritQueuePosition();
+            long position = inheritQueuePosition();
             return new AsyncChains.Head<>()
             {
                 @Override
@@ -1171,12 +1534,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             return execute(runOrFail, inheritQueuePosition());
         }
 
-        private int inheritQueuePosition()
+        private long inheritQueuePosition()
         {
             return inExecutor() && task != null ? task.queuePosition : 0;
         }
 
-        private Cancellable execute(RunOrFail runOrFail, int queuePosition)
+        private Cancellable execute(RunOrFail runOrFail, long queuePosition)
         {
             PlainChain submit = new PlainChain(runOrFail, SequentialExecutor.this, queuePosition);
             return AccordExecutor.this.submit(submit);
@@ -1203,7 +1566,11 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             {
                 if (owner == null)
                 {
-                    this.owner = null;
+                    Thread waiting = this.waiting;
+                    Invariants.require(waiting != self);
+                    this.owner = waiting;
+                    if (waiting == null) // recheck, to ensure happens-before relation with a new waiter that expects any non-null owner to notify it
+                        waiting = this.waiting;
                     if (waiting != null)
                         LockSupport.unpark(waiting);
                 }
@@ -1218,6 +1585,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
 
         TaskQueue(AccordTask.State kind)
         {
+            this.kind = kind;
+        }
+
+        TaskQueue(AccordTask.State kind, boolean tiny)
+        {
+            super(tiny);
             this.kind = kind;
         }
 
@@ -1259,31 +1632,27 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             super.remove(remove);
         }
 
+        @Override
+        protected boolean removeIfContains(T node)
+        {
+            return super.removeIfContains(node);
+        }
+
         protected boolean contains(T contains)
         {
             return super.contains(contains);
         }
     }
 
-    private abstract static class SubmitAsync implements Submittable
-    {
-        abstract void submitExclusive(AccordExecutor executor);
-    }
-
-    private static class CancelAsync extends SubmitAsync
+    static class CancelTask extends Task
     {
         final Task cancel;
-
-        private CancelAsync(Task cancel)
-        {
-            this.cancel = cancel;
-        }
-
-        @Override
-        void submitExclusive(AccordExecutor executor)
-        {
-            cancel.cancelExclusive(executor);
-        }
+        private CancelTask(Task cancel) { this.cancel = cancel; }
+        @Override void submitExclusive(AccordExecutor owner) { cancel.cancelExclusive(owner); }
+        @Override protected void preRunExclusive() { throw new UnsupportedOperationException(); }
+        @Override protected void runInternal() { throw new UnsupportedOperationException(); }
+        @Override protected void fail(Throwable fail) { throw new UnsupportedOperationException(); }
+        @Override protected void addToQueue(TaskQueue queue) { throw new UnsupportedOperationException(); }
     }
 
     static <O> IntFunction<O> constant(O out)
@@ -1291,15 +1660,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         return ignore -> out;
     }
 
-    abstract class Plain extends SubmittableTask implements Cancellable
+    abstract class Plain extends Task implements Cancellable
     {
         abstract SequentialExecutor executor();
 
         @Override
         protected void preRunExclusive() {}
-
-        @Override
-        protected void cleanupExclusive() {}
 
         @Override
         protected final void addToQueue(TaskQueue queue)
@@ -1311,7 +1677,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public void cancel()
         {
-            submit((e, c) -> c.cancelExclusive(e), CancelAsync::new, this);
+            submit((e, c) -> c.cancelExclusive(e), CancelTask::new, this);
         }
 
         void cancelExclusive(AccordExecutor owner)
@@ -1350,7 +1716,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             this(result, run, null, 0);
         }
 
-        PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable SequentialExecutor executor, int queuePosition)
+        PlainRunnable(AsyncPromise<Void> result, Runnable run, @Nullable SequentialExecutor executor, long queuePosition)
         {
             this.result = result;
             this.run = run;
@@ -1361,12 +1727,14 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected void runInternal()
         {
-            try (Closeable close = locals.get())
+            onRunning();
+            try (Closeable close = resources.get())
             {
                 run.run();
             }
             if (result != null)
                 result.trySuccess(null);
+            onRunComplete();
         }
 
         @Override
@@ -1399,8 +1767,9 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void cleanupExclusive()
+        protected void cleanupExclusive(AccordExecutor executor)
         {
+            super.cleanupExclusive(executor);
             postRunExclusive();
         }
 
@@ -1461,10 +1830,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public void runInternal()
         {
-            try (Closeable close = locals.get())
+            onRunning();
+            try (Closeable close = resources.get())
             {
                 result = entry.owner.parent().adapter().load(entry.owner.commandStore, entry.key());
             }
+            onRunComplete();
         }
 
         @Override
@@ -1506,10 +1877,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected void runInternal()
         {
-            try (Closeable close = locals.get())
+            onRunning();
+            try (Closeable close = resources.get())
             {
                 wrapped.runInternal();
             }
+            onRunComplete();
         }
 
         @Override
@@ -1555,10 +1928,12 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         public void runInternal()
         {
-            try (Closeable close = locals.get())
+            onRunning();
+            try (Closeable close = resources.get())
             {
                 run.run();
             }
+            onRunComplete();
             failure = null;
         }
 
@@ -1585,7 +1960,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             this(runOrFail, null, 0);
         }
 
-        PlainChain(RunOrFail runOrFail, @Nullable SequentialExecutor executor, int queuePosition)
+        PlainChain(RunOrFail runOrFail, @Nullable SequentialExecutor executor, long queuePosition)
         {
             this.runOrFail = runOrFail;
             this.executor = executor;
@@ -1601,15 +1976,17 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         @Override
         protected void runInternal()
         {
-            try (Closeable close = locals.get())
+            onRunning();
+            try (Closeable close = resources.get())
             {
                 runOrFail.run();
             }
             catch (Throwable t)
             {
+                // shouldn't throw exceptions
                 agent.onException(t);
-                return;
             }
+            onRunComplete();
         }
 
         @Override
@@ -1659,11 +2036,6 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void cleanupExclusive()
-        {
-        }
-
-        @Override
         public String description()
         {
             return describe.toString();
@@ -1704,7 +2076,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             return commandStoreId >= 0 ? commandStoreId : null;
         }
 
-        public int position()
+        public long position()
         {
             return task.queuePosition;
         }
@@ -1733,7 +2105,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         public int compareTo(TaskInfo that)
         {
             int c = this.status.compareTo(that.status);
-            if (c == 0) c = Integer.compare(this.position(), that.position());
+            if (c == 0) c = Long.compare(this.position(), that.position());
             return c;
         }
     }
@@ -1741,7 +2113,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     public List<TaskInfo> taskSnapshot()
     {
         List<TaskInfo> result = new ArrayList<>();
-        lock.lock();
+        lock();
         try
         {
             addToSnapshot(result, waitingToLoad, TaskInfo.Status.WAITING_TO_LOAD, TaskInfo.Status.WAITING_TO_LOAD);
@@ -1753,7 +2125,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
         finally
         {
-            lock.unlock();
+            unlock();
         }
         result.sort(TaskInfo::compareTo);
         return result;
@@ -1793,4 +2165,5 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
     {
         return running.size();
     }
+
 }

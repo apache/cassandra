@@ -44,6 +44,8 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.service.accord.topology.AccordFastPath;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 
@@ -66,7 +68,7 @@ public class AccordTopologyTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        TableMetadata table = parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks").build();
+        TableMetadata table = parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full' AND fast_path='up'", "ks").build();
         tableId = table.id;
         keyspace = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3), Tables.of(table));
     }

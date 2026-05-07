@@ -114,7 +114,7 @@ public class JournalGCTest extends FuzzTestBase
                     ((AccordService) AccordService.instance()).journal().forEach((v) -> {
                         if (v.type == JournalKey.Type.COMMAND_DIFF && (a.get() == null || v.id.compareTo(a.get()) > 0))
                             a.set(v.id);
-                    }, false);
+                    }, false, 0);
                     return a.get() == null ? "" : a.get().toString();
                 });
 
@@ -124,7 +124,7 @@ public class JournalGCTest extends FuzzTestBase
                     ((AccordService) AccordService.instance()).journal().forEach((v) -> {
                         if (v.type == JournalKey.Type.COMMAND_DIFF && v.id.compareTo(maxId) <= 0)
                             a.incrementAndGet();
-                    }, false);
+                    }, false, 0);
                     return a.get();
                 }, maximumId);
 

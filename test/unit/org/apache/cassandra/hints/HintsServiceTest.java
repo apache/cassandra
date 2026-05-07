@@ -62,6 +62,7 @@ import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService.IAccordResult;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -269,8 +270,8 @@ public class HintsServiceTest
                     {
                         accordTxnCount.incrementAndGet();
                         TxnId txnId = AccordTestUtils.txnId(42, 43, 44);
-                        AccordResult<TxnResult> result = new AccordResult<>(txnId, Keys.EMPTY, new LatencyRequestBookkeeping(null), requestTime.startedAtNanos(), requestTime.startedAtNanos(), true);
-                        result.accept(new TxnData(), null);
+                        AccordResult<TxnResult> result = new AccordResult<>(txnId, Keys.EMPTY, new LatencyRequestBookkeeping(null), requestTime.startedAtNanos(), requestTime.startedAtNanos(), true, null);
+                        result.accept(new TxnDataResult(txnId.hlc()), null);
                         return result;
                     }
                 });

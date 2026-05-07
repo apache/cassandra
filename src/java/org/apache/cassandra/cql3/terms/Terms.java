@@ -28,7 +28,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Term.NonTerminal;
@@ -95,33 +95,35 @@ public interface Terms
      * This is obviously a no-op if the terms are Terminals.
      *
      * @param boundNames the variables specification where to collect the
-     * bind variables of the terms in.
+     *                   bind variables of the terms in.
+     * @param owner
      */
-    void collectMarkerSpecification(VariableSpecifications boundNames);
+    void collectMarkerSpecification(VariableSpecifications boundNames, Object owner);
 
     /**
      * Bind the values in these terms to the values contained in {@code options}.
      * This is obviously a no-op if this {@code Terms} are Terminals.
      *
-     * @param options the query options containing the values to bind markers to.
+     * @param context the query options containing the values to bind markers to.
      * @return the result of binding all the variables of these NonTerminals.
      */
-    Terminals bind(QueryOptions options);
+    Terminals bind(FunctionContext context);
 
     /**
      * A shorter for {@code bind(options).get()}.
      * We expose it mainly because for constants it can avoid allocating a temporary
      * object between the bind and the get.
-     * @param options the query options containing the values to bind markers to.
+     *
+     * @param context the query options containing the values to bind markers to.
      */
-    List<ByteBuffer> bindAndGet(QueryOptions options);
+    List<ByteBuffer> bindAndGet(FunctionContext context);
 
-    default boolean isSingleTerm(QueryOptions options)
+    default boolean isSingleTerm(FunctionContext context)
     {
         return false;
     }
 
-    default ByteBuffer bindAndGetSingleTermValue(QueryOptions options)
+    default ByteBuffer bindAndGetSingleTermValue(FunctionContext context)
     {
         throw new IllegalStateException("bindAndGetSingleTermValue() method is not implemented, " +
                                         "isSingleTerm() must be always checked before invoking this method");
@@ -131,9 +133,10 @@ public interface Terms
      * A shorter for {@code bind(options).getElements()}.
      * We expose it mainly because for constants it can avoid allocating a temporary
      * object between the {@code bind} and the {@code getElements}.
-     * @param options the query options containing the values to bind markers to.
+     *
+     * @param context the query options containing the values to bind markers to.
      */
-    List<List<ByteBuffer>> bindAndGetElements(QueryOptions options);
+    List<List<ByteBuffer>> bindAndGetElements(FunctionContext context);
 
     /**
      * Creates a {@code Terms} containing a single {@code Term}.
@@ -453,22 +456,22 @@ public interface Terms
             }
         };
         @Override
-        public void collectMarkerSpecification(VariableSpecifications boundNames) {}
+        public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner) {}
 
         @Override
-        public final Terminals bind(QueryOptions options)
+        public final Terminals bind(FunctionContext context)
         {
             return this;
         }
 
         @Override
-        public List<ByteBuffer> bindAndGet(QueryOptions options)
+        public List<ByteBuffer> bindAndGet(FunctionContext context)
         {
             return get();
         }
 
         @Override
-        public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+        public List<List<ByteBuffer>> bindAndGetElements(FunctionContext context)
         {
             return getElements();
         }
@@ -621,40 +624,40 @@ public interface Terms
                 }
 
                 @Override
-                public void collectMarkerSpecification(VariableSpecifications boundNames)
+                public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
                 {
-                    term.collectMarkerSpecification(boundNames);
+                    term.collectMarkerSpecification(boundNames, owner);
                 }
 
                 @Override
-                public Terminals bind(QueryOptions options)
+                public Terminals bind(FunctionContext context)
                 {
-                    return Terminals.of(term.bind(options));
+                    return Terminals.of(term.bind(context));
                 }
 
                 @Override
-                public List<ByteBuffer> bindAndGet(QueryOptions options)
+                public List<ByteBuffer> bindAndGet(FunctionContext context)
                 {
-                    return Collections.singletonList(term.bindAndGet(options));
+                    return Collections.singletonList(term.bindAndGet(context));
                 }
 
                 @Override
-                public boolean isSingleTerm(QueryOptions options)
+                public boolean isSingleTerm(FunctionContext context)
                 {
                     return true;
                 }
 
                 @Override
-                public ByteBuffer bindAndGetSingleTermValue(QueryOptions options)
+                public ByteBuffer bindAndGetSingleTermValue(FunctionContext context)
                 {
-                    return term.bindAndGet(options);
+                    return term.bindAndGet(context);
                 }
 
 
                 @Override
-                public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+                public List<List<ByteBuffer>> bindAndGetElements(FunctionContext context)
                 {
-                    return Collections.singletonList(term.bindAndGetElements(options));
+                    return Collections.singletonList(term.bindAndGetElements(context));
                 }
 
                 @Override
@@ -687,50 +690,50 @@ public interface Terms
                 }
 
                 @Override
-                public void collectMarkerSpecification(VariableSpecifications boundNames)
+                public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
                 {
                     for (int i = 0, m = terms.size(); i < m; i++)
                     {
                         Term term = terms.get(i);
-                        term.collectMarkerSpecification(boundNames);
+                        term.collectMarkerSpecification(boundNames, owner);
                     }
                 }
 
                 @Override
-                public Terminals bind(QueryOptions options)
+                public Terminals bind(FunctionContext context)
                 {
                     int size = terms.size();
                     List<Terminal> terminals = new ArrayList<>(size);
                     for (int i = 0; i < size; i++)
                     {
                         Term term = terms.get(i);
-                        terminals.add(term.bind(options));
+                        terminals.add(term.bind(context));
                     }
                     return Terminals.of(terminals);
                 }
 
                 @Override
-                public List<ByteBuffer> bindAndGet(QueryOptions options)
+                public List<ByteBuffer> bindAndGet(FunctionContext context)
                 {
                     int size = terms.size();
                     List<ByteBuffer> buffers = new ArrayList<>(size);
                     for (int i = 0; i < size; i++)
                     {
                         Term term = terms.get(i);
-                        buffers.add(term.bindAndGet(options));
+                        buffers.add(term.bindAndGet(context));
                     }
                     return buffers;
                 }
 
                 @Override
-                public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)
+                public List<List<ByteBuffer>> bindAndGetElements(FunctionContext context)
                 {
                     int size = terms.size();
                     List<List<ByteBuffer>> buffers = new ArrayList<>(size);
                     for (int i = 0; i < size; i++)
                     {
                         Term term = terms.get(i);
-                        buffers.add(term.bindAndGetElements(options));
+                        buffers.add(term.bindAndGetElements(context));
                     }
                     return buffers;
                 }

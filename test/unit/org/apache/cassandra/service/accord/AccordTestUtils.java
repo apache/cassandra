@@ -43,6 +43,7 @@ import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
+import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink.NoOpNotifySink;
 import accord.local.Command;
@@ -66,6 +67,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
@@ -84,7 +86,7 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -103,6 +105,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnData;
@@ -382,15 +385,17 @@ public class AccordTestUtils
             @Override public long uniqueNow(long atLeast) { return now.getAsLong(); }
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
+            @Override public Coordinations coordinations() { return new Coordinations(); }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() {++stamp;}
             @Override public boolean isReplaying() { return false; }
+            @Override public void reportLocalExecution(TxnId txnId, Route<?> route, Ballot ballot, Timestamp applyAt, Writes writes, Result result) {}
         };
 
         AccordAgent agent = new AccordAgent();
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
+        AccordConfig.JournalConfig spec = new AccordConfig.JournalConfig();
         spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
         AccordJournal journal = new AccordJournal(spec);
         journal.start(null);

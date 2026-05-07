@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.DoubleType;
@@ -294,7 +295,7 @@ public class MathFctsTest
 
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
-        Arguments arguments = function.newArguments(ProtocolVersion.CURRENT);
+        Arguments arguments = function.newArguments(ProtocolVersion.CURRENT, FunctionContext.NONE);
         arguments.set(0, input);
         return ((ScalarFunction) function).execute(arguments);
     }

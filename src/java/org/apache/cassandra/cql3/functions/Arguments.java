@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -29,6 +30,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
  */
 public interface Arguments
 {
+    FunctionContext context();
+
     /**
      * Sets the specified value to the arguments
      *
