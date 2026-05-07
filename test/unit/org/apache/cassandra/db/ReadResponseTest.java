@@ -41,6 +41,7 @@ import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -272,6 +273,26 @@ public class ReadResponseTest
     }
 
     @Test
+    public void inMemoryResponseCapturesRepairedDigestAfterIteratorIsConsumed()
+    {
+        // RepairedDataInfo updates its digest lazily as rows are consumed via withRepairedDataInfo
+        // transformations; this test uses a stub that simulates the same timing.
+        int key = key();
+        ReadCommand command = command(key, metadataWithClustering);
+        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, key, 3);
+
+        ByteBuffer expectedDigest = digest();
+        // Returns EMPTY before any iteration; returns expectedDigest once the iterator has been consumed.
+        LazyRepairedDataInfo rdi = new LazyRepairedDataInfo(expectedDigest);
+
+        ReadResponse response = ReadResponse.createInMemoryDataResponse(lazyRdiWrappedIterator(update, rdi), command, rdi, 10);
+
+        assertTrue("digest should be non-empty after iterator was consumed", rdi.wasConsumedBeforeDigestCaptured());
+        assertEquals(expectedDigest, response.repairedDataDigest());
+        assertTrue(response.isRepairedDigestConclusive());
+    }
+
+    @Test
     public void inMemoryResponseWithRangeTombstoneOnlyAllInMemory()
     {
         // Partition contains only a range tombstone (no rows); limit is large enough that nothing overflows
@@ -454,6 +475,81 @@ public class ReadResponseTest
         {
             return conclusive;
         }
+    }
+
+    /**
+     * Simulates a RepairedDataInfo that updates its digest lazily as rows are consumed.
+     * Returns EMPTY_BYTE_BUFFER until the partition iterator wrapping it is fully consumed,
+     * at which point getDigest() returns the provided expected digest.
+     * This lets us verify that InMemoryDataResponse captures the digest *after* consumption.
+     */
+    private static class LazyRepairedDataInfo extends RepairedDataInfo
+    {
+        private final ByteBuffer finalDigest;
+        private boolean iteratorConsumed = false;
+        private boolean digestCapturedAfterConsumption = false;
+
+        LazyRepairedDataInfo(ByteBuffer finalDigest)
+        {
+            super(null);
+            this.finalDigest = finalDigest;
+        }
+
+        void markConsumed()
+        {
+            iteratorConsumed = true;
+        }
+
+        boolean wasConsumedBeforeDigestCaptured()
+        {
+            return digestCapturedAfterConsumption;
+        }
+
+        @Override
+        public ByteBuffer getDigest()
+        {
+            if (iteratorConsumed)
+                digestCapturedAfterConsumption = true;
+            return iteratorConsumed ? finalDigest : ByteBufferUtil.EMPTY_BYTE_BUFFER;
+        }
+
+        @Override
+        public boolean isConclusive()
+        {
+            return true;
+        }
+    }
+
+    private UnfilteredPartitionIterator lazyRdiWrappedIterator(PartitionUpdate update, LazyRepairedDataInfo rdi)
+    {
+        // Wraps the row iterator so that close() marks rdi as consumed, simulating RepairedDataInfo
+        // updating its digest lazily after the partition has been fully read.
+        UnfilteredRowIterator baseRowIter = update.unfilteredIterator();
+        UnfilteredRowIterator wrappedRowIter = new WrappingUnfilteredRowIterator()
+        {
+            public UnfilteredRowIterator wrapped() { return baseRowIter; }
+
+            @Override
+            public void close()
+            {
+                rdi.markConsumed();
+                baseRowIter.close();
+            }
+        };
+        return new AbstractUnfilteredPartitionIterator()
+        {
+            private boolean returned = false;
+
+            public TableMetadata metadata() { return update.metadata(); }
+
+            public boolean hasNext() { return !returned; }
+
+            public UnfilteredRowIterator next()
+            {
+                returned = true;
+                return wrappedRowIter;
+            }
+        };
     }
 
     private static class StubReadCommand extends SinglePartitionReadCommand
