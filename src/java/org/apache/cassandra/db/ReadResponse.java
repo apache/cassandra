@@ -325,8 +325,8 @@ public abstract class ReadResponse
         // TODO: can the digest be calculated over the raw bytes now?
         // The response, serialized in the current messaging version
         private final ByteBuffer data;
-        private final ByteBuffer repairedDataDigest;
-        private final boolean isRepairedDigestConclusive;
+        protected ByteBuffer repairedDataDigest;
+        protected boolean isRepairedDigestConclusive;
         private final int dataSerializationVersion;
         private final DeserializationHelper.Flag flag;
 
@@ -408,25 +408,32 @@ public abstract class ReadResponse
 
         private InMemoryDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi, int maxRows)
         {
-            super(null, rdi.getDigest(), rdi.isConclusive(), MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            // pass fake values for rdi.getDigest(), rdi.isConclusive(), they will be calculated and set later
+            super(null, null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
 
             if (!iter.hasNext())
             {
                 this.partition = null;
                 this.overflow = null;
-                return;
+            }
+            else
+            {
+                try (UnfilteredRowIterator rowIter = iter.next())
+                {
+                    LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, maxRows);
+                    this.partition = ImmutableBTreePartition.create(limitedIter);
+                    // Uses buildOverflow (row-iterator level) to match the UnfilteredRowIteratorSerializer
+                    // deserializer used in makeIterator.
+                    this.overflow = limitedIter.hasOverflow()
+                                    ? LocalDataResponse.buildOverflow(rowIter, command.columnFilter())
+                                    : null;
+                }
             }
 
-            try (UnfilteredRowIterator rowIter = iter.next())
-            {
-                LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, maxRows);
-                this.partition = ImmutableBTreePartition.create(limitedIter);
-                // Uses buildOverflow (row-iterator level) to match the UnfilteredRowIteratorSerializer
-                // deserializer used in makeIterator.
-                this.overflow = limitedIter.hasOverflow()
-                                ? LocalDataResponse.buildOverflow(rowIter, command.columnFilter())
-                                : null;
-            }
+            // Capture digest after consuming the iterator so that any updates made by
+            // RepairedDataInfo transformations are reflected in the digest.
+            this.repairedDataDigest = rdi.getDigest();
+            this.isRepairedDigestConclusive = rdi.isConclusive();
         }
 
         // Decorating iterator that stops after maxRows Unfiltered objects and records whether overflow occurred.
