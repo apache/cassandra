@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.streaming.DataMovement;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ownership.MovementMap;
@@ -57,7 +58,7 @@ public class DataMovements implements IVerbHandler<DataMovement.Status>
     }
 
     @Override
-    public void doVerb(Message<DataMovement.Status> message) throws IOException
+    public void doVerb(MessageDelivery messaging, Message<DataMovement.Status> message) throws IOException
     {
         Map<String, ResponseTracker> inFlightForType = inFlightMovements.get(StreamOperation.valueOf(message.payload.operationType));
         ResponseTracker responseTracker = inFlightForType.get(message.payload.operationId);

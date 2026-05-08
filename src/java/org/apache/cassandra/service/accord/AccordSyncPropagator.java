@@ -72,7 +72,7 @@ public class AccordSyncPropagator implements TopologyListener
     private static final Logger logger = LoggerFactory.getLogger(AccordSyncPropagator.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.MINUTES);
 
-    public static final IVerbHandler<Notification> verbHandler = message -> {
+    public static final IVerbHandler<Notification> verbHandler = (messaging, message) -> {
         if (!AccordService.isSetup())
             return;
         AccordService.instance().receive(message);

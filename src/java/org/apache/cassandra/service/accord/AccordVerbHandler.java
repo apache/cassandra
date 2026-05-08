@@ -28,6 +28,7 @@ import accord.messages.Request;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
@@ -45,7 +46,7 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
     }
 
     @Override
-    public void doVerb(Message<T> message) throws IOException
+    public void doVerb(MessageDelivery messaging, Message<T> message) throws IOException
     {
         logger.trace("Receiving {} from {}", message.payload, message.from());
 

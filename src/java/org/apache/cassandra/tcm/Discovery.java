@@ -169,15 +169,12 @@ public class Discovery
 
     private final class DiscoveryRequestHandler implements IVerbHandler<NoPayload>
     {
-        final Supplier<MessageDelivery> messaging;
-
         DiscoveryRequestHandler(Supplier<MessageDelivery> messaging)
         {
-            this.messaging = messaging;
         }
 
         @Override
-        public void doVerb(Message<NoPayload> message)
+        public void doVerb(MessageDelivery messaging, Message<NoPayload> message)
         {
             Set<InetAddressAndPort> cms = ClusterMetadata.current().fullCMSMembers();
             logger.debug("Responding to discovery request from {}: {}", message.from(), cms);
@@ -191,7 +188,7 @@ public class Discovery
                 discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
             }
 
-            messaging.get().send(message.responseWith(discoveredNodes), message.from());
+            messaging.send(message.responseWith(discoveredNodes), message.from());
         }
     }
 

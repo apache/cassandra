@@ -205,7 +205,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         PrepareMessage prepare = prepareMsg(request.desc.parentSessionId, request.desc.ranges);
         ActiveRepairService.instance().register(new ParticipateState(SharedContext.Global.instance.clock(), node1, prepare));
         Message<RepairMessage> message = Message.builder(Verb.VALIDATION_REQ, (RepairMessage)request).from(node1).withId(messageId).build();
-        handler.doVerb(message);
+        handler.doVerb(MessagingService.instance(), message);
         ClusterMetadataTestHelper.MessageDelivery response = messageSink.get(500, TimeUnit.MILLISECONDS);
         if (expectSuccess)
         {
@@ -235,7 +235,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         RepairMessageVerbHandler handler = new RepairMessageVerbHandler(SharedContext.Global.instance);
         int messageId = randomInt();
         Message<RepairMessage> message = Message.builder(Verb.PREPARE_MSG, (RepairMessage)prepare).from(node1).withId(messageId).build();
-        handler.doVerb(message);
+        handler.doVerb(MessagingService.instance(), message);
 
         MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
         assertEquals(Verb.REPAIR_RSP, response.message.verb());

@@ -687,7 +687,7 @@ public class EpochSyncTest
 
                 Map<Verb, IVerbHandler<?>> handlers = new EnumMap<>(Verb.class);
                 //noinspection unchecked
-                handlers.put(Verb.ACCORD_SYNC_NOTIFY_REQ, msg -> AccordService.receive(messagingService, topology, (Message<AccordSyncPropagator.Notification>) (Message<?>) msg));
+                handlers.put(Verb.ACCORD_SYNC_NOTIFY_REQ, (messaging, msg) -> AccordService.receive(messaging, topology, (Message<AccordSyncPropagator.Notification>) (Message<?>) msg));
                 this.messaging = messagingService;
                 this.receiver = messagingService.receiver(new SimulatedMessageDelivery.SimpleVerbHandler(handlers));
             }

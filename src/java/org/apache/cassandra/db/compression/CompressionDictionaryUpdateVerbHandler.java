@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.Schema;
 
 public class CompressionDictionaryUpdateVerbHandler implements IVerbHandler<CompressionDictionaryUpdateMessage>
@@ -34,7 +35,7 @@ public class CompressionDictionaryUpdateVerbHandler implements IVerbHandler<Comp
     private CompressionDictionaryUpdateVerbHandler() {}
 
     @Override
-    public void doVerb(Message<CompressionDictionaryUpdateMessage> message)
+    public void doVerb(MessageDelivery messaging, Message<CompressionDictionaryUpdateMessage> message)
     {
         CompressionDictionaryUpdateMessage payload = message.payload;
 

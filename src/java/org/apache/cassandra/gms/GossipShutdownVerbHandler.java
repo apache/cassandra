@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 
 public class GossipShutdownVerbHandler implements IVerbHandler<GossipShutdown>
 {
@@ -29,7 +30,7 @@ public class GossipShutdownVerbHandler implements IVerbHandler<GossipShutdown>
 
     private static final Logger logger = LoggerFactory.getLogger(GossipShutdownVerbHandler.class);
 
-    public void doVerb(Message<GossipShutdown> message)
+    public void doVerb(MessageDelivery messaging, Message<GossipShutdown> message)
     {
         if (!Gossiper.instance.isEnabled())
         {

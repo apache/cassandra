@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.paxos.v1;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.PrepareResponse;
@@ -33,9 +33,9 @@ public class PrepareVerbHandler extends AbstractPaxosVerbHandler
     }
 
     @Override
-    public void processMessage(Message<Commit> message)
+    public void processMessage(MessageDelivery messaging, Message<Commit> message)
     {
         Message<PrepareResponse> reply = message.responseWith(doPrepare(message.payload));
-        MessagingService.instance().send(reply, message.from());
+        messaging.send(reply, message.from());
     }
 }

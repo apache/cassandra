@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -33,7 +33,7 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
 
     private static final Logger logger = LoggerFactory.getLogger(CounterMutationVerbHandler.class);
 
-    protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
+    protected void applyMutation(MessageDelivery messaging, final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
@@ -48,7 +48,7 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
         // it's own in that case.
         StorageProxy.applyCounterMutationOnLeader(cm,
                                                   localDataCenter,
-                                                  () -> MessagingService.instance().send(message.emptyResponse(), respondToAddress),
+                                                  () -> messaging.send(message.emptyResponse(), respondToAddress),
                                                   Dispatcher.RequestTime.forImmediateExecution());
     }
 }

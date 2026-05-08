@@ -32,7 +32,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -49,12 +49,12 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
     private static final Logger logger = LoggerFactory.getLogger(AbstractMutationVerbHandler.class);
     private static final String logMessageTemplate = "Received mutation from {} for token {} outside valid range for keyspace {}";
 
-    public void doVerb(Message<T> message) throws IOException
+    public void doVerb(MessageDelivery messaging, Message<T> message) throws IOException
     {
-        processMessage(message, message.respondTo());
+        processMessage(messaging, message, message.respondTo());
     }
 
-    protected void processMessage(Message<T> message, InetAddressAndPort respondTo)
+    protected void processMessage(MessageDelivery messaging, Message<T> message, InetAddressAndPort respondTo)
     {
         if (message.epoch().isAfter(Epoch.FIRST))
         {
@@ -65,17 +65,17 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
 
         try
         {
-            applyMutation(message, respondTo);
+            applyMutation(messaging, message, respondTo);
         }
         catch (RetryOnDifferentSystemException e)
         {
             logger.debug("Responding with retry on different system");
-            MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            messaging.respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
             Tracing.trace("Payload application resulted in RetryOnDifferentSysten");
         }
     }
 
-    abstract void applyMutation(Message<T> message, InetAddressAndPort respondToAddress);
+    abstract void applyMutation(MessageDelivery messaging, Message<T> message, InetAddressAndPort respondToAddress);
 
     private ClusterMetadata checkTokenOwnership(ClusterMetadata metadata, Message<T> message, InetAddressAndPort respondTo)
     {

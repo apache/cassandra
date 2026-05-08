@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 
 public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestAck2>
 {
@@ -31,7 +32,7 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
 
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
-    public void doVerb(Message<GossipDigestAck2> message)
+    public void doVerb(MessageDelivery messaging, Message<GossipDigestAck2> message)
     {
         if (logger.isTraceEnabled())
         {
@@ -48,6 +49,6 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
         Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
         Gossiper.instance.applyStateLocally(remoteEpStateMap);
 
-        super.doVerb(message);
+        super.doVerb(messaging, message);
     }
 }

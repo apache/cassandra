@@ -59,7 +59,7 @@ class ResponseVerbHandler implements IVerbHandler
                                                                      Verb.PAXOS2_CLEANUP_RSP2, Verb.PAXOS2_CLEANUP_FINISH_PREPARE_RSP, Verb.PAXOS2_CLEANUP_FINISH_PREPARE_REQ,
                                                                      Verb.PAXOS2_CLEANUP_COMPLETE_RSP, Verb.PAXOS2_CLEANUP_COMPLETE_REQ);
     @Override
-    public void doVerb(Message message)
+    public void doVerb(MessageDelivery messaging, Message message)
     {
         RequestCallbacks.CallbackInfo callbackInfo;
         if (message.header.isFinal())

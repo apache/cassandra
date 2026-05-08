@@ -56,7 +56,7 @@ public class PaxosCleanupResponse
 
     public static IVerbHandler<PaxosCleanupResponse> createVerbHandler(SharedContext ctx)
     {
-        return message -> ctx.paxosRepairState().finishSession(message.from(), message.payload);
+        return (messaging, message) -> ctx.paxosRepairState().finishSession(message.from(), message.payload);
     }
 
     public static final IVerbHandler<PaxosCleanupResponse> verbHandler = createVerbHandler(SharedContext.Global.instance);

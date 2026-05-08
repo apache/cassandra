@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.NoPayload;
 
 public final class SchemaVersionVerbHandler implements IVerbHandler<NoPayload>
@@ -33,10 +33,10 @@ public final class SchemaVersionVerbHandler implements IVerbHandler<NoPayload>
 
     private final Logger logger = LoggerFactory.getLogger(SchemaVersionVerbHandler.class);
 
-    public void doVerb(Message<NoPayload> message)
+    public void doVerb(MessageDelivery messaging, Message<NoPayload> message)
     {
         logger.trace("Received schema version request from {}", message.from());
         Message<UUID> response = message.responseWith(Schema.instance.getVersion());
-        MessagingService.instance().send(response, message.from());
+        messaging.send(response, message.from());
     }
 }

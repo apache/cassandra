@@ -280,7 +280,7 @@ public class ConnectionTest
             CountDownLatch deliveryDone = new CountDownLatch(1);
             CountDownLatch receiveDone = new CountDownLatch(count);
 
-            unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> receiveDone.countDown());
             Message<?> message = Message.out(Verb._TEST_1, noPayload);
             for (int i = 0 ; i < count ; ++i)
                 outbound.enqueue(message);
@@ -332,7 +332,7 @@ public class ConnectionTest
                     return LARGE_MESSAGE_THRESHOLD + 1;
                 }
             });
-            unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> receiveDone.countDown());
             Message<?> message = Message.builder(Verb._TEST_1, new Object())
                                         .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
                                         .build();
@@ -411,7 +411,7 @@ public class ConnectionTest
             }, message, endpoint);
             AtomicInteger delivered = new AtomicInteger();
 
-            unsafeSetHandler(Verb._TEST_1, () -> msg -> delivered.incrementAndGet());
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> delivered.incrementAndGet());
             outbound.enqueue(message);
             Assert.assertTrue(done.await(10, SECONDS));
             Assert.assertEquals(0, delivered.get());
@@ -473,7 +473,7 @@ public class ConnectionTest
                                         .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
                                         .build();
 
-            unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> receiveDone.countDown());
             for (int i = 0 ; i < count ; ++i)
                 outbound.enqueue(message);
 
@@ -506,7 +506,7 @@ public class ConnectionTest
             CountDownLatch enqueueDone = new CountDownLatch(1);
             CountDownLatch deliveryDone = new CountDownLatch(1);
             AtomicInteger delivered = new AtomicInteger();
-            Verb._TEST_1.unsafeSetHandler(() -> msg -> delivered.incrementAndGet());
+            Verb._TEST_1.unsafeSetHandler(() -> (messaging, msg) -> delivered.incrementAndGet());
             Message<?> message = Message.builder(Verb._TEST_1, noPayload)
                                         .withExpiresAt(approxTime.now() + TimeUnit.DAYS.toNanos(1L))
                                         .build();
@@ -603,7 +603,7 @@ public class ConnectionTest
                 inbound.open().sync();
                 CountDownLatch deliveryDone = new CountDownLatch(1);
 
-                unsafeSetHandler(Verb._TEST_1, () -> msg -> {
+                unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> {
                     outbound.unsafeRunOnDelivery(deliveryDone::countDown);
                 });
                 outbound.enqueue(Message.out(Verb._TEST_1, noPayload));
@@ -634,7 +634,7 @@ public class ConnectionTest
             {
                 inbound.open().sync();
                 CountDownLatch done = new CountDownLatch(1);
-                unsafeSetHandler(Verb._TEST_1, () -> msg -> done.countDown());
+                unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> done.countDown());
                 outbound.enqueue(Message.out(Verb._TEST_1, noPayload));
                 Assert.assertTrue(done.await(10, SECONDS));
                 Assert.assertEquals(0, done.getCount());
@@ -646,7 +646,7 @@ public class ConnectionTest
                 inbound.open().sync();
 
                 CountDownLatch latch2 = new CountDownLatch(1);
-                unsafeSetHandler(Verb._TEST_1, () -> msg -> latch2.countDown());
+                unsafeSetHandler(Verb._TEST_1, () -> (messaging, msg) -> latch2.countDown());
                 outbound.enqueue(Message.out(Verb._TEST_1, noPayload));
 
                 latch2.await(10, SECONDS);
@@ -694,7 +694,7 @@ public class ConnectionTest
             connect(outbound);
 
             CountDownLatch latch = new CountDownLatch(4);
-            unsafeSetHandler(Verb._TEST_1, () -> message -> latch.countDown());
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, message) -> latch.countDown());
             for (int i = 0; i < 5; i++)
                 outbound.enqueue(Message.out(Verb._TEST_1, 0xffffffff));
 
@@ -839,7 +839,7 @@ public class ConnectionTest
     private void connect(OutboundConnection outbound) throws Throwable
     {
         CountDownLatch latch = new CountDownLatch(1);
-        unsafeSetHandler(Verb._TEST_1, () -> message -> latch.countDown());
+        unsafeSetHandler(Verb._TEST_1, () -> (messaging, message) -> latch.countDown());
         outbound.enqueue(Message.out(Verb._TEST_1, 0xffffffff));
         latch.await(10, SECONDS);
         Assert.assertEquals(0, latch.getCount());

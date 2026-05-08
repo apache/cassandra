@@ -72,7 +72,7 @@ public class PaxosFinishPrepareCleanup extends AsyncFuture<Void> implements Requ
 
     public static IVerbHandler<PaxosCleanupHistory> createVerbHandler(SharedContext ctx)
     {
-        return ctx.paxosRepairState()::addCleanupHistory;
+        return (messaging, message) -> ctx.paxosRepairState().addCleanupHistory(message);
     }
 
     public static final IVerbHandler<PaxosCleanupHistory> verbHandler = createVerbHandler(SharedContext.Global.instance);

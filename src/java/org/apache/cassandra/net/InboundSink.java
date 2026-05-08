@@ -42,7 +42,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 /**
  * A message sink that all inbound messages go through.
  *
- * Default sink used by {@link MessagingService} is {@link IVerbHandler#doVerb(Message)}, but it can be overridden
+ * Default sink used by {@link MessagingService} is {@link IVerbHandler#doVerb(MessageDelivery, Message)}, but it can be overridden
  * to filter out certain messages, record the fact of attempted delivery, or delay arrival.
  *
  * This facility is most useful for test code.
@@ -101,7 +101,7 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
                 return;
             }
 
-            handler.doVerb(message);
+            handler.doVerb(messaging, message);
         };
     }
 

@@ -39,9 +39,13 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RetryOnDifferentSystemException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -52,7 +56,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
@@ -61,6 +64,9 @@ import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelpe
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class MutationVerbHandlerOutOfRangeTest
 {
@@ -110,12 +116,12 @@ public class MutationVerbHandlerOutOfRangeTest
 
     private void acceptMutationForNaturalEndpoint(IVerbHandler<Mutation> handler) throws Exception
     {
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
+        ListenableFuture<ClusterMetadataTestHelper.MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int value = randomInt();
         int key = 50;
         Mutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, messageId, key, value, false);
     }
 
@@ -141,12 +147,12 @@ public class MutationVerbHandlerOutOfRangeTest
         ClusterMetadataTestHelper.joinPartially(broadcastAddress, bytesToken(100));
         assertEquals(NodeState.BOOTSTRAPPING, ClusterMetadata.current().directory.peerState(broadcastAddress));
 
-        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
+        ListenableFuture<ClusterMetadataTestHelper.MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         int value = randomInt();
         int key = 50;
         Mutation mutation = mutation(key, value);
-        handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, messageId, key, value, false);
     }
 
@@ -172,7 +178,7 @@ public class MutationVerbHandlerOutOfRangeTest
         try
         {
             // note that the failure response is now sent by the InboundSink, so we can't use getAndVerifyResponse
-            handler.doVerb(Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
+            handler.doVerb(MessagingService.instance(), Message.builder(Verb.MUTATION_REQ, mutation).from(node1).withId(messageId).build());
             fail("mutation verb handler now throws exception");
         }
         catch (InvalidRoutingException ignore)
@@ -187,13 +193,13 @@ public class MutationVerbHandlerOutOfRangeTest
         return cell.accessor().toInt(cell.value());
     }
 
-    private void getAndVerifyResponse(ListenableFuture<MessageDelivery> messageSink,
+    private void getAndVerifyResponse(ListenableFuture<ClusterMetadataTestHelper.MessageDelivery> messageSink,
                                       int messageId,
                                       int key,
                                       int value,
                                       boolean isOutOfRange) throws InterruptedException, ExecutionException, TimeoutException
     {
-        MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
+        ClusterMetadataTestHelper.MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
         assertEquals(isOutOfRange ? Verb.FAILURE_RSP : Verb.MUTATION_RSP, response.message.verb());
         assertEquals(broadcastAddress, response.message.from());
         assertEquals(isOutOfRange, response.message.payload instanceof RequestFailure);
@@ -223,5 +229,55 @@ public class MutationVerbHandlerOutOfRangeTest
         Row row = BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         PartitionUpdate update = PartitionUpdate.singleRowUpdate(cfm, dk, row);
         return new Mutation(update);
+    }
+
+    /**
+     * Tests that use mock MessageDelivery to verify failure response behavior.
+     */
+
+    @Test
+    public void respondsWithRetryOnDifferentSystemWhenApplyThrows() throws Exception
+    {
+        // Handler that always throws RetryOnDifferentSystemException from applyMutation
+        AbstractMutationVerbHandler<Mutation> failingHandler = new AbstractMutationVerbHandler<>()
+        {
+            @Override
+            void applyMutation(MessageDelivery messaging, Message<Mutation> message, InetAddressAndPort respondToAddress)
+            {
+                throw new RetryOnDifferentSystemException();
+            }
+        };
+
+        MessageDelivery mockMessaging = mock(MessageDelivery.class);
+        Mutation mutation = mutation(50, 42);
+        // No epoch set → defaults to Epoch.EMPTY → skips token/schema checks
+        Message<Mutation> message = Message.builder(Verb.MUTATION_REQ, mutation)
+                                          .from(node1)
+                                          .withId(randomInt())
+                                          .build();
+
+        failingHandler.doVerb(mockMessaging, message);
+
+        verify(mockMessaging).respondWithFailure(RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+    }
+
+    @Test
+    public void expiredMutationIsDroppedWithNoResponse()
+    {
+        MutationVerbHandler handler = new MutationVerbHandler();
+        MessageDelivery mockMessaging = mock(MessageDelivery.class);
+
+        Mutation mutation = mutation(50, 42);
+        // Build a message that is already expired by setting creation time far in the past
+        Message<Mutation> message = Message.builder(Verb.MUTATION_REQ, mutation)
+                                          .from(node1)
+                                          .withId(randomInt())
+                                          .withExpiresAt(1) // nanosecond 1 — long expired
+                                          .build();
+
+        handler.doVerb(mockMessaging, message);
+
+        // No response should be sent for expired mutations — they are silently dropped
+        verifyNoInteractions(mockMessaging);
     }
 }

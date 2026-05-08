@@ -155,10 +155,10 @@ public class PaxosCleanupComplete extends AsyncFuture<Void> implements RequestCa
 
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
-        return (in) -> {
+        return (messaging, in) -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
             cfs.onPaxosRepairComplete(in.payload.ranges, in.payload.lowBound);
-            ctx.messaging().respond(noPayload, in);
+            messaging.respond(noPayload, in);
         };
     }
 

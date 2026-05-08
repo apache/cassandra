@@ -131,7 +131,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         int messageId = randomInt();
         int key = 50;
         ReadCommand command = partitionRead(key);
-        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, messageId, false);
     }
 
@@ -142,7 +142,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         int messageId = randomInt();
         int key = 200;
         ReadCommand command = partitionRead(key);
-        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
         // we automatically send a failure response if doVerb above throws
     }
 
@@ -171,7 +171,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
         int messageId = randomInt();
         ReadCommand command = rangeRead(50, 60);
-        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, messageId, false);
     }
 
@@ -180,7 +180,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
     {
         int messageId = randomInt();
         ReadCommand command = rangeRead(150, 160);
-        handler.doVerb(Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(READ_REQ, command).from(node1).withId(messageId).build());
     }
 
     private void getAndVerifyResponse(ListenableFuture<MessageDelivery> messageSink,

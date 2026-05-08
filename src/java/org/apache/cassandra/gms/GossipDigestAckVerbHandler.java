@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK2;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -37,7 +37,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
 
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAckVerbHandler.class);
 
-    public void doVerb(Message<GossipDigestAck> message)
+    public void doVerb(MessageDelivery messaging, Message<GossipDigestAck> message)
     {
         InetAddressAndPort from = message.from();
         logger.trace("Received a GossipDigestAckMessage from {}", from);
@@ -87,8 +87,8 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
 
         Message<GossipDigestAck2> gDigestAck2Message = Message.out(GOSSIP_DIGEST_ACK2, new GossipDigestAck2(deltaEpStateMap));
         logger.trace("Sending a GossipDigestAck2Message to {}", from);
-        MessagingService.instance().send(gDigestAck2Message, from);
+        messaging.send(gDigestAck2Message, from);
 
-        super.doVerb(message);
+        super.doVerb(messaging, message);
     }
 }

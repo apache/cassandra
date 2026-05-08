@@ -38,7 +38,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -273,7 +273,7 @@ public class LogState
             this.log = log;
         }
 
-        public void doVerb(Message<LogState> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<LogState> message) throws IOException
         {
             logger.info("Received logstate {} from {}", message.payload, message.from());
             log.append(message.payload);
@@ -294,7 +294,7 @@ public class LogState
             this.log = log;
         }
 
-        public void doVerb(Message<LogState> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<LogState> message) throws IOException
         {
             // If another node (CMS or otherwise) is sending log notifications then
             // we can infer that the post-upgrade enablement of CMS has completed
@@ -330,7 +330,7 @@ public class LogState
                 log.waitForHighestConsecutive();
 
             Message<Epoch> response = message.responseWith(ClusterMetadata.current().epoch);
-            MessagingService.instance().send(response, message.from());
+            messaging.send(response, message.from());
         }
     }
 }

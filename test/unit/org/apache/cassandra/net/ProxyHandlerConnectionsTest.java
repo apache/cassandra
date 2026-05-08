@@ -117,7 +117,7 @@ public class ProxyHandlerConnectionsTest
             unsafeSetSerializer(Verb._TEST_1, FakePayloadSerializer::new);
 
             CountDownLatch connectionLatch = new CountDownLatch(1);
-            unsafeSetHandler(Verb._TEST_1, () -> v -> {
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, v) -> {
                 connectionLatch.countDown();
             });
             outbound.enqueue(Message.out(Verb._TEST_1, 1L));
@@ -128,7 +128,7 @@ public class ProxyHandlerConnectionsTest
             unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(50, MILLISECONDS));
             handler.withLatency(100, MILLISECONDS);
 
-            unsafeSetHandler(Verb._TEST_1, () -> v -> {
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, v) -> {
                 throw new RuntimeException("Should have not been triggered " + v);
             });
             int expireMessages = 10;
@@ -150,7 +150,7 @@ public class ProxyHandlerConnectionsTest
             connect(outbound);
 
             AtomicInteger counter = new AtomicInteger();
-            unsafeSetHandler(Verb._TEST_1, () -> v -> {
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, v) -> {
                 counter.incrementAndGet();
             });
 
@@ -188,7 +188,7 @@ public class ProxyHandlerConnectionsTest
             DatabaseDescriptor.setInternodeMaxMessageSizeInBytes(messageSize * 40);
 
             AtomicInteger counter = new AtomicInteger();
-            unsafeSetHandler(Verb._TEST_1, () -> v -> {
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, v) -> {
                 counter.incrementAndGet();
             });
 
@@ -232,7 +232,7 @@ public class ProxyHandlerConnectionsTest
             CountDownLatch closeLatch = new CountDownLatch(1);
             handler.withCloseAfterRead(closeLatch::countDown);
             AtomicInteger counter = new AtomicInteger();
-            unsafeSetHandler(Verb._TEST_1, () -> v -> counter.incrementAndGet());
+            unsafeSetHandler(Verb._TEST_1, () -> (messaging, v) -> counter.incrementAndGet());
 
             outbound.enqueue(Message.out(Verb._TEST_1, 1L));
             waitForCondition(() -> !outbound.isConnected());
@@ -402,7 +402,7 @@ public class ProxyHandlerConnectionsTest
     private void tryConnect(OutboundConnection outbound, long timeout, TimeUnit timeUnit, boolean throwOnFailure) throws Throwable
     {
         CountDownLatch connectionLatch = new CountDownLatch(1);
-        unsafeSetHandler(Verb._TEST_1, () -> v -> {
+        unsafeSetHandler(Verb._TEST_1, () -> (messaging, v) -> {
             connectionLatch.countDown();
         });
         outbound.enqueue(Message.out(Verb._TEST_1, 1L));

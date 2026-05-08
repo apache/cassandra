@@ -38,7 +38,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.MessageDelivery;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SharedContext;
@@ -146,17 +145,17 @@ public class FetchTopologies
             }
         };
 
-    public static final IVerbHandler<FetchTopologies> handler = message -> {
+    public static final IVerbHandler<FetchTopologies> handler = (messaging, message) -> {
         if (!AccordService.isSetup())
         {
             logger.debug("Accord unitialized, responding with failure to {}", message.payload);
-            MessagingService.instance().respondWithFailure(RequestFailure.UNKNOWN, message);
+            messaging.respondWithFailure(RequestFailure.UNKNOWN, message);
             return;
         }
 
         TopologyRange topologies = AccordService.instance().topology().active().between(message.payload.minEpoch, message.payload.maxEpoch);
         logger.debug("Responding with {} failure to {}", topologies, message.payload);
-        MessagingService.instance().respond(topologies, message);
+        messaging.respond(topologies, message);
     };
 
     public static Future<TopologyRange> fetch(SharedContext context, Collection<InetAddressAndPort> peers, long minEpoch, long maxEpoch)

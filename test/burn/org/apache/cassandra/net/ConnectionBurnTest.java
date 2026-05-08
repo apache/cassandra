@@ -264,7 +264,7 @@ public class ConnectionBurnTest
             try
             {
                 long deadline = nanoTime() + runForNanos;
-                Verb._TEST_2.unsafeSetHandler(() -> message -> {});
+                Verb._TEST_2.unsafeSetHandler(() -> (messaging, message) -> {});
                 Verb._TEST_2.unsafeSetSerializer(() -> serializer);
                 inbound.sockets.open().get();
 

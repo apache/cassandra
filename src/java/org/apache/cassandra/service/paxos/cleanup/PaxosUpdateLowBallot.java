@@ -116,9 +116,9 @@ public class PaxosUpdateLowBallot extends AsyncFuture<Void> implements RequestCa
 
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
-        return (in) -> {
+        return (messaging, in) -> {
             PaxosState.ballotTracker().updateLowBound(Ballot.atUnixMicrosWithLsb(in.payload.lowBound, 0, Flag.GLOBAL));
-            ctx.messaging().respond(noPayload, in);
+            messaging.respond(noPayload, in);
         };
     }
 

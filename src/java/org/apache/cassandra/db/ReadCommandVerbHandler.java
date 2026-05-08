@@ -35,6 +35,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
@@ -65,7 +66,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         return response;
     }
 
-    public void doVerb(Message<ReadCommand> message)
+    public void doVerb(MessageDelivery messaging, Message<ReadCommand> message)
     {
         if (message.epoch().isAfter(Epoch.EMPTY))
         {
@@ -100,13 +101,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Message<ReadResponse> reply = message.responseWith(response);
             reply = MessageParams.addToMessage(reply);
 
-            MessagingService.instance().send(reply, message.from());
+            messaging.send(reply, message.from());
             return;
         }
         catch (RetryOnDifferentSystemException e)
         {
             logger.debug("Responding with retry on different system");
-            MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+            messaging.respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
             Tracing.trace("Payload application resulted in RetryOnDifferentSysten");
             return;
         }
@@ -126,7 +127,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Tracing.trace("Enqueuing response to {}", message.from());
             Message<ReadResponse> reply = message.responseWith(response);
             reply = MessageParams.addToMessage(reply);
-            MessagingService.instance().send(reply, message.from());
+            messaging.send(reply, message.from());
         }
         else
         {

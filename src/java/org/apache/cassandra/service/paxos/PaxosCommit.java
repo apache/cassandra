@@ -37,6 +37,7 @@ import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.service.paxos.Paxos.Participants;
@@ -305,14 +306,14 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
     public static class RequestHandler implements IVerbHandler<Agreed>
     {
         @Override
-        public void doVerb(Message<Agreed> message)
+        public void doVerb(MessageDelivery messaging, Message<Agreed> message)
         {
             NoPayload response = execute(message.payload, message.from());
             // NOTE: for correctness, this must be our last action, so that we cannot throw an error and send both a response and a failure response
             if (response == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                messaging.respondWithFailure(UNKNOWN, message);
             else
-                MessagingService.instance().respond(response, message);
+                messaging.respond(response, message);
         }
 
         private static NoPayload execute(Agreed agreed, InetAddressAndPort from)

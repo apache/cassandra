@@ -116,7 +116,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
         int messageId = randomInt();
         int key = 50;
         Commit commit = commit(key);
-        handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, responseVerb, messageId, false);
     }
 
@@ -146,7 +146,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
         int messageId = randomInt();
         int key = 50;
         Commit commit = commit(key);
-        handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, responseVerb, messageId, false);
     }
 
@@ -169,7 +169,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
         int messageId = randomInt();
         int key = 200;
         Commit commit = commit(key);
-        handler.doVerb(Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
+        handler.doVerb(MessagingService.instance(), Message.builder(requestVerb, commit).from(node1).withId(messageId).build());
         getAndVerifyResponse(messageSink, responseVerb, messageId, true);
     }
 

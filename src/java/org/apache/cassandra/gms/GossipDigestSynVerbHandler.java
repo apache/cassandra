@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK;
@@ -40,7 +40,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
 
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestSynVerbHandler.class);
 
-    public void doVerb(Message<GossipDigestSyn> message)
+    public void doVerb(MessageDelivery messaging, Message<GossipDigestSyn> message)
     {
         InetAddressAndPort from = message.from();
         logger.trace("Received a GossipDigestSynMessage from {}", from);
@@ -89,9 +89,8 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
 
             logger.debug("Received a shadow round syn from {}. Gossip is disabled but " +
                          "currently also in shadow round, responding with a minimal ack", from);
-            MessagingService.instance()
-                            .send(Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), Collections.emptyMap())),
-                                  from);
+            messaging.send(Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), Collections.emptyMap())),
+                           from);
             return;
         }
 
@@ -111,9 +110,9 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
                                                      createNormalReply(gDigestList);
 
         logger.trace("Sending a GossipDigestAckMessage to {}", from);
-        MessagingService.instance().send(gDigestAckMessage, from);
+        messaging.send(gDigestAckMessage, from);
 
-        super.doVerb(message);
+        super.doVerb(messaging, message);
     }
 
     private static Message<GossipDigestAck> createNormalReply(List<GossipDigest> gDigestList)

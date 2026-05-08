@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 
 /**
  * Called when node receives updated schema state from the schema migration coordinator node.
@@ -40,7 +41,7 @@ public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Muta
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaPushVerbHandler.class);
 
-    public void doVerb(final Message<Collection<Mutation>> message)
+    public void doVerb(MessageDelivery messaging, final Message<Collection<Mutation>> message)
     {
         logger.warn("Ignoring schema push request from {}, please upgrade", message.from());
     }

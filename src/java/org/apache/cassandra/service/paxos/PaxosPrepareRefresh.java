@@ -34,6 +34,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
@@ -172,20 +173,20 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     public static class RequestHandler implements IVerbHandler<Request>
     {
         @Override
-        public void doVerb(Message<Request> message)
+        public void doVerb(MessageDelivery messaging, Message<Request> message)
         {
             ClusterMetadataService.instance().fetchLogFromPeerOrCMS(ClusterMetadata.current(), message.from(), message.epoch());
             try
             {
                 Response response = execute(message.payload, message.from());
                 if (response == null)
-                    MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);
+                    messaging.respondWithFailure(RequestFailureReason.UNKNOWN, message);
                 else
-                    MessagingService.instance().respond(response, message);
+                    messaging.respond(response, message);
             }
             catch (RetryOnDifferentSystemException e)
             {
-                MessagingService.instance().respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
+                messaging.respondWithFailure(RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM, message);
             }
         }
 

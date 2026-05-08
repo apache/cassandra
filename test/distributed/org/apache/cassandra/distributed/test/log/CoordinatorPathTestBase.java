@@ -71,9 +71,12 @@ import org.apache.cassandra.harry.model.TokenPlacementModel.NodeFactory;
 import org.apache.cassandra.harry.util.ByteUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
+import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -681,8 +684,38 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             service.commit(new Register(new NodeAddresses(cms.addr()), new Location(cms.dc(), cms.rack()), NodeVersion.CURRENT));
 
             IVerbHandler<Commit> commitRequestHandler = Commit.handlerForTests(processor,
-                                                                               replicator,
-                                                                               (msg, to) -> realCluster.deliverMessage(to, Instance.serializeMessage(cms.addr(), to, msg)));
+                                                                                replicator);
+            MessageDelivery fakeMessaging = new MessageDelivery() {
+                @Override
+                public <REQ> void send(Message<REQ> msg, InetAddressAndPort to)
+                {
+                    realCluster.deliverMessage(to, Instance.serializeMessage(cms.addr(), to, msg));
+                }
+
+                @Override
+                public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb)
+                {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection)
+                {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to)
+                {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public <V> void respond(V response, Message<?> message)
+                {
+                    throw new UnsupportedOperationException();
+                }
+            };
             executor = ExecutorFactory.Global.executorFactory().pooled("FakeMessaging", 10);
 
             realCluster.setMessageSink((target, msg) -> executor.submit(() -> {
@@ -701,7 +734,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                 return;
                             case TCM_COMMIT_REQ:
                             {
-                                commitRequestHandler.doVerb((Message<Commit>) message);
+                                commitRequestHandler.doVerb(fakeMessaging, (Message<Commit>) message);
                                 return;
                             }
                             case TCM_FETCH_CMS_LOG_REQ:

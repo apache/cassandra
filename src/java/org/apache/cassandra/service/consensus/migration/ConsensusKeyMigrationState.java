@@ -215,7 +215,7 @@ public abstract class ConsensusKeyMigrationState
                     .executor(ImmediateExecutor.INSTANCE)
                     .build(LOADING_FUNCTION);
 
-    public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = message -> {
+    public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = (messaging, message) -> {
         saveConsensusKeyMigrationLocally(message.payload.partitionKey, message.payload.tableId, message.payload.consensusMigratedAt);
     };
 

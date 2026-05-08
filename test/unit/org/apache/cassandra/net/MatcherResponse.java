@@ -223,7 +223,7 @@ public class MatcherResponse implements Closeable
         message.verb().stage.execute(() -> {
             try
             {
-                message.verb().handler().doVerb((Message<Object>)message);
+                message.verb().handler().doVerb(MessagingService.instance(), (Message<Object>)message);
             }
             catch (IOException e)
             {

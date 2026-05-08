@@ -204,7 +204,7 @@ public class Election
     public class PrepareHandler implements IVerbHandler<CMSInitializationRequest>
     {
         @Override
-        public void doVerb(Message<CMSInitializationRequest> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<CMSInitializationRequest> message) throws IOException
         {
             logger.info("Received election initiation message {} from {}", message.payload, message.from());
             if (!updateInitiator(null, message.payload.initiator))
@@ -241,7 +241,7 @@ public class Election
     public class AbortHandler implements IVerbHandler<CMSInitializationRequest.Initiator>
     {
         @Override
-        public void doVerb(Message<CMSInitializationRequest.Initiator> message) throws IOException
+        public void doVerb(MessageDelivery messaging, Message<CMSInitializationRequest.Initiator> message) throws IOException
         {
             logger.info("Received election abort message {} from {}", message.payload, message.from());
             CMSInitializationRequest.Initiator remoteInitiator = message.payload;
