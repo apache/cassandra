@@ -65,6 +65,7 @@ import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.migration.CMSInitializationException;
 import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -154,7 +155,12 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         ClusterMetadata metadata =  ClusterMetadata.current();
         assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
         Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addr.hashCode()));
-        ClusterMetadataService.instance().commit(initialize);
+        ClusterMetadataService.instance().commit(initialize,
+                                                 m -> { logger.info("INITIALIZE_CMS committed successfully"); return m;},
+                                                 (code, message) -> {
+                                                     logger.info("INITIALIZE_CMS commit failure: ({}) {}", code, message);
+                                                     throw new CMSInitializationException();
+                                                 });
     }
 
     public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor) throws StartupException
