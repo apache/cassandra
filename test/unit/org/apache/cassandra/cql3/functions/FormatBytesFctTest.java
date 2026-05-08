@@ -253,7 +253,7 @@ public class FormatBytesFctTest extends AbstractFormatFctTest
     {
         createDefaultTable(new Object[][]{ { "1", "1", "2" } });
         
-        // Test arguemnt size = 0
+        // Test argument size = 0
         assertThatThrownBy(() -> execute("select format_bytes() from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessageContaining("Invalid number of arguments for function system.format_bytes([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");

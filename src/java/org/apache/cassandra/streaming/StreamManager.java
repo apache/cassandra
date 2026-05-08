@@ -222,7 +222,7 @@ public class StreamManager implements StreamManagerMBean
     /*
      * Currently running streams. Removed after completion/failure.
      * We manage them in two different maps to distinguish plan from initiated ones to
-     * receiving ones withing the same JVM.
+     * receiving ones within the same JVM.
      */
     private final Map<TimeUUID, StreamResultFuture> initiatorStreams = new NonBlockingHashMap<>();
     private final Map<TimeUUID, StreamResultFuture> followerStreams = new NonBlockingHashMap<>();

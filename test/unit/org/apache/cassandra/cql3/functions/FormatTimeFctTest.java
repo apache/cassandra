@@ -126,7 +126,7 @@ public class FormatTimeFctTest extends AbstractFormatFctTest implements WithQuic
                                       Short.MAX_VALUE,
                                       Byte.MAX_VALUE } });
 
-        // Won't overlfow because the value is one less than the Double.MAX_VALUE
+        // Won't overflow because the value is one less than the Double.MAX_VALUE
         assertRows(execute("select format_time(col1, 'd', 'ns') from %s where pk = 1"), row("796899343984252600000000000000000 ns"));
         assertRows(execute("select format_time(col2, 'd', 'ns') from %s where pk = 1"), row("185542587014400000000000 ns"));
         assertRows(execute("select format_time(col3, 'd', 'ns') from %s where pk = 1"), row("2830982400000000000 ns"));
@@ -205,7 +205,7 @@ public class FormatTimeFctTest extends AbstractFormatFctTest implements WithQuic
     public void testInvalidArgumentsSize()
     {
         createDefaultTable(new Object[][]{ { "1", "1", "2" } });
-        // test arguemnt size = 0
+        // test argument size = 0
         assertThatThrownBy(() -> execute("select format_time() from %s where pk = 1"))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessageContaining("Invalid number of arguments for function system.format_time([int|tinyint|smallint|bigint|varint|ascii|text], [ascii], [ascii])");

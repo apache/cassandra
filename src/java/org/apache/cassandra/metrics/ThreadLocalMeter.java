@@ -38,7 +38,7 @@ import static java.lang.Math.exp;
 
 /**
  * An alternative to Dropwizard Meter which implements the same kind of API.
- * it has more efficent mark operations and consumes less memory.
+ * it has more efficient mark operations and consumes less memory.
  * Only exponential decaying moving average is supported for 1/5/15-minutes rate values.
  * Tick logic is moved out from a mark operation and always executed in a background thread.
  * For better cache locality rate values are extracted to a common non thread-local array

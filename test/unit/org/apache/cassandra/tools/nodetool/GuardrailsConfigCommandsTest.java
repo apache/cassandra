@@ -147,7 +147,7 @@ public class GuardrailsConfigCommandsTest extends CQLTester
         // test propagation of errors from guardrail when values are wrong
         ToolResult nonsenseSetterArgs = invokeNodetool("setguardrailsconfig", "keyspaces_threshold", "-10", "-20");
         nonsenseSetterArgs.asserts().failure();
-        assertTrue(nonsenseSetterArgs.getStdout().contains("Error occured when setting the config for setter keyspaces_threshold with arguments [-10, -20]: " +
+        assertTrue(nonsenseSetterArgs.getStdout().contains("Error occurred when setting the config for setter keyspaces_threshold with arguments [-10, -20]: " +
                                                            "Invalid value -20 for keyspaces_warn_threshold: negative values are not allowed, outside of -1 which disables the guardrail"));
 
         // invalid set name

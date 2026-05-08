@@ -805,7 +805,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                                      .row(0, 0, 0)
                                                      .row(0, 1, 1)
                                                      .build());
-            // Results should be in Partiton/Clustering order, so make sure
+            // Results should be in Partition/Clustering order, so make sure
             // multi partition
             cql = "BEGIN TRANSACTION\n" +
                   "  SELECT * FROM " + qualifiedAccordTableName + " WHERE k IN (?, ?) AND c = ?;\n" +

@@ -146,7 +146,7 @@ public class IndexSummaryBuilder implements AutoCloseable
 
     /**
      * Given a key size, return how long the serialized index summary entry will be, that is add 8 bytes to
-     * accomodate for the size of the position.
+     * accommodate for the size of the position.
      */
     private static long getEntrySize(long keySize)
     {

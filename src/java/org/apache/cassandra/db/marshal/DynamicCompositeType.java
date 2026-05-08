@@ -612,7 +612,7 @@ public class DynamicCompositeType extends AbstractCompositeType
                 if (comparatorName.length() == 1)
                 {
                     // try for an alias
-                    // Note: the char to byte cast is theorically bogus for unicode character. I take full
+                    // Note: the char to byte cast is theoretically bogus for unicode character. I take full
                     // responsibility if someone get hit by this (without making it on purpose)
                     t = aliases.get((byte)comparatorName.charAt(0));
                 }

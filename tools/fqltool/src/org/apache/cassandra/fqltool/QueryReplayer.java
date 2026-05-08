@@ -125,7 +125,7 @@ public class QueryReplayer implements Closeable
                     {
                         public void onSuccess(List<ResultHandler.ComparableResultSet> resultSets)
                         {
-                            // note that the order of resultSets is signifcant here - resultSets.get(x) should
+                            // note that the order of resultSets is significant here - resultSets.get(x) should
                             // be the result from a query against targetHosts.get(x)
                             resultHandler.handleResults(query, resultSets);
                         }

@@ -1,5 +1,5 @@
 NAME
-        nodetool enablehandoff - Reenable future hints storing on the current
+        nodetool enablehandoff - Re-enable future hints storing on the current
         node
 
 SYNOPSIS

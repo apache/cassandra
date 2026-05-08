@@ -282,7 +282,7 @@ public final class Json
             Map<ColumnIdentifier, Term> columnMap = new HashMap<>(expectedReceivers.size());
             for (ColumnSpecification spec : expectedReceivers)
             {
-                // We explicitely test containsKey() because the value itself can be null, and we want to distinguish an
+                // We explicitly test containsKey() because the value itself can be null, and we want to distinguish an
                 // explicit null value from no value
                 if (!valueMap.containsKey(spec.name.toString()))
                     continue;

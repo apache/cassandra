@@ -64,7 +64,7 @@ import static org.apache.cassandra.service.paxos.uncommitted.PaxosKeyState.merge
  * There are 2 parts to the uncommitted states it tracks: operations flushed to disk, and updates still in memory. This
  * class handles merging these two sources for queries and for merging states as part of flush. In practice, in memory
  * updates are the contents of the system.paxos memtables, although this has been generalized into an "UpdateSupplier"
- * interface to accomodate testing.
+ * interface to accommodate testing.
  */
 public class PaxosUncommittedTracker
 {

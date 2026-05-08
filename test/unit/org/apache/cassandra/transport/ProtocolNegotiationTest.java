@@ -121,7 +121,7 @@ public class ProtocolNegotiationTest extends CQLTester
         {
             client.establishConnection();
             // Before STARTUP the client hasn't yet negotiated a protocol version.
-            // All OPTIONS messages are received by the intial connection handler.
+            // All OPTIONS messages are received by the initial connection handler.
             OptionsMessage options = new OptionsMessage();
             for (int i = 0; i < 100; i++)
             {

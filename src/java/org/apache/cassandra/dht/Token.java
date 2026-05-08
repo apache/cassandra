@@ -361,10 +361,10 @@ public abstract class Token implements RingPosition<Token>, Serializable
     {
         /*
          * For each token, we needs both minKeyBound and maxKeyBound
-         * because a token corresponds to a range of keys. But the minimun
+         * because a token corresponds to a range of keys. But the minimum
          * token corresponds to no key, so it is valid and actually much
          * simpler to associate the same value for minKeyBound and
-         * maxKeyBound for the minimun token.
+         * maxKeyBound for the minimum token.
          */
         if (isMinimum())
             return minKeyBound();

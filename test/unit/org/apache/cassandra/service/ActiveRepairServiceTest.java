@@ -405,7 +405,7 @@ public class ActiveRepairServiceTest
     public void testRejectWhenPoolFullStrategy() throws InterruptedException
     {
         // Using RepairCommandPoolFullStrategy.reject, new threads are spawned up to
-        // repair_command_pool_size, at which point futher submissions are rejected
+        // repair_command_pool_size, at which point further submissions are rejected
         ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.reject);
         try
         {

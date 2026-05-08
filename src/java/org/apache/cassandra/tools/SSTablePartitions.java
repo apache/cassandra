@@ -391,7 +391,7 @@ public class SSTablePartitions
                             partitionStats.addUnfiltered(desc, currentTime, unfiltered);
                     }
 
-                    // record the partiton size
+                    // record the partition size
                     partitionStats.endOfPartition(scanner.getCurrentPosition());
 
                     if (isExcluded)

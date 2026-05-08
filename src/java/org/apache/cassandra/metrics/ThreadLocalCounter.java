@@ -22,7 +22,7 @@ import org.apache.cassandra.utils.ReflectionUtils;
 
 /**
  * An alternative to Dropwizard Counter which implements the same kind of API.
- * it has more efficent inc/dec operations and consumes less memory.
+ * it has more efficient inc/dec operations and consumes less memory.
  * The counter logic is implemented using {@link ThreadLocalMetrics} functionality.
  *
  * NOTE: Dropwizard Counter is a concrete class and there is no an interface for Dropwizard Counter logic,

@@ -331,7 +331,7 @@ public class MessagingServiceTest
 //        InetAddressAndPort publicIp = InetAddressAndPort.getByName("127.0.0.2");
 //        InetAddressAndPort privateIp = InetAddressAndPort.getByName("127.0.0.3");
 //
-//        // reset the preferred IP value, for good test hygene
+//        // reset the preferred IP value, for good test hygiene
 //        SystemKeyspace.updatePreferredIP(publicIp, publicIp);
 //
 //        // create pool/conn with public addr

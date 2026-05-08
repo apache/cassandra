@@ -13,7 +13,7 @@ OPTIONS
             Node hostname or ip address
 
         -j <jobs>, --jobs <jobs>
-            Number of sstables to relocate simultanously, set to 0 to use all
+            Number of sstables to relocate simultaneously, set to 0 to use all
             available compaction threads
 
         -p <port>, --port <port>

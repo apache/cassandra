@@ -122,7 +122,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * General interface for storage-engine read commands (common to both range and
  * single partition commands).
  * <p>
- * This contains all the informations needed to do a local read.
+ * This contains all the information needed to do a local read.
  */
 public abstract class ReadCommand extends AbstractReadQuery
 {

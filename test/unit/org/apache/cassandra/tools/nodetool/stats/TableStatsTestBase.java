@@ -424,7 +424,7 @@ public class TableStatsTestBase
         humanReadableTable5.compressionDictionariesMemoryUsed = "3.14 MiB";
         humanReadableTable6.compressionDictionariesMemoryUsed = "0 bytes";
 
-        // cretae human-readable SAI disk space used size:
+        // create human-readable SAI disk space used size:
         humanReadableTable5.saiDiskUsedBytes = "40 bytes";
 
         // create human readable keyspaces from template

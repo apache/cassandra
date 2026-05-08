@@ -48,7 +48,7 @@ public class UpdateTest extends CQLTester
         execute("UPDATE %s SET a = 'foo' WHERE k = ?", 0);
         execute("UPDATE %s SET a = (ascii)'foo' WHERE k = ?", 0);
 
-        // But trying to put some explicitely type-casted text into an ascii
+        // But trying to put some explicitly type-casted text into an ascii
         // column should be rejected (even though the text is actually ascci)
         assertInvalid("UPDATE %s SET a = (text)'foo' WHERE k = ?", 0);
 

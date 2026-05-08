@@ -84,7 +84,7 @@ public class ClientsTableKeyspaceColTest
             List<Row> rows = session.execute("SELECT * from " + KS_NAME + ".clients").all();
             assertTrue("At least one client should be returned.", rows.size() > 0);
             for (Row r : rows)
-                assertNull(r.getString("keyspace_name")); // No keyspace is specifed while connecting. It should be null.
+                assertNull(r.getString("keyspace_name")); // No keyspace is specified while connecting. It should be null.
         }
     }
 

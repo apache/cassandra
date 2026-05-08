@@ -195,7 +195,7 @@ public class TestBaseImpl extends DistributedTestBase
     @Override
     public Cluster.Builder builder() {
         // This is definitely not the smartest solution, but given the complexity of the alternatives and low risk, we can just rely on the
-        // fact that this code is going to work accross _all_ versions.
+        // fact that this code is going to work across _all_ versions.
         return Cluster.build();
     }
 

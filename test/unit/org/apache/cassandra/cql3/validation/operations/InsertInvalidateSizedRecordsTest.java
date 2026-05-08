@@ -124,7 +124,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
         // but the code defines null as
         //   value == null
         // In CASSANDRA-18504 a new isNull method was added to the type, as blob and text both "should" allow empty, but this scattered null logic doesn't allow...
-        // For backwards compatability reasons, need to keep empty support
+        // For backwards compatibility reasons, need to keep empty support
         executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", MEDIUM_BLOB, EMPTY_BYTE_BUFFER);
     }
 

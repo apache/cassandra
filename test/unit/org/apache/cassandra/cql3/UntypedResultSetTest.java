@@ -67,7 +67,7 @@ public class UntypedResultSetTest
             String ks = identifierGen.next(rs);
             String tableName = identifierGen.next(rs);
             List<String> names = Gens.lists(identifierGen).unique().ofSize(numColumns).next(rs);
-            // rather than generate the type, use a simple type like double as it doesn't matter... the type is not epxected to be parsable, so conflicts in output format doen't matter
+            // rather than generate the type, use a simple type like double as it doesn't matter... the type is not expected to be parsable, so conflicts in output format doen't matter
             List<AbstractType<?>> types = names.stream().map(ignore -> DoubleType.instance).collect(Collectors.toList());
             List<ColumnSpecification> columns = new ArrayList<>(numColumns);
             for (int i = 0; i < numColumns; i++)

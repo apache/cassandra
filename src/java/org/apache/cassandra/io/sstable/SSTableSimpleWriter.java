@@ -38,7 +38,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
  * (an exception will be thrown otherwise), which for the RandomPartitioner
  * means that rows should be added by increasing md5 of the row key. This is
  * rarely possible and SSTableSimpleUnsortedWriter should most of the time be
- * prefered.
+ * preferred.
  * <p>
  * Optionally, the writer can be configured with a max SSTable size for SSTables.
  * The output will be a series of SSTables that do not exceed a specified size.

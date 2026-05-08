@@ -130,7 +130,7 @@ public abstract class AlteredHints
                 hintNum++;
             }
 
-            // explicitely seek to each page by iterating collected page positions and check if hints still match as expected
+            // explicitly seek to each page by iterating collected page positions and check if hints still match as expected
             int hintOffset = 0;
             for (InputPosition pos : pagePositions)
             {

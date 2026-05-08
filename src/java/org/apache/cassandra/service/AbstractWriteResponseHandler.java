@@ -78,7 +78,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractWriteResponseHandler.class);
 
-    //Count down until all responses and expirations have occured before deciding whether the ideal CL was reached.
+    //Count down until all responses and expirations have occurred before deciding whether the ideal CL was reached.
     private AtomicInteger responsesAndExpirations;
     private final Condition condition = newOneTimeCondition();
     protected final ReplicaPlan.ForWrite replicaPlan;

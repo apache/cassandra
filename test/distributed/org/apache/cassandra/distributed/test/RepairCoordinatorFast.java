@@ -94,7 +94,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     public void missingKeyspace()
     {
         assertTimeoutPreemptively(TIMEOUT, () -> {
-            // as of this moment the check is done in nodetool so the JMX notifications are not imporant
+            // as of this moment the check is done in nodetool so the JMX notifications are not important
             // nor is the history stored
             long repairExceptions = getRepairExceptions(CLUSTER, 2);
             NodeToolResult result = repair(2, "doesnotexist");
@@ -167,7 +167,7 @@ public abstract class RepairCoordinatorFast extends RepairCoordinatorBase
     @Test
     public void intersectingRange()
     {
-        // this test exists to show that this case will cause repair to finish; success or failure isn't imporant
+        // this test exists to show that this case will cause repair to finish; success or failure isn't important
         // if repair is enhanced to allow intersecting ranges w/ local then this test will fail saying that we expected
         // repair to fail but it didn't, this would be fine and this test should be updated to reflect the new
         // semantic

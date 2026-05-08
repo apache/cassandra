@@ -78,7 +78,7 @@ public class ProgressInfoCompositeData
 
     public static CompositeData toCompositeData(TimeUUID planId, ProgressInfo progressInfo)
     {
-        // Delta is not returned as it wasn't clear the impact to backwards compatability; it may be safe to expose.
+        // Delta is not returned as it wasn't clear the impact to backwards compatibility; it may be safe to expose.
         // see CASSANDRA-18110
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], planId.toString());

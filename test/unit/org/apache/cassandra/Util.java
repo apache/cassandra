@@ -1204,7 +1204,7 @@ public class Util
      * Sets the length of the file to given size. File will be created if not exist.
      *
      * @param file file for which length needs to be set
-     * @param size new szie
+     * @param size new size
      * @throws IOException on any I/O error.
      */
     public static void setFileLength(File file, long size) throws IOException
@@ -1351,7 +1351,7 @@ public class Util
         return tagSnapshotsMap;
     }
 
-    // Replaces the global auto-repair config with a new config where auto-repair schedulling is enabled/disabled
+    // Replaces the global auto-repair config with a new config where auto-repair scheduling is enabled/disabled
     public static void setAutoRepairEnabled(boolean enabled) throws Exception
     {
         Config config = DatabaseDescriptor.getRawConfig();

@@ -53,9 +53,9 @@ import org.apache.cassandra.utils.memory.Cloner;
 /**
  * Storage engine representation of a row.
  *
- * A row mainly contains the following informations:
+ * A row mainly contains the following information:
  *   1) Its {@code Clustering}, which holds the values for the clustering columns identifying the row.
- *   2) Its row level informations: the primary key liveness infos and the row deletion (see
+ *   2) Its row level information: the primary key liveness infos and the row deletion (see
  *      {@link #primaryKeyLivenessInfo()} and {@link #deletion()} for more details).
  *   3) Data for the columns it contains, or in other words, it's a (sorted) collection of
  *      {@code ColumnData}.
@@ -105,7 +105,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * columns and has no impact on the row content.
      * <p>
      * Note in particular that a row may have live cells but no PK liveness info, because the
-     * primary key liveness informations are only set on {@code INSERT} (which makes sense
+     * primary key liveness information are only set on {@code INSERT} (which makes sense
      * in itself, see #6782) but live cells can be added through {@code UPDATE} even if the row
      * wasn't pre-existing (which users are encouraged not to do, but we can't validate).
      */
@@ -127,7 +127,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public boolean isEmpty();
 
     /**
-     * Whether the row has some live information (i.e. it's not just deletion informations).
+     * Whether the row has some live information (i.e. it's not just deletion information).
      * 
      * @param nowInSec the current time to decide what is deleted and what isn't
      * @param enforceStrictLiveness whether the row should be purged if there is no PK liveness info,
@@ -423,7 +423,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
         }
 
         /**
-         * Wether the deletion is live or not, that is if its an actual deletion or not.
+         * Whether the deletion is live or not, that is if its an actual deletion or not.
          *
          * @return {@code true} if this represents no deletion of the row, {@code false} if that's an actual
          * deletion.

@@ -77,7 +77,7 @@ public class StandaloneScrubber
     private static final String NO_VALIDATE_OPTION = "no-validate";
     private static final String REINSERT_OVERFLOWED_TTL_OPTION = "reinsert-overflowed-ttl";
     /**
-     * This option was logically removed from the code, but to avoid breaking backwards compatability the option remains
+     * This option was logically removed from the code, but to avoid breaking backwards compatibility the option remains
      */
     private static final String HEADERFIX_OPTION = "header-fix";
 

@@ -611,9 +611,9 @@ public class AccordJournal implements accord.api.Journal, JournalRangeSearcher.S
     public boolean replay(CommandStores commandStores)
     {
         // TODO (expected): make the parallelisms configurable
-        // Replay is performed in parallel, where at most X commands can be in flight, accross at most Y commands stores.
+        // Replay is performed in parallel, where at most X commands can be in flight, across at most Y commands stores.
         // That is, you can limit replay parallelism to 1 command store at a time, but load multiple commands within that data store,
-        // _or_ have multiple commands being loaded accross multiple data stores.
+        // _or_ have multiple commands being loaded across multiple data stores.
         final Semaphore commandParallelism = Semaphore.newSemaphore(getAvailableProcessors());
         final int commandStoreParallelism = Math.max(Math.max(1, Math.min(getAvailableProcessors(), 4)), getAvailableProcessors() / 4);
         final AtomicBoolean abort = new AtomicBoolean();

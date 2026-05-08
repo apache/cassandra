@@ -643,7 +643,7 @@ public class AlterTest extends CQLTester
                                            + " WITH memtable = 'test_empty_class';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Memtable class org.apache.cassandra.db.memtable.SkipListMemtable does not accept any futher parameters, but {invalid=throw} were given.",
+                                        "Memtable class org.apache.cassandra.db.memtable.SkipListMemtable does not accept any further parameters, but {invalid=throw} were given.",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_invalid_param';");
 
@@ -653,7 +653,7 @@ public class AlterTest extends CQLTester
                                            + " WITH memtable = 'test_unknown_class';");
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Memtable class org.apache.cassandra.db.memtable.TestMemtable does not accept any futher parameters, but {invalid=throw} were given.",
+                                        "Memtable class org.apache.cassandra.db.memtable.TestMemtable does not accept any further parameters, but {invalid=throw} were given.",
                                         "ALTER TABLE %s"
                                            + " WITH memtable = 'test_invalid_extra_param';");
 

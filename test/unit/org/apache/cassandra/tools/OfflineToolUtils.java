@@ -94,7 +94,7 @@ public abstract class OfflineToolUtils
     };
 
     /**
-     * When unexpected threads or core singleton objects are inadvertantly initialized during tool runs it can lead to
+     * When unexpected threads or core singleton objects are inadvertently initialized during tool runs it can lead to
      * the tool hanging on shutdown. We have a whitelisted number of threads above along with whatever initial threads
      * were there on first tool creation we can diff against; if we find _anything_ new, it's an error condition - this
      * needs to either be added to the list above or debugged and fixed.

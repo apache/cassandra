@@ -29,7 +29,7 @@ import org.apache.cassandra.db.rows.RowIterator;
  * The object returned by a call to next() is only guaranteed to be
  * valid until the next call to hasNext() or next(). If a consumer wants to keep a
  * reference on the returned objects for longer than the iteration, it must
- * make a copy of it explicitely.
+ * make a copy of it explicitly.
  */
 public interface PartitionIterator extends BasePartitionIterator<RowIterator>
 {

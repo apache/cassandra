@@ -583,7 +583,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
 
             if (null == partitionKeyColumns)
-                throw ire("No PRIMARY KEY specifed for table '%s' (exactly one required)", name);
+                throw ire("No PRIMARY KEY specified for table '%s' (exactly one required)", name);
 
             return new CreateTableStatement(keyspaceName,
                                             name.getName(),

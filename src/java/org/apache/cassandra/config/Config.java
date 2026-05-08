@@ -842,7 +842,7 @@ public class Config
     public ConsistencyLevel denylist_consistency_level = ConsistencyLevel.QUORUM;
 
     /**
-     * The intial capacity for creating RangeTombstoneList.
+     * The initial capacity for creating RangeTombstoneList.
      */
     public volatile int initial_range_tombstone_list_allocation_size = 1;
     /**

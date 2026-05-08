@@ -29,7 +29,7 @@ import com.codahale.metrics.Snapshot;
 
 /**
  * An alternative to Dropwizard Timer which implements the same kind of API.
- * it has more efficent latency histogram implementation and consumes less memory.
+ * it has more efficient latency histogram implementation and consumes less memory.
  *
  * NOTE: Dropwizard Timer is a concrete class and there is no an interface for Dropwizard Timer logic,
  *   so we have to create an alternative hierarchy.

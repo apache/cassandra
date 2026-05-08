@@ -44,7 +44,7 @@ import static java.util.Collections.emptyList;
 import static org.apache.cassandra.cql3.functions.masking.ColumnMask.DISABLED_ERROR_MESSAGE;
 
 /**
- * Tests schema altering queries ({@code CREATE TABLE}, {@code ALTER TABLE}, etc.) that attach/dettach dynamic data
+ * Tests schema altering queries ({@code CREATE TABLE}, {@code ALTER TABLE}, etc.) that attach/detach dynamic data
  * masking functions to column definitions.
  */
 public class ColumnMaskTest extends ColumnMaskTester

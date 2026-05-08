@@ -173,7 +173,7 @@ LogMessage: user:anonymous|host:localhost/X.X.X.X|source:/X.X.X.X|port:60878|tim
 
 To use `BinAuditLogger` as a logger in AuditLogging, set the logger to `BinAuditLogger` in the `cassandra.yaml` file
  under the `audit_logging_options` section.
-`BinAuditLogger` can be futher configued using its advanced options in `cassandra.yaml`.
+`BinAuditLogger` can be further configued using its advanced options in `cassandra.yaml`.
 
 === Advanced Options for BinAuditLogger
 

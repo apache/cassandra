@@ -55,7 +55,7 @@ import java.util.stream.Stream;
  * }</code>
  * <p>
  * Both cases have the same issue; reference to a row from a previous call to {@link #hasNext()}.  Since the same {@link Row}
- * object can be used accross different calls to {@link #hasNext()} this would mean any attempt to access after the fact
+ * object can be used across different calls to {@link #hasNext()} this would mean any attempt to access after the fact
  * points to newer data.  If this behavior is not desirable and access is needed between calls, then {@link Row#copy()}
  * should be used; this will clone the {@link Row} and return a new object pointing to the same data.
  */

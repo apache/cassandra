@@ -23,7 +23,7 @@ import org.apache.cassandra.cql3.functions.OperationFcts;
 import org.apache.cassandra.db.marshal.AbstractType;
 
 /**
- * Thrown when an operation problem has occured (e.g. division by zero with integer).
+ * Thrown when an operation problem has occurred (e.g. division by zero with integer).
  */
 public final class OperationExecutionException extends FunctionExecutionException
 {

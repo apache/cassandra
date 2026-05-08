@@ -112,7 +112,7 @@ public class ClientNotificationsTest extends CQLTester
             }
             catch (InterruptedException e)
             {
-                throw new AssertionError(String.format("Expected event %s, but not received withing timeout", expected));
+                throw new AssertionError(String.format("Expected event %s, but not received within timeout", expected));
             }
         }
     }

@@ -824,7 +824,7 @@ public class ClusterMetadataService
      * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
      * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
      * metadata is not caught up to at least the required epoch, a further request is made to the CMS.
-     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superceded by
+     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superseded by
      * further updates.
      * If the requested epoch is not reached even after fetching from the CMS, an IllegalStateException is thrown.
      * @param metadata a starting point for the fetch. If the requested epoch is <= the epoch of this metadata, the
@@ -860,7 +860,7 @@ public class ClusterMetadataService
      * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
      * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local
      * metadata is not caught up to at least the required epoch, a further request is made to the CMS.
-     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superceded by
+     * The returned ClusterMetadata is guaranteed to have been published, though it may have also been superseded by
      * further updates.
      * If the requested epoch is not reached even after fetching from the CMS, an IllegalStateException is thrown.
      * @param from Initial peer to contact. Usually this is the sender of a message containing the requested epoch,

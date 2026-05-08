@@ -1,5 +1,5 @@
 NAME
-        nodetool enablebinary - Reenable native transport (binary protocol)
+        nodetool enablebinary - Re-enable native transport (binary protocol)
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]

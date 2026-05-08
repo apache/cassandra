@@ -95,7 +95,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
         state.phase.planning();
         StreamPlan sp = new StreamPlan(StreamOperation.REPAIR, 1, false, pendingRepair, previewKind)
                .listeners(this)
-               .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't neccessary
+               .flushBeforeTransfer(pendingRepair == null) // sstables are isolated at the beginning of an incremental repair session, so flushing isn't necessary
                // see comment on RangesAtEndpoint.toDummyList for why we synthesize replicas here
                .requestRanges(dest, desc.keyspace, RangesAtEndpoint.toDummyList(ranges),
                        RangesAtEndpoint.toDummyList(Collections.emptyList()), desc.columnFamily); // request ranges from the remote node

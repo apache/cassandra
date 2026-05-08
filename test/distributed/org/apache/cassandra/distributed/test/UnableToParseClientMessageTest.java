@@ -126,7 +126,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
         // write gibberish to the native protocol
         IInvokableInstance node = CLUSTER.get(1);
 
-        // maintance note: this error isn't required to be consistent cross release, so if this changes its ok to update the test to reflect the new exception.
+        // maintenance note: this error isn't required to be consistent cross release, so if this changes its ok to update the test to reflect the new exception.
 
         long currentCount = getProtocolExceptionCount(node);
         long logStart = node.logs().mark();

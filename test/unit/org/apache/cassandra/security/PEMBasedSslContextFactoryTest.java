@@ -336,7 +336,7 @@ public class PEMBasedSslContextFactoryTest
         // Now we should have checked the private key's expiry
         Assert.assertTrue(sslContextFactory2.keystoreContext.checkedExpiry);
 
-        // Make sure that new factory object preforms the fresh private key expiry check
+        // Make sure that new factory object performs the fresh private key expiry check
         PEMBasedSslContextFactory sslContextFactory3 = new PEMBasedSslContextFactory(config);
         Assert.assertFalse(sslContextFactory3.keystoreContext.checkedExpiry);
         sslContextFactory3.buildKeyManagerFactory();
@@ -384,7 +384,7 @@ public class PEMBasedSslContextFactoryTest
         // Now we should have checked the private key's expiry
         Assert.assertTrue(sslContextFactory2.keystoreContext.checkedExpiry);
 
-        // Make sure that new factory object preforms the fresh private key expiry check
+        // Make sure that new factory object performs the fresh private key expiry check
         PEMBasedSslContextFactory sslContextFactory3 = new PEMBasedSslContextFactory(config);
         Assert.assertFalse(sslContextFactory3.keystoreContext.checkedExpiry);
         sslContextFactory3.buildKeyManagerFactory();

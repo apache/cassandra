@@ -52,7 +52,7 @@ rm -rf "${TMPDIR}/cassandra-website"
 git clone -n --depth=1 --filter=tree:0 https://github.com/apache/cassandra-website
 
 if [ $? != "0" ]; then
-  echo "Error occured while cloning https://github.com/apache/cassandra-website"
+  echo "Error occurred while cloning https://github.com/apache/cassandra-website"
   exit 1
 fi
 

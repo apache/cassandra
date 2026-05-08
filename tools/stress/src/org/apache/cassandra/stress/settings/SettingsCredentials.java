@@ -113,7 +113,7 @@ public class SettingsCredentials implements Serializable
     {
         System.out.println("Usage: -credentials-file <file> ");
         System.out.printf("File is supposed to be a standard property file with '%s', '%s', '%s', '%s', '%s', and '%s' as keys. " +
-                          "The values for these keys will be overriden by their command-line counterparts when specified.%n",
+                          "The values for these keys will be overridden by their command-line counterparts when specified.%n",
                           CQL_USERNAME_PROPERTY_KEY,
                           CQL_PASSWORD_PROPERTY_KEY,
                           JMX_USERNAME_PROPERTY_KEY,

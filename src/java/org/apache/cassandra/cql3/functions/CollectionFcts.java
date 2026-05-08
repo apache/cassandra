@@ -340,7 +340,7 @@ public class CollectionFcts
      * A {@link NativeScalarFunction} for aggregating the elements of a collection according to the aggregator of
      * a certain {@link NativeAggregateFunction}.
      * <p>
-     * {@link NativeAggregateFunction} is meant to be used for aggregating values accross rows, but here we use that
+     * {@link NativeAggregateFunction} is meant to be used for aggregating values across rows, but here we use that
      * function to aggregate the elements of a single collection value. That way, functions such as {@code avg} and
      * {@code collection_avg} should have the same behaviour when applied to row columns or collection elements.
      */

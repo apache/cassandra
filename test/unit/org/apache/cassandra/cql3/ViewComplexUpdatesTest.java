@@ -259,7 +259,7 @@ public class ViewComplexUpdatesTest extends ViewAbstractParameterizedTest
 
     private void testUpdateWithColumnTimestampBiggerThanPk(boolean flush) throws Throwable
     {
-        // CASSANDRA-11500 able to shadow old view row with column ts greater tahn pk's ts and re-insert the view row
+        // CASSANDRA-11500 able to shadow old view row with column ts greater than pk's ts and re-insert the view row
         String baseTable = createTable("CREATE TABLE %s (k int PRIMARY KEY, a int, b int);");
 
         Keyspace ks = Keyspace.open(keyspace());

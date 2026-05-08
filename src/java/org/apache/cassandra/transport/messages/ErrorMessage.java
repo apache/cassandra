@@ -349,7 +349,7 @@ public class ErrorMessage extends Message.Response
 
                     // CasWriteTimeoutException already implies protocol V5, but double check to be safe.
                     if (isWrite && version.isGreaterOrEqualTo(ProtocolVersion.V5) && rte instanceof CasWriteTimeoutException)
-                        size += 2; // CasWriteTimeoutException appends a short for contentions occured.
+                        size += 2; // CasWriteTimeoutException appends a short for contentions occurred.
                     break;
                 case FUNCTION_FAILURE:
                     FunctionExecutionException fee = (FunctionExecutionException)msg.error;

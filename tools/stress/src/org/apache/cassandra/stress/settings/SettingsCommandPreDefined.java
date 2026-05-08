@@ -128,7 +128,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
     {
         super.printSettings(out);
         out.printf("  Key Size (bytes): %d%n", keySize);
-        out.printf("  Counter Increment Distibution: %s%n", options.add.getOptionAsString());
+        out.printf("  Counter Increment Distribution: %s%n", options.add.getOptionAsString());
     }
 
     public static SettingsCommandPreDefined build(Command type, String[] params)

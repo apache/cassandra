@@ -52,7 +52,7 @@ public interface Partition
     public EncodingStats stats();
 
     /**
-     * Whether the partition object has no informations at all, including any deletion informations.
+     * Whether the partition object has no information at all, including any deletion information.
      */
     public boolean isEmpty();
 

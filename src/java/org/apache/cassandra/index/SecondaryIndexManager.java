@@ -432,7 +432,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     }
 
     /**
-     * Does a blocking full rebuild/recovery of the specifed indexes from all the sstables in the base table.
+     * Does a blocking full rebuild/recovery of the specified indexes from all the sstables in the base table.
      * Note also that this method of (re)building/recovering indexes:
      * a) takes a set of index *names* rather than Indexers
      * b) marks existing indexes removed prior to rebuilding
@@ -645,7 +645,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * instead of a build {@link Index#getBuildTaskSupport()}
      * 
      * @param sstables      the SSTables to be (re)indexed
-     * @param indexes       the indexes to be (re)built for the specifed SSTables
+     * @param indexes       the indexes to be (re)built for the specified SSTables
      * @param isFullRebuild True if this method is invoked as a full index rebuild, false otherwise
      */
     @SuppressWarnings({"unchecked", "RedundantSuppression"})

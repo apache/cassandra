@@ -103,7 +103,7 @@ public class SnapshotManagerTest
     {
         doWithManager(manager -> assertThatThrownBy(() -> manager.executeTask(new ThrowingTask())).isInstanceOf(RuntimeException.class)
            .hasRootCauseMessage("an exception")
-           .hasMessageContaining("Exception occured while executing"));
+           .hasMessageContaining("Exception occurred while executing"));
 
         doWithManager(manager -> {
 
@@ -111,13 +111,13 @@ public class SnapshotManagerTest
 
             assertThatThrownBy(() -> manager.executeTask(new ThrowingTask())).isInstanceOf(RuntimeException.class)
                .hasRootCauseMessage("an exception")
-               .hasMessageContaining("Exception occured while executing");
+               .hasMessageContaining("Exception occurred while executing");
 
             manager.start(false);
 
             assertThatThrownBy(() -> manager.executeTask(new ThrowingTask())).isInstanceOf(RuntimeException.class)
                .hasRootCauseMessage("an exception")
-               .hasMessageContaining("Exception occured while executing");
+               .hasMessageContaining("Exception occurred while executing");
         });
     }
 

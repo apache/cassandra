@@ -33,7 +33,7 @@ import org.apache.cassandra.tcm.serialization.Version;
  * Inferred ForceSnapshot transformation. When we receive LogState, it may happen that we receive a base state,
  * in which case should apply snapshot, even if we skip multiple epochs while applying it. This transformation
  * is not getting appended into base table, and is only used for forcing state that does not immediately
- * supercede the current one.
+ * supersede the current one.
  */
 public class ForceSnapshot implements Transformation
 {

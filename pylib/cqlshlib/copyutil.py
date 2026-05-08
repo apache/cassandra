@@ -2244,7 +2244,7 @@ class TokenMap(object):
 
         self._initialize_ring()
 
-        # Note that refresh metadata is disabled by default and we currenlty do not intercept it
+        # Note that refresh metadata is disabled by default and we currently do not intercept it
         # If hosts are added, removed or moved during a COPY operation our token map is no longer optimal
         # However we can cope with hosts going down and up since we filter for replicas that are up when
         # making each batch

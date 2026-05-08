@@ -99,7 +99,7 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
             // [0, 1, 2, 10, 11, 12, 20, 21, 22, 30, 31, 32]
             // this then leads to primrary ranges with one token in it, which cause the estimates to be less useful.
             // Since only one range was published some tools make this assumption; for this reason we can't publish
-            // all ranges (including the replica ranges) nor can we keep backwards compatability and publish primary
+            // all ranges (including the replica ranges) nor can we keep backwards compatibility and publish primary
             // range.  If we publish multiple ranges downstream integrations may start to see duplicate data.
             // See CASSANDRA-15637
             Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRanges(keyspace.getName());
@@ -109,7 +109,7 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
             {
                 long start = nanoTime();
 
-                // compute estimates for primary ranges for backwards compatability
+                // compute estimates for primary ranges for backwards compatibility
                 Map<Range<Token>, Pair<Long, Long>> estimates = computeSizeEstimates(table, primaryRanges);
                 SystemKeyspace.updateSizeEstimates(table.metadata.keyspace, table.metadata.name, estimates);
                 SystemKeyspace.updateTableEstimates(table.metadata.keyspace, table.metadata.name, SystemKeyspace.TABLE_ESTIMATES_TYPE_PRIMARY, estimates);

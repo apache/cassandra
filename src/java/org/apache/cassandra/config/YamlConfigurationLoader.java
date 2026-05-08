@@ -77,7 +77,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
     static
     {
-        // Configs can be overriden via system properties and environment variables entirely or partially
+        // Configs can be overridden via system properties and environment variables entirely or partially
         // For example: sai_options.prioritize_over_legacy_index=true or
         //              sai_options: {prioritize_over_legacy_index=true, segment_write_buffer_size=100MiB}
         Loader loader = Properties.defaultLoader();

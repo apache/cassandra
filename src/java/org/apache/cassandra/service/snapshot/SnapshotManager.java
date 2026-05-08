@@ -540,7 +540,7 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
         }
         catch (Throwable t)
         {
-            throw new RuntimeException(String.format("Exception occured while executing %s: %s", task.toString(), t.getMessage()), t);
+            throw new RuntimeException(String.format("Exception occurred while executing %s: %s", task.toString(), t.getMessage()), t);
         }
     }
 
@@ -553,7 +553,7 @@ public class SnapshotManager implements SnapshotManagerMBean, INotificationConsu
         }
         catch (Throwable t)
         {
-            throw new RuntimeException(String.format("Exception occured while executing %s", task.toString()), t);
+            throw new RuntimeException(String.format("Exception occurred while executing %s", task.toString()), t);
         }
     }
 

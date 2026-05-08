@@ -435,7 +435,7 @@ public class TombstoneCountWarningTest extends TestBaseImpl
         }
 
         // make sure to schedule the task rather than running inline...
-        // this is imporant as the read may block on the local version which can get the test to include it rather than
+        // this is important as the read may block on the local version which can get the test to include it rather than
         // block waiting, so by scheduling we make sure its always fair
         @SuppressWarnings("unused")
         public static void maybeExecuteImmediately(Runnable task, @This SEPExecutor executor)

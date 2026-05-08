@@ -87,7 +87,7 @@ public abstract class Selection
         this.orderingColumns = orderingColumns.isEmpty() ? Collections.emptyList() : new ArrayList<>(orderingColumns);
     }
 
-    // Overriden by SimpleSelection when appropriate.
+    // Overridden by SimpleSelection when appropriate.
     public boolean isWildcard()
     {
         return false;

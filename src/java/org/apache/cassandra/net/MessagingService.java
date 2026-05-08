@@ -254,7 +254,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         }
 
     }
-    // Maintance Note:
+    // Maintenance Note:
     // Try to keep Version enum in-sync for testing.  By having the versions in the enum tests can get access without forcing this class
     // to load, which adds a lot of costs to each test
     /** @deprecated See CASSANDRA-18816 */

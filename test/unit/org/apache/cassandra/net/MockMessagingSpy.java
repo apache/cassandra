@@ -150,7 +150,7 @@ public class MockMessagingSpy implements AutoCloseable
     }
 
     /**
-     * Returns a future that will indicate the absence of any intercepted outbound messages with the specifed period.
+     * Returns a future that will indicate the absence of any intercepted outbound messages with the specified period.
      */
     public ListenableFuture<Boolean> interceptNoMsg(long time, TimeUnit unit)
     {

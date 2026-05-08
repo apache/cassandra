@@ -63,7 +63,7 @@ public enum StreamOperation
     }
 
     /**
-     * Wether this operation requires views to be updated
+     * Whether this operation requires views to be updated
      */
     public boolean requiresViewBuild()
     {

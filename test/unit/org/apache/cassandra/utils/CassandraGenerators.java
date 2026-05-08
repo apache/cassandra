@@ -879,7 +879,7 @@ public final class CassandraGenerators
                         Gen<String> nameGen = SourceDSL.strings().allPossible().ofLengthBetween(1, 10)
                                                        // If : is in the name then the parser will fail; we have validation to disalow this
                                                        .map(s -> s.replace(":", "_"))
-                                                       // Names are used for DCs and those are seperated by ,
+                                                       // Names are used for DCs and those are separated by ,
                                                        .map(s -> s.replace(",", "_"))
                                                        .assuming(s -> !s.trim().isEmpty());
                         // DCs is optional, allow 0 dcs:

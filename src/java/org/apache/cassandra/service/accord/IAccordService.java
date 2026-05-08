@@ -284,7 +284,7 @@ public interface IAccordService
             }
             catch (Throwable t)
             {
-                logger.warn("Current snitch  is not compatable with Accord, make sure to fix the snitch before enabling Accord; {}", t.toString());
+                logger.warn("Current snitch  is not compatible with Accord, make sure to fix the snitch before enabling Accord; {}", t.toString());
             }
         }
 

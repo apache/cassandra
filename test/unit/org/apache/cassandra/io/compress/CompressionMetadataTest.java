@@ -82,7 +82,7 @@ public class CompressionMetadataTest
         cm.close();
         assertThat(cm.isCleanedUp()).isFalse();
         assertThat(copy.isCleanedUp()).isFalse();
-        assertThat(memory.size()).isEqualTo(10); // expected that no expection is thrown since memory should not be released yet
+        assertThat(memory.size()).isEqualTo(10); // expected that no exception is thrown since memory should not be released yet
 
         copy.close();
         assertThat(cm.isCleanedUp()).isTrue();

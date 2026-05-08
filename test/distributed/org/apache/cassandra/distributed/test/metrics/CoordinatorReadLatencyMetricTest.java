@@ -55,7 +55,7 @@ public class CoordinatorReadLatencyMetricTest extends TestBaseImpl
                 cluster.coordinator(1).execute(withKeyspace("insert into %s.tbl (pk, ck ,v) values (0, ?, 1)"), ConsistencyLevel.ALL, i);
 
             var select = Select.builder()
-                               //TODO (now, correctness, coverage): count(v) breaks accord as we get mutliple rows rather than the count of rows...
+                               //TODO (now, correctness, coverage): count(v) breaks accord as we get multiple rows rather than the count of rows...
 //                               .withSelection(FunctionCall.count("v"))
                                .table(KEYSPACE, "tbl")
                                .value("pk", 0)

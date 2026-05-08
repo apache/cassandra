@@ -115,7 +115,7 @@ public abstract class DataStorageSpec
     }
 
     // get vs no-get prefix is not consistent in the code base, but for classes involved with config parsing, it is
-    // imporant to be explicit about get/set as this changes how parsing is done; this class is a data-type, so is
+    // important to be explicit about get/set as this changes how parsing is done; this class is a data-type, so is
     // not nested, having get/set can confuse parsing thinking this is a nested type
     /**
      * @return the data storage quantity.
