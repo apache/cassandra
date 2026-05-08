@@ -184,7 +184,13 @@ final class LogRecord
     static LogRecord makeAdd(SSTable table)
     {
         String absoluteTablePath = absolutePath(table.descriptor.baseFile());
-        return new LogRecord(Type.ADD, absoluteTablePath, 0, table.getAllFilePaths().size());
+        List<String> allPossibleFilePaths = table.getAllFilePaths();
+        List<File> filesOnDisk = new ArrayList<>();
+        for (String p : allPossibleFilePaths)
+        {
+            filesOnDisk.add(new File(p));
+        }
+        return make(Type.ADD, filesOnDisk, allPossibleFilePaths.size(), absoluteTablePath);
     }
 
     public static Map<SSTable, LogRecord> make(Type type, Iterable<SSTableReader> tables)
