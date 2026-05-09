@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -56,7 +56,7 @@ public abstract class AbstractMemtable implements Memtable
     // The smallest local deletion time for all partitions in this memtable
     protected AtomicLong minLocalDeletionTime = new AtomicLong(Long.MAX_VALUE);
     private final long id = nextId.incrementAndGet();
-    private Map<Object, Consumer<TableMetadata>> onFlush = ImmutableMap.of();
+    private Map<Object, BiConsumer<Long, TableMetadata>> onFlush = ImmutableMap.of();
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
@@ -154,7 +154,7 @@ public abstract class AbstractMemtable implements Memtable
     }
 
     @Override
-    public synchronized <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
+    public synchronized <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory)
     {
         if (onFlush == null)
             return null;
@@ -163,7 +163,7 @@ public abstract class AbstractMemtable implements Memtable
         if (null == listener)
         {
             listener = factory.get();
-            onFlush = ImmutableMap.<Object, Consumer<TableMetadata>>builder()
+            onFlush = ImmutableMap.<Object, BiConsumer<Long, TableMetadata>>builder()
                                   .putAll(onFlush)
                                   .put(key, listener)
                                   .build();
@@ -173,13 +173,13 @@ public abstract class AbstractMemtable implements Memtable
 
     public void notifyFlushed()
     {
-        Collection<Consumer<TableMetadata>> run;
+        Collection<BiConsumer<Long, TableMetadata>> run;
         synchronized (this)
         {
             run = onFlush.values();
             onFlush = null;
         }
-        run.forEach(c -> c.accept(metadata()));
+        run.forEach(c -> c.accept(id, metadata()));
     }
 
     protected static class ColumnsCollector

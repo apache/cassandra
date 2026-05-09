@@ -76,7 +76,7 @@ import static accord.utils.Invariants.requireArgument;
 import static accord.utils.SortedArrays.Search.CEIL;
 import static com.google.common.base.Preconditions.checkState;
 import static java.lang.Boolean.FALSE;
-import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
+import static org.apache.cassandra.service.accord.serializers.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.BlockFragment.NO_BLOCK_FRAGMENTS;
 import static org.apache.cassandra.service.accord.txn.TxnUpdate.ConditionalBlock.NO_CONDITIONAL_BLOCKS;
 import static org.apache.cassandra.utils.ArraySerializers.skipArray;

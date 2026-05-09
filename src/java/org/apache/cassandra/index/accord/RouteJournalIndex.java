@@ -89,10 +89,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordJournalTable;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.RangeSearchManager;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -394,7 +394,7 @@ public class RouteJournalIndex implements Index, INotificationConsumer
         Timestamp maxTxnId = TxnId.MAX;
         for (RowFilter.Expression e : expressions)
         {
-            if (e.column() == AccordJournalTable.SyntheticColumn.participants.metadata)
+            if (e.column() == RangeSearchManager.SyntheticColumn.participants.metadata)
             {
                 switch (e.operator())
                 {
@@ -410,11 +410,11 @@ public class RouteJournalIndex implements Index, INotificationConsumer
                         return null;
                 }
             }
-            else if (e.column() == AccordJournalTable.SyntheticColumn.store_id.metadata && e.operator() == Operator.EQ)
+            else if (e.column() == RangeSearchManager.SyntheticColumn.store_id.metadata && e.operator() == Operator.EQ)
             {
                 storeId = Int32Type.instance.compose(e.getIndexValue());
             }
-            else if (e.column() == AccordJournalTable.SyntheticColumn.txn_id.metadata)
+            else if (e.column() == RangeSearchManager.SyntheticColumn.txn_id.metadata)
             {
                 switch (e.operator())
                 {

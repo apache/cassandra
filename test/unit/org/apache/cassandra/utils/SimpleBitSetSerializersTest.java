@@ -53,7 +53,7 @@ public class SimpleBitSetSerializersTest
     {
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" }) DataOutputBuffer output = new DataOutputBuffer();
         qt().forAll(anyGen()).check(bits -> {
-            Serializers.testSerde(output, SimpleBitSetSerializers.any, bits, (actual, expected) -> {
+            Serializers.testSerde(output, SimpleBitSetSerializers.any, bits, (expected, actual) -> {
                 if (actual.getClass() == expected.getClass())
                 {
                     Assertions.assertThat(actual)

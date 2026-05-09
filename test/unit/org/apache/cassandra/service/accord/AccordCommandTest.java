@@ -67,6 +67,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createWriteTxn
 import static org.apache.cassandra.service.accord.AccordTestUtils.fullRange;
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
+import static org.apache.cassandra.service.accord.SimulatedAccordCommandStoreTestBase.emptyNode;
 
 public class AccordCommandTest
 {
@@ -107,6 +108,7 @@ public class AccordCommandTest
         Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, null, false, fullRoute);
+        preAccept.unsafeSetNode(emptyNode);
 
         // Check preaccept
         getBlocking(commandStore.execute(preAccept, safeStore -> {
@@ -199,9 +201,11 @@ public class AccordCommandTest
         Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, null, false, fullRoute);
+        preAccept1.unsafeSetNode(emptyNode);
 
         getBlocking(commandStore.execute(preAccept1, safeStore -> {
             persistDiff(commandStore, safeStore, txnId1, route, () -> {
+                preAccept1.unsafeSetNode(emptyNode);
                 preAccept1.apply(safeStore);
             });
         }));
@@ -209,6 +213,7 @@ public class AccordCommandTest
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, 1, partialTxn, null, false, fullRoute);
+        preAccept2.unsafeSetNode(emptyNode);
         getBlocking(commandStore.execute(preAccept2, safeStore -> {
             persistDiff(commandStore, safeStore, txnId2, route, () -> {
                 PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);

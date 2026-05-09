@@ -20,6 +20,8 @@ package org.apache.cassandra.journal;
 
 import java.util.function.Consumer;
 
+import static org.apache.cassandra.journal.Params.RecoverableCrcFailurePolicy.FAIL;
+
 /**
  * Helper file to avoid exposing components outside their package-local visibility scope
  */
@@ -37,6 +39,6 @@ public class DumpUtil
 
     public static <K, V> StaticSegment<K, V> open(Descriptor descriptor, KeySupport<K> keySupport)
     {
-        return StaticSegment.open(descriptor, keySupport);
+        return StaticSegment.open(descriptor, keySupport, FAIL);
     }
 }

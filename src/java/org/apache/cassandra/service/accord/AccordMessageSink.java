@@ -47,6 +47,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.TimeoutStrategy;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.utils.Clock;
 
 import static accord.messages.MessageType.StandardMessage.ACCEPT_REQ;

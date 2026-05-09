@@ -53,6 +53,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.AccordFetchRequest;
 import org.apache.cassandra.service.accord.api.AccordTimeService;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class AccordMessageSinkTest

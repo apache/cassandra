@@ -61,9 +61,12 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.api.AccordTopologySorter;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator;
+import org.apache.cassandra.service.accord.topology.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.topology.AccordTopologyService;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -122,7 +125,7 @@ public interface IAccordService
     void localStartup();
 
     Future<Void> flushCaches();
-    void markShuttingDown();
+    void stop();
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
     AccordScheduler scheduler();
@@ -289,7 +292,7 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
         }
 
@@ -498,9 +501,9 @@ public interface IAccordService
         }
 
         @Override
-        public void markShuttingDown()
+        public void stop()
         {
-            delegate.markShuttingDown();
+            delegate.stop();
         }
 
         @Override

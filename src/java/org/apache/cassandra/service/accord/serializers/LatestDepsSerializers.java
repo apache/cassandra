@@ -22,7 +22,9 @@ import java.io.IOException;
 
 import accord.api.RoutingKey;
 import accord.messages.GetLatestDeps;
+import accord.messages.GetLatestDeps.GetLatestDepsNack;
 import accord.messages.GetLatestDeps.GetLatestDepsOk;
+import accord.messages.GetLatestDeps.GetLatestDepsReply;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.Known;
@@ -45,81 +47,21 @@ public class LatestDepsSerializers
         public void serialize(LatestDeps t, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt32(t.size());
-            if (t.size() == 0)
-                return;
-
-            for (int i = 0 ; i < t.size() ; ++i)
-            {
-                RoutingKey start = t.startAt(i);
-                KeySerializers.routingKey.serialize(start, out);
-                LatestDeps.LatestEntry e = t.valueAt(i);
-                if (e == null)
-                {
-                    CommandSerializers.knownDeps.serialize(null, out);
-                }
-                else
-                {
-                    CommandSerializers.knownDeps.serialize(e.known, out);
-                    CommandSerializers.ballot.serialize(e.ballot, out);
-                    DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out);
-                    DepsSerializers.nullableDeps.serialize(e.localDeps, out);
-                }
-            }
-            KeySerializers.routingKey.serialize(t.startAt(t.size()), out);
+            serializeWithoutSize(t, out);
         }
 
         @Override
         public LatestDeps deserialize(DataInputPlus in) throws IOException
         {
             int size = in.readUnsignedVInt32();
-            if (size == 0)
-                return LatestDeps.EMPTY;
-
-            RoutingKey[] starts = new RoutingKey[size + 1];
-            LatestDeps.LatestEntry[] values = new LatestDeps.LatestEntry[size];
-            for (int i = 0 ; i < size ; ++i)
-            {
-                starts[i] = KeySerializers.routingKey.deserialize(in);
-                Known.KnownDeps knownDeps = CommandSerializers.knownDeps.deserialize(in);
-                if (knownDeps == null)
-                    continue;
-
-                Ballot ballot = CommandSerializers.ballot.deserialize(in);
-                Deps coordinatedDeps = DepsSerializers.nullableDeps.deserialize(in);
-                Deps localDeps = DepsSerializers.nullableDeps.deserialize(in);
-                values[i] = new LatestDeps.LatestEntry(knownDeps, ballot, coordinatedDeps, localDeps);
-            }
-            starts[size] = KeySerializers.routingKey.deserialize(in);
-
-            return LatestDeps.SerializerSupport.create(starts, values);
+            return deserializeWithSize(size, in);
         }
 
         @Override
         public long serializedSize(LatestDeps t)
         {
-            long size = 0;
-            size += TypeSizes.sizeofUnsignedVInt(t.size());
-            if (t.size() == 0)
-                return size;
-            for (int i = 0 ; i < t.size() ; ++i)
-            {
-                RoutingKey start = t.startAt(i);
-                size += KeySerializers.routingKey.serializedSize(start);
-                LatestDeps.LatestEntry e = t.valueAt(i);
-                if (e == null)
-                {
-                    size += CommandSerializers.knownDeps.serializedSize(null);
-                }
-                else
-                {
-                    size += CommandSerializers.knownDeps.serializedSize(e.known);
-                    size += CommandSerializers.ballot.serializedSize(e.ballot);
-                    size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps);
-                    size += DepsSerializers.nullableDeps.serializedSize(e.localDeps);
-                }
-            }
-            size += KeySerializers.routingKey.serializedSize(t.startAt(t.size()));
-            return size;
+            return TypeSizes.sizeofUnsignedVInt(t.size())
+                   + serializedSizeWithoutSize(t);
         }
     };
 
@@ -148,24 +90,105 @@ public class LatestDepsSerializers
         }
     };
 
-    public static final UnversionedSerializer<GetLatestDepsOk> reply = new UnversionedSerializer<>()
+    public static final UnversionedSerializer<GetLatestDepsReply> reply = new UnversionedSerializer<>()
     {
+        static final long NACK = 0x80000000L;
         @Override
-        public void serialize(GetLatestDepsOk reply, DataOutputPlus out) throws IOException
+        public void serialize(GetLatestDepsReply reply, DataOutputPlus out) throws IOException
         {
-            latestDeps.serialize(reply.deps, out);
+            if (reply.isOk()) latestDeps.serialize(((GetLatestDepsOk)reply).deps, out);
+            else out.writeUnsignedVInt(NACK);
         }
 
         @Override
-        public GetLatestDepsOk deserialize(DataInputPlus in) throws IOException
+        public GetLatestDepsReply deserialize(DataInputPlus in) throws IOException
         {
-            return new GetLatestDepsOk(latestDeps.deserialize(in));
+            long size = in.readUnsignedVInt();
+            if (size == NACK)
+                return GetLatestDepsNack.INSTANCE;
+            return new GetLatestDepsOk(deserializeWithSize(Math.toIntExact(size), in));
         }
 
         @Override
-        public long serializedSize(GetLatestDepsOk reply)
+        public long serializedSize(GetLatestDepsReply reply)
         {
-            return latestDeps.serializedSize(reply.deps);
+            if (reply.isOk()) return latestDeps.serializedSize(((GetLatestDepsOk)reply).deps);
+            else return TypeSizes.sizeofUnsignedVInt(NACK);
         }
     };
-}
+
+    private static void serializeWithoutSize(LatestDeps t, DataOutputPlus out) throws IOException
+    {
+        if (t.size() == 0)
+            return;
+
+        for (int i = 0 ; i < t.size() ; ++i)
+        {
+            RoutingKey start = t.startAt(i);
+            KeySerializers.routingKey.serialize(start, out);
+            LatestDeps.LatestEntry e = t.valueAt(i);
+            if (e == null)
+            {
+                CommandSerializers.knownDeps.serialize(null, out);
+            }
+            else
+            {
+                CommandSerializers.knownDeps.serialize(e.known, out);
+                CommandSerializers.ballot.serialize(e.ballot, out);
+                DepsSerializers.nullableDeps.serialize(e.coordinatedDeps, out);
+                DepsSerializers.nullableDeps.serialize(e.localDeps, out);
+            }
+        }
+        KeySerializers.routingKey.serialize(t.startAt(t.size()), out);
+    }
+
+    public static LatestDeps deserializeWithSize(int size, DataInputPlus in) throws IOException
+    {
+        if (size == 0)
+            return LatestDeps.EMPTY;
+
+        RoutingKey[] starts = new RoutingKey[size + 1];
+        LatestDeps.LatestEntry[] values = new LatestDeps.LatestEntry[size];
+        for (int i = 0 ; i < size ; ++i)
+        {
+            starts[i] = KeySerializers.routingKey.deserialize(in);
+            Known.KnownDeps knownDeps = CommandSerializers.knownDeps.deserialize(in);
+            if (knownDeps == null)
+                continue;
+
+            Ballot ballot = CommandSerializers.ballot.deserialize(in);
+            Deps coordinatedDeps = DepsSerializers.nullableDeps.deserialize(in);
+            Deps localDeps = DepsSerializers.nullableDeps.deserialize(in);
+            values[i] = new LatestDeps.LatestEntry(knownDeps, ballot, coordinatedDeps, localDeps);
+        }
+        starts[size] = KeySerializers.routingKey.deserialize(in);
+
+        return LatestDeps.SerializerSupport.create(starts, values);
+    }
+
+    private static long serializedSizeWithoutSize(LatestDeps t)
+    {
+        long size = 0;
+        if (t.size() == 0)
+            return size;
+
+        for (int i = 0 ; i < t.size() ; ++i)
+        {
+            RoutingKey start = t.startAt(i);
+            size += KeySerializers.routingKey.serializedSize(start);
+            LatestDeps.LatestEntry e = t.valueAt(i);
+            if (e == null)
+            {
+                size += CommandSerializers.knownDeps.serializedSize(null);
+            }
+            else
+            {
+                size += CommandSerializers.knownDeps.serializedSize(e.known);
+                size += CommandSerializers.ballot.serializedSize(e.ballot);
+                size += DepsSerializers.nullableDeps.serializedSize(e.coordinatedDeps);
+                size += DepsSerializers.nullableDeps.serializedSize(e.localDeps);
+            }
+        }
+        size += KeySerializers.routingKey.serializedSize(t.startAt(t.size()));
+        return size;
+    }}

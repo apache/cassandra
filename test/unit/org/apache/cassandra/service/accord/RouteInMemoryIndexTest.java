@@ -49,6 +49,8 @@ import org.apache.cassandra.index.accord.RouteIndexFormat;
 import org.apache.cassandra.index.accord.TxnRange;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.RangeSearcher;
+import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static accord.utils.Property.commands;
@@ -133,7 +135,7 @@ public class RouteInMemoryIndexTest
 
     private static class State
     {
-        private final JournalSegmentRangeSearcher<?> index = new JournalSegmentRangeSearcher<>();
+        private final SegmentRangeSearcher<?> index = new SegmentRangeSearcher<>();
         private final Model model = new Model();
         private final float unfiltered;
         private final float minDecidedIdNull;
@@ -279,17 +281,17 @@ public class RouteInMemoryIndexTest
             segments.computeIfAbsent(segment, i -> new Segment()).add(range, txnId);
         }
 
-        public JournalRangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
+        public RangeSearcher.Result search(TokenRange range, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             return search(vrange -> range.compareIntersecting(vrange) == 0, minTxnId, maxTxnId, decidedRX);
         }
 
-        public JournalRangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
+        public RangeSearcher.Result search(TokenKey key, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             return search(range -> range.contains(key), minTxnId, maxTxnId, decidedRX);
         }
 
-        public JournalRangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
+        public RangeSearcher.Result search(Predicate<TokenRange> test, TxnId minTxnId, TxnId maxTxnId, @Nullable DecidedRX decidedRX)
         {
             TreeSet<TxnId> result = new TreeSet<>();
             for (var segment: segments.values())
@@ -302,7 +304,7 @@ public class RouteInMemoryIndexTest
                         result.add(value.txnId);
                 }
             }
-            return new JournalRangeSearcher.DefaultResult(minTxnId, maxTxnId, decidedRX, CloseableIterator.wrap(result.iterator()));
+            return new RangeSearcher.DefaultResult(minTxnId, maxTxnId, decidedRX, CloseableIterator.wrap(result.iterator()));
         }
 
         void remove(long segment)

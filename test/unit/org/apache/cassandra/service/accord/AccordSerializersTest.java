@@ -22,6 +22,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.io.Serializers;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.accord.serializers.AccordSerializers;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
 

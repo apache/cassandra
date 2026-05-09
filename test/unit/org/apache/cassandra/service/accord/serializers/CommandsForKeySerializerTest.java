@@ -55,6 +55,7 @@ import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
+import accord.impl.AbstractReplayer;
 import accord.impl.AbstractSafeCommandStore;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
@@ -655,7 +656,7 @@ public class CommandsForKeySerializerTest
         @Override public AsyncChain<Void> chain(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
         @Override public <T> AsyncChain<T> chain(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
 
-        @Override public Journal.Replayer replayer() { throw new UnsupportedOperationException(); }
+        @Override public Journal.Replayer replayer(AbstractReplayer.Mode mode) { throw new UnsupportedOperationException(); }
 
         @Override protected void ensureDurable(Ranges ranges, RedundantBefore onSuccess) {}
         @Override public Agent agent() { return this; }
