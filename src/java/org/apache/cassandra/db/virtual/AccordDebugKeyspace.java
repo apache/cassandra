@@ -36,6 +36,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -61,6 +62,7 @@ import accord.impl.CommandChange;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.DefaultProgressLog.ModeFlag;
 import accord.impl.progresslog.TxnStateKind;
+import accord.local.CatchupHard;
 import accord.local.Cleanup;
 import accord.local.Command;
 import accord.local.CommandStore;
@@ -105,6 +107,7 @@ import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 
+import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -135,7 +138,6 @@ import org.apache.cassandra.service.accord.AccordCacheEntry;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStores;
 import org.apache.cassandra.service.accord.AccordExecutor;
-import org.apache.cassandra.service.accord.AccordJournal;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordOperations;
 import org.apache.cassandra.service.accord.AccordService;
@@ -153,6 +155,7 @@ import org.apache.cassandra.service.accord.debug.DebugTxnDepsAll;
 import org.apache.cassandra.service.accord.debug.DebugTxnDepsOrdered;
 import org.apache.cassandra.service.accord.debug.DebugTxnGraph;
 import org.apache.cassandra.service.accord.debug.TxnKindsAndDomains;
+import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -650,17 +653,17 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         public void collect(PartitionsCollector collector)
         {
             DurableBefore durableBefore = AccordService.unsafeInstance().node().durableBefore();
-            durableBefore.foldlWithBounds(
-                (entry, ignore, start, end) -> {
-                    TableId tableId = (TableId) start.prefix();
-                    collector.row(tableId.toString(), printToken(start))
+            durableBefore.foldl(
+                (entry, ignore) -> {
+                    TableId tableId = (TableId) entry.prefix();
+                    collector.row(tableId.toString(), printToken(entry.start()))
                              .lazyCollect(columns -> {
-                                  columns.add("token_end", end, AccordDebugKeyspace::printToken)
-                                         .add("quorum", entry.quorumBefore, TO_STRING)
-                                         .add("universal", entry.universalBefore, TO_STRING);
+                                  columns.add("token_end", entry.end(), AccordDebugKeyspace::printToken)
+                                         .add("quorum", entry.quorum, TO_STRING)
+                                         .add("universal", entry.universal, TO_STRING);
                              });
                     return null;
-                }, null, ignore -> false);
+                }, null);
         }
     }
 
@@ -834,16 +837,16 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 String tableIdStr = tableId.toString();
 
                 collector.partition(commandStoreId).collect(rows -> {
-                    maxConflicts.foldlWithBounds(
-                        (timestamp, rs, start, end) -> {
-                            rows.add(printToken(start))
+                    maxConflicts.foldl(
+                        (entry, rs) -> {
+                            rows.add(printToken(entry.start()))
                                 .lazyCollect(columns -> {
-                                    columns.add("token_end", end, AccordDebugKeyspace::printToken)
+                                    columns.add("token_end", entry.end(), AccordDebugKeyspace::printToken)
                                            .add("table_id", tableIdStr)
-                                           .add("timestamp", timestamp, TO_STRING);
+                                           .add("timestamp", entry, TO_STRING);
                                 });
                              return rows;
-                        }, rows, ignore -> false
+                        }, rows
                     );
                 });
             }
@@ -1565,7 +1568,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                 }
             }
 
-            accord.journal().forEach(key -> collect(collector, accord, key), min, max, true);
+            accord.journal().forEach(key -> collect(collector, accord, key), min, max, true, 0);
         }
 
         abstract void collect(PartitionsCollector collector, AccordService accord, JournalKey key);
@@ -2020,6 +2023,9 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             SET_PROGRESS_LOG_MODE("Set the specified progress log mode."),
             UNSET_PROGRESS_LOG_MODE("Unset the specified progress log mode."),
             TRY_EXECUTE_LISTENING("Try to execute all of the transactions (and their dependencies) that have registered listeners on other transactions."),
+            REPLAY("Run journal replay for all transactions"),
+            REBOOTSTRAP("Rebootstrap the command store. This invalidates the local journal, synchronises its data via data repair and rejoins the distributed state machine."),
+            HARD_CATCHUP("Hard catchup the command store. This invalidates the local journal for any ranges not up to date with some quorum, synchronises its data via data repair and rejoins the distributed state machine."),
             ;
 
             final String description;
@@ -2071,12 +2077,16 @@ public class AccordDebugKeyspace extends VirtualKeyspace
             if (op == null)
                 throw new IllegalArgumentException("Must specify 'op'");
 
+            final AccordService accord = (AccordService) AccordService.unsafeInstance();
+            final Node node = accord.node();
             final Function<CommandStore, AsyncResult<?>> function;
+            Supplier<AsyncResult<?>> allFunction = null;
             switch (op)
             {
                 default: throw new UnhandledEnum(op);
                 case SET_PROGRESS_LOG_MODE:
                 case UNSET_PROGRESS_LOG_MODE:
+                {
                     if (param == null)
                         throw new IllegalArgumentException("Must specify 'param' for " + op);
                     ModeFlag mode = tryParse(param, true, ModeFlag.class, ModeFlag::valueOf);
@@ -2088,25 +2098,53 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         return AsyncResults.success(null);
                     };
                     break;
+                }
                 case TRY_EXECUTE_LISTENING:
-                    if (param != null)
-                        throw new IllegalArgumentException("'param' is not supported for " + op);
-                    function = CommandStore::operatorTryToExecuteListeningTxns;
+                {
+                    boolean loop;
+                    if (param == null) loop = false;
+                    else if (param.equalsIgnoreCase("loop")) loop = true;
+                    else throw new InvalidRequestException("Unknown param for " + CommandStoreOp.TRY_EXECUTE_LISTENING + ": '" + param + "'; expect only 'loop' or missing");
+
+                    function = commandStore -> commandStore.tryToExecuteListeningTxns(loop);
+                    break;
+                }
+                case REPLAY:
+                {
+                    ReplayMode replayMode = tryParse(param, true, ReplayMode.class, ReplayMode::valueOf);
+                    function = commandStore -> {
+                        accord.journal().replay(commandStore, replayMode, 0L);
+                        return AsyncResults.success(null);
+                    };
+                    break;
+                }
+                case REBOOTSTRAP:
+                    allFunction = () -> node.commandStores().rebootstrap(node);
+                    function = commandStore -> commandStore.rebootstrap(node);
+                    break;
+                case HARD_CATCHUP:
+                    allFunction = () -> CatchupHard.catchup(node, Arrays.asList(node.commandStores().all())).beginAsResult();
+                    function = commandStore -> CatchupHard.catchup(node, Collections.singletonList(commandStore)).beginAsResult();
                     break;
             }
 
             AsyncResult<?> result;
             if (commandStoreId < 0)
             {
-                List<AsyncResult<?>> results = new ArrayList<>();
-                AccordService.unsafeInstance().node()
-                             .commandStores()
-                             .forAllUnsafe(commandStore -> results.add(function.apply(commandStore)));
-                result = AsyncResults.allOf(results);
+                if (allFunction == null)
+                {
+                    allFunction = () -> {
+                        List<AsyncResult<?>> results = new ArrayList<>();
+                        for (CommandStore commandStore : node.commandStores().all())
+                            results.add(function.apply(commandStore));
+                        return AsyncResults.allOf(results);
+                    };
+                }
+                result = allFunction.get();
             }
             else
             {
-                result = function.apply(AccordService.unsafeInstance().node().commandStores().forId(commandStoreId));
+                result = function.apply(node.commandStores().forId(commandStoreId));
             }
 
             AccordService.getBlocking(result);

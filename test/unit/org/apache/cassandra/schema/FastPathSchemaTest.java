@@ -30,8 +30,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
-import org.apache.cassandra.service.accord.fastpath.ParameterizedFastPathStrategy;
+import org.apache.cassandra.service.accord.topology.FastPathStrategy;
+import org.apache.cassandra.service.accord.topology.ParameterizedFastPathStrategy;
 
 import static java.lang.String.format;
 

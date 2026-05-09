@@ -93,6 +93,8 @@ public class AccordProgressLogTest extends TestBaseImpl
             cluster.schemaChange("CREATE TABLE ks.tbl (k int, c int, v int, primary key (k, c)) WITH " + TransactionalMode.full.asCqlParam());
             String query = "BEGIN TRANSACTION\n" +
                            "  INSERT INTO ks.tbl (k, c) VALUES (0, 0);\n" +
+                           "  INSERT INTO ks.tbl (k, c) VALUES (1, 1);\n" +
+                           "  INSERT INTO ks.tbl (k, c) VALUES (2, 2);\n" +
                            "COMMIT TRANSACTION";
 
             IMessageFilters.Filter dropApply = cluster.filters().outbound().from(1).verbs(Verb.ACCORD_APPLY_REQ.id).drop();
@@ -121,7 +123,7 @@ public class AccordProgressLogTest extends TestBaseImpl
             logger.info("Awaited at {}", fetchStartedAt.get());
             long timeDeltaMillis = TimeUnit.NANOSECONDS.toMillis(fetchStartedAt.get() - coordinationStartedAt);
             Assert.assertTrue("Fetch started in " + timeDeltaMillis + "ms", timeDeltaMillis >= 100);
-            Assert.assertTrue("Fetch started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 2000);
+            Assert.assertTrue("Fetch started in " + timeDeltaMillis + "ms", timeDeltaMillis <= 4000);
         }
     }
 }

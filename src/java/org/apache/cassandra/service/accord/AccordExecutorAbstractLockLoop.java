@@ -84,14 +84,14 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
         if (tasks > 0 || !submitted.isEmpty() || runningThreads > 0)
             return true;
 
-        lock.lock();
+        lock();
         try
         {
             return tasks > 0 || !submitted.isEmpty() || runningThreads > 0;
         }
         finally
         {
-            lock.unlock();
+            unlock();
         }
     }
 
@@ -157,7 +157,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                 Task task;
                 while (true)
                 {
-                    lock.lock();
+                    lock();
                     try
                     {
                         resumeExclusive();
@@ -210,7 +210,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                     }
                     finally
                     {
-                        lock.unlock();
+                        unlock();
                     }
                 }
             }
@@ -227,7 +227,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                 Task task = null;
                 while (true)
                 {
-                    lock.lock();
+                    lock();
                     try
                     {
                         if (task != null)
@@ -288,7 +288,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutor
                     }
                     finally
                     {
-                        lock.unlock();
+                        unlock();
                     }
 
                     try

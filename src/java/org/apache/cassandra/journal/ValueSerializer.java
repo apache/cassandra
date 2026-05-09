@@ -31,4 +31,19 @@ public interface ValueSerializer<K, V>
      * redundant information in values, if it can be derived from keys.
      */
     V deserialize(K key, DataInputPlus in, int userVersion) throws IOException;
+
+    class Unsupported<K, V> implements ValueSerializer<K, V>
+    {
+        @Override
+        public void serialize(K key, V value, DataOutputPlus out, int userVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public V deserialize(K key, DataInputPlus in, int userVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+    }
 }

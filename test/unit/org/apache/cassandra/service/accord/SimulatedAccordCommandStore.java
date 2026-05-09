@@ -94,6 +94,9 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.journal.RangeSearcher;
+import org.apache.cassandra.service.accord.journal.SegmentRangeSearcher;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Generators;
@@ -103,6 +106,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
+import static org.apache.cassandra.service.accord.SimulatedAccordCommandStoreTestBase.emptyNode;
 import static org.apache.cassandra.utils.AccordGenerators.fromQT;
 
 public class SimulatedAccordCommandStore implements AutoCloseable
@@ -457,6 +461,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         TxnId txnId = nextTxnId(txn.kind(), txn.keys().domain());
         PreAccept preAccept = new PreAccept(nodeId, topologies, txnId, txn, null, false, route);
         return Pair.create(txnId, processAsync(preAccept, safe -> {
+            preAccept.unsafeSetNode(emptyNode);
             var reply = preAccept.apply(safe);
             Assertions.assertThat(reply.isOk()).isTrue();
             return (PreAccept.PreAcceptOk) reply;
@@ -496,9 +501,9 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         commandStore.shutdown();
     }
 
-    private static class DefaultJournal extends InMemoryJournal implements JournalRangeSearcher.Supplier
+    private static class DefaultJournal extends InMemoryJournal implements RangeSearcher.Supplier
     {
-        private final JournalSegmentRangeSearcher<?> index = new JournalSegmentRangeSearcher<>();
+        private final SegmentRangeSearcher<?> index = new SegmentRangeSearcher<>();
         private DefaultJournal(Node.Id id, RandomSource rs)
         {
             super(id, rs);
@@ -524,7 +529,7 @@ public class SimulatedAccordCommandStore implements AutoCloseable
         }
 
         @Override
-        public JournalRangeSearcher rangeSearcher()
+        public RangeSearcher rangeSearcher()
         {
             return index;
         }

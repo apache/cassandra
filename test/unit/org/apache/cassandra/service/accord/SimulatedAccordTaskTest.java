@@ -123,6 +123,7 @@ public class SimulatedAccordTaskTest extends SimulatedAccordCommandStoreTestBase
                             @Override
                             public PreAcceptReply applyInternal(SafeCommandStore safeStore)
                             {
+                                unsafeSetNode(emptyNode);
                                 PreAcceptReply result = super.applyInternal(safeStore);
                                 if (action == Action.FAILURE)
                                     throw new SimulatedFault("PreAccept failed for keys " + keys());

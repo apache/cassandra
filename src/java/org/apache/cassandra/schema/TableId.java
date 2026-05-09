@@ -189,8 +189,13 @@ public final class TableId implements Comparable<TableId>
     @Override
     public String toString()
     {
+        return toShortString("tid:");
+    }
+
+    public String toShortString(String prefix)
+    {
         if (msb == MAGIC)
-            return "tid:" + Long.toHexString(lsb);
+            return prefix + Long.toHexString(lsb);
         return asUUID().toString();
     }
 

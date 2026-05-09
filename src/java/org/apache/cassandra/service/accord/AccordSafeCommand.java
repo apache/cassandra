@@ -42,9 +42,9 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         }
 
         @Override
-        public void invalidate()
+        public void markUnsafe()
         {
-            super.invalidate();
+            super.markUnsafe();
             selfRef.release();
         }
 
@@ -54,7 +54,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
         }
     }
 
-    private boolean invalidated;
+    private boolean unsafe;
     private final AccordCacheEntry<TxnId, Command> global;
     private Command original;
     private Command current;
@@ -86,7 +86,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     public String toString()
     {
         return "AccordSafeCommand{" +
-               "invalidated=" + invalidated +
+               "invalidated=" + unsafe +
                ", global=" + global +
                ", original=" + original +
                ", current=" + current +
@@ -138,14 +138,14 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     }
 
     @Override
-    public void invalidate()
+    public void markUnsafe()
     {
-        invalidated = true;
+        unsafe = true;
     }
 
     @Override
-    public boolean invalidated()
+    public boolean isUnsafe()
     {
-        return invalidated;
+        return unsafe;
     }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 
@@ -186,7 +187,7 @@ public class AccordResult<V> extends AsyncFuture<V> implements BiConsumer<V, Thr
             trySuccess((V) RetryWithNewProtocolResult.instance);
             return false;
         }
-        else if (fail instanceof RequestTimeoutException || fail instanceof TimeoutException)
+        else if (fail instanceof RequestTimeoutException || fail instanceof TimeoutException || fail instanceof CancellationException)
         {
             report = bookkeeping.newTimeout(txnId, keysOrRanges);
         }

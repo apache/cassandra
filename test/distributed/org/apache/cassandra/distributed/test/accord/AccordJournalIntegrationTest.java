@@ -47,7 +47,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
     {
         try (WithProperties wp = new WithProperties().set(CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED, "true");
              Cluster cluster = init(Cluster.build(1)
-                                           .withConfig(config -> config.set("accord.catchup_on_start", "false"))
+                                           .withConfig(config -> config.set("accord.catchup_on_start", "DISABLED"))
                                            .withoutVNodes()
                                            .start()))
         {
@@ -96,7 +96,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
     {
         try (Cluster cluster = Cluster.build(1)
                                       .withoutVNodes()
-                                      .withConfig(config -> config.set("accord.catchup_on_start", "false"))
+                                      .withConfig(config -> config.set("accord.catchup_on_start", "DISABLED"))
                                       .start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");
@@ -128,7 +128,7 @@ public class AccordJournalIntegrationTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withConfig(c -> {
                                           c.with(GOSSIP).with(NETWORK);
-                                          c.set("accord.catchup_on_start", "false");
+                                          c.set("accord.catchup_on_start", "DISABLED");
                                       })
                                       .start())
         {

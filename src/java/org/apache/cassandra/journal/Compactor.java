@@ -116,13 +116,17 @@ public final class Compactor<K, V> implements Runnable, Shutdownable
     public void shutdown()
     {
         logger.debug("Shutting down " + executor);
+        if (scheduled != null)
+            scheduled.cancel(false);
         executor.shutdown();
     }
 
     @Override
     public Object shutdownNow()
     {
-        return executor.shutdownNow();
+        // if we call executor.shutdownNow() we can cause ClosedByInterruptException
+        shutdown();
+        return null;
     }
 
     @Override

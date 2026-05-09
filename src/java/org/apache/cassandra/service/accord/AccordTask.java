@@ -90,7 +90,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCO
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.service.accord.AccordTask.State.CANCELLED;
 import static org.apache.cassandra.service.accord.AccordTask.State.FAILED;
-import static org.apache.cassandra.service.accord.AccordTask.State.FAILING;
 import static org.apache.cassandra.service.accord.AccordTask.State.FINISHED;
 import static org.apache.cassandra.service.accord.AccordTask.State.INITIALIZED;
 import static org.apache.cassandra.service.accord.AccordTask.State.LOADING;
@@ -164,10 +163,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         WAITING_TO_RUN(INITIALIZED, SCANNING_RANGES, WAITING_TO_LOAD, LOADING),
         RUNNING(WAITING_TO_RUN),
         PERSISTING(RUNNING),
-        FAILING(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING),
         FINISHED(RUNNING, PERSISTING),
         CANCELLED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN),
-        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING, FAILING);
+        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING);
 
         private final int permittedFrom;
 
@@ -739,46 +737,28 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     public void fail(Throwable throwable)
     {
-        commandStore.agent().onException(throwable);
         if (state.isComplete())
             return;
 
-        if (commandStore.hasSafeStore())
-            commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
-
-        state(FAILING);
-        if (callback != null)
-            callback.accept(null, throwable);
-    }
-
-    public void failExclusive(Throwable throwable)
-    {
-        boolean newFailure = state != FAILING;
         try
         {
-            if (newFailure)
-            {
-                commandStore.agent().onException(throwable);
-                if (state.isComplete())
-                    return;
-
-                if (commandStore.hasSafeStore())
-                    commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
-            }
-
+            commandStore.agent().onException(throwable);
             state(FAILED);
         }
         finally
         {
-            if (newFailure && callback != null)
+            if (callback != null)
                 callback.accept(null, throwable);
         }
     }
 
+    public void failExclusive(Throwable throwable)
+    {
+        fail(throwable);
+    }
+
     protected void cleanupExclusive()
     {
-        if (state == FAILING)
-            state(FAILED);
         Invariants.expect(state.isExecuted());
         releaseResources(commandStore.cachesExclusive());
         if (runningAt != 0)
@@ -815,7 +795,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         if (rangeScanner != null)
             rangeScanner.cancelled = true;
         if (callback != null)
-            callback.accept(null, new CancellationException());
+            commandStore.executor().submit(() -> callback.accept(null, new CancellationException()));
     }
 
     void cancelExclusive(AccordExecutor owner)
@@ -912,7 +892,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         for (AccordSafeState<K, V> safeState : map.values())
         {
-            if (safeState.invalidated()) continue;
+            if (safeState.isUnsafe()) continue;
             try { cache.release(safeState, this); }
             catch (Throwable t) { suppressedBy.addSuppressed(t); }
         }
@@ -922,7 +902,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         for (AccordSafeState<?, ?> safeState : map.values())
         {
-            if (safeState.invalidated()) continue;
+            if (safeState.isUnsafe()) continue;
             try { cache.release(safeState, this); }
             catch (Throwable t) { suppressedBy.addSuppressed(t); }
         }
@@ -1144,7 +1124,8 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void cleanup(Caches caches)
         {
-            loader.cleanupExclusive(caches);
+            if (loader != null)
+                loader.cleanupExclusive(caches);
         }
 
         CommandSummaries finish(Caches caches)

@@ -54,6 +54,7 @@ import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.accord.AccordExecutor;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.EstimatedHistogram;
@@ -61,7 +62,6 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 public class AccordLoadTest extends AccordTestBase
@@ -78,6 +78,7 @@ public class AccordLoadTest extends AccordTestBase
                                                                             .set("accord.shard_durability_target_splits", "8")
                                                                             .set("accord.shard_durability_max_splits", "16")
                                                                             .set("accord.shard_durability_cycle", "1m")
+                                                                            .set("accord.catchup_on_start_fail_latency", "2m")
 //                                                                            .set("accord.ephemeral_read_enabled", "true")
                                                                              ), 3);
     }
@@ -105,21 +106,22 @@ public class AccordLoadTest extends AccordTestBase
 
             ICoordinator coordinator = cluster.coordinator(1);
             final int repairInterval = Integer.MAX_VALUE;
-            final int compactionInterval = 20_000;
+            final int compactionInterval = Integer.MAX_VALUE;
 //            final int flushInterval = 50_000;
-            final int journalFlushInterval = 2_000;
-            final int cfkFlushInterval = 10_000;
-            final int dataFlushInterval = 10_000;
-            final int compactionPeriodSeconds = 0;
-            int restartInterval = 30_000;
+            final int journalFlushInterval = Integer.MAX_VALUE;
+            final int cfkFlushInterval = Integer.MAX_VALUE;
+            final int dataFlushInterval = Integer.MAX_VALUE;
+//            final int compactionPeriodSeconds = 0;
+//            int restartInterval = 30_000;
+            int restartInterval = Integer.MAX_VALUE;
             final int restartDecay = 2;
 //            final int restartInterval = Integer.MAX_VALUE;
             final int batchSizeLimit = 200;
             final long batchTime = TimeUnit.SECONDS.toNanos(10);
-            final int concurrency = 100;
-            final int ratePerSecond = 1000;
+            final int concurrency = 200;
+            final int ratePerSecond = 500;
 //            final int keyCount = 10_000;
-            final int keyCount = 10;
+            final int keyCount = 10_000;
             final float readChance = 0.33f;
             long nextRepairAt = repairInterval;
             long nextCompactionAt = compactionInterval;
@@ -130,12 +132,13 @@ public class AccordLoadTest extends AccordTestBase
             final ExecutorService restartExecutor = Executors.newSingleThreadExecutor();
             final BitSet initialised = new BitSet();
 
+            java.util.concurrent.Future<?> restarting = null;
             cluster.get(1).nodetoolResult("cms", "reconfigure", "3").asserts().success();
-            cluster.forEach(i -> i.runOnInstance(() -> {
-                if (compactionPeriodSeconds > 0)
-                    ((AccordService) AccordService.instance()).journal().compactor().updateCompactionPeriod(1, SECONDS);
+//            cluster.forEach(i -> i.runOnInstance(() -> {
+//                if (compactionPeriodSeconds > 0)
+//                    ((AccordService) AccordService.instance()).journal().compactor().updateCompactionPeriod(1, SECONDS);
 //                  ((AccordSpec.JournalSpec)((AccordService) AccordService.instance()).journal().configuration()).segmentSize = 128 << 10;
-            }));
+//            }));
 
             Random random = new Random();
             final Semaphore inFlight = new Semaphore(concurrency);
@@ -153,29 +156,44 @@ public class AccordLoadTest extends AccordTestBase
                     try
                     {
                         long commandStart = System.nanoTime();
-                        int k = random.nextInt(keyCount);
+                        int k1 = random.nextInt(keyCount);
+                        int k2 = random.nextInt(keyCount);
                         if (random.nextFloat() < readChance)
                         {
                             coordinator.executeWithResult((success, fail) -> {
                                 inFlight.release();
                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
-                            }, "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = ?;", ConsistencyLevel.SERIAL, k);
+                            }, "BEGIN TRANSACTION\n" +
+                               "SELECT * FROM " + qualifiedAccordTableName + " WHERE k IN ?;\n" +
+                               "COMMIT TRANSACTION;", ConsistencyLevel.SERIAL,
+                                                          List.of(k1, k2)
+//                                                          List.of(k1)
+                            );
                         }
-                        else if (initialised.get(k))
+                        else if (initialised.get(k1) && initialised.get(k2))
                         {
                             coordinator.executeWithResult((success, fail) -> {
                                 inFlight.release();
                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
-                            }, "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ? IF EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
+                            }, "BEGIN TRANSACTION\n" +
+                               "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ?;\n" +
+                               "UPDATE " + qualifiedAccordTableName + " SET v += 1 WHERE k = ?;\n" +
+                               "COMMIT TRANSACTION;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k1, k2);
                         }
                         else
                         {
-                            initialised.set(k);
+                            initialised.set(k1);
+                            initialised.set(k2);
                             coordinator.executeWithResult((success, fail) -> {
                                 inFlight.release();
                                 if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
                                 //                             else exceptions.add(fail);
-                            }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k = ? IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k);
+                            }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k = ? IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k1);
+                            coordinator.executeWithResult((success, fail) -> {
+                                inFlight.release();
+                                if (fail == null) histogram.add(NANOSECONDS.toMicros(System.nanoTime() - commandStart));
+                                //                             else exceptions.add(fail);
+                            }, "UPDATE " + qualifiedAccordTableName + " SET v = 0 WHERE k = ? IF NOT EXISTS;", ConsistencyLevel.SERIAL, ConsistencyLevel.QUORUM, k2);
                         }
                     }
                     catch (RejectedExecutionException e)
@@ -223,10 +241,13 @@ public class AccordLoadTest extends AccordTestBase
                     cluster.forEach(i -> {
                         try
                         {
-                            i.runOnInstance(() -> {
-                                if (AccordService.started())
-                                    ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
-                            });
+                            if (!i.isShutdown())
+                            {
+                                i.runOnInstance(() -> {
+                                    if (AccordService.started())
+                                        ((AccordService) AccordService.instance()).journal().closeCurrentSegmentForTestingIfNonEmpty();
+                                });
+                            }
                         }
                         catch (Throwable t)
                         {
@@ -274,29 +295,40 @@ public class AccordLoadTest extends AccordTestBase
 
                 if ((nextRestartAt -= batchSize) <= 0)
                 {
-                    nextRestartAt += restartInterval;
-                    restartInterval = Math.max(restartInterval, restartInterval * restartDecay);
-                    int nodeIdx = 1 + random.nextInt(cluster.size());
-                    restartExecutor.submit(() -> {
-                        System.out.printf("restarting node %d...\n", nodeIdx);
-                        try
-                        {
-                            cluster.get(nodeIdx).shutdown().get();
-                            cluster.get(nodeIdx).startup();
-                            while (!cluster.get(nodeIdx).callOnInstance(() -> AccordService.started()))
-                                Thread.sleep(1000);
-                            return null;
-                        }
-                        catch (InterruptedException | ExecutionException e)
-                        {
-                            throw new RuntimeException(e);
-                        }
-                    });
+                    if (restarting == null || restarting.isDone())
+                    {
+                        if (restarting != null)
+                            restarting.get();
+
+                        nextRestartAt += restartInterval;
+                        int nodeIdx = 1 + random.nextInt(cluster.size());
+                        restarting = restartExecutor.submit(() -> {
+                            System.out.printf("restarting node %d...\n", nodeIdx);
+                            try
+                            {
+                                cluster.get(nodeIdx).shutdown().get();
+                                cluster.get(nodeIdx).startup();
+                                return null;
+                            }
+                            catch (InterruptedException | ExecutionException e)
+                            {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                        if (nodeIdx == coordinator.instance().config().num())
+                            coordinator = cluster.coordinator((nodeIdx % cluster.size()) + 1);
+                    }
                 }
 
                 final Date date = new Date();
                 System.out.printf("%tT rate: %.2f/s (%d total)\n", date, (((float)batchSizeLimit * 1000) / NANOSECONDS.toMillis(System.nanoTime() - batchStart)), batchSize);
                 System.out.printf("%tT percentiles: %d %d %d %d\n", date, histogram.percentile(.25)/1000, histogram.percentile(.5)/1000, histogram.percentile(.75)/1000, histogram.percentile(1)/1000);
+                cluster.forEach(() -> {
+                    String waiting = "";
+                    for (AccordExecutor executor : AccordService.instance().executors())
+                        waiting += executor.unsafeWaitingToRunCount() + " ";
+                    System.out.println(waiting);
+                });
 
                 class VerbCount
                 {
