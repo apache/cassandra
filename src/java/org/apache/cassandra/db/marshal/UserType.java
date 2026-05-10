@@ -237,9 +237,19 @@ public class UserType extends TupleType implements SchemaElement
 
     public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells)
     {
+        return serializeForNativeProtocol(cells, ByteBufferAccessor.instance);
+    }
+
+    public byte[] serializeForNativeProtocolAsByteArrays(Iterator<Cell<?>> cells)
+    {
+        return serializeForNativeProtocol(cells, ByteArrayAccessor.instance);
+    }
+
+    public <V> V serializeForNativeProtocol(Iterator<Cell<?>> cells, ValueAccessor<V> accessor)
+    {
         assert isMultiCell;
 
-        List<ByteBuffer> components = new ArrayList<>(size());
+        List<V> components = new ArrayList<>(size());
         while (cells.hasNext())
         {
             Cell<?> cell = cells.next();
@@ -249,14 +259,19 @@ public class UserType extends TupleType implements SchemaElement
             while (components.size() < fieldPositionOfCell)
                 components.add(null);
 
-            components.add(cell.buffer());
+            components.add(getValue(cell, accessor));
         }
 
         // append trailing nulls for missing cells
         while (components.size() < size())
             components.add(null);
 
-        return pack(components);
+        return pack(components, accessor);
+    }
+
+    private static <V1, V2> V2 getValue(Cell<V1> cell, ValueAccessor<V2> targetAccessor)
+    {
+        return targetAccessor.convert(cell.value(), cell.accessor());
     }
 
     public <V> void validateCell(Cell<V> cell) throws MarshalException

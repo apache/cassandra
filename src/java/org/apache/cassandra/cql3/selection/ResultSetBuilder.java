@@ -75,12 +75,12 @@ public final class ResultSetBuilder
         selectors.prepare(context);
     }
 
-    private void addSize(List<ByteBuffer> row)
+    private void addSize(List<byte[]> row)
     {
         for (int i=0, isize=row.size(); i<isize; i++)
         {
-            ByteBuffer value = row.get(i);
-            size += value != null ? value.remaining() : 0;
+            byte[] value = row.get(i);
+            size += value != null ? value.length : 0;
         }
     }
 
@@ -105,6 +105,11 @@ public final class ResultSetBuilder
     }
 
     public void add(ByteBuffer v)
+    {
+        inputRow.add(v);
+    }
+
+    public void add(byte[] v)
     {
         inputRow.add(v);
     }
@@ -172,9 +177,9 @@ public final class ResultSetBuilder
         return resultSet;
     }
 
-    private List<ByteBuffer> getOutputRow()
+    private List<byte[]> getOutputRow()
     {
-        List<ByteBuffer> row = selectors.getOutputRow();
+        List<byte[]> row = selectors.getOutputRow();
         addSize(row);
         return row;
     }

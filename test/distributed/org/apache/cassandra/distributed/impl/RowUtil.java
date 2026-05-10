@@ -31,9 +31,11 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class RowUtil
 {
@@ -79,24 +81,26 @@ public class RowUtil
         return toObjects(rows.result.metadata.requestNames(), rows.result.rows, deserialize);
     }
 
-    public static Object[][] toObjects(List<ColumnSpecification> specs, List<List<ByteBuffer>> rows)
+    public static Object[][] toObjects(List<ColumnSpecification> specs, List<List<byte[]>> rows)
     {
         return toObjects(specs, rows, true);
     }
 
-    public static Object[][] toObjects(List<ColumnSpecification> specs, List<List<ByteBuffer>> rows, boolean deserialize)
+    public static Object[][] toObjects(List<ColumnSpecification> specs, List<List<byte[]>> rows, boolean deserialize)
     {
         Object[][] result = new Object[rows.size()][];
         for (int i = 0; i < rows.size(); i++)
         {
-            List<ByteBuffer> row = rows.get(i);
+            List<byte[]> row = rows.get(i);
             result[i] = new Object[specs.size()];
             for (int j = 0; j < specs.size(); j++)
             {
-                ByteBuffer bb = row.get(j);
+                byte[] bytes = row.get(j);
 
-                if (bb != null)
-                    result[i][j] = deserialize ? specs.get(j).type.getSerializer().deserialize(bb) : bb;
+                if (bytes != null)
+                {
+                    result[i][j] = deserialize ? specs.get(j).type.getSerializer().deserialize(bytes, ByteArrayAccessor.instance) : ByteBuffer.wrap(bytes);
+                }
             }
         }
         return result;
@@ -149,20 +153,21 @@ public class RowUtil
 
     public static Iterator<Object[]> toIter(List<ColumnSpecification> columnSpecs, Iterator<UntypedResultSet.Row> rs)
     {
-        Iterator<List<ByteBuffer>> iter = Iterators.transform(rs,
-                                                              (row) -> {
-                                                                  List<ByteBuffer> bbs = new ArrayList<>(columnSpecs.size());
-                                                                  for (int i = 0; i < columnSpecs.size(); i++)
-                                                                  {
-                                                                      ColumnSpecification columnSpec = columnSpecs.get(i);
-                                                                      bbs.add(row.getBytes(columnSpec.name.toString()));
-                                                                  }
-                                                                  return bbs;
-                                                              });
+        Iterator<List<byte[]>> iter = Iterators.transform(rs,
+                                                          (row) -> {
+                                                              List<byte[]> bbs = new ArrayList<>(columnSpecs.size());
+                                                              for (int i = 0; i < columnSpecs.size(); i++)
+                                                              {
+                                                                  ColumnSpecification columnSpec = columnSpecs.get(i);
+                                                                  ByteBuffer bb = row.getBytes(columnSpec.name.toString());
+                                                                  bbs.add(ByteBufferUtil.getArrayUnsafeNullable(bb));
+                                                              }
+                                                              return bbs;
+                                                          });
         return toIterInternal(columnSpecs, Lists.newArrayList(iter));
     }
 
-    private static Iterator<Object[]> toIterInternal(List<ColumnSpecification> columnSpecs, List<List<ByteBuffer>> rs)
+    private static Iterator<Object[]> toIterInternal(List<ColumnSpecification> columnSpecs, List<List<byte[]>> rs)
     {
         return Iterators.transform(rs.iterator(),
                                    (row) -> {
@@ -170,10 +175,10 @@ public class RowUtil
                                        for (int i = 0; i < columnSpecs.size(); i++)
                                        {
                                            ColumnSpecification columnSpec = columnSpecs.get(i);
-                                           ByteBuffer bb = row.get(i);
+                                           byte[] bytes = row.get(i);
 
-                                           if (bb != null)
-                                               objectRow[i] = columnSpec.type.getSerializer().deserialize(bb);
+                                           if (bytes != null)
+                                               objectRow[i] = columnSpec.type.getSerializer().deserialize(bytes, ByteArrayAccessor.instance);
 
                                        }
                                        return objectRow;

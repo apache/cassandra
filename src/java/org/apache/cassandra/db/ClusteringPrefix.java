@@ -313,6 +313,11 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
         return accessor().toBuffer(get(i));
     }
 
+    default byte[] arrayAt(int i)
+    {
+        return accessor().toArray(get(i));
+    }
+
     default String stringAt(int i, ClusteringComparator comparator)
     {
         return comparator.subtype(i).getString(get(i), accessor());
