@@ -771,7 +771,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         boolean success = partition == null;
 
         ResultSet.ResultMetadata metadata = buildCASSuccessMetadata(ksName, tableName);
-        List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
+        List<List<byte[]>> rows = Collections.singletonList(
+            Collections.singletonList(
+                ByteBufferUtil.getArrayUnsafeNullable(BooleanType.instance.decompose(success))
+            )
+        );
 
         ResultSet rs = new ResultSet(metadata, rows);
         return success ? rs : merge(rs, buildCasFailureResultSet(partition, columnsWithConditions, isBatch, options, options.getNowInSeconds(state)));
@@ -789,10 +793,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         List<ColumnSpecification> specs = new ArrayList<>(size);
         specs.addAll(left.metadata.names);
         specs.addAll(right.metadata.names);
-        List<List<ByteBuffer>> rows = new ArrayList<>(right.size());
+        List<List<byte[]>> rows = new ArrayList<>(right.size());
         for (int i = 0; i < right.size(); i++)
         {
-            List<ByteBuffer> row = new ArrayList<>(size);
+            List<byte[]> row = new ArrayList<>(size);
             row.addAll(left.rows.get(0));
             row.addAll(right.rows.get(i));
             rows.add(row);

@@ -617,8 +617,8 @@ public class PreparedStatementsTest extends CQLTester
                      rows.result.metadata.names.stream().map(cs -> cs.name.toString()).collect(Collectors.toList()));
         assertEquals(1,
                      rows.result.size());
-        assertEquals(expectedRow,
-                     rows.result.rows.get(0));
+        assertEqualRows(expectedRow,
+                        rows.result.rows.get(0));
 
         if (resultFlags.contains(org.apache.cassandra.cql3.ResultSet.Flag.METADATA_CHANGED))
             prepSelect = prepSelect.withResultMetadata(rows.result.metadata);
@@ -644,8 +644,8 @@ public class PreparedStatementsTest extends CQLTester
                      rows.result.metadata.names.stream().map(cs -> cs.name.toString()).collect(Collectors.toList()));
         assertEquals(1,
                      rows.result.size());
-        assertEquals(expectedRow,
-                     rows.result.rows.get(0));
+        assertEqualRows(expectedRow,
+                        rows.result.rows.get(0));
     }
 
     @Test
@@ -783,6 +783,15 @@ public class PreparedStatementsTest extends CQLTester
     public void testPrepareWithAccordCurrent()
     {
         testPrepareWithAccord(ProtocolVersion.CURRENT);
+    }
+
+    private static void assertEqualRows(List<ByteBuffer> expectedRow, List<byte[]> actualRow)
+    {
+        assertEquals(expectedRow.size(), actualRow.size());
+
+        for (int i = 0; i < expectedRow.size(); i++) {
+            assertEquals(expectedRow.get(i), actualRow.get(i) != null ? ByteBuffer.wrap(actualRow.get(i)) : null);
+        }
     }
 
     private void testPrepareWithAccord(ProtocolVersion version)

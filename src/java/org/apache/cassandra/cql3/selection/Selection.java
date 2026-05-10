@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,11 +39,13 @@ import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.InputRow;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.JsonUtils;
 
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
@@ -319,22 +320,22 @@ public abstract class Selection
                           .toString();
     }
 
-    private static List<ByteBuffer> rowToJson(List<ByteBuffer> row,
-                                              ProtocolVersion protocolVersion,
-                                              ResultSet.ResultMetadata metadata,
-                                              List<ColumnMetadata> orderingColumns)
+    private static List<byte[]> rowToJson(List<byte[]> row,
+                                          ProtocolVersion protocolVersion,
+                                          ResultSet.ResultMetadata metadata,
+                                          List<ColumnMetadata> orderingColumns)
     {
-        ByteBuffer[] jsonRow = new ByteBuffer[orderingColumns.size() + 1];
+        byte[][] jsonRow = new byte[orderingColumns.size() + 1][];
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < metadata.names.size(); i++)
         {
             ColumnSpecification spec = metadata.names.get(i);
-            ByteBuffer buffer = row.get(i);
+            byte[] value = row.get(i);
 
             // If it is an ordering column we need to keep it in case we need it for post ordering
             int index = orderingColumns.indexOf(spec);
             if (index >= 0)
-                jsonRow[index + 1] = buffer;
+                jsonRow[index + 1] = value;
 
             // If the column is only used for ordering we can stop here.
             if (i >= metadata.getColumnCount())
@@ -350,14 +351,14 @@ public abstract class Selection
             sb.append('"');
             sb.append(JsonUtils.quoteAsJsonString(columnName));
             sb.append("\": ");
-            if (buffer == null)
+            if (value == null)
                 sb.append("null");
             else
-                sb.append(spec.type.toJSONString(buffer, protocolVersion));
+                sb.append(spec.type.toJSONString(value, ByteArrayAccessor.instance, protocolVersion));
         }
         sb.append("}");
 
-        jsonRow[0] = UTF8Type.instance.getSerializer().serialize(sb.toString());
+        jsonRow[0] = ByteBufferUtil.getArrayUnsafeNullable(UTF8Type.instance.getSerializer().serialize(sb.toString()));
         return Arrays.asList(jsonRow);
     }
 
@@ -403,14 +404,14 @@ public abstract class Selection
          */
         void addInputRow(InputRow input);
 
-        List<ByteBuffer> getOutputRow();
+        List<byte[]> getOutputRow();
 
         void reset();
     }
 
     public static class SimpleSelectors implements Selectors
     {
-        protected List<ByteBuffer> current;
+        protected List<byte[]> current;
 
         @Override
         public void addInputRow(InputRow input)
@@ -419,7 +420,7 @@ public abstract class Selection
         }
 
         @Override
-        public List<ByteBuffer> getOutputRow()
+        public List<byte[]> getOutputRow()
         {
             return current;
         }
@@ -503,7 +504,7 @@ public abstract class Selection
             return new SimpleSelectors()
             {
                 @Override
-                public List<ByteBuffer> getOutputRow()
+                public List<byte[]> getOutputRow()
                 {
                     if (isJson)
                         return rowToJson(current, options.getProtocolVersion(), metadata, orderingColumns);
@@ -594,12 +595,12 @@ public abstract class Selection
                     return true;
                 }
 
-                public List<ByteBuffer> getOutputRow()
+                public List<byte[]> getOutputRow()
                 {
-                    List<ByteBuffer> outputRow = new ArrayList<>(selectors.size());
+                    List<byte[]> outputRow = new ArrayList<>(selectors.size());
 
                     for (Selector selector: selectors)
-                        outputRow.add(selector.getOutput(options.getProtocolVersion()));
+                        outputRow.add(selector.getOutputAsBytes(options.getProtocolVersion()));
 
                     return isJson ? rowToJson(outputRow, options.getProtocolVersion(), metadata, orderingColumns) : outputRow;
                 }

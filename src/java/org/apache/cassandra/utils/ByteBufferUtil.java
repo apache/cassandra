@@ -45,6 +45,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import net.nicoulaj.compilecommand.annotations.Inline;
 
@@ -224,6 +226,14 @@ public class ByteBufferUtil
      */
     public static byte[] getArrayUnsafe(ByteBuffer buffer)
     {
+        return getArrayUnsafe(buffer, buffer.position(), buffer.remaining());
+    }
+
+    @Nullable
+    public static byte[] getArrayUnsafeNullable(ByteBuffer buffer)
+    {
+        if (buffer == null)
+            return null;
         return getArrayUnsafe(buffer, buffer.position(), buffer.remaining());
     }
 

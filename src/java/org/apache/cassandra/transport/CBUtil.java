@@ -458,6 +458,15 @@ public abstract class CBUtil
         return ByteBuffer.wrap(readRawBytes(cb, length));
     }
 
+    public static byte[] readValueAsBytes(ByteBuf cb)
+    {
+        int length = cb.readInt();
+        if (length < 0)
+            return null;
+
+        return readRawBytes(cb, length);
+    }
+
     public static ByteBuffer readValueNoCopy(ByteBuf cb)
     {
         int length = cb.readInt();

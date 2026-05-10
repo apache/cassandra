@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.db.guardrails;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.After;
 import org.junit.Ignore;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -92,10 +92,10 @@ public abstract class AbstractGenerationalTest extends GuardrailTester
         assertEquals(1, rows.result.metadata.names.size());
         assertEquals(UTF8Type.instance.asCQL3Type(), rows.result.metadata.names.get(0).type.asCQL3Type());
         assertEquals(columnName, rows.result.metadata.names.get(0).name.toString());
-        List<ByteBuffer> byteBuffer = rows.result.rows.get(0);
-        assertNotNull(byteBuffer);
-        assertEquals(1, byteBuffer.size());
-        return UTF8Type.instance.getSerializer().deserialize(byteBuffer.get(0));
+        List<byte[]> byteArrayRow = rows.result.rows.get(0);
+        assertNotNull(byteArrayRow);
+        assertEquals(1, byteArrayRow.size());
+        return UTF8Type.instance.getSerializer().deserialize(byteArrayRow.get(0), ByteArrayAccessor.instance);
     }
 
     protected Pair<String, String> extractPasswordAndRoleName(ResultMessage resultMessage)
@@ -112,11 +112,11 @@ public abstract class AbstractGenerationalTest extends GuardrailTester
         assertEquals(UTF8Type.instance.asCQL3Type(), rows.result.metadata.names.get(1).type.asCQL3Type());
         assertEquals("generated_password", rows.result.metadata.names.get(0).name.toString());
         assertEquals("generated_role_name", rows.result.metadata.names.get(1).name.toString());
-        List<ByteBuffer> row = rows.result.rows.get(0);
+        List<byte[]> row = rows.result.rows.get(0);
         assertNotNull(row);
         assertEquals(2, row.size());
-        String password = UTF8Type.instance.getSerializer().deserialize(row.get(0));
-        String roleName = UTF8Type.instance.getSerializer().deserialize(row.get(1));
+        String password = UTF8Type.instance.getSerializer().deserialize(row.get(0), ByteArrayAccessor.instance);
+        String roleName = UTF8Type.instance.getSerializer().deserialize(row.get(1), ByteArrayAccessor.instance);
         return Pair.create(password, roleName);
     }
 }

@@ -46,6 +46,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -312,7 +313,7 @@ public abstract class Selector
         private final boolean collectWritetimes;
         private final boolean collectTTLs;
 
-        private ByteBuffer[] values;
+        private byte[][] values;
         private RowTimestamps writetimes;
         private RowTimestamps ttls;
         private int index;
@@ -334,7 +335,7 @@ public abstract class Selector
             this.collectWritetimes = collectWritetimes;
             this.collectTTLs = collectTTLs;
 
-            values = new ByteBuffer[columns.size()];
+            values = new byte[columns.size()][];
             writetimes = initTimestamps(TimestampsType.WRITETIMES, collectWritetimes, columns);
             ttls = initTimestamps(TimestampsType.TTLS, collectTTLs, columns);
         }
@@ -359,6 +360,18 @@ public abstract class Selector
 
         public void add(ByteBuffer v)
         {
+            values[index] = ByteBufferUtil.getArrayUnsafeNullable(v);
+
+            if (v != null)
+            {
+                writetimes.addNoTimestamp(index);
+                ttls.addNoTimestamp(index);
+            }
+            index++;
+        }
+
+        public void add(byte[] v)
+        {
             values[index] = v;
 
             if (v != null)
@@ -374,7 +387,7 @@ public abstract class Selector
             ColumnMetadata column = columns.get(index);
             if (columnData == null)
             {
-                add(null);
+                add((byte[]) null);
             }
             else
             {
@@ -391,7 +404,7 @@ public abstract class Selector
 
         private void add(Cell<?> c, long nowInSec)
         {
-            values[index] = value(c);
+            values[index] = valueAsArray(c);
             writetimes.addTimestamp(index, c, nowInSec);
             ttls.addTimestamp(index, c, nowInSec);
             index++;
@@ -402,7 +415,7 @@ public abstract class Selector
             AbstractType<?> type = columns.get(index).type;
             if (type.isCollection())
             {
-                values[index] = ((CollectionType<?>) type).serializeForNativeProtocol(ccd.iterator());
+                values[index] = ((CollectionType<?>) type).serializeForNativeProtocolAsByteArrays(ccd.iterator());
 
                 for (Cell<?> cell : ccd)
                 {
@@ -415,7 +428,7 @@ public abstract class Selector
                 UserType udt = (UserType) type;
                 int size = udt.size();
 
-                values[index] = udt.serializeForNativeProtocol(ccd.iterator());
+                values[index] = udt.serializeForNativeProtocolAsByteArrays(ccd.iterator());
 
                 short fieldPosition = 0;
                 for (Cell<?> cell : ccd)
@@ -445,11 +458,11 @@ public abstract class Selector
             index++;
         }
 
-        private <V> ByteBuffer value(Cell<V> c)
+        private <V> byte[] valueAsArray(Cell<V> c)
         {
             return c.isCounterCell()
-                 ? ByteBufferUtil.bytes(CounterContext.instance().total(c.value(), c.accessor()))
-                 : c.buffer();
+                 ? ByteArrayUtil.bytes(CounterContext.instance().total(c.value(), c.accessor()))
+                 : c.accessor().toArray(c.value());
         }
 
         /**
@@ -459,6 +472,12 @@ public abstract class Selector
          * @return the value of the column with the specified index
          */
         public ByteBuffer getValue(int index)
+        {
+            byte[] v = values[index];
+            return v == null ? null : ByteBuffer.wrap(v);
+        }
+
+        public byte[] getValueAsBytes(int index)
         {
             return values[index];
         }
@@ -478,7 +497,7 @@ public abstract class Selector
             this.ttls = initTimestamps(TimestampsType.TTLS, collectTTLs, columns);
 
             if (deep)
-                values = new ByteBuffer[values.length];
+                values = new byte[values.length][];
         }
 
         /**
@@ -508,7 +527,7 @@ public abstract class Selector
          *
          * @return the column values as list.
          */
-        public List<ByteBuffer> getValues()
+        public List<byte[]> getValues()
         {
             return Arrays.asList(values);
         }
@@ -530,6 +549,19 @@ public abstract class Selector
      * @throws InvalidRequestException if a problem occurs while computing the output value
      */
     public abstract ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException;
+
+    /**
+     * Returns the selector output as a byte array.
+     *
+     * @param protocolVersion protocol version used for serialization
+     * @return the selector output as byte[], or null
+     * @throws InvalidRequestException if a problem occurs while computing the output value
+     */
+    public byte[] getOutputAsBytes(ProtocolVersion protocolVersion) throws InvalidRequestException
+    {
+        ByteBuffer output = getOutput(protocolVersion);
+        return ByteBufferUtil.getArrayUnsafeNullable(output);
+    }
 
     protected ColumnTimestamps getWritetimes(ProtocolVersion protocolVersion)
     {

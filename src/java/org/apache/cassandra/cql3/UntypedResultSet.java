@@ -130,7 +130,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             return new AbstractIterator<Row>()
             {
-                final Iterator<List<ByteBuffer>> iter = cqlRows.rows.iterator();
+                final Iterator<List<byte[]>> iter = cqlRows.rows.iterator();
 
                 protected Row computeNext()
                 {
@@ -176,7 +176,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             return new AbstractIterator<Row>()
             {
-                private Iterator<List<ByteBuffer>> currentPage;
+                private Iterator<List<byte[]>> currentPage;
 
                 protected Row computeNext()
                 {
@@ -242,7 +242,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             return new AbstractIterator<Row>()
             {
-                private Iterator<List<ByteBuffer>> currentPage;
+                private Iterator<List<byte[]>> currentPage;
 
                 protected Row computeNext()
                 {
@@ -275,11 +275,27 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         @Nonnull
         private final List<ColumnSpecification> columns;
 
-        public Row(@Nonnull List<ColumnSpecification> names, @Nonnull List<ByteBuffer> columns)
+        public Row(@Nonnull List<ColumnSpecification> names, @Nonnull List<byte[]> columns)
         {
             this.columns = ImmutableList.copyOf(names);
             for (int i = 0; i < names.size(); i++)
-                data.put(names.get(i).name.toString(), columns.get(i));
+            {
+                byte[] v = columns.get(i);
+                data.put(names.get(i).name.toString(), v == null ? null : ByteBuffer.wrap(v));
+            }
+        }
+
+        public static Row fromByteBuffers(@Nonnull List<ColumnSpecification> names, @Nonnull List<ByteBuffer> columns)
+        {
+            Row row = new Row(names);
+            for (int i = 0; i < names.size(); i++)
+                row.data.put(names.get(i).name.toString(), columns.get(i));
+            return row;
+        }
+
+        private Row(@Nonnull List<ColumnSpecification> names)
+        {
+            this.columns = ImmutableList.copyOf(names);
         }
 
         public boolean has(String column)

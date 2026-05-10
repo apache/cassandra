@@ -434,10 +434,13 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                     ByteBuffer[][] r = new ByteBuffer[rows.result.size()][];
                     for (int i = 0 ; i < r.length ; i++)
                     {
-                        List<ByteBuffer> row = rows.result.rows.get(i);
+                        List<byte[]> row = rows.result.rows.get(i);
                         r[i] = new ByteBuffer[row.size()];
                         for (int j = 0 ; j < row.size() ; j++)
-                            r[i][j] = row.get(j);
+                        {
+                            byte[] v = row.get(j);
+                            r[i][j] = v == null ? null : ByteBuffer.wrap(v);
+                        }
                     }
                     return r;
                 }
@@ -484,7 +487,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                         ResultMessage.Rows rows = ((ResultMessage.Rows) result);
                         byte[][] r = new byte[rows.result.size()][];
                         for (int i = 0 ; i < r.length ; i++)
-                            r[i] = rows.result.rows.get(i).get(0).array();
+                            r[i] = rows.result.rows.get(i).get(0);
                         return r;
                     }
                     return null;

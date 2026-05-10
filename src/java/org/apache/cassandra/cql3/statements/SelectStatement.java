@@ -99,6 +99,8 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -131,6 +133,7 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -191,7 +194,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     /**
      * The comparator used to orders results when multiple keys are selected (using IN).
      */
-    private final ColumnComparator<List<ByteBuffer>> orderingComparator;
+    private final ColumnComparator<List<byte[]>> orderingComparator;
 
     private final List<Function> functions;
 
@@ -211,7 +214,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                            StatementRestrictions restrictions,
                            boolean isReversed,
                            AggregationSpecification.Factory aggregationSpecFactory,
-                           ColumnComparator<List<ByteBuffer>> orderingComparator,
+                           ColumnComparator<List<byte[]>> orderingComparator,
                            Term limit,
                            Term perPartitionLimit,
                            StatementSource source,
@@ -1101,19 +1104,18 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         return cqlRows;
     }
 
-    public static ByteBuffer[] getComponents(TableMetadata metadata, DecoratedKey dk)
+    private static byte[][] getPartitionKeyComponentsAsBytes(TableMetadata metadata, DecoratedKey dk)
     {
         ByteBuffer key = dk.getKey();
-        if (metadata.partitionKeyColumns().size() == 1)
-            return new ByteBuffer[]{ key };
-        if (metadata.partitionKeyType instanceof CompositeType)
+        if (metadata.partitionKeyColumns().size() != 1 && metadata.partitionKeyType instanceof CompositeType)
         {
-            return ((CompositeType)metadata.partitionKeyType).split(key);
+            ByteBuffer[] components = ((CompositeType) metadata.partitionKeyType).split(key);
+            byte[][] result = new byte[components.length][];
+            for (int i = 0; i < components.length; i++)
+                result[i] = ByteBufferUtil.getArrayUnsafeNullable(components[i]);
+            return result;
         }
-        else
-        {
-            return new ByteBuffer[]{ key };
-        }
+        return new byte[][]{ ByteBufferUtil.getArrayUnsafeNullable(key) };
     }
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
@@ -1172,7 +1174,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         maybeFail(result, options);
         ProtocolVersion protocolVersion = options.getProtocolVersion();
 
-        ByteBuffer[] keyComponents = getComponents(table, partition.partitionKey());
+        byte[][] keyComponents = getPartitionKeyComponentsAsBytes(table, partition.partitionKey());
 
         Row staticRow = partition.staticRow();
         // If there is no rows, we include the static content if we should and we're done.
@@ -1193,7 +1195,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                             result.add(partition.staticRow().getColumnData(def), nowInSec);
                             break;
                         default:
-                            result.add((ByteBuffer)null);
+                            result.add((byte[])null);
                     }
                 }
             }
@@ -1220,7 +1222,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                         result.add(keyComponents[def.position()]);
                         break;
                     case CLUSTERING:
-                        result.add(row.clustering().bufferAt(def.position()));
+                        result.add(row.clustering().arrayAt(def.position()));
                         break;
                     case REGULAR:
                         result.add(row.getColumnData(def), nowInSec);
@@ -1254,7 +1256,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;
 
-        Comparator<List<ByteBuffer>> comparator = orderingComparator.prepareFor(table, getRowFilter(options, state), options);
+        Comparator<List<byte[]>> comparator = orderingComparator.prepareFor(table, getRowFilter(options, state), options);
         if (comparator != null)
             cqlRows.rows.sort(comparator);
     }
@@ -1360,7 +1362,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                        && perPartitionLimit != null,
                        "PER PARTITION LIMIT is not allowed with aggregate queries.");
 
-            ColumnComparator<List<ByteBuffer>> orderingComparator = null;
+            ColumnComparator<List<byte[]>> orderingComparator = null;
             boolean isReversed = false;
 
             if (!orderingColumns.isEmpty())
@@ -1647,9 +1649,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             checkFalse(f.isAggregate(), "Aggregate functions are not supported within the GROUP BY clause, got: %s", f.name());
         }
 
-        private ColumnComparator<List<ByteBuffer>> getOrderingComparator(Selection selection,
-                                                                         StatementRestrictions restrictions,
-                                                                         Map<ColumnMetadata, Ordering> orderingColumns) throws InvalidRequestException
+        private ColumnComparator<List<byte[]>> getOrderingComparator(Selection selection,
+                                                                     StatementRestrictions restrictions,
+                                                                     Map<ColumnMetadata, Ordering> orderingColumns) throws InvalidRequestException
         {
             for (Map.Entry<ColumnMetadata, Ordering> e : orderingColumns.entrySet())
             {
@@ -1664,7 +1666,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                 return null;
 
             List<Integer> idToSort = new ArrayList<>(orderingColumns.size());
-            List<Comparator<ByteBuffer>> sorters = new ArrayList<>(orderingColumns.size());
+            List<AbstractType<?>> sorters = new ArrayList<>(orderingColumns.size());
 
             for (ColumnMetadata orderingColumn : orderingColumns.keySet())
             {
@@ -1790,12 +1792,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
 
     private static abstract class ColumnComparator<T> implements Comparator<T>
     {
-        protected final int compare(Comparator<ByteBuffer> comparator, ByteBuffer aValue, ByteBuffer bValue)
+        protected final int compare(AbstractType<?> type, byte[] aValue, byte[] bValue)
         {
             if (aValue == null)
                 return bValue == null ? 0 : -1;
 
-            return bValue == null ? 1 : comparator.compare(aValue, bValue);
+            return bValue == null ? 1 : type.compare(aValue, ByteArrayAccessor.instance, bValue, ByteArrayAccessor.instance);
         }
 
         public ColumnComparator<T> reverse()
@@ -1839,24 +1841,24 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     /**
      * Used in orderResults(...) method when single 'ORDER BY' condition where given
      */
-    private static class SingleColumnComparator extends ColumnComparator<List<ByteBuffer>>
+    private static class SingleColumnComparator extends ColumnComparator<List<byte[]>>
     {
         private final int index;
-        private final Comparator<ByteBuffer> comparator;
+        private final AbstractType<?> comparator;
 
-        public SingleColumnComparator(int columnIndex, Comparator<ByteBuffer> orderer)
+        public SingleColumnComparator(int columnIndex, AbstractType<?> orderer)
         {
             index = columnIndex;
             comparator = orderer;
         }
 
-        public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
+        public int compare(List<byte[]> a, List<byte[]> b)
         {
             return compare(comparator, a.get(index), b.get(index));
         }
     }
 
-    private static class IndexColumnComparator extends ColumnComparator<List<ByteBuffer>>
+    private static class IndexColumnComparator extends ColumnComparator<List<byte[]>>
     {
         private final SingleRestriction restriction;
         private final int columnIndex;
@@ -1874,7 +1876,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         }
 
         @Override
-        public Comparator<List<ByteBuffer>> prepareFor(TableMetadata table, RowFilter rowFilter, QueryOptions options)
+        public Comparator<List<byte[]>> prepareFor(TableMetadata table, RowFilter rowFilter, QueryOptions options)
         {
             if (table.indexes.isEmpty() || rowFilter.isEmpty())
                 return this;
@@ -1885,11 +1887,19 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             Index index = restriction.findSupportingIndex(indexQueryPlan.getIndexes(), IndexHints.NONE);
             assert index != null;
             Comparator<ByteBuffer> comparator = index.getPostQueryOrdering(restriction, options);
-            return (a, b) -> compare(comparator, a.get(columnIndex), b.get(columnIndex));
+            return (a, b) -> {
+                byte[] aVal = a.get(columnIndex);
+                byte[] bVal = b.get(columnIndex);
+                if (aVal == null)
+                    return bVal == null ? 0 : -1;
+                if (bVal == null)
+                    return 1;
+                return comparator.compare(ByteBuffer.wrap(aVal), ByteBuffer.wrap(bVal));
+            };
         }
 
         @Override
-        public int compare(List<ByteBuffer> o1, List<ByteBuffer> o2)
+        public int compare(List<byte[]> o1, List<byte[]> o2)
         {
             throw new UnsupportedOperationException();
         }
@@ -1898,22 +1908,22 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     /**
      * Used in orderResults(...) method when multiple 'ORDER BY' conditions where given
      */
-    private static class CompositeComparator extends ColumnComparator<List<ByteBuffer>>
+    private static class CompositeComparator extends ColumnComparator<List<byte[]>>
     {
-        private final List<Comparator<ByteBuffer>> orderTypes;
+        private final List<AbstractType<?>> orderTypes;
         private final List<Integer> positions;
 
-        private CompositeComparator(List<Comparator<ByteBuffer>> orderTypes, List<Integer> positions)
+        private CompositeComparator(List<AbstractType<?>> orderTypes, List<Integer> positions)
         {
             this.orderTypes = orderTypes;
             this.positions = positions;
         }
 
-        public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
+        public int compare(List<byte[]> a, List<byte[]> b)
         {
             for (int i = 0; i < positions.size(); i++)
             {
-                Comparator<ByteBuffer> type = orderTypes.get(i);
+                AbstractType<?> type = orderTypes.get(i);
                 int columnPos = positions.get(i);
 
                 int comparison = compare(type, a.get(columnPos), b.get(columnPos));

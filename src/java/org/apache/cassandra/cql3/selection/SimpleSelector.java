@@ -124,7 +124,7 @@ public final class SimpleSelector extends Selector
     public final ColumnMetadata column;
     private final int idx;
     private ColumnMask.Masker masker;
-    private ByteBuffer current;
+    private byte[] currentBytes;
     private ColumnTimestamps writetimes;
     private ColumnTimestamps ttls;
     private boolean isSet;
@@ -155,16 +155,23 @@ public final class SimpleSelector extends Selector
             - The input row is for a user with UNMASK permission, indicated by input.unmask()
             - Dynamic data masking is globally disabled
              */
-            ByteBuffer value = input.getValue(idx);
-            current = masker == null || input.unmask() || !DatabaseDescriptor.getDynamicDataMaskingEnabled()
-                      ? value : masker.mask(value);
+            if (masker == null || input.unmask() || !DatabaseDescriptor.getDynamicDataMaskingEnabled())
+                currentBytes = input.getValueAsBytes(idx);
+            else
+                currentBytes = ByteBufferUtil.getArrayUnsafeNullable(masker.mask(input.getValue(idx)));
         }
     }
 
     @Override
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
-        return current;
+        return currentBytes == null ? null : ByteBuffer.wrap(currentBytes);
+    }
+
+    @Override
+    public byte[] getOutputAsBytes(ProtocolVersion protocolVersion)
+    {
+        return currentBytes;
     }
 
     @Override
@@ -183,7 +190,7 @@ public final class SimpleSelector extends Selector
     public void reset()
     {
         isSet = false;
-        current = null;
+        currentBytes = null;
         writetimes = null;
         ttls = null;
     }
