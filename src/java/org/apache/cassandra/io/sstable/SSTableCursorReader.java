@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DeletionTime;
@@ -197,15 +198,20 @@ public class SSTableCursorReader implements AutoCloseable
     {
         TableMetadata metadata = Util.metadataFromSSTable(desc);
         SSTableReader reader = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
-        return new SSTableCursorReader(reader, metadata, reader.ref());
+        return new SSTableCursorReader(reader, metadata, reader.ref(), null);
     }
 
     public SSTableCursorReader(SSTableReader reader)
     {
-        this(reader, reader.metadata(), null);
+        this(reader, reader.metadata(), null, null);
     }
 
-    private SSTableCursorReader(SSTableReader reader, TableMetadata metadata, Ref<SSTableReader> readerRef)
+    public SSTableCursorReader(SSTableReader reader, DiskAccessMode diskAccessMode)
+    {
+        this(reader, reader.metadata(), null, diskAccessMode);
+    }
+
+    private SSTableCursorReader(SSTableReader reader, TableMetadata metadata, Ref<SSTableReader> readerRef, DiskAccessMode diskAccessMode)
     {
         ssTableReader = reader;
         ssTableReaderRef = readerRef;
@@ -221,7 +227,7 @@ public class SSTableCursorReader implements AutoCloseable
         deserializationHelper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL, null);
         serializationHeader = reader.header;
 
-        dataReader = reader.openDataReader();
+        dataReader = reader.openDataReaderForScan(diskAccessMode);
         hasStaticColumns = metadata.hasStaticColumns();
     }
 

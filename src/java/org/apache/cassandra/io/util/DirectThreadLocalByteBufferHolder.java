@@ -70,10 +70,8 @@ public final class DirectThreadLocalByteBufferHolder implements ByteBufferHolder
 
     private static void cleanBuffer(ByteBuffer buffer)
     {
-        // Aligned buffers are slices; clean the backing buffer (attachment)
-        DirectBuffer db = (DirectBuffer) buffer;
-        ByteBuffer attachment = (ByteBuffer) db.attachment();
-        MemoryUtil.clean(attachment != null ? attachment : buffer);
+        // Aligned buffers from BufferUtil.allocateDirectAligned are slices; clean the backing buffer (attachment)
+        MemoryUtil.clean((ByteBuffer) ((DirectBuffer) buffer).attachment());
     }
 
 }

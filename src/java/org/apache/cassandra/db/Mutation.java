@@ -62,7 +62,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
-import static org.apache.cassandra.net.MessagingService.VERSION_51;
+import static org.apache.cassandra.net.MessagingService.VERSION_60;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>
@@ -412,9 +412,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 if (serializedSize50 == 0)
                     serializedSize50 = (int) serializer.serializedSize(this, VERSION_50);
                 return serializedSize50;
-            case VERSION_51:
+            case VERSION_60:
                 if (serializedSize51 == 0)
-                    serializedSize51 = (int) serializer.serializedSize(this, VERSION_51);
+                    serializedSize51 = (int) serializer.serializedSize(this, VERSION_60);
                 return serializedSize51;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
@@ -560,7 +560,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
 
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
             {
                 int flags = 0;
                 flags |= potentialTxnConflictsFlag(mutation.potentialTxnConflicts);
@@ -587,7 +587,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
                 PotentialTxnConflicts potentialTxnConflicts = PotentialTxnConflicts.DISALLOW;
-                if (version >= VERSION_51)
+                if (version >= VERSION_60)
                 {
                     int flags = teeIn.readByte();
                     potentialTxnConflicts = potentialTxnConflicts(flags);
@@ -689,7 +689,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             long size = this.size;
             if (size == 0L)
             {
-                if (version >= VERSION_51)
+                if (version >= VERSION_60)
                     size += TypeSizes.sizeof((byte)ALLOW_POTENTIAL_TRANSACTION_CONFLICTS); // flags
                 size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())

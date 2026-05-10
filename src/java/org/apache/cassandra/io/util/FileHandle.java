@@ -196,11 +196,6 @@ public class FileHandle extends SharedCloseableImpl
         return createReader(null);
     }
 
-    public RandomAccessReader createReaderForScan(OnReaderClose onReaderClose)
-    {
-        return createReader(null, true, onReaderClose);
-    }
-
     /**
      * Create {@link RandomAccessReader} with configured method of reading content of the file.
      * Reading from file will be rate limited by given {@link RateLimiter}.

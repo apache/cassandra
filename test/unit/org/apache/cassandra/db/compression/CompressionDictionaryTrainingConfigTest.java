@@ -35,9 +35,6 @@ public class CompressionDictionaryTrainingConfigTest
         assertThat(config.maxTotalSampleSize)
         .as("Default max total sample size should be 10MB")
         .isEqualTo(10 * 1024 * 1024);
-        assertThat(config.samplingRate)
-        .as("Default sampling rate should be 0.01 (1%)")
-        .isEqualTo(0.01f);
     }
 
     @Test
@@ -45,19 +42,16 @@ public class CompressionDictionaryTrainingConfigTest
     {
         int dictSize = 16 * 1024; // 16KB
         int sampleSize = 2 * 1024 * 1024; // 2MB
-        float samplingRate = 0.005f; // 0.5%
 
         CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
                                                                                         .maxDictionarySize(dictSize)
                                                                                         .maxTotalSampleSize(sampleSize)
-                                                                                        .samplingRate(samplingRate)
                                                                                         .build();
 
         // Verify all calculated values are consistent
         assertThat(config.maxDictionarySize).isEqualTo(dictSize);
         assertThat(config.maxTotalSampleSize).isEqualTo(sampleSize);
         assertThat(config.acceptableTotalSampleSize).isEqualTo(sampleSize / 10 * 8);
-        assertThat(config.samplingRate).isEqualTo(0.005f);
 
         // Verify relationship between max and acceptable sample sizes
         assertThat(config.acceptableTotalSampleSize)

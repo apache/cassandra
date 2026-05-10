@@ -44,6 +44,8 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public final class Relation
 {
+    public static final String FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED = "Map-entry predicates on frozen map column %s are not supported";
+
     /**
      * The raw columns'expression.
      */
@@ -204,7 +206,10 @@ public final class Relation
             AbstractType<?> baseType = column.type.unwrap();
             checkFalse(baseType instanceof ListType, "Indexes on list entries (%s[index] = value) are not supported.", column.name);
             checkTrue(baseType instanceof MapType, "Column %s cannot be used as a map", column.name);
-            checkTrue(baseType.isMultiCell(), "Map-entry predicates on frozen map column %s are not supported", column.name);
+
+            if (column.isClusteringColumn() && baseType.isCollection() && !column.type.isMultiCell())
+                throw invalidRequest(FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, column.name);
+
             columnsExpression.collectMarkerSpecification(boundNames);
         }
 

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
+import java.util.function.BiFunction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -96,6 +97,7 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Token;
@@ -521,8 +523,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     throws InvalidRequestException
     {
         List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options, state);
-        for (ByteBuffer key : partitionKeys)
-            QueryProcessor.validateKey(key);
+        for (int i = 0; i < partitionKeys.size(); i++)
+            QueryProcessor.validateKey(partitionKeys.get(i));
 
         return partitionKeys;
     }
@@ -567,8 +569,9 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return isReadRequired;
     }
 
-    private Map<DecoratedKey, Partition> readRequiredLists(Collection<ByteBuffer> partitionKeys,
-                                                           ClusteringIndexFilter filter,
+    private <F> Map<DecoratedKey, Partition> readRequiredLists(Collection<ByteBuffer> partitionKeys,
+                                                           java.util.function.Function<F, ClusteringIndexFilter> filterBuilder,
+                                                           F filterArg,
                                                            DataLimits limits,
                                                            boolean local,
                                                            ConsistencyLevel cl,
@@ -595,7 +598,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            RowFilter.none(),
                                                            limits,
                                                            metadata().partitioner.decorateKey(key),
-                                                           filter));
+                                                           filterBuilder.apply(filterArg)));
 
         SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.create(commands, DataLimits.NONE);
 
@@ -1006,6 +1009,67 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return fragments;
     }
 
+    public <V> void forEachRowKey(List<TxnWrite.Fragment> writeFragments, Map<? super RowKey, V> map, V param, BiFunction<V, V, V> merge)
+    {
+        for (int i = 0, size = writeFragments.size() ; i < size ; i++)
+        {
+            TxnWrite.Fragment writeFragment = writeFragments.get(i);
+            DecoratedKey key = writeFragment.key.partitionKey();
+            for (Row row : writeFragment.baseUpdate)
+                map.merge(new RowKey(key, row.clustering()), param, merge);
+        }
+    }
+
+    public <V> void forEachPartitionKey(List<TxnWrite.Fragment> writeFragments, Map<? super DecoratedKey, V> map, V param, BiFunction<V, V, V> mergeFunction)
+    {
+        for (int i = 0, size = writeFragments.size(); i < size; i++)
+        {
+            TxnWrite.Fragment writeFragment = writeFragments.get(i);
+            DecoratedKey key = writeFragment.key.partitionKey();
+            map.merge(key, param, mergeFunction);
+        }
+    }
+
+    public static class RowKey
+    {
+        public final DecoratedKey key;
+        public final Clustering<?> clustering;
+
+        public RowKey(DecoratedKey key, Clustering<?> clustering)
+        {
+            this.key = key;
+            this.clustering = clustering;
+        }
+
+        public DecoratedKey partitionKey()
+        {
+            return key;
+        }
+
+        public Clustering<?> clustering()
+        {
+            return clustering;
+        }
+
+        @Override
+        public boolean equals(Object other)
+        {
+            if (other == this)
+                return true;
+            if (!(other instanceof RowKey))
+                return false;
+
+            RowKey that = (RowKey) other;
+            return this.partitionKey().equals(that.partitionKey()) && this.clustering().equals(that.clustering());
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return partitionKey().hashCode() * 31 + clustering().hashCode();
+        }
+    }
+
     final void addUpdates(UpdatesCollector collector,
                           List<ByteBuffer> keys,
                           ClientState state,
@@ -1024,7 +1088,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 return;
 
             UpdateParameters params = makeUpdateParameters(keys,
-                                                           new ClusteringIndexSliceFilter(slices, false),
+                                                           (slicesToFilter) -> new ClusteringIndexSliceFilter(slicesToFilter, false),
+                                                           slices,
                                                            state,
                                                            options,
                                                            DataLimits.NONE,
@@ -1117,7 +1182,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
-                                        new ClusteringIndexSliceFilter(Slices.ALL, false),
+                                        (clusteringsToFilter) -> new ClusteringIndexSliceFilter(Slices.ALL, false),
+                                        clusterings,
                                         state,
                                         options,
                                         DataLimits.cqlLimits(1),
@@ -1128,7 +1194,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             );
 
         return makeUpdateParameters(keys,
-                                    new ClusteringIndexNamesFilter(clusterings, false),
+                                    (clusteringsToFilter) -> new ClusteringIndexNamesFilter(clusteringsToFilter, false),
+                                    clusterings,
                                     state,
                                     options,
                                     DataLimits.NONE,
@@ -1139,8 +1206,10 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         );
     }
 
-    private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
-                                                  ClusteringIndexFilter filter,
+    private <F> UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
+                                                  // filter is needed rarely, so we allocate it on demand
+                                                  java.util.function.Function<F, ClusteringIndexFilter> filterBuilder,
+                                                  F filterArg,
                                                   ClientState state,
                                                   QueryOptions options,
                                                   DataLimits limits,
@@ -1152,7 +1221,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
             readRequiredLists(keys,
-                              filter,
+                              filterBuilder,
+                              filterArg,
                               limits,
                               local,
                               options.getConsistency(),

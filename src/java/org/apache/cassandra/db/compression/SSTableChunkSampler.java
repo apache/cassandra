@@ -35,6 +35,7 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.utils.ChecksumType;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * Samples uncompressed chunks from existing SSTables for dictionary training.
@@ -91,7 +92,7 @@ public class SSTableChunkSampler
      * @param trainer  the trainer to add samples to
      * @param config   the training configuration with sample size limits
      */
-    public static void sampleFromSSTables(Set<SSTableReader> sstables,
+    public static void sampleFromSSTables(List<SSTableReader> sstables,
                                           ICompressionDictionaryTrainer trainer,
                                           CompressionDictionaryTrainingConfig config) throws IOException
     {
@@ -125,7 +126,7 @@ public class SSTableChunkSampler
     /**
      * Builds SSTableChunkInfo objects for all SSTables and logs statistics.
      */
-    static List<SSTableChunkInfo> buildSSTableInfos(Set<SSTableReader> sstables,
+    static List<SSTableChunkInfo> buildSSTableInfos(List<SSTableReader> sstables,
                                                     CompressionDictionaryTrainingConfig config)
     {
         List<SSTableChunkInfo> sstableInfos = new ArrayList<>();
@@ -261,17 +262,23 @@ public class SSTableChunkSampler
 
             long position = chunkIndex * info.chunkSize;
             ByteBuffer chunk = readChunk(info, position);
-
-            // Check if adding this sample would exceed the max total sample size
-            if (totalSampleSize + chunk.remaining() > config.maxTotalSampleSize)
+            try
             {
-                logger.debug("Next chunk would exceed max total sample size limit");
-                break;
-            }
+                // Check if adding this sample would exceed the max total sample size
+                if (totalSampleSize + chunk.remaining() > config.maxTotalSampleSize)
+                {
+                    logger.debug("Next chunk would exceed max total sample size limit");
+                    break;
+                }
 
-            trainer.addSample(chunk);
-            totalSampleSize += chunk.remaining();
-            sampleCount++;
+                trainer.addSample(chunk);
+                totalSampleSize += chunk.remaining();
+                sampleCount++;
+            }
+            finally
+            {
+                MemoryUtil.clean(chunk);
+            }
         }
 
         return new SamplingStats(sampleCount, totalSampleSize);
@@ -373,38 +380,44 @@ public class SSTableChunkSampler
         // Allocate buffer for compressed data + checksum
         int compressedLength = chunk.length;
         ByteBuffer compressed = ByteBuffer.allocateDirect(compressedLength + Integer.BYTES);
-
-        int read = channel.read(compressed, chunk.offset);
-        if (read != compressedLength + Integer.BYTES)
+        try
         {
-            throw new IOException(String.format("Expected to read %d bytes but got %d",
-                                                compressedLength + Integer.BYTES, read));
+            int read = channel.read(compressed, chunk.offset);
+            if (read != compressedLength + Integer.BYTES)
+            {
+                throw new IOException(String.format("Expected to read %d bytes but got %d",
+                                                    compressedLength + Integer.BYTES, read));
+            }
+
+            compressed.flip();
+            compressed.limit(compressedLength);
+
+            // Verify checksum
+            int expectedChecksum = (int) ChecksumType.CRC32.of(compressed);
+            compressed.limit(compressedLength + Integer.BYTES);
+            int actualChecksum = compressed.getInt(compressedLength);
+
+            if (expectedChecksum != actualChecksum)
+            {
+                throw new IOException(String.format("Checksum mismatch for chunk at position %d in SSTable %s (expected: %d, actual: %d)",
+                                                    position, sstableInfo.sstable, expectedChecksum, actualChecksum));
+            }
+
+            // Reset for decompression
+            compressed.position(0).limit(compressedLength);
+
+            // Decompress the chunk
+            ICompressor compressor = metadata.compressor();
+            ByteBuffer uncompressed = ByteBuffer.allocateDirect(metadata.chunkLength());
+
+            compressor.uncompress(compressed, uncompressed);
+            uncompressed.flip();
+            return uncompressed;
         }
-
-        compressed.flip();
-        compressed.limit(compressedLength);
-
-        // Verify checksum
-        int expectedChecksum = (int) ChecksumType.CRC32.of(compressed);
-        compressed.limit(compressedLength + Integer.BYTES);
-        int actualChecksum = compressed.getInt(compressedLength);
-
-        if (expectedChecksum != actualChecksum)
+        finally
         {
-            throw new IOException(String.format("Checksum mismatch for chunk at position %d in SSTable %s (expected: %d, actual: %d)",
-                                                position, sstableInfo.sstable, expectedChecksum, actualChecksum));
+            MemoryUtil.clean(compressed);
         }
-
-        // Reset for decompression
-        compressed.position(0).limit(compressedLength);
-
-        // Decompress the chunk
-        ICompressor compressor = metadata.compressor();
-        ByteBuffer uncompressed = ByteBuffer.allocateDirect(metadata.chunkLength());
-
-        compressor.uncompress(compressed, uncompressed);
-        uncompressed.flip();
-        return uncompressed;
     }
 
     /**

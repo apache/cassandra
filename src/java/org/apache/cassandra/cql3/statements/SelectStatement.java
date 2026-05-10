@@ -131,7 +131,6 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -194,6 +193,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
      */
     private final ColumnComparator<List<ByteBuffer>> orderingComparator;
 
+    private final List<Function> functions;
+
     public final StatementSource source;
 
     // Used by forSelection below
@@ -228,6 +229,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         this.perPartitionLimit = perPartitionLimit;
         this.source = source;
         this.selectOptions = selectOptions;
+        this.functions = findAllFunctions();
     }
 
     @Override
@@ -245,8 +247,18 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     @Override
     public Iterable<Function> getFunctions()
     {
+        return functions;
+    }
+
+    private List<Function> findAllFunctions()
+    {
         List<Function> functions = new ArrayList<>();
         addFunctionsTo(functions);
+        if (functions.isEmpty())
+        {
+            functions = Collections.emptyList(); // to avoid a new Iterator object creation during each authorization
+        }
+
         return functions;
     }
 
@@ -321,7 +333,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
 
-        if (!state.hasTablePermission(table, Permission.UNMASK) &&
+        if (table.hasMaskedColumns() &&
+            !state.hasTablePermission(table, Permission.UNMASK) &&
             !state.hasTablePermission(table, Permission.SELECT_MASKED))
         {
             List<ColumnMetadata> queriedMaskedColumns = table.columns()
@@ -795,7 +808,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     private ReadQuery getSliceCommands(QueryOptions options, ClientState state, ColumnFilter columnFilter,
                                        RowFilter rowFilter, DataLimits limit, long nowInSec, PotentialTxnConflicts potentialTxnConflicts)
     {
-        Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options, state);
+        List<ByteBuffer> keys = restrictions.getPartitionKeys(options, state);
         if (keys.isEmpty())
             return ReadQuery.empty(table);
 
@@ -808,11 +821,21 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         if (filter == null || filter.isEmpty(table.comparator))
             return ReadQuery.empty(table);
 
-        List<DecoratedKey> decoratedKeys = new ArrayList<>(keys.size());
-        for (ByteBuffer key : keys)
+        List<DecoratedKey> decoratedKeys;
+        if (keys.size() == 1) // reduce allocations in collections for keys
         {
+            ByteBuffer key = keys.get(0);
             QueryProcessor.validateKey(key);
-            decoratedKeys.add(table.partitioner.decorateKey(ByteBufferUtil.clone(key)));
+            decoratedKeys = Collections.singletonList(table.partitioner.decorateKey(key));
+        }
+        else
+        {
+            decoratedKeys = new ArrayList<>(keys.size());
+            for (ByteBuffer key : keys)
+            {
+                QueryProcessor.validateKey(key);
+                decoratedKeys.add(table.partitioner.decorateKey(key));
+            }
         }
 
         SinglePartitionReadQuery.Group<? extends SinglePartitionReadQuery> group =

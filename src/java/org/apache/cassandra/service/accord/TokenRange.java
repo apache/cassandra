@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import accord.api.ProtocolModifiers.RangeSpec;
 import accord.api.RoutingKey;
 import accord.primitives.Range;
 import accord.utils.Invariants;
@@ -37,9 +38,13 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class TokenRange extends Range.EndInclusive
+public class TokenRange extends Range
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(TokenKey.min(TableId.fromLong(0), Murmur3Partitioner.instance), TokenKey.max(TableId.fromLong(0), Murmur3Partitioner.instance)));
+    static
+    {
+        Invariants.require(RangeSpec.isEndInclusive());
+    }
 
     // Don't make this public use create or createUnsafe
     protected TokenRange(TokenKey start, TokenKey end)
@@ -122,6 +127,14 @@ public class TokenRange extends Range.EndInclusive
         Token left = start.isMin() ? partitioner.getMinimumToken() : start.token();
         Token right = end.isMax() ? partitioner.getMinimumToken() : end.token();
         return new org.apache.cassandra.dht.Range<>(left, right);
+    }
+
+    public static TokenRange fromKeyspaceRange(TableId tableId, org.apache.cassandra.dht.Range<Token> range)
+    {
+        Token left = range.left, right = range.right;
+        TokenKey start = left.isMinimum() ? TokenKey.min(tableId, left.getPartitioner()) : new TokenKey(tableId, left);
+        TokenKey end = right.isMinimum() ? TokenKey.max(tableId, right.getPartitioner()) : new TokenKey(tableId, right);
+        return create(start, end);
     }
 
     public static final Serializer serializer = new Serializer();

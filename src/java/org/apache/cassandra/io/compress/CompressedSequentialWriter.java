@@ -196,13 +196,6 @@ public class CompressedSequentialWriter extends SequentialWriter
         {
             // compressing data with buffer re-use
             buffer.flip();
-
-            // Collect sample for dictionary training before compression
-            if (isDictionaryEnabled)
-            {
-                compressionDictionaryManager.addSample(buffer.duplicate());
-            }
-
             compressed.clear();
             compressor.compress(buffer, compressed);
         }

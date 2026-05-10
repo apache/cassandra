@@ -33,7 +33,7 @@ equivalent to `mytable`) but case sensitivity can be forced by using
 double-quotes (`"myTable"` is different from `mytable`).
 
 Further, a table is always part of a keyspace and a table name can be
-provided fully-qualified by the keyspace it is part of. If is is not
+provided fully-qualified by the keyspace it is part of. If it is not
 fully-qualified, the table is assumed to be in the _current_ keyspace
 (see xref:cassandra:developing/cql/ddl.adoc#use-statement[USE] statement).
 

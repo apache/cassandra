@@ -50,35 +50,31 @@ public class MemoryUtilTest
     }
 
     @Test
-    public void testCleanViewDoesNotThrow()
+    public void testCleanSliceThrows()
     {
-        // Use a large buffer to likely get mmap'd memory from the OS. This ensures that if cleaning a view incorrectly
-        // unmaps the original buffer's memory, subsequent access to 'original' would more reliably fail.
-        // For context: glibc's mmap threshold is 32MB on 64-bit systems
-        ByteBuffer original = ByteBuffer.allocateDirect(64 * 1024 * 1024);
-
+        ByteBuffer original = ByteBuffer.allocateDirect(1024);
         ByteBuffer slice = original.slice();
-        MemoryUtil.clean(slice);
-        try
-        {
-            original.putInt(10);
-        }
-        catch (Exception exc)
-        {
-            Assertions.fail("Unable to write to original buffer after cleaning (slice). " + exc.getMessage(), exc);
-        }
 
+        Assertions.assertThatThrownBy(() -> MemoryUtil.clean(slice))
+                  .isInstanceOf(IllegalArgumentException.class);
+
+        // original should still be usable after the rejected clean
+        original.putInt(10);
+        MemoryUtil.clean(original);
+    }
+
+    @Test
+    public void testCleanDuplicateThrows()
+    {
+        ByteBuffer original = ByteBuffer.allocateDirect(1024);
         ByteBuffer duplicate = original.duplicate();
-        MemoryUtil.clean(duplicate);
 
-        try
-        {
-            original.putInt(10);
-        }
-        catch (Exception exc)
-        {
-            Assertions.fail("Unable to write to original buffer after cleaning (duplicate). " + exc.getMessage(), exc);
-        }
+        Assertions.assertThatThrownBy(() -> MemoryUtil.clean(duplicate))
+                  .isInstanceOf(IllegalArgumentException.class);
+
+        // original should still be usable after the rejected clean
+        original.putInt(10);
+        MemoryUtil.clean(original);
     }
 
     @Test
@@ -86,6 +82,46 @@ public class MemoryUtilTest
     {
         ByteBuffer original = ByteBuffer.allocate(16);
         MemoryUtil.clean(original);
+    }
+
+    @Test
+    public void testCleanWithNonNullAttachmentAndCleanerSucceeds()
+    {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+        MemoryUtil.setAttachment(buffer, (Runnable) () -> {});
+        MemoryUtil.clean(buffer);
+    }
+
+    @Test
+    public void testCleanNoCleanerWithAttachmentThrows()
+    {
+        ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer();
+        MemoryUtil.setAttachment(hollow, new Object());
+
+        Assertions.assertThatThrownBy(() -> MemoryUtil.clean(hollow))
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessageContaining("does not own its memory");
+    }
+
+    @Test
+    public void testCleanNoCleanerNoAttachmentIsNoOp()
+    {
+        ByteBuffer hollow = MemoryUtil.getHollowDirectByteBuffer();
+        MemoryUtil.clean(hollow);
+    }
+
+    @Test
+    public void testCleanWithCleanerButUnexpectedAttachmentThrows()
+    {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+        MemoryUtil.setAttachment(buffer, new Object());
+
+        Assertions.assertThatThrownBy(() -> MemoryUtil.clean(buffer))
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessageContaining("unexpected attachment type");
+
+        MemoryUtil.setAttachment(buffer, null);
+        MemoryUtil.clean(buffer);
     }
 
     private static BufferPoolMXBean getDirectBufferPool()

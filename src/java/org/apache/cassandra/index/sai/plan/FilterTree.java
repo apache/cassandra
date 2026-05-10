@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -161,6 +162,12 @@ public class FilterTree
             Iterator<ByteBuffer> valueIterator = expression.getIndexTermType().valuesOf(row, now);
             return operator.apply(result, collectionMatch(valueIterator, expression));
         }
+        else if (expression.getIndexTermType().isFrozenCollection() && expression.getIndexTermType().indexTargetType() != IndexTarget.Type.FULL)
+        {
+            Iterator<ByteBuffer> valueIterator = expression.getIndexTermType().valuesOfFrozenCollection(row, now);
+            boolean matchResult = collectionMatch(valueIterator, expression);
+            return operator.apply(result, matchResult);
+        }
         else
         {
             ByteBuffer value = expression.getIndexTermType().valueOf(key, row, now);
@@ -181,6 +188,7 @@ public class FilterTree
         while (valueIterator.hasNext())
         {
             ByteBuffer value = valueIterator.next();
+
             if (value == null)
                 continue;
 

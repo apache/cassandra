@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -56,7 +55,6 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     public void configureDatabaseDescriptor()
     {
         Config config = DatabaseDescriptor.getRawConfig();
-        config.compression_dictionary_training_sampling_rate = 1.0f;
         config.flush_compression = Config.FlushCompression.table;
         DatabaseDescriptor.setConfig(config);
     }
@@ -114,28 +112,7 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
     }
 
     @Test
-    public void testCompressionParameterChanges()
-    {
-        String table = createTable(getTableCql());
-        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
-        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
-        ICompressionDictionaryTrainer trainer = manager.trainer();
-        assertThat(trainer).isNotNull();
-        assertThat(trainer.kind()).isEqualTo(Kind.ZSTD);
-
-        // Change compression level - should create new trainer
-        CompressionParams newParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
-                                                             Collections.singletonMap("compression_level", "5"));
-        manager.maybeReloadFromSchema(newParams);
-        ICompressionDictionaryTrainer newTrainer = manager.trainer();
-        assertThat(newTrainer.kind()).isEqualTo(Kind.ZSTD);
-        assertThat(newTrainer)
-        .as("Should create a different trainer instance when compression level is changed")
-        .isNotSameAs(trainer);
-    }
-
-    @Test
-    public void testResourceCleanupOnClose() throws Exception
+    public void testResourceCleanupOnClose()
     {
         createTable(getTableCql());
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -155,7 +132,9 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
 
         manager.close();
 
-        assertThat(manager.trainer()).isNull();
+        assertThat(TrainingState.fromCompositeData(manager.getTrainingState()).status)
+        .isEqualTo(TrainingState.notStarted().status);
+
         // Dictionary's reference count should be 0 after closing manager
         // Dictionary is closed in a separate thread. Wait a bit for the reference count to be updated.
         spinUntilTrue(() -> testDict.selfRef().globalCount() == 0, 1, TimeUnit.SECONDS);
@@ -235,6 +214,33 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
         .hasMessageContaining("No SSTables available for training");
     }
 
+    @Test
+    public void testMaxBoundForTrainingParameters()
+    {
+        String table = createTable(getTableCql());
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(table);
+        CompressionDictionaryManager manager = cfs.compressionDictionaryManager();
+
+        assertThatThrownBy(() -> manager.train(false, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, "5GiB",
+                                                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, TRAINING_MAX_TOTAL_SAMPLE_SIZE)))
+        .as("Should fail when " + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + " is bigger than " + Integer.MAX_VALUE)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid value for training_max_dictionary_size: 5GiB");
+
+        assertThatThrownBy(() -> manager.train(false, Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, TRAINING_MAX_DICTIONARY_SIZE,
+                                                             TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, "5GiB")))
+        .as("Should fail when " + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + " is bigger than " + Integer.MAX_VALUE)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid value for " + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + ": 5GiB");
+    }
+
+    @Test
+    public void testInvalidTableCreation()
+    {
+        assertThatThrownBy(() -> createTable(getTableCqlWithInvalidTotalMaxSampleSize())).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> createTable(getTableCqlWithInvalidMaxDictionarySize())).isInstanceOf(RuntimeException.class);
+    }
+
     private String getTableCqlWithChunkLength()
     {
         return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
@@ -252,6 +258,26 @@ public class CompressionDictionaryIntegrationTest extends CQLTester
                "WITH compression = {" +
                "'class': 'ZstdDictionaryCompressor'," +
                '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + "'," +
+               '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '\'' +
+               '}';
+    }
+
+    private String getTableCqlWithInvalidTotalMaxSampleSize()
+    {
+        return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+               "WITH compression = {" +
+               "'class': 'ZstdDictionaryCompressor'," +
+               '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE + "'," +
+               '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '5GiB'" +
+               '}';
+    }
+
+    private String getTableCqlWithInvalidMaxDictionarySize()
+    {
+        return "CREATE TABLE %s (pk text PRIMARY KEY, data text) " +
+               "WITH compression = {" +
+               "'class': 'ZstdDictionaryCompressor'," +
+               '\'' + TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME + "': '5GiB'," +
                '\'' + TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME + "': '" + DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE + '\'' +
                '}';
     }

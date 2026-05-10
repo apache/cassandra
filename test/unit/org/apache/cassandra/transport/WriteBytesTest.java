@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.transport;
 
+import java.nio.ByteBuffer;
+
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -26,6 +28,7 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import sun.nio.ch.DirectBuffer;
 
 import static org.quicktheories.QuickTheory.qt;
 
@@ -52,7 +55,12 @@ public class WriteBytesTest
             Assertions.assertThat(buf.writerIndex()).isEqualTo(size);
             for (int i = 0; i < size; i++)
                 Assertions.assertThat(buf.getByte(buf.readerIndex() + i)).describedAs("byte mismatch at index %d", i).isEqualTo(bb.get(bb.position() + i));
-            MemoryUtil.clean(bb);
+
+            if (bb.isDirect())
+            {
+                Object attachment = ((DirectBuffer) bb).attachment();
+                MemoryUtil.clean(attachment == null ? bb : (ByteBuffer) attachment);
+            }
         });
     }
 

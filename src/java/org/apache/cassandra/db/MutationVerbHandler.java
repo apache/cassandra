@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Map;
+
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ForwardingInfo;
@@ -33,10 +35,13 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
-    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
+    private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress, Map<ParamType, Object> params)
     {
         Tracing.trace("Enqueuing response to {}", respondToAddress);
-        MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
+        Message<?> response = respondTo.emptyResponse();
+        if (!params.isEmpty())
+            response = response.withParams(params);
+        MessagingService.instance().send(response, respondToAddress);
     }
 
     private void failed()
@@ -53,9 +58,10 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
             return;
         }
 
+        MessageParams.reset();
         message.payload.validateSize(MessagingService.current_version, ENTRY_OVERHEAD_SIZE);
+        WriteThresholds.checkWriteThresholds(message.payload);
 
-        // Check if there were any forwarding headers in this message
         ForwardingInfo forwardTo = message.forwardTo();
         if (forwardTo != null)
             forwardToLocalNodes(message, forwardTo);
@@ -73,7 +79,8 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 
     protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
-        message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());
+        Map<ParamType, Object> params = MessageParams.capture();
+        message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress, params), wto -> failed());
     }
 
     private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)

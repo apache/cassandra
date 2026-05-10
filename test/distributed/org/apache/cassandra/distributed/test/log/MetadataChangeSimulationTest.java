@@ -53,6 +53,7 @@ import org.apache.cassandra.harry.model.TokenPlacementModel;
 import org.apache.cassandra.locator.CMSPlacementStrategy;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -66,6 +67,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.OwnershipUtils;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.transformations.Register;
@@ -930,14 +932,27 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             state = SimulatedOperation.leave(sut, state, toLeave);
 
             KeyspaceMetadata ksm = sut.service.metadata().schema.getKeyspaces().get("test").get();
-            DataPlacement allSettled = sut.service.metadata().writePlacementAllSettled(ksm);
+            // Calculate the full set of data placements when all in flight operations have been completed
+            DataPlacement allSettled = OwnershipUtils.placementsAllSettled(sut.service.metadata()).get(ksm.params.replication);
             Assert.assertEquals(4, state.inFlightOperations.size()); // make sure none was rejected
             while (!state.inFlightOperations.isEmpty())
             {
                 state = state.inFlightOperations.get(random.nextInt(state.inFlightOperations.size())).advance(state);
-                Assert.assertTrue(allSettled.equivalentTo(sut.service.metadata().writePlacementAllSettled(ksm)));
+                // for every node, ask ClusterMetadata for local ranges after all operations are complete. These
+                // should not change as we progress
+                for (Node n : state.currentNodes)
+                {
+                    RangesAtEndpoint localRanges = sut.service.metadata()
+                                                              .placementsAllSettledForNode(n.nodeId())
+                                                              .get(ksm.params.replication)
+                                                              .writes
+                                                              .byEndpoint()
+                                                              .get(n.addr());
+                    Assert.assertEquals(localRanges, allSettled.writes.byEndpoint().get(n.addr()));
+                }
                 validatePlacements(sut, state);
             }
+            // Finally verify that the predicted placements match the actual ones
             Assert.assertTrue(allSettled.equivalentTo(sut.service.metadata().placements.get(ksm.params.replication)));
         }
     }

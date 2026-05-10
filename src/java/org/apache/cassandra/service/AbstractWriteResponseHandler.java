@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -48,6 +49,9 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.service.writes.thresholds.CoordinatorWriteWarnings;
+import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
+import org.apache.cassandra.service.writes.thresholds.WriteWarningsSnapshot;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -91,6 +95,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private volatile Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final Dispatcher.RequestTime requestTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
+    private volatile WriteWarningContext warningContext;
+    private static final AtomicReferenceFieldUpdater<AbstractWriteResponseHandler, WriteWarningContext> warningsUpdater =
+        AtomicReferenceFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, WriteWarningContext.class, "warningContext");
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
@@ -176,7 +183,29 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         }
 
         if (replicaPlan.stillAppliesTo(ClusterMetadata.current()))
-            return;
+        {
+            if (warningContext != null)
+            {
+                WriteWarningsSnapshot snapshot = warningContext.snapshot();
+                if (!snapshot.isEmpty() && hintOnFailure != null)
+                    CoordinatorWriteWarnings.update(hintOnFailure.get(), snapshot);
+            }
+        }
+    }
+
+    protected WriteWarningContext getWarningContext()
+    {
+        WriteWarningContext current;
+        while (true)
+        {
+            current = warningContext;
+            if (current != null)
+                return current;
+
+            current = new WriteWarningContext();
+            if (warningsUpdater.compareAndSet(this, null, current))
+                return current;
+        }
     }
 
     private void throwTimeout()

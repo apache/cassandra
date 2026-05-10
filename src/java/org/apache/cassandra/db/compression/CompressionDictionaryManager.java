@@ -18,37 +18,34 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DataStorageSpec;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compression.CompressionDictionary.LightweightCompressionDictionary;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MBeanWrapper.OnException;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE;
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME;
-import static org.apache.cassandra.io.compress.IDictionaryCompressor.TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME;
+import static org.apache.cassandra.schema.SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary;
 
 public class CompressionDictionaryManager implements CompressionDictionaryManagerMBean,
                                                      ICompressionDictionaryCache,
@@ -59,36 +56,34 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
     private final String keyspaceName;
     private final String tableName;
+    private final String tableId;
     private final ColumnFamilyStore columnFamilyStore;
     private volatile boolean mbeanRegistered;
     private volatile boolean isEnabled;
+    private volatile CompressionDictionary.Kind kind;
+    private volatile CompressionParams compressionParams;
 
     // Components
     private final ICompressionDictionaryEventHandler eventHandler;
     private final ICompressionDictionaryCache cache;
     private final ICompressionDictionaryScheduler scheduler;
-    private ICompressionDictionaryTrainer trainer = null;
 
     public CompressionDictionaryManager(ColumnFamilyStore columnFamilyStore, boolean registerBookkeeping)
     {
         this.keyspaceName = columnFamilyStore.keyspace.getName();
         this.tableName = columnFamilyStore.getTableName();
+        this.tableId = columnFamilyStore.metadata().id.toLongString();
         this.columnFamilyStore = columnFamilyStore;
 
-        this.isEnabled = columnFamilyStore.metadata().params.compression.isDictionaryCompressionEnabled();
+        this.compressionParams = columnFamilyStore.metadata().params.compression;
+        this.isEnabled = this.compressionParams.isDictionaryCompressionEnabled();
+        this.kind = columnFamilyStore.metadata().params.compression.getCompressionDictionaryKind();
         this.cache = new CompressionDictionaryCache();
         this.eventHandler = new CompressionDictionaryEventHandler(columnFamilyStore, cache);
-        this.scheduler = new CompressionDictionaryScheduler(keyspaceName, tableName, cache, isEnabled);
+        this.scheduler = new CompressionDictionaryScheduler(keyspaceName, tableName, tableId, cache, isEnabled);
         if (isEnabled)
         {
-            // Initialize components
-            this.trainer = ICompressionDictionaryTrainer.create(keyspaceName, tableName,
-                                                                columnFamilyStore.metadata().params.compression);
-            trainer.setDictionaryTrainedListener(this::handleNewDictionary);
-
             scheduler.scheduleRefreshTask();
-
-            trainer.start(false, createTrainingConfig());
         }
 
         if (registerBookkeeping && isEnabled)
@@ -116,40 +111,14 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
      */
     public synchronized void maybeReloadFromSchema(CompressionParams newParams)
     {
-        this.isEnabled = newParams.isDictionaryCompressionEnabled();
+        this.compressionParams = newParams;
+        this.isEnabled = compressionParams.isDictionaryCompressionEnabled();
+        this.kind = compressionParams.getCompressionDictionaryKind();
         scheduler.setEnabled(isEnabled);
         if (isEnabled)
         {
             registerMbean();
-            // Check if we need a new trainer due to compression parameter changes
-            boolean needsNewTrainer = shouldCreateNewTrainer(newParams);
-
-            if (needsNewTrainer)
-            {
-                // Close existing trainer and create a new one
-                if (trainer != null)
-                {
-                    try
-                    {
-                        trainer.close();
-                    }
-                    catch (Exception e)
-                    {
-                        logger.warn("Failed to close existing trainer for {}.{}", keyspaceName, tableName, e);
-                    }
-                }
-
-                trainer = ICompressionDictionaryTrainer.create(keyspaceName, tableName, newParams);
-                trainer.setDictionaryTrainedListener(this::handleNewDictionary);
-            }
-
             scheduler.scheduleRefreshTask();
-
-            // Start trainer if it exists
-            if (trainer != null)
-            {
-                trainer.start(false, createTrainingConfig());
-            }
             return;
         }
 
@@ -162,21 +131,6 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         {
             logger.warn("Failed to close CompressionDictionaryManager on disabling " +
                         "dictionary-based compression for table {}.{}", keyspaceName, tableName);
-        }
-    }
-
-    /**
-     * Adds a sample to the dictionary trainer for learning compression patterns.
-     * Samples are randomly selected to avoid bias and improve dictionary quality.
-     *
-     * @param sample the sample data to potentially add for training
-     */
-    public void addSample(ByteBuffer sample)
-    {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        if (dictionaryTrainer != null && dictionaryTrainer.shouldSample())
-        {
-            dictionaryTrainer.addSample(sample);
         }
     }
 
@@ -226,51 +180,52 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             throw new UnsupportedOperationException("Table " + keyspaceName + '.' + tableName + " does not support dictionary compression");
         }
 
-        if (trainer == null)
-        {
-            throw new IllegalStateException("Dictionary trainer is not available for table " + keyspaceName + '.' + tableName);
-        }
-
         // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
         CompressionDictionaryTrainingConfig trainingConfig = createTrainingConfig(parameters);
 
-        // SSTable-based training: sample from existing SSTables
-        Set<SSTableReader> sstables = columnFamilyStore.getLiveSSTables();
-        if (sstables.isEmpty())
-        {
-            logger.info("No SSTables available for training in table {}.{}, flushing memtable first",
-                        keyspaceName, tableName);
-            columnFamilyStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
-            sstables = columnFamilyStore.getLiveSSTables();
+        LightweightCompressionDictionary dictionary = retrieveLightweightLatestCompressionDictionary(columnFamilyStore.getKeyspaceName(),
+                                                                                                     columnFamilyStore.getTableName(),
+                                                                                                     columnFamilyStore.metadata.id.toLongString());
 
-            if (sstables.isEmpty())
+        checkTrainingFrequency(dictionary, trainingConfig);
+
+        // SSTable-based training: sample from existing SSTables
+
+        // this is not closed here but in training runnable when finished
+        // also, if view is empty, and we throw just below because of it then
+        // there is nothing to "release" so close is not necessary
+        ColumnFamilyStore.RefViewFragment refViewFragment = columnFamilyStore.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
+
+        if (refViewFragment.sstables.isEmpty())
+        {
+            logger.info("No SSTables available for training in table {}.{}, flushing memtable first", keyspaceName, tableName);
+            columnFamilyStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+
+            refViewFragment = columnFamilyStore.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
+
+            if (refViewFragment.sstables.isEmpty())
             {
                 throw new IllegalStateException("No SSTables available for training in table " + keyspaceName + '.' + tableName + " after flush");
             }
         }
 
-        logger.info("Starting SSTable-based training for {}.{} with {} SSTables",
-                    keyspaceName, tableName, sstables.size());
-
-        trainer.start(true, trainingConfig);
-        scheduler.scheduleSSTableBasedTraining(trainer, sstables, trainingConfig, force);
+        scheduler.scheduleSSTableBasedTraining(refViewFragment,
+                                               compressionParams,
+                                               trainingConfig,
+                                               this::handleNewDictionary,
+                                               force);
     }
 
     @Override
     public CompositeData getTrainingState()
     {
-        ICompressionDictionaryTrainer dictionaryTrainer = trainer;
-        if (dictionaryTrainer == null)
-        {
-            return TrainingState.notStarted().toCompositeData();
-        }
-        return dictionaryTrainer.getTrainingState().toCompositeData();
+        return scheduler.getLastTrainingState().toCompositeData();
     }
 
     @Override
     public TabularData listCompressionDictionaries()
     {
-        List<LightweightCompressionDictionary> dictionaries = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(keyspaceName, tableName);
+        List<LightweightCompressionDictionary> dictionaries = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries(keyspaceName, tableName, tableId);
         TabularDataSupport tableData = new TabularDataSupport(CompressionDictionaryDetailsTabularData.TABULAR_TYPE);
 
         if (dictionaries == null)
@@ -289,27 +244,27 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     @Override
     public CompositeData getCompressionDictionary()
     {
-        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName);
+        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveLatestCompressionDictionary(keyspaceName, tableName, tableId);
         if (compressionDictionary == null)
             return null;
 
-        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, tableId, compressionDictionary);
     }
 
     @Override
     public CompositeData getCompressionDictionary(long dictId)
     {
-        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, dictId);
+        CompressionDictionary compressionDictionary = SystemDistributedKeyspace.retrieveCompressionDictionary(keyspaceName, tableName, tableId, dictId);
         if (compressionDictionary == null)
             return null;
 
-        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, compressionDictionary);
+        return CompressionDictionaryDetailsTabularData.fromCompressionDictionary(keyspaceName, tableName, tableId, compressionDictionary);
     }
 
     @Override
     public synchronized void importCompressionDictionary(CompositeData compositeData)
     {
-        if (!isEnabled)
+        if (!isEnabled || this.kind == null)
         {
             throw new IllegalStateException(format("The compression on table %s.%s is not enabled or SSTable compressor is not a dictionary compressor.",
                                                    keyspaceName, tableName));
@@ -324,20 +279,25 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
 
         CompressionDictionary.Kind kind = CompressionDictionary.Kind.valueOf(dataObject.kind);
 
-        if (trainer.kind() != kind)
+        if (this.kind != kind)
         {
             throw new IllegalArgumentException(format("It is not possible to import compression dictionaries of kind " +
                                                       "%s into table %s.%s which supports compression dictionaries of kind %s.",
-                                                      kind, keyspaceName, tableName, trainer.kind()));
+                                                      kind, keyspaceName, tableName, this.kind));
         }
 
         CompressionDictionary.DictId dictId = new CompressionDictionary.DictId(kind, dataObject.dictId);
 
-        LightweightCompressionDictionary latestCompressionDictionary = SystemDistributedKeyspace.retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName);
-        if (latestCompressionDictionary != null && latestCompressionDictionary.dictId.id > dictId.id)
+        LightweightCompressionDictionary latestCompressionDictionary = retrieveLightweightLatestCompressionDictionary(keyspaceName, tableName, tableId);
+        if (latestCompressionDictionary != null)
         {
-            throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
-                                                      dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
+            if (latestCompressionDictionary.dictId.id > dictId.id)
+            {
+                throw new IllegalArgumentException(format("Dictionary to import has older dictionary id (%s) than the latest compression dictionary (%s) for table %s.%s",
+                                                          dictId.id, latestCompressionDictionary.dictId.id, keyspaceName, tableName));
+            }
+
+            checkTrainingFrequency(latestCompressionDictionary, createTrainingConfig(Map.of()));
         }
 
         handleNewDictionary(kind.createDictionary(dictId, dataObject.dict, dataObject.dictChecksum));
@@ -350,28 +310,15 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
     public synchronized void close()
     {
         unregisterMbean();
-        if (trainer != null)
-        {
-            closeQuitely(trainer, "CompressionDictionaryTrainer");
-            trainer = null;
-        }
         closeQuitely(cache, "CompressionDictionaryCache");
         closeQuitely(scheduler, "CompressionDictionaryScheduler");
     }
 
-    private void handleNewDictionary(CompressionDictionary dictionary)
+    void handleNewDictionary(CompressionDictionary dictionary)
     {
         // sequence meatters; persist the new dictionary before broadcasting to others.
         storeDictionary(dictionary);
         onNewDictionaryTrained(dictionary.dictId());
-    }
-
-    /**
-     * @return training configuration with max dictionary size and total sample size from CQL table compression params.
-     */
-    private CompressionDictionaryTrainingConfig createTrainingConfig()
-    {
-        return createTrainingConfig(Map.of());
     }
 
     /**
@@ -384,50 +331,34 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
      */
     private CompressionDictionaryTrainingConfig createTrainingConfig(Map<String, String> parameters)
     {
-        CompressionParams compressionParams = columnFamilyStore.metadata().params.compression;
         return CompressionDictionaryTrainingConfig
                .builder()
-               .maxDictionarySize(getCompressionDictionaryTrainingMaxDictionarySize(compressionParams, parameters))
-               .maxTotalSampleSize(getCompressionDictionaryTrainingMaxTotalSampleSize(compressionParams, parameters))
-               .samplingRate(DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate())
+               .maxDictionarySize(CompressionDictionaryTrainingConfig.getMaxDictionarySizeWithUserSuppliedParams(compressionParams, parameters))
+               .maxTotalSampleSize(CompressionDictionaryTrainingConfig.getMaxTotalSampleSizeWithUserSuppliedParams(compressionParams, parameters))
+               .minTrainingFrequency(CompressionDictionaryTrainingConfig.getMinTrainingFrequency(compressionParams.getOtherOptions()))
                .chunkSize(compressionParams.chunkLength())
                .build();
     }
 
-    private int getCompressionDictionaryTrainingMaxDictionarySize(CompressionParams compressionParams, Map<String, String> parameters)
-    {
-        return internalTrainingParameterResolution(compressionParams,
-                                                   parameters.get(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME),
-                                                   TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME,
-                                                   DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE);
-    }
 
-    private int getCompressionDictionaryTrainingMaxTotalSampleSize(CompressionParams compressionParams, Map<String, String> parameters)
+    private void checkTrainingFrequency(LightweightCompressionDictionary lastDictionary, CompressionDictionaryTrainingConfig config)
     {
-        return internalTrainingParameterResolution(compressionParams,
-                                                   parameters.get(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME),
-                                                   TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME,
-                                                   DEFAULT_TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_VALUE);
-    }
+        Instant lastTraining = lastDictionary == null ? null : lastDictionary.createdAt;
 
-    private int internalTrainingParameterResolution(CompressionParams compressionParams,
-                                                    String userSuppliedValue,
-                                                    String parameterName,
-                                                    String defaultParameterValue)
-    {
-        String resolvedValue = null;
-        try
+        // if there is no dictionary trained so far or min frequency is 0 - that is we can train as often as we want -
+        // then do not check if we can
+        if (lastTraining != null && config.minTrainingFrequency != 0)
         {
-            if (userSuppliedValue == null)
-                resolvedValue = compressionParams.getOtherOptions().getOrDefault(parameterName, defaultParameterValue);
-            else
-                resolvedValue = userSuppliedValue;
-
-            return new DataStorageSpec.IntKibibytesBound(resolvedValue).toBytes();
-        }
-        catch (Throwable t)
-        {
-            throw new IllegalArgumentException(String.format("Invalid value for %s: %s", parameterName, resolvedValue));
+            Instant now = FBUtilities.now();
+            if (lastTraining.isAfter(now.minus(config.minTrainingFrequency, ChronoUnit.MINUTES)))
+            {
+                Instant nextEarliestTraining = lastTraining.plus(config.minTrainingFrequency, ChronoUnit.MINUTES);
+                throw new IllegalArgumentException(format("The next training or importing can occur only at least after %s from the last training which happened at %s. " +
+                                                          "You can train again no earlier than at %s.",
+                                                          new DurationSpec.IntMinutesBound(config.minTrainingFrequency, TimeUnit.MINUTES),
+                                                          lastTraining,
+                                                          nextEarliestTraining));
+            }
         }
     }
 
@@ -438,29 +369,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             return;
         }
 
-        SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, dictionary);
+        SystemDistributedKeyspace.storeCompressionDictionary(keyspaceName, tableName, tableId, dictionary);
         cache.add(dictionary);
-    }
-
-    /**
-     * Determines if a new trainer should be created based on compression parameter changes.
-     * A new trainer is needed when no existing trainer exists or when the existing trainer
-     * is not compatible with the new compression parameters.
-     * <p>
-     * The method is (and should be) only invoked inside {@link #maybeReloadFromSchema(CompressionParams)},
-     * which is guarded by synchronized.
-     *
-     * @param newParams the new compression parameters
-     * @return true if a new trainer should be created
-     */
-    private boolean shouldCreateNewTrainer(CompressionParams newParams)
-    {
-        if (trainer == null)
-        {
-            return true;
-        }
-
-        return !trainer.isCompatibleWith(newParams);
     }
 
     private void registerMbean()
@@ -491,17 +401,5 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         {
             logger.warn("Failed closing {}", objectName, exception);
         }
-    }
-
-    @VisibleForTesting
-    boolean isReady()
-    {
-        return trainer != null && trainer.isReady();
-    }
-
-    @VisibleForTesting
-    ICompressionDictionaryTrainer trainer()
-    {
-        return trainer;
     }
 }

@@ -55,6 +55,7 @@ import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
+import accord.impl.AbstractReplayer;
 import accord.impl.AbstractSafeCommandStore;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultRemoteListeners;
@@ -188,7 +189,7 @@ public class CommandsForKeySerializerTest
             builder.durability(isDurable ? AllQuorums : NotDurable);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
             {
-                try (KeyDeps.Builder keyBuilder = KeyDeps.builder();)
+                try (KeyDeps.Builder keyBuilder = KeyDeps.builder())
                 {
                     for (TxnId id : deps)
                         keyBuilder.add(((Key)txn.keys().get(0)).toUnseekable(), id);
@@ -655,7 +656,7 @@ public class CommandsForKeySerializerTest
         @Override public AsyncChain<Void> chain(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
         @Override public <T> AsyncChain<T> chain(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
 
-        @Override public Journal.Replayer replayer() { throw new UnsupportedOperationException(); }
+        @Override public Journal.Replayer replayer(AbstractReplayer.Mode mode) { throw new UnsupportedOperationException(); }
 
         @Override protected void ensureDurable(Ranges ranges, RedundantBefore onSuccess) {}
         @Override public Agent agent() { return this; }
@@ -718,7 +719,7 @@ public class CommandsForKeySerializerTest
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }
         }; }
-        @Override public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kind.Kinds testKind, TestStartedAt testStartedAt, Timestamp testStartAtTimestamp, ComputeIsDep computeIsDep, AllCommandVisitor visit) { return false; }
+        @Override public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kind.Kinds testKind, SupersedingCommandVisitor visit) { return false; }
         @Override public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kind.Kinds testKind, ActiveCommandVisitor<P1, P2> visit, P1 p1, P2 p2) { }
     }
 

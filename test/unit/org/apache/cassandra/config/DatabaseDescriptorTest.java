@@ -50,6 +50,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLI
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -687,7 +688,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(1, KIBIBYTES);
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("coordinator_read_size_fail_threshold (1KiB) must be greater than or equal to coordinator_read_size_warn_threshold (2KiB)");
     }
@@ -698,7 +699,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -707,7 +708,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = null;
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -716,7 +717,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.coordinator_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.coordinator_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     // local read
@@ -727,7 +728,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.local_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(1, KIBIBYTES);
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("local_read_size_fail_threshold (1KiB) must be greater than or equal to local_read_size_warn_threshold (2KiB)");
     }
@@ -738,7 +739,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.local_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -747,7 +748,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.local_read_size_fail_threshold = null;
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -756,7 +757,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.local_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.local_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     // row index entry
@@ -767,7 +768,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(1, KIBIBYTES);
-        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyReadThresholdsValidations(conf))
+        Assertions.assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
                   .isInstanceOf(ConfigurationException.class)
                   .hasMessage("row_index_read_size_fail_threshold (1KiB) must be greater than or equal to row_index_read_size_warn_threshold (2KiB)");
     }
@@ -778,7 +779,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -787,7 +788,7 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = null;
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -796,7 +797,150 @@ public class DatabaseDescriptorTest
         Config conf = new Config();
         conf.row_index_read_size_warn_threshold = new DataStorageSpec.LongBytesBound(0, KIBIBYTES);
         conf.row_index_read_size_fail_threshold = new DataStorageSpec.LongBytesBound(2, KIBIBYTES);
-        DatabaseDescriptor.applyReadThresholdsValidations(conf);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+    }
+
+    // write thresholds
+    @Test
+    public void testWriteSizeWarnThresholdEnabled()
+    {
+        Config conf = new Config();
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(10, MEBIBYTES);
+        conf.write_thresholds_enabled = true;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isEqualTo(conf.write_size_warn_threshold);
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isTrue();
+    }
+
+    @Test
+    public void testWriteSizeWarnThresholdDisabled()
+    {
+        Config conf = new Config();
+        conf.write_size_warn_threshold = null;
+        conf.write_thresholds_enabled = false;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isNull();
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isFalse();
+    }
+
+    @Test
+    public void testWriteTombstoneWarnThresholdEnabled()
+    {
+        Config conf = new Config();
+        conf.write_tombstone_warn_threshold = 1000;
+        conf.write_thresholds_enabled = true;
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(1000);
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isTrue();
+    }
+
+    @Test
+    public void testWriteTombstoneWarnThresholdDisabled()
+    {
+        Config conf = new Config();
+        conf.write_tombstone_warn_threshold = -1;
+        conf.write_thresholds_enabled = false;
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(-1);
+        assertThat(DatabaseDescriptor.getWriteThresholdsEnabled()).isFalse();
+    }
+
+    @Test
+    public void testWriteThresholdsCanBeSetIndependently()
+    {
+        Config conf = new Config();
+        // Set size threshold only
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        conf.write_tombstone_warn_threshold = -1;
+        conf.write_thresholds_enabled = true;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        DatabaseDescriptor.setWriteThresholdsEnabled(conf.write_thresholds_enabled);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isEqualTo(conf.write_size_warn_threshold);
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(-1);
+
+        // Set tombstone threshold only
+        conf.write_size_warn_threshold = null;
+        conf.write_tombstone_warn_threshold = 500;
+        DatabaseDescriptor.setWriteSizeWarnThreshold(conf.write_size_warn_threshold);
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(conf.write_tombstone_warn_threshold);
+        assertThat(DatabaseDescriptor.getWriteSizeWarnThreshold()).isNull();
+        assertThat(DatabaseDescriptor.getWriteTombstoneWarnThreshold()).isEqualTo(500);
+    }
+
+    @Test
+    public void testWriteSizeWarnThresholdValidation()
+    {
+        Config conf = new Config();
+
+        // Error: warn < min
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(1, MEBIBYTES);
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("write_size_warn_threshold (1MiB) cannot be less than min_tracked_partition_size (5MiB)");
+
+        // Valid: warn == min
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Valid: warn > min
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(10, MEBIBYTES);
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Valid: null values
+        conf.write_size_warn_threshold = null;
+        conf.min_tracked_partition_size = new DataStorageSpec.LongBytesBound(5, MEBIBYTES);
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        conf.write_size_warn_threshold = new DataStorageSpec.LongBytesBound(10, MEBIBYTES);
+        conf.min_tracked_partition_size = null;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        conf.write_size_warn_threshold = null;
+        conf.min_tracked_partition_size = null;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+    }
+
+    @Test
+    public void testWriteTombstoneWarnThresholdValidation()
+    {
+        Config conf = new Config();
+
+        // Error: threshold < -1
+        conf.write_tombstone_warn_threshold = -2;
+        conf.min_tracked_partition_tombstone_count = 100;
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("write_tombstone_warn_threshold (-2) must be -1 (disabled) or >= 0");
+
+        // Valid: threshold == -1 (disabled)
+        conf.write_tombstone_warn_threshold = -1;
+        conf.min_tracked_partition_tombstone_count = 100;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Error: warn < min
+        conf.write_tombstone_warn_threshold = 50;
+        conf.min_tracked_partition_tombstone_count = 100;
+        assertThatThrownBy(() -> DatabaseDescriptor.applyThresholdsValidations(conf))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("write_tombstone_warn_threshold (50) cannot be less than min_tracked_partition_tombstone_count (100)");
+
+        // Valid: warn == min
+        conf.write_tombstone_warn_threshold = 100;
+        conf.min_tracked_partition_tombstone_count = 100;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
+
+        // Valid: warn > min
+        conf.write_tombstone_warn_threshold = 200;
+        conf.min_tracked_partition_tombstone_count = 100;
+        DatabaseDescriptor.applyThresholdsValidations(conf);
     }
 
     @Test
@@ -922,5 +1066,12 @@ public class DatabaseDescriptorTest
             else
                 assertThat(DatabaseDescriptor.getCommitLogWriteDiskAccessMode()).isEqualTo(mode);
         }
+    }
+
+    @Test
+    public void testMaxValueSize()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertEquals(config.max_value_size.toMebibytes() * 1024 * 1024, DatabaseDescriptor.getMaxValueSize());
     }
 }

@@ -34,20 +34,20 @@ public enum Version implements MessageVersionProvider
 {
     // If MessagingService version bumps, this mapping does not need to be updated; only updates needed are those that
     // include accord serializer changes.
-    V1(1, MessagingService.Version.VERSION_51);
+    V1(1, MessagingService.Version.VERSION_60);
 
     public static final Version LATEST = Version.V1;
     /**
      * Version that should be used for disk serialization where downgrade may be possible.
      *
-     * As of this writing only 1 version exists, so this is the same as LATEST... Once v2 comes into the picture we need this version to be the oldest version needed for downgrade...  If you upgrade from 5.1 to 5.2 (assuming this adds a v2) you need a version that works with 5.1 here.
+     * As of this writing only 1 version exists, so this is the same as LATEST... Once v2 comes into the picture we need this version to be the oldest version needed for downgrade...  If you upgrade from 6.0 to 7.0 (assuming this adds a v2) you need a version that works with 6.0 here.
      */
     public static final Version DOWNGRADE_SAFE_VERSION = Version.V1;
 
     /**
      * Version that should be used for messaging serialization where mixed versions may be possible.
      *
-     * As of this writing only 1 version exists, so this is the same as LATEST... Once v2 comes into the picture we need this version to be the oldest version needed for downgrade...  If you upgrade from 5.1 to 5.2 (assuming this adds a v2) you need a version that works with 5.1 here.
+     * As of this writing only 1 version exists, so this is the same as LATEST... Once v2 comes into the picture we need this version to be the oldest version needed for downgrade...  If you upgrade from 6.0 to 7.0 (assuming this adds a v2) you need a version that works with 6.0 here.
      */
     public static final Version CLUSTER_SAFE_VERSION = Version.V1;
 

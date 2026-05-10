@@ -27,6 +27,7 @@ import com.google.common.collect.RangeSet;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.filter.IndexHints;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -126,9 +127,21 @@ public final class MergedRestriction implements SingleRestriction
         checkOperator(other);
 
         if (restriction.isContains() != other.isContains())
+        {
+            SimpleRestriction mapEntryRestriction = restriction.isContains() ? restriction : other;
+            if (mapEntryRestriction.isMapElementExpression())
+            {
+                ColumnMetadata column = mapEntryRestriction.firstColumn();
+                if (column.type.isFrozenCollection())
+                {
+                    throw invalidRequest(Relation.FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, column.name);
+                }
+            }
+
             throw invalidRequest("Collection column %s can only be restricted by CONTAINS, CONTAINS KEY, NOT_CONTAINS, NOT_CONTAINS_KEY" +
                                  " or map-entry equality if it already restricted by one of those",
                                  restriction.firstColumn().name);
+        }
 
         if (restriction.isSlice() && other.isSlice())
         {

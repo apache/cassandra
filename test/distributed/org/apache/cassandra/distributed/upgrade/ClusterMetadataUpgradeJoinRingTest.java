@@ -67,7 +67,7 @@ public class ClusterMetadataUpgradeJoinRingTest extends UpgradeTestBase
             // node4 not upgraded yet - should be allowed to vote despite being join_ring=false:
             cluster.get(1).nodetoolResult("cms", "initialize").asserts().failure();
             cluster.get(4).shutdown().get();
-            cluster.get(4).setVersion(Versions.find().getLatest(v51));
+            cluster.get(4).setVersion(Versions.find().getLatest(v60));
             withProperty(CassandraRelevantProperties.JOIN_RING, false, () -> cluster.get(4).startup());
             checkGossipinfo(cluster, false);
             checkPlacements(cluster.get(1), "127.0.0.4", false);

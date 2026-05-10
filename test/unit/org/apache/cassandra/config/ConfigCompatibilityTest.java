@@ -170,9 +170,9 @@ public class ConfigCompatibilityTest
     }
 
     @Test
-    public void diff_5_1() throws IOException
+    public void diff_6_0() throws IOException
     {
-        diff(TEST_DIR + "/version=5.1-alpha1.yml", ImmutableSet.<String>builder()
+        diff(TEST_DIR + "/version=6.0-alpha1.yml", ImmutableSet.<String>builder()
                                                                .build(), ImmutableSet.of());
     }
 

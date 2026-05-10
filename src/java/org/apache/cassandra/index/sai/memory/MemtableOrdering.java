@@ -20,9 +20,13 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.util.List;
 
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.utils.CloseableIterator;
 
 /**
  * Analogue of {@link org.apache.cassandra.index.sai.disk.v1.segment.SegmentOrdering}, but for memtables.
@@ -30,13 +34,22 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 public interface MemtableOrdering
 {
     /**
-     * Filter the given list of {@code PrimaryKey} results to the top `limit` results corresponding to the given expression,
-     * Returns an iterator over the results that is put back in token order.
-     * <p>
-     * Assumes that the given list spans the same rows as the implementing index's segment.
+     * Order the index based on the given orderer (expression).
+     *
+     * @param queryContext - the query context
+     * @param orderer      - the expression to order by
+     * @param keyRange     - the key range to search
+     * @return an iterator over the results in score order.
      */
-    default KeyRangeIterator limitToTopResults(List<PrimaryKey> primaryKeys, Expression expression, int limit)
-    {
-        throw new UnsupportedOperationException();
-    }
+    CloseableIterator<PrimaryKeyWithScore> orderBy(QueryContext queryContext,
+                                                   Expression orderer,
+                                                   AbstractBounds<PartitionPosition> keyRange);
+
+    /**
+     * Order the given list of {@link PrimaryKey} results corresponding to the given orderer.
+     * Returns an iterator over the results in score order.
+     *
+     * Assumes that the given  spans the same rows as the implementing index's segment.
+     */
+    CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext context, List<PrimaryKey> results, Expression orderer);
 }

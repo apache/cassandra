@@ -60,6 +60,7 @@ import org.apache.cassandra.cql3.transactions.ConditionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
+import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
@@ -130,6 +131,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord.enabled in cassandra.yaml)";
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
+    public static final String DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE = "Transaction contains multiple updates to the same key and fields";
     public static final String UNSUPPORTED_MIGRATION = "Transaction Statement is unsupported when migrating away from Accord or before migration to Accord is complete for a range";
     public static final String NO_PARTITION_IN_CLAUSE_WITH_LIMIT = "Partition key is present in IN clause and there is a LIMIT... this is currently not supported; %s statement %s";
     public static final String WRITE_TXN_EMPTY_WITH_IGNORED_READS = "Write txn produced no mutation, and its reads do not return to the caller; ignoring...";
@@ -357,12 +359,17 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
     List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<Integer, NamedSelect> autoReads, TableMetadatasAndKeys.KeyCollector keyCollector)
     {
+        // check that within a transaction we don't have multiple updates to the same primary key, column pair
+        HashMap<Object, Columns> seenColumns = new HashMap<>();
+
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
         for (ModificationStatement modification : updates)
         {
             minEpoch = Math.max(minEpoch, modification.metadata().epoch.getEpoch());
-            fragments.addAll(modification.getTxnWriteFragment(idx, state, options, keyCollector));
+            List<TxnWrite.Fragment> writeFragments = modification.getTxnWriteFragment(idx, state, options, keyCollector);
+            fragments.addAll(writeFragments);
+            validateOnlyModifyPrimaryKeyColumnPairOnce(seenColumns, modification, writeFragments);
 
             if (modification.allReferenceOperations().stream().anyMatch(ReferenceOperation::requiresRead))
             {
@@ -375,6 +382,23 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             idx++;
         }
         return fragments;
+    }
+
+    private static void validateOnlyModifyPrimaryKeyColumnPairOnce(HashMap<Object, Columns> seenColumns,
+                                                                   ModificationStatement statement, List<TxnWrite.Fragment> writeFragments)
+    {
+        Columns regularColumns = statement.updatedColumns().columns(false);
+        statement.forEachRowKey(writeFragments, seenColumns, regularColumns, TransactionStatement::mergeColumnsIfNoDuplicates);
+        Columns staticColumns = statement.updatedColumns().columns(true);
+        statement.forEachPartitionKey(writeFragments, seenColumns, staticColumns, TransactionStatement::mergeColumnsIfNoDuplicates);
+    }
+
+    private static Columns mergeColumnsIfNoDuplicates(Columns existing, Columns add)
+    {
+        Columns merged = existing.mergeTo(add);
+        if (merged.size() != existing.size() + add.size())
+            throw invalidRequest(DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE);
+        return merged;
     }
 
     private ConsistencyLevel consistencyLevelForAccordRead(ClusterMetadata cm, TableMetadatas.Complete tables, Keys keys, @Nullable ConsistencyLevel consistencyLevel)

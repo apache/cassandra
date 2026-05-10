@@ -65,7 +65,7 @@ SAI returns `InvalidRequestException` if you try to define an index on a column 
 
 == Optional parameters
 
-[cols="1,3"]  
+[cols="1,3"]
 |===
 
 | Parameter | Description
@@ -74,6 +74,8 @@ SAI returns `InvalidRequestException` if you try to define an index on a column 
 | Name of the index.
 Enclose in quotes to use special characters or preserve capitalization.
 If no name is specified, {product} names the index as `<table_name>\_<column_name>\_idx`.
+
+include::cassandra:partial$index-naming.adoc[]
 
 | keyspace_name
 | Name of the keyspace that contains the table to index.

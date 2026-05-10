@@ -142,11 +142,11 @@ public class TokenKeyTest
                     Assertions.assertThat(roundTrip).isEqualTo(key);
                 }
                 {
-                    TokenKey roundTrip = serializer.deserializeWithPrefix(key.prefix(), serializer.serializedSizeWithoutPrefix(key), serializer.serializeWithoutPrefixOrLength(key), partitioner);
+                    TokenKey roundTrip = serializer.deserializeWithPrefix(key.prefix(), serializer.serializedSizeWithoutPrefixOrLength(key), serializer.serializeWithoutPrefixOrLength(key), partitioner);
                     Assertions.assertThat(roundTrip).isEqualTo(key);
                 }
                 {
-                    TokenKey roundTrip = serializer.deserializeWithPrefix(key.prefix(), serializer.serializedSizeWithoutPrefix(key), serializer.serializeWithoutPrefixOrLength(key), ByteBufferAccessor.instance, 0, partitioner);
+                    TokenKey roundTrip = serializer.deserializeWithPrefix(key.prefix(), serializer.serializedSizeWithoutPrefixOrLength(key), serializer.serializeWithoutPrefixOrLength(key), ByteBufferAccessor.instance, 0, partitioner);
                     Assertions.assertThat(roundTrip).isEqualTo(key);
                 }
                 output.clear();

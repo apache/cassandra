@@ -78,6 +78,7 @@ import org.apache.cassandra.service.PreserveTimestamp;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.TimestampSource;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -87,6 +88,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static java.util.function.Predicate.isEqual;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.service.consensus.migration.ConsensusMigrationMutationHelper.isSingleTokenStatementSpanningAccordAndNonAccordTables;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -142,27 +144,62 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         this.attrs = attrs;
 
         boolean hasConditions = false;
-        MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
-        RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
         boolean updateRegular = false;
         boolean updateStatic = false;
         boolean updatesVirtualTables = false;
 
+        boolean sameTableAndColumnsNoConditions = true;
+        TableMetadata tableMetadata = null;
+        RegularAndStaticColumns regularAndStaticColumns = null;
+        // we check initially if it is a typical scenario:
+        // when many similar rows for the same table are written unconditionally
+        // in this case we can avoid columns info merging and builders allocation
         for (ModificationStatement stmt : statements)
         {
-            regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
+            if (tableMetadata == null)
+                tableMetadata = stmt.metadata();
+            if (regularAndStaticColumns == null)
+                regularAndStaticColumns = stmt.updatedColumns();
+
+            if (tableMetadata != stmt.metadata()
+                || regularAndStaticColumns != stmt.updatedColumns()
+                || stmt.hasConditions())
+            {
+                sameTableAndColumnsNoConditions = false;
+                break;
+            }
+
             updateRegular |= stmt.updatesRegularRows();
             updatesVirtualTables |= stmt.isVirtual();
-            if (stmt.hasConditions())
-            {
-                hasConditions = true;
-                conditionBuilder.addAll(stmt.conditionColumns());
-                updateStatic |= stmt.updatesStaticRow();
-            }
+            updateStatic |= stmt.updatesStaticRow();
         }
 
-        this.updatedColumns = regularBuilder.build();
-        this.conditionColumns = conditionBuilder.build();
+        if (sameTableAndColumnsNoConditions && tableMetadata != null)
+        {
+            this.updatedColumns = Collections.singletonMap(tableMetadata.id(), regularAndStaticColumns);
+            this.conditionColumns = RegularAndStaticColumns.NONE;
+        }
+        else
+        {
+
+            MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
+            RegularAndStaticColumns.Builder conditionBuilder = RegularAndStaticColumns.builder();
+            for (ModificationStatement stmt : statements)
+            {
+                regularBuilder.addAll(stmt.metadata(), stmt.updatedColumns());
+                updateRegular |= stmt.updatesRegularRows();
+                updatesVirtualTables |= stmt.isVirtual();
+                if (stmt.hasConditions())
+                {
+                    hasConditions = true;
+                    conditionBuilder.addAll(stmt.conditionColumns());
+                    updateStatic |= stmt.updatesStaticRow();
+                }
+            }
+
+            this.updatedColumns = regularBuilder.build();
+            this.conditionColumns = conditionBuilder.build();
+        }
         this.updatesRegularRows = updateRegular;
         this.updatesStaticRow = updateStatic;
         this.hasConditions = hasConditions;
@@ -506,7 +543,10 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
 
         updatePartitionsPerBatchMetrics(mutations.size());
 
-        boolean mutateAtomic = (isLogged() && mutations.size() > 1);
+        // We special case single token batch statements that span both Accord and non-Accord
+        // tables to go through the batch log in order to preserve all or nothing application
+        // see CASSANDRA-20588 for more details
+        boolean mutateAtomic = (isLogged() && mutations.size() > 1) || (isSingleTokenStatementSpanningAccordAndNonAccordTables(ClusterMetadata.current(), mutations.get(0)));
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, requestTime, preserveTimestamp);
         ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }

@@ -237,6 +237,76 @@ public class AutoRepairUtils
                           ConsistencyLevel.LOCAL_QUORUM : ConsistencyLevel.ONE;
     }
 
+    /**
+     * Migrates auto_repair_history and auto_repair_priority entries from the pre-upgrade
+     * host ID to the post-upgrade host ID (NodeId-derived UUID).
+     * No-op if the node was not upgraded or migration already happened.
+     * Called once during AutoRepair.setup(), before repair scheduling begins.
+     */
+    public static void migrateAutoRepairHistoryForUpgrade()
+    {
+        try
+        {
+            Directory directory = ClusterMetadata.current().directory;
+            NodeId myNodeId = directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+            if (myNodeId == null)
+                return;
+
+            UUID oldHostId = directory.hostId(myNodeId);
+            UUID newHostId = myNodeId.toUUID();
+
+            if (oldHostId.equals(newHostId))
+            {
+                logger.debug("No host ID migration needed — old and new IDs are identical ({})", newHostId);
+                return;
+            }
+
+            logger.info("Migrating auto-repair history from pre-upgrade host ID {} to new host ID {}", oldHostId, newHostId);
+
+            for (RepairType repairType : RepairType.values())
+            {
+                // Migrate auto_repair_history using the same distributed read/write path as AutoRepair
+                List<AutoRepairHistory> histories = getAutoRepairHistory(repairType);
+                if (histories != null)
+                {
+                    for (AutoRepairHistory entry : histories)
+                    {
+                        if (entry.hostId.equals(oldHostId))
+                        {
+                            // Insert new entry with the post-upgrade host ID, preserving timestamps
+                            insertNewRepairHistory(repairType, newHostId, entry.lastRepairStartTime, entry.lastRepairFinishTime);
+                            // Update start timestamp and repair turn to match the original entry
+                            if (entry.repairTurn != null)
+                                updateStartAutoRepairHistory(repairType, newHostId, entry.lastRepairStartTime, RepairTurn.valueOf(entry.repairTurn));
+                            // Delete the old entry
+                            deleteAutoRepairHistory(repairType, oldHostId);
+                            logger.info("Migrated auto_repair_history for repair type {} from {} to {}", repairType, oldHostId, newHostId);
+                            break;
+                        }
+                    }
+                }
+
+                // Migrate auto_repair_priority
+                Set<UUID> priorityIds = getPriorityHostIds(repairType);
+                if (priorityIds.contains(oldHostId))
+                {
+                    removePriorityStatus(repairType, oldHostId);
+                    SetSerializer<UUID> serializer = SetSerializer.getInstance(UUIDSerializer.instance, UTF8Type.instance.comparatorSet);
+                    addPriorityHost.execute(QueryState.forInternalCalls(),
+                                           QueryOptions.forInternalCalls(internalQueryCL,
+                                                                         Lists.newArrayList(serializer.serialize(Collections.singleton(newHostId)),
+                                                                                            ByteBufferUtil.bytes(repairType.toString()))),
+                                           Dispatcher.RequestTime.forImmediateExecution());
+                    logger.info("Migrated auto_repair_priority for repair type {} from {} to {}", repairType, oldHostId, newHostId);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            logger.error("Failed to migrate auto-repair history for upgrade", e);
+        }
+    }
+
     public static class AutoRepairHistory
     {
         UUID hostId;

@@ -36,8 +36,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class DiskBoundaryManager
 {
@@ -143,22 +141,17 @@ public class DiskBoundaryManager
 
     private static RangesAtEndpoint getLocalRanges(ColumnFamilyStore cfs, ClusterMetadata metadata)
     {
-        RangesAtEndpoint localRanges;
-        DataPlacement placement;
-        if (StorageService.instance.isBootstrapMode()
-            && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
+        if (StorageService.instance.isBootstrapMode() && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
         {
-            placement = metadata.placements.get(cfs.keyspace.getMetadata().params.replication);
+            return metadata.localWriteRanges(cfs.keyspace.getMetadata());
         }
         else
         {
             // Reason we use the future settled metadata is that if we decommission a node, we want to stream
             // from that node to the correct location on disk, if we didn't, we would put new files in the wrong places.
             // We do this to minimize the amount of data we need to move in rebalancedisks once everything settled
-            placement = metadata.writePlacementAllSettled(cfs.keyspace.getMetadata());
+            return metadata.localWriteRangesAllSettled(cfs.keyspace.getMetadata());
         }
-        localRanges = placement.writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort());
-        return localRanges;
     }
 
     /**

@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.Locator;
@@ -31,6 +32,8 @@ import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
 import org.apache.cassandra.transport.Dispatcher;
 
 /**
@@ -79,9 +82,22 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
     {
         try
         {
-            String dataCenter = message == null
-                                ? locator.local().datacenter
-                                : locator.location(message.from()).datacenter;
+            Map<ParamType, Object> params;
+            String dataCenter;
+
+            if (message != null)
+            {
+                params = message.header.params();
+                dataCenter = locator.location(message.from()).datacenter;
+            }
+            else
+            {
+                params = MessageParams.capture();
+                dataCenter = locator.local().datacenter;
+            }
+
+            if (WriteWarningContext.isSupported(params.keySet()))
+                getWarningContext().updateCounters(params);
 
             responses.get(dataCenter).getAndDecrement();
             acks.incrementAndGet();

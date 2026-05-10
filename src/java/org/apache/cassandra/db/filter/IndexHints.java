@@ -395,8 +395,8 @@ public class IndexHints
         }
 
         // Ensure that all nodes in the cluster are in a version that supports index hints, including this one
-        Set<InetAddressAndPort> badNodes = MessagingService.instance().endpointsWithConnectionsOnVersionBelow(MessagingService.VERSION_51);
-        if (MessagingService.current_version < MessagingService.VERSION_51)
+        Set<InetAddressAndPort> badNodes = MessagingService.instance().endpointsWithConnectionsOnVersionBelow(MessagingService.VERSION_60);
+        if (MessagingService.current_version < MessagingService.VERSION_60)
             badNodes.add(FBUtilities.getBroadcastAddressAndPort());
         if (!badNodes.isEmpty())
             throw new InvalidRequestException("Index hints are not supported in clusters below 14.");
@@ -497,7 +497,7 @@ public class IndexHints
         public void serialize(IndexHints hints, DataOutputPlus out, int version) throws IOException
         {
             // index hints are only supported in 14 and above, so don't serialize anything if the messaging version is lower
-            if (version < MessagingService.VERSION_51)
+            if (version < MessagingService.VERSION_60)
             {
                 if (hints != NONE)
                     throw new IllegalStateException("Unable to serialize index hints with messaging version: " + version);
@@ -514,7 +514,7 @@ public class IndexHints
         public IndexHints deserialize(DataInputPlus in, int version, TableMetadata table) throws IOException
         {
             // index hints are only supported in 14 and above, so don't read anything if the messaging version is lower
-            if (version < MessagingService.VERSION_51)
+            if (version < MessagingService.VERSION_60)
                 return IndexHints.NONE;
 
             // read the flags first to determine which types of hints are present
@@ -535,7 +535,7 @@ public class IndexHints
         public long serializedSize(IndexHints hints, int version)
         {
             // index hints are only supported in 14 and above, so no size if the messaging version is lower
-            if (version < MessagingService.VERSION_51)
+            if (version < MessagingService.VERSION_60)
                 return 0;
 
             // size of flags

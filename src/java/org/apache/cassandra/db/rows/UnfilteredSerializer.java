@@ -36,7 +36,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.SearchIterator;
@@ -369,18 +368,24 @@ public class UnfilteredSerializer
             size += Columns.serializer.serializedSubsetSize(row.columns(), header.columns(isStatic));
 
         SearchIterator<ColumnMetadata, ColumnMetadata> si = helper.iterator(isStatic);
-        return row.accumulate((data, v) -> {
-            ColumnMetadata column = si.next(data.column());
-            assert column != null;
-
-            if (data.column.isSimple())
-                return v + Cell.serializer.serializedSize((Cell<?>) data, column, pkLiveness, header);
-            else
-                return v + sizeOfComplexColumn((ComplexColumnData) data, column, hasComplexDeletion, pkLiveness, header);
-        }, size);
+        helper.si = si;
+        helper.pkLiveness = pkLiveness;
+        helper.hasComplexDeletion = hasComplexDeletion;
+        return row.accumulate(UnfilteredSerializer::serializedColumnDataSize, helper, size);
     }
 
-    private long sizeOfComplexColumn(ComplexColumnData data, ColumnMetadata column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header)
+    private static long serializedColumnDataSize(SerializationHelper helper, ColumnData data, long v)
+    {
+        ColumnMetadata column = helper.si.next(data.column());
+        assert column != null;
+
+        if (data.column.isSimple())
+            return v + Cell.serializer.serializedSize((Cell<?>) data, column, helper.pkLiveness, helper.header);
+        else
+            return v + sizeOfComplexColumn((ComplexColumnData) data, column, helper.hasComplexDeletion, helper.pkLiveness, helper.header);
+    }
+
+    private static long sizeOfComplexColumn(ComplexColumnData data, ColumnMetadata column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header)
     {
         long size = 0;
 
@@ -595,7 +600,7 @@ public class UnfilteredSerializer
             {
                 long rowSize = in.readUnsignedVInt();
                 in.readUnsignedVInt(); // previous unfiltered size
-                in = new TrackedDataInputPlus(in, rowSize);
+                in = helper.trackedDataInputPlus(in, rowSize);
             }
 
             LivenessInfo rowLiveness = LivenessInfo.EMPTY;
@@ -620,20 +625,12 @@ public class UnfilteredSerializer
 
             try
             {
-                DataInputPlus finalIn = in;
-                columns.apply(column -> {
-                    try
-                    {
-                        if (column.isSimple())
-                            readSimpleColumn(column, finalIn, header, helper, builder, livenessInfo);
-                        else
-                            readComplexColumn(column, finalIn, header, helper, hasComplexDeletion, builder, livenessInfo);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new WrappedException(e);
-                    }
-                });
+                helper.in = in;
+                helper.header = header;
+                helper.builder = builder;
+                helper.livenessInfo = livenessInfo;
+                helper.hasComplexDeletion = hasComplexDeletion;
+                columns.apply(UnfilteredSerializer::readColumn, helper);
             }
             catch (WrappedException e)
             {
@@ -655,7 +652,22 @@ public class UnfilteredSerializer
         }
     }
 
-    private void readSimpleColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, Row.Builder builder, LivenessInfo rowLiveness)
+    private static void readColumn(DeserializationHelper helper, ColumnMetadata column)
+    {
+        try
+        {
+            if (column.isSimple())
+                readSimpleColumn(column, helper.in, helper.header, helper, helper.builder, helper.livenessInfo);
+            else
+                readComplexColumn(column, helper.in, helper.header, helper, helper.hasComplexDeletion, helper.builder, helper.livenessInfo);
+        }
+        catch (IOException e)
+        {
+            throw new WrappedException(e);
+        }
+    }
+
+    private static void readSimpleColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, Row.Builder builder, LivenessInfo rowLiveness)
     throws IOException
     {
         if (helper.includes(column))
@@ -670,7 +682,7 @@ public class UnfilteredSerializer
         }
     }
 
-    private void readComplexColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, boolean hasComplexDeletion, Row.Builder builder, LivenessInfo rowLiveness)
+    private static void readComplexColumn(ColumnMetadata column, DataInputPlus in, SerializationHeader header, DeserializationHelper helper, boolean hasComplexDeletion, Row.Builder builder, LivenessInfo rowLiveness)
     throws IOException
     {
         if (helper.includes(column))
@@ -727,7 +739,7 @@ public class UnfilteredSerializer
         in.skipBytesFully(markerSize);
     }
 
-    private void skipComplexColumn(DataInputPlus in, ColumnMetadata column, SerializationHeader header, boolean hasComplexDeletion)
+    private static void skipComplexColumn(DataInputPlus in, ColumnMetadata column, SerializationHeader header, boolean hasComplexDeletion)
     throws IOException
     {
         if (hasComplexDeletion)

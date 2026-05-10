@@ -27,6 +27,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compression.SSTableChunkSampler.SSTableChunkInfo;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -118,19 +120,20 @@ public class SSTableChunkSamplerTest extends CQLTester
                                                                                         .chunkSize(64 * 1024)
                                                                                         .build();
 
-        Set<SSTableReader> sstables = cfs.getLiveSSTables();
-        assertThat(sstables).hasSizeGreaterThanOrEqualTo(3);
+        try (ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
+        {
+            assertThat(refViewFragment.sstables).hasSizeGreaterThanOrEqualTo(3);
+            List<SSTableChunkInfo> sstableInfos = SSTableChunkSampler.buildSSTableInfos(refViewFragment.sstables, config);
+            long totalChunks = sstableInfos.stream().mapToLong(info -> info.chunkCount).sum();
+            long targetChunkCount = SSTableChunkSampler.calculateTargetChunkCount(sstableInfos, totalChunks, config);
 
-        List<SSTableChunkInfo> sstableInfos = SSTableChunkSampler.buildSSTableInfos(sstables, config);
-        long totalChunks = sstableInfos.stream().mapToLong(info -> info.chunkCount).sum();
-        long targetChunkCount = SSTableChunkSampler.calculateTargetChunkCount(sstableInfos, totalChunks, config);
-
-        // Target should be based on maxTotalSampleSize divided by average chunk size
-        assertThat(targetChunkCount).isGreaterThan(0);
-        long totalDataSize = sstableInfos.stream().mapToLong(info -> info.dataLength).sum();
-        int averageChunkSize = (int) (totalDataSize / totalChunks);
-        long expectedTarget = config.maxTotalSampleSize / averageChunkSize;
-        assertThat(targetChunkCount).isEqualTo(expectedTarget);
+            // Target should be based on maxTotalSampleSize divided by average chunk size
+            assertThat(targetChunkCount).isGreaterThan(0);
+            long totalDataSize = sstableInfos.stream().mapToLong(info -> info.dataLength).sum();
+            int averageChunkSize = (int) (totalDataSize / totalChunks);
+            long expectedTarget = config.maxTotalSampleSize / averageChunkSize;
+            assertThat(targetChunkCount).isEqualTo(expectedTarget);
+        }
     }
 
     @Test
@@ -186,22 +189,23 @@ public class SSTableChunkSamplerTest extends CQLTester
         }
         flush();
 
-        Set<SSTableReader> sstables = cfs.getLiveSSTables();
-        assertThat(sstables).isNotEmpty();
+        try (ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
+        {
+            assertThat(refViewFragment.sstables).isNotEmpty();
 
-        CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
-                                                                                        .chunkSize(64 * 1024)
-                                                                                        .build();
+            CompressionDictionaryTrainingConfig config = CompressionDictionaryTrainingConfig.builder()
+                                                                                            .chunkSize(64 * 1024)
+                                                                                            .build();
 
-        // Create a mock trainer that is not ready to sample
-        ICompressionDictionaryTrainer trainer = mock(ICompressionDictionaryTrainer.class, RETURNS_DEEP_STUBS);
-        when(trainer.shouldSample()).thenReturn(false);
-        when(trainer.getTrainingState().getStatus()).thenReturn(ICompressionDictionaryTrainer.TrainingStatus.NOT_STARTED);
+            // Create a mock trainer that is not ready to sample
+            ICompressionDictionaryTrainer trainer = mock(ICompressionDictionaryTrainer.class, RETURNS_DEEP_STUBS);
+            when(trainer.getTrainingState().getStatus()).thenReturn(ICompressionDictionaryTrainer.TrainingStatus.NOT_STARTED);
 
-        // Should throw IllegalStateException when trainer is not ready
-        assertThatThrownBy(() -> SSTableChunkSampler.sampleFromSSTables(sstables, trainer, config))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Trainer is not ready to accept samples");
+            // Should throw IllegalStateException when trainer is not ready
+            assertThatThrownBy(() -> SSTableChunkSampler.sampleFromSSTables(refViewFragment.sstables, trainer, config))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Trainer is not ready to accept samples");
+        }
     }
 
     @Test

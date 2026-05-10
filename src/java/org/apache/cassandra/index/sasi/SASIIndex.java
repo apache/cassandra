@@ -359,7 +359,7 @@ public class SASIIndex implements Index, INotificationConsumer
         }
         else if (notification instanceof MemtableSwitchedNotification)
         {
-            index.switchMemtable(((MemtableSwitchedNotification) notification).memtable);
+            index.switchMemtable(((MemtableSwitchedNotification) notification).previous);
         }
         else if (notification instanceof MemtableDiscardedNotification)
         {

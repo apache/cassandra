@@ -22,6 +22,8 @@ import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +42,9 @@ public class IndexSummaryBuilder implements AutoCloseable
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
 
     static long defaultExpectedKeySize = INDEX_SUMMARY_EXPECTED_KEY_SIZE.getLong();
+
+    @VisibleForTesting
+    static long maxEntriesSize = Integer.MAX_VALUE;
 
     // the offset in the keys memory region to look for a given summary boundary
     private final SafeMemoryWriter offsets;
@@ -105,13 +110,13 @@ public class IndexSummaryBuilder implements AutoCloseable
         long expectedEntrySize = getEntrySize(defaultExpectedKeySize);
         long maxExpectedEntries = expectedKeys / minIndexInterval;
         long maxExpectedEntriesSize = maxExpectedEntries * expectedEntrySize;
-        if (maxExpectedEntriesSize > Integer.MAX_VALUE)
+        if (maxExpectedEntriesSize > maxEntriesSize)
         {
             // that's a _lot_ of keys, and a very low min index interval
-            int effectiveMinInterval = (int) Math.ceil((double)(expectedKeys * expectedEntrySize) / Integer.MAX_VALUE);
+            int effectiveMinInterval = (int) Math.ceil((double)(expectedKeys * expectedEntrySize) / maxEntriesSize);
             maxExpectedEntries = expectedKeys / effectiveMinInterval;
             maxExpectedEntriesSize = maxExpectedEntries * expectedEntrySize;
-            assert maxExpectedEntriesSize <= Integer.MAX_VALUE : maxExpectedEntriesSize;
+            assert maxExpectedEntriesSize <= maxEntriesSize : maxExpectedEntriesSize;
             logger.warn("min_index_interval of {} is too low for {} expected keys of avg size {}; using interval of {} instead",
                         minIndexInterval, expectedKeys, defaultExpectedKeySize, effectiveMinInterval);
             this.minIndexInterval = effectiveMinInterval;
@@ -198,7 +203,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     {
         if (keysWritten == nextSamplePosition)
         {
-            if ((entries.length() + getEntrySize(length)) <= Integer.MAX_VALUE)
+            if ((entries.length() + getEntrySize(length)) <= maxEntriesSize)
             {
                 offsets.writeInt((int) entries.length());
                 entries.write(keyBytes, offset, length);
@@ -229,7 +234,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     {
         if (keysWritten == nextSamplePosition)
         {
-            if ((entries.length() + getEntrySize(decoratedKey)) <= Integer.MAX_VALUE)
+            if ((entries.length() + getEntrySize(decoratedKey)) <= maxEntriesSize)
             {
                 offsets.writeInt((int) entries.length());
                 entries.write(decoratedKey.getKey());

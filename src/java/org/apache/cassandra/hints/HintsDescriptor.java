@@ -70,8 +70,8 @@ final class HintsDescriptor
     static final int VERSION_30 = 1;
     static final int VERSION_40 = 2;
     static final int VERSION_50 = 3;
-    static final int VERSION_51 = 4;
-    static final int CURRENT_VERSION = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_51;
+    static final int VERSION_60 = 4;
+    static final int CURRENT_VERSION = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_60;
 
     static final String COMPRESSION = "compression";
     static final String ENCRYPTION = "encryption";
@@ -259,8 +259,8 @@ final class HintsDescriptor
                 return MessagingService.VERSION_40;
             case VERSION_50:
                 return MessagingService.VERSION_50;
-            case VERSION_51:
-                return MessagingService.VERSION_51;
+            case VERSION_60:
+                return MessagingService.VERSION_60;
             default:
                 throw new AssertionError();
         }

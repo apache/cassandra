@@ -41,18 +41,11 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     /**
      * Starts the trainer for collecting samples.
      *
-     * @param manualTraining true if this is manual training, false for automatic
      * @param trainingConfig training configuration to use
      * @return true if the trainer is started; otherwise false. The trainer is started
-     *         in any of those conditions: 1. trainer closed; 2. not requested for
-     *         either manual or auto training; 3. failed to start
+     *         in any of those conditions: 1. trainer closed; 2. failed to start
      */
-    boolean start(boolean manualTraining, CompressionDictionaryTrainingConfig trainingConfig);
-
-    /**
-     * @return true if the trainer is ready to take a new sample; otherwise, false
-     */
-    boolean shouldSample();
+    boolean start(CompressionDictionaryTrainingConfig trainingConfig);
 
     /**
      * Adds a sample to the training dataset.
@@ -106,29 +99,11 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
     CompressionDictionary.Kind kind();
 
     /**
-     * Determines if this trainer is compatible with the given compression parameters.
-     * This method allows the trainer to decide whether it can continue operating
-     * with new compression parameters or if a new trainer instance is needed.
-     *
-     * @param newParams the new compression parameters to check compatibility against
-     * @return true if this trainer is compatible with the new parameters, false otherwise
-     */
-    boolean isCompatibleWith(CompressionParams newParams);
-
-    /**
      * Sets the listener for dictionary training events.
      *
      * @param listener the listener to be notified when dictionaries are trained, null to remove listener
      */
     void setDictionaryTrainedListener(Consumer<CompressionDictionary> listener);
-
-    /**
-     * Updates the sampling rate for this trainer.
-     *
-     * @param newSamplingRate the new sampling rate. For exmaple, 0.01 - sample 1% of data,
-     *                        1 = sample every time (100%), 0.5 - sample 50% of data.
-     */
-    void updateSamplingRate(float newSamplingRate);
 
     /**
      * Factory method to create appropriate trainer based on compression parameters.
@@ -149,7 +124,7 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
             throw new IllegalArgumentException("Compressor does not support dictionary training: " + params.getSstableCompressor());
         }
 
-        IDictionaryCompressor dictionaryCompressor = (IDictionaryCompressor) compressor;
+        IDictionaryCompressor<?> dictionaryCompressor = (IDictionaryCompressor<?>) compressor;
         return dictionaryCompressor.acceptableDictionaryKind().createTrainer(keyspaceName, tableName, compressor);
     }
 
@@ -159,6 +134,6 @@ public interface ICompressionDictionaryTrainer extends AutoCloseable
         SAMPLING,
         TRAINING,
         COMPLETED,
-        FAILED;
+        FAILED
     }
 }

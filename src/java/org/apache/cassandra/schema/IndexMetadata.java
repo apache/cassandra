@@ -225,6 +225,17 @@ public final class IndexMetadata
         return kind == Kind.COMPOSITES;
     }
 
+    /**
+     * Checks if the given custom index class name represents a SAI.
+     */
+    public static boolean isSAIIndex(String customClass)
+    {
+        if (customClass == null)
+            return false;
+        String resolved = indexNameAliases.getOrDefault(toLowerCaseLocalized(customClass), customClass);
+        return StorageAttachedIndex.class.getName().equals(resolved);
+    }
+
     @Override
     public int hashCode()
     {

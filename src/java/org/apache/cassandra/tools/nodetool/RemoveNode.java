@@ -20,9 +20,9 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
-import picocli.CommandLine.ParentCommand;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -31,9 +31,6 @@ import static com.google.common.base.Preconditions.checkArgument;
          subcommands = { RemoveNode.Status.class })
 public class RemoveNode extends AbstractCommand
 {
-    @ParentCommand
-    public NodetoolCommand parent;
-
     @Parameters(paramLabel = "nodeId", description = "The ID of the node to remove", arity = "0..1")
     private String nodeId;
 
@@ -64,13 +61,13 @@ public class RemoveNode extends AbstractCommand
     @Command(name = "status", description = "Show status of the current node removal operation")
     public static class Status extends AbstractCommand
     {
-        @ParentCommand
-        private RemoveNode parent;
+        @Mixin
+        private PrintPortMixin printPortMixin = new PrintPortMixin();
 
         @Override
         public void execute(NodeProbe probe)
         {
-            probe.output().out.println("RemovalStatus: " + probe.getRemovalStatus(parent.parent.printPort));
+            probe.output().out.println("RemovalStatus: " + probe.getRemovalStatus(printPortMixin.printPort));
         }
     }
 }

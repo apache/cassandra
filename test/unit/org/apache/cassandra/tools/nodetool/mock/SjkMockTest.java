@@ -48,9 +48,38 @@ public class SjkMockTest extends AbstractNodetoolMock
     @Test
     public void testSjkTtop()
     {
-        ToolRunner.ToolResult result = invokeNodetool("sjk", "hh", "--top-number", "10", "--live");
+        ToolRunner.ToolResult result = invokeNodetool("sjk", "hh", "--top-number", "10000", "--live");
         result.assertOnCleanExit();
         assertThat(result.getStdout()).contains(" #      Instances          Bytes  Type");
         assertThat(result.getStdout()).containsPattern(" +\\d+ +\\d+ +org\\.apache\\.cassandra\\.config\\.DatabaseDescriptor\\$1");
+    }
+
+    @Test
+    public void testSjkMxdumpQueryFiltersResults()
+    {
+        ToolRunner.ToolResult allBeans = invokeNodetool("sjk", "mxdump");
+        allBeans.assertOnCleanExit();
+        assertThat(allBeans.getStdout()).contains(STORAGE_SERVICE_MBEAN);
+        assertThat(allBeans.getStdout()).contains(FAILURE_DETECTOR_MBEAN);
+
+        ToolRunner.ToolResult filtered = invokeNodetool("sjk", "mxdump", "-q",
+                                                        STORAGE_SERVICE_MBEAN);
+        filtered.assertOnCleanExit();
+        assertThat(filtered.getStdout()).contains(STORAGE_SERVICE_MBEAN);
+        assertThat(filtered.getStdout()).doesNotContain(FAILURE_DETECTOR_MBEAN);
+        assertThat(filtered.getStdout()).doesNotContain(GOSSIPER_MBEAN);
+    }
+
+    @Test
+    public void testSjkMxdumpQueryWildcard()
+    {
+        ToolRunner.ToolResult filtered = invokeNodetool("sjk", "mxdump", "-q",
+                                                        "org.apache.cassandra.net:*");
+        filtered.assertOnCleanExit();
+        assertThat(filtered.getStdout()).contains(FAILURE_DETECTOR_MBEAN);
+        assertThat(filtered.getStdout()).contains(GOSSIPER_MBEAN);
+        assertThat(filtered.getStdout()).contains(MESSAGING_SERVICE_MBEAN);
+        assertThat(filtered.getStdout()).doesNotContain(STORAGE_SERVICE_MBEAN);
+        assertThat(filtered.getStdout()).doesNotContain(CACHE_SERVICE_MBEAN);
     }
 }

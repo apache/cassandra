@@ -53,7 +53,10 @@ import accord.topology.Topologies;
 import accord.topology.TopologyException;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.ast.AssignmentOperator;
 import org.apache.cassandra.cql3.ast.Literal;
 import org.apache.cassandra.cql3.ast.Mutation;
@@ -64,6 +67,8 @@ import org.apache.cassandra.cql3.ast.Symbol;
 import org.apache.cassandra.cql3.ast.Txn;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -79,6 +84,9 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -206,6 +214,94 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
+    public void testRejectTransactionWithUpdatesToSamePrimaryKeySameColumns() throws Exception
+    {
+        test(cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2);
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET v = 2 WHERE k = 1 AND c = 1;\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1 AND c = 1;\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testRejectTransactionWithUpdatesToSamePrimaryKeyWithInClause() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, r int, j int, primary key (k, c, v)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r, j) VALUES (?, ?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 1, 3, 5);
+                cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r, j) VALUES (?, ?, ?, ?, ?)"), ConsistencyLevel.ALL, 2, 2, 2, 3, 5);
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET j = 5 WHERE k = 1 AND c = 1 AND v IN (1, 2);\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET j = 3 WHERE k = 1 AND c = 1 AND v = 2;\n" +
+                             "COMMIT TRANSACTION";
+
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals(TransactionStatement.DUPLICATE_KEYS_IN_SAME_TRANSACTION_MESSAGE, t.getMessage());
+            }
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithUpdatesToSamePrimaryKeyButDifferentColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, r int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r) VALUES (?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2, 3);
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 2 WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET r = 10 WHERE k = 1 AND c = 1;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithUpdatesToSamePrimaryKeyDisjointColumns() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, r int, j int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, v, r, j) VALUES (?, ?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2, 3, 5);
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET r = 2, j = 5 WHERE k = 1 AND c = 1;\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1 AND c = 1;\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
+    public void testAcceptTransactionWithSameStaticColumnUpdatedWithInClause() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, j int STATIC, v int, primary key (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute(wrapInTxn("INSERT INTO " + qualifiedAccordTableName + " (k, c, j, v) VALUES (?, ?, ?, ?)"), ConsistencyLevel.ALL, 1, 1, 2, 2);
+            String txn = "BEGIN TRANSACTION\n" +
+                         "  UPDATE " + qualifiedAccordTableName + " SET j = 2, v = 1 WHERE k = 1 AND c IN (1, 2);\n" +
+                         "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+        });
+    }
+
+    @Test
     public void testCounterCreateTableTransactionalModeFails() throws Exception
     {
         try
@@ -327,6 +423,81 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                               .contains(42, 43, 44)
                               .contains(42, 44, 45)
                               .contains(42, 45, 46);
+        });
+    }
+
+    @Test
+    public void testSinglePartitionKeyBatch() throws Throwable
+    {
+        String KEYSPACE = "ks" + System.currentTimeMillis();
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+
+        test(ddls, cluster -> {
+            cluster.coordinator(1).execute("BEGIN BATCH\n" +
+                                           "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
+                                           "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
+                                           "APPLY BATCH;", ConsistencyLevel.ONE);
+
+            SimpleQueryResult r1 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1", ConsistencyLevel.ONE);
+            SimpleQueryResult r2 = cluster.coordinator(1).executeWithResult("SELECT * FROM " + qualifiedRegularTableName + " WHERE k = 1", ConsistencyLevel.ONE);
+
+            assertEquals(1, r1.toObjectArrays().length);
+            assertEquals(1, r2.toObjectArrays().length);
+        });
+    }
+
+    @Test
+    public void testSinglePartitionKeyBatchWrittenToBatchLog() throws Throwable
+    {
+        String KEYSPACE = "ks" + System.currentTimeMillis();
+        DatabaseDescriptor.daemonInitialization();
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';',
+                                          "CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}",
+                                          "CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(),
+                                          "CREATE TABLE " + qualifiedRegularTableName + " (k int PRIMARY KEY, v int)");
+
+        test(ddls, cluster -> {
+            pauseHints();
+            blockMutationAndPreAccept(cluster);
+            try
+            {
+                cluster.coordinator(1).execute("BEGIN BATCH\n" +
+                                               "INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, 2);\n" +
+                                               "INSERT INTO " + qualifiedRegularTableName + " (k, v) VALUES (1, 3);\n" +
+                                               "APPLY BATCH;", ConsistencyLevel.ALL);
+                fail("Should have thrown WTE");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(t.getClass().getName(), WriteTimeoutException.class.getName());
+            }
+
+            if (transactionalMode.nonSerialWritesThroughAccord)
+                cluster.get(1).runOnInstance(() -> {
+                    String query = String.format("SELECT id, mutations, version FROM %s.%s",
+                                                 SchemaConstants.SYSTEM_KEYSPACE_NAME,
+                                                 SystemKeyspace.BATCHES);
+
+                    Iterator<UntypedResultSet.Row> r = QueryProcessor.executeInternal(query).iterator();
+                    assertTrue(r.hasNext());
+                    UntypedResultSet.Row row = r.next();
+
+                    int version = row.getInt("version");
+                    List<ByteBuffer> serializedMutations = row.getList("mutations", BytesType.instance);
+                    assertEquals(1, serializedMutations.size());
+
+                    try (DataInputBuffer in = new DataInputBuffer(serializedMutations.get(0), true))
+                    {
+                        assertEquals(2, org.apache.cassandra.db.Mutation.serializer.deserialize(in, version).getPartitionUpdates().size());
+                    }
+                    catch (Exception e)
+                    {
+                        fail("Deserialization failed");
+                    }
+                });
         });
     }
 

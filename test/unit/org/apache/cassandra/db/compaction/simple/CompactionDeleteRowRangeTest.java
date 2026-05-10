@@ -21,6 +21,7 @@ package org.apache.cassandra.db.compaction.simple;
 
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -32,6 +33,7 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.TestHelper.verifyAndPrint;
 import static org.junit.Assert.assertEquals;
@@ -330,8 +332,13 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
 
+        // Use a fixed nowInSec for both deletes so they get the same local_delete_time,
+        // ensuring compaction merges the overlapping range tombstones deterministically.
+        long nowInSec = FBUtilities.nowInSeconds();
+
         // Delete
-        execute("DELETE FROM " + table + "  using timestamp 2 WHERE pk = ? AND ck1 = ? AND ck2 <= ?;",
+        QueryProcessor.executeInternalWithNowInSec("DELETE FROM " + table + "  using timestamp 2 WHERE pk = ? AND ck1 = ? AND ck2 <= ?;",
+                nowInSec,
                 Long.valueOf(0), //pk
                 Long.valueOf(0), //ck1
                 Integer.valueOf(3)  //ck2
@@ -340,7 +347,8 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         // Delete
-        execute("DELETE FROM " + table + "  using timestamp 2 WHERE pk = ? AND ck1 = ? AND ck2 >= ?;",
+        QueryProcessor.executeInternalWithNowInSec("DELETE FROM " + table + "  using timestamp 2 WHERE pk = ? AND ck1 = ? AND ck2 >= ?;",
+                nowInSec,
                 Long.valueOf(0), //pk
                 Long.valueOf(0), //ck1
                 Integer.valueOf(0)  //ck2
@@ -367,13 +375,13 @@ public class CompactionDeleteRowRangeTest extends SimpleCompactionTest
         assertTrue(partition.staticRow().isEmpty());
         Unfiltered tombstoneMarker = partition.next();
         assertTrue(tombstoneMarker.isRangeTombstoneMarker());
-        assertTrue(!((RangeTombstoneMarker)tombstoneMarker).isBoundary());
+        assertFalse(((RangeTombstoneMarker) tombstoneMarker).isBoundary());
         assertTrue(((RangeTombstoneBoundMarker)tombstoneMarker).openIsInclusive(false));
         assertEquals(2, ((RangeTombstoneBoundMarker)tombstoneMarker).deletionTime().markedForDeleteAt());
 
         tombstoneMarker = partition.next();
         assertTrue(tombstoneMarker.isRangeTombstoneMarker());
-        assertTrue(!((RangeTombstoneMarker)tombstoneMarker).isBoundary());
+        assertFalse(((RangeTombstoneMarker) tombstoneMarker).isBoundary());
         assertTrue(((RangeTombstoneMarker)tombstoneMarker).closeIsInclusive(false));
         assertEquals(2, ((RangeTombstoneBoundMarker)tombstoneMarker).deletionTime().markedForDeleteAt());
         assertFalse(partition.hasNext());

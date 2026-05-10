@@ -24,6 +24,7 @@ import org.quicktheories.generators.SourceDSL;
 
 import accord.local.Node;
 
+import org.apache.cassandra.service.accord.topology.EndpointMapping;
 import org.apache.cassandra.utils.CassandraGenerators;
 
 import static org.quicktheories.QuickTheory.qt;

@@ -21,10 +21,12 @@ import org.apache.cassandra.db.memtable.Memtable;
 
 public class MemtableSwitchedNotification implements INotification
 {
-    public final Memtable memtable;
+    public final Memtable previous;
+    public final Memtable next;
 
-    public MemtableSwitchedNotification(Memtable switched)
+    public MemtableSwitchedNotification(Memtable switched, Memtable next)
     {
-        this.memtable = switched;
+        this.previous = switched;
+        this.next = next;
     }
 }

@@ -31,7 +31,7 @@ import accord.utils.SortedArrays.SortedArrayList;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.AccordTopology;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;

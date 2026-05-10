@@ -24,6 +24,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -37,6 +38,9 @@ import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.PasswordSaltSupplier;
 import org.apache.cassandra.concurrent.ExecutorFactory;
@@ -121,6 +125,8 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 @SuppressWarnings("RedundantCast")
 public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 {
+    private static final Logger logger = LoggerFactory.getLogger(ClusterSimulation.class);
+
     static
     {
         CassandraRelevantProperties.TEST_STORAGE_COMPATIBILITY_MODE.setEnum(StorageCompatibilityMode.NONE);
@@ -220,6 +226,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected String transactionalMode = "off";
         protected FutureActionSchedulerFactory futureActionSchedulerFactory;
         protected PerVerbFutureActionSchedulersFactory perVerbFutureActionSchedulersFactory;
+        protected String memtableType = null;
+        protected String memtableAllocationType = null;
 
         public Builder<S> failures(Failures failures)
         {
@@ -623,6 +631,18 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return TransactionalMode.fromString(transactionalMode);
         }
 
+        public Builder<S> memtableType(String type)
+        {
+            this.memtableType = type;
+            return this;
+        }
+
+        public Builder<S> memtableAllocationType(String type)
+        {
+            this.memtableAllocationType = type;
+            return this;
+        }
+
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -767,8 +787,54 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
         execution = new SimulatedExecution();
 
+        // Track randomized configuration for consolidated logging
+        Map<String, String> randomizedConfig = new LinkedHashMap<>();
+        randomizedConfig.put("nodes", String.valueOf(numOfNodes));
+        randomizedConfig.put("dcs", String.valueOf(numOfDcs));
+
+        // Log replication factors
+        StringBuilder rfString = new StringBuilder();
+        for (int i = 0; i < numOfDcs; ++i)
+        {
+            if (i > 0)
+                rfString.append(",");
+            rfString.append("dc").append(i).append(":").append(initialRf[i]);
+        }
+        randomizedConfig.put("replication_factors", rfString.toString());
+
+        // Randomize memtable type
+        String memtableType;
+        if (builder.memtableType != null)
+        {
+            memtableType = builder.memtableType;
+        }
+        else
+        {
+            String[] memtableTypes = {"TrieMemtable", "SkipListMemtable"};
+            memtableType = memtableTypes[random.uniform(0, memtableTypes.length)];
+        }
+        randomizedConfig.put("memtable", memtableType);
+
+        // Randomize memtable allocation type (heap-based only to avoid InterruptibleChannel issues with offheap)
+        String memtableAllocationType;
+        if (builder.memtableAllocationType != null)
+        {
+            memtableAllocationType = builder.memtableAllocationType;
+        }
+        else
+        {
+            String[] allocationTypes = {
+                "heap_buffers",           // Slab allocator (pooled memory)
+                "unslabbed_heap_buffers"  // Direct heap allocation (no pooling)
+            };
+            memtableAllocationType = allocationTypes[random.uniform(0, allocationTypes.length)];
+        }
+        randomizedConfig.put("memtable_allocation_type", memtableAllocationType);
+
         KindOfSequence kindOfDriftSequence = Choices.uniform(KindOfSequence.values()).choose(random);
         KindOfSequence kindOfDiscontinuitySequence = Choices.uniform(KindOfSequence.values()).choose(random);
+        randomizedConfig.put("clock_drift_sequence", kindOfDriftSequence.toString());
+        randomizedConfig.put("clock_discontinuity_sequence", kindOfDiscontinuitySequence.toString());
         time = new SimulatedTime(numOfNodes, random, 1577836800000L /*Jan 1st UTC*/, builder.clockDriftNanos, kindOfDriftSequence,
                                  kindOfDiscontinuitySequence.period(builder.clockDiscontinuitIntervalNanos, random),
                                  builder.timeListener);
@@ -800,7 +866,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
         Failures failures = builder.failures;
         ThreadAllocator threadAllocator = new ThreadAllocator(random, builder.threadCount, numOfNodes);
-
         cluster = snitch.setup(Cluster.build(numOfNodes)
                          .withRoot(fs.getPath("/cassandra"))
                          .withSharedClasses(sharedClassPredicate)
@@ -812,7 +877,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("cas_contention_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.contentionTimeoutNanos)))
                                    .set("request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.requestTimeoutNanos)))
                                    .set("memtable_heap_space", "1MiB")
-                                   .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
+                                   .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : memtableAllocationType)
                                    .set("file_cache_size", "16MiB")
                                    .set("use_deterministic_table_id", true)
                                    .set("accord.queue_submission_model", "ASYNC")
@@ -823,6 +888,20 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("commitlog_sync", "batch")
                                    .set("accord.journal.flush_mode", "BATCH")
                                    .set("accord.command_store_shard_count", "4");
+
+                             if (memtableType.equals("TrieMemtable"))
+                             {
+                                 config.set("memtable", Map.of(
+                                           "configurations", Map.of(
+                                               "default", Map.of("class_name", "TrieMemtable"))));
+                             }
+                             else
+                             {
+                                 config.set("memtable", Map.of(
+                                           "configurations", Map.of(
+                                               "default", Map.of("class_name", "SkipListMemtable"))));
+                             }
+
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)
                              {
@@ -921,12 +1000,21 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
         scheduler = builder.schedulerFactory.create(random);
         // TODO (required): we aren't passing paxos variant change parameter anymore
-        options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
+        KindOfSequence topologyChangeSequence = Choices.uniform(KindOfSequence.values()).choose(random);
+        options = new ClusterActions.Options(builder.topologyChangeLimit, topologyChangeSequence.period(builder.topologyChangeIntervalNanos, random),
                                              Choices.random(random, builder.topologyChanges),
                                              builder.consensusChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.consensusChangeIntervalNanos, random),
                                              Choices.random(random, builder.consensusChanges),
                                              minRf, initialRf, maxRf, null);
         this.factory = factory;
+
+        // Add remaining randomization tracking
+        if (futureActionScheduler instanceof SimulatedFutureActionScheduler)
+            randomizedConfig.put("network_scheduler", ((SimulatedFutureActionScheduler) futureActionScheduler).getKind().toString());
+        randomizedConfig.put("runnable_scheduler", scheduler.getClass().getSimpleName());
+        randomizedConfig.put("topology_change_sequence", topologyChangeSequence.toString());
+
+        logger.warn("Seed 0x{} - Randomized config: {}", Long.toHexString(seed), randomizedConfig);
 
         // during cluster shutdown ignore all failures as there is no reason to track them
         onPreShutdown.add(() -> {simulated.failures.ignoreFailures(); return null;});

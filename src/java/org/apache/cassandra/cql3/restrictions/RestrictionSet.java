@@ -70,6 +70,9 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     private final NavigableMap<ColumnMetadata, SingleRestriction> restrictions;
 
+    private final SingleRestriction lastRestriction;
+
+
     /**
      * {@code true} if it contains multi-column restrictions, {@code false} otherwise.
      */
@@ -100,6 +103,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
                            boolean needsFilteringOrIndexing)
     {
         this.restrictions = restrictions;
+        // Map.lastEntry allocates an object, so we cache the value to avoid it, restrictions is immutable
+        this.lastRestriction = restrictions.isEmpty() ? null : restrictions.lastEntry().getValue();
         this.hasMultiColumnRestrictions = hasMultiColumnRestrictions;
         this.hasIn = hasIn;
         this.hasSlice = hasSlice;
@@ -312,7 +317,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     SingleRestriction lastRestriction()
     {
-        return restrictions.lastEntry().getValue();
+        return lastRestriction;
     }
 
     /**

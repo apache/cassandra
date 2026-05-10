@@ -65,6 +65,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+
 public class ASTSingleTableModelTest
 {
     public static final ByteBuffer ZERO = ByteBufferUtil.bytes(0);
@@ -558,6 +559,116 @@ public class ASTSingleTableModelTest
     }
 
     @Test
+    public void testClusteringRangeDelete()
+    {
+        TableMetadata metadata = new Builder().pk(1).ck(1).statics(0).regular(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        for (int i = 0; i < 10; i++)
+        {
+            model.update(Mutation.insert(metadata)
+                                 .value("pk", 0)
+                                 .value("ck", i)
+                                 .value("v", i)
+                                 .build());
+        }
+
+        model.update(Mutation.delete(metadata)
+                             .value("pk", 0)
+                             .where("ck", Inequality.GREATER_THAN_EQ, 0)
+                             .where("ck", Inequality.LESS_THAN, 7)
+                             .build());
+
+        model.validate(rows(row(metadata, 0, 7, 7), row(metadata, 0, 8, 8), row(metadata,0,9,9)),
+                       Select.builder(metadata).value("pk", 0).build());
+    }
+
+    @Test
+    public void testRangeDeleteWithMultipleClusteringKeys()
+    {
+        TableMetadata metadata = new Builder().pk(1).ck(2).statics(0).regular(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        for (int i = 0; i < 10; i++)
+        {
+            model.update(Mutation.insert(metadata)
+                                 .value("pk", 0)
+                                 .value("ck0", i)
+                                 .value("ck1", i+1)
+                                 .value("v", i)
+                                 .build());
+        }
+
+        model.update(Mutation.delete(metadata)
+                             .value("pk", 0)
+                             .between("ck0", Literal.of(3), Literal.of(7))
+                             .build());
+
+        model.validate(rows(row(metadata, 0,0,1,0),
+                            row(metadata, 0,1,2,1),
+                            row(metadata,0,2,3,2),
+                            row(metadata,0,8,9,8),
+                            row(metadata,0,9,10,9)),
+                       Select.builder(metadata).build());
+
+
+    }
+
+    @Test
+    public void testRangeDeleteWithStaticColumn()
+    {
+        TableMetadata metadata = new Builder().pk(1).ck(1).statics(1).regular(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        for (int i = 0; i < 10; i++)
+        {
+            model.update(Mutation.insert(metadata)
+                                 .value("pk", 0)
+                                 .value("ck", i)
+                                 .value("s", 0)
+                                 .value("v", i)
+                                 .build());
+        }
+
+        model.update(Mutation.delete(metadata)
+                             .value("pk", 0)
+                             .between("ck", Literal.of(3), Literal.of(7))
+                             .build());
+
+        model.validate(rows(row(metadata, 0,0,0,0),
+                            row(metadata, 0,1,0,1),
+                            row(metadata,0,2,0,2),
+                            row(metadata,0,8,0,8),
+                            row(metadata,0,9,0,9)),
+                       Select.builder(metadata).build());
+
+    }
+
+    @Test
+    public void testClusteringRangeDeleteBetween()
+    {
+        TableMetadata metadata = new Builder().pk(1).ck(1).statics(0).regular(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        for (int i = 0; i < 10; i++)
+        {
+            model.update(Mutation.insert(metadata)
+                                 .value("pk", 0)
+                                 .value("ck", i)
+                                 .value("v", i)
+                                 .build());
+        }
+
+        model.update(Mutation.delete(metadata)
+                             .value("pk", 0)
+                             .between("ck", Bind.of(0), Literal.of(6))
+                             .build());
+
+        model.validate(rows(row(metadata, 0, 7, 7), row(metadata, 0, 8, 8), row(metadata,0,9,9)),
+                       Select.builder(metadata).value("pk", 0).build());
+    }
+
+    @Test
     public void tokenEqIncludesEmptyPartition()
     {
         // regression test; history
@@ -751,6 +862,35 @@ public class ASTSingleTableModelTest
                              .value("ck", 0)
                              .build());
         model.validate(rows(row(metadata, 0, 1, null, List.of(1))), Select.builder(metadata).build());
+    }
+
+    @Test
+    public void testRangeDeleteGeneratorWithBetweenClause()
+    {
+        TableMetadata metadata = new Builder().pk(1).ck(1).statics(0).regular(1).build();
+        ASTSingleTableModel model = new ASTSingleTableModel(metadata);
+
+        for (int i = 0; i < 10; i++)
+        {
+            model.update(Mutation.insert(metadata)
+                                 .value("pk", 0)
+                                 .value("ck", i)
+                                 .value("v", i)
+                                 .build());
+        }
+
+        model.update(Mutation.delete(metadata)
+                             .value("pk", 0)
+                             .between("ck", Literal.of(3), Literal.of(7))
+                             .build());
+
+        model.validate(rows(row(metadata, 0, 0,0),
+                            row(metadata, 0, 1,1),
+                            row(metadata,0,2,2),
+                            row(metadata,0,8,8),
+                            row(metadata,0,9,9)),
+                            Select.builder(metadata).build());
+
     }
 
     private interface SimpleWrite<T>

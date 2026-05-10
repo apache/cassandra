@@ -4,9 +4,10 @@ NAME
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
-                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] removenode status
+                [(-pp | --print-port)]
 
 OPTIONS
         -h <host>, --host <host>

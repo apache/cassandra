@@ -58,6 +58,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -199,13 +201,15 @@ public final class SystemDistributedKeyspace
     public static final String COMPRESSION_DICTIONARIES_CQL = "CREATE TABLE IF NOT EXISTS %s (" +
                                                               "keyspace_name text," +
                                                               "table_name text," +
+                                                              "table_id text," +
                                                               "kind text," +
                                                               "dict_id bigint," +
                                                               "dict blob," +
                                                               "dict_length int," +
                                                               "dict_checksum int," +
-                                                              "PRIMARY KEY ((keyspace_name, table_name), dict_id)) " +
-                                                              "WITH CLUSTERING ORDER BY (dict_id DESC)"; // in order to retrieve the latest dictionary; the contract is the newer the dictionary the larger the dict_id
+                                                              "created_at timestamp," +
+                                                              "PRIMARY KEY ((keyspace_name, table_name), table_id, dict_id)) " +
+                                                              "WITH CLUSTERING ORDER BY (table_id DESC, dict_id DESC)"; // in order to retrieve the latest dictionary; the contract is the newer the dictionary the larger the dict_id
 
     private static final TableMetadata CompressionDictionariesTable =
         parse(COMPRESSION_DICTIONARIES, "Compression dictionaries for applicable tables", COMPRESSION_DICTIONARIES_CQL).build();
@@ -415,24 +419,29 @@ public final class SystemDistributedKeyspace
      *
      * @param keyspaceName the keyspace name to associate with the dictionary
      * @param tableName the table name to associate with the dictionary
+     * @param tableId the unique id of a table to associate with the dictionary
      * @param dictionary the compression dictionary to store
      */
-    public static void storeCompressionDictionary(String keyspaceName, String tableName, CompressionDictionary dictionary)
+    public static void storeCompressionDictionary(String keyspaceName,
+                                                  String tableName,
+                                                  String tableId,
+                                                  CompressionDictionary dictionary)
     {
         byte[] dict = dictionary.rawDictionary();
-        String query = "INSERT INTO %s.%s (keyspace_name, table_name, kind, dict_id, dict, dict_length, dict_checksum) VALUES ('%s', '%s', '%s', %s, ?, %s, %s)";
+        String query = "INSERT INTO %s.%s (keyspace_name, table_name, table_id, kind, dict_id, dict, dict_length, dict_checksum, created_at) VALUES ('%s', '%s', '%s', '%s', %s, ?, %s, %s, ?)";
         String fmtQuery = format(query,
                                  SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                  COMPRESSION_DICTIONARIES,
                                  keyspaceName,
                                  tableName,
+                                 tableId,
                                  dictionary.kind(),
                                  dictionary.dictId().id,
                                  dict.length,
                                  dictionary.checksum());
         noThrow(fmtQuery,
                 () -> QueryProcessor.process(fmtQuery, ConsistencyLevel.ONE,
-                                             Collections.singletonList(ByteBuffer.wrap(dict))));
+                                             List.of(ByteBuffer.wrap(dict), ByteBufferUtil.bytes(dictionary.createdAt().toEpochMilli()))));
     }
 
     /**
@@ -440,14 +449,15 @@ public final class SystemDistributedKeyspace
      *
      * @param keyspaceName the keyspace name to retrieve the dictionary for
      * @param tableName the table name to retrieve the dictionary for
+     * @param tableId the id of the table to retrieve the dictionary for
      * @return the latest compression dictionary for the specified keyspace and table,
      *         or null if no dictionary exists or if an error occurs during retrieval
      */
     @Nullable
-    public static CompressionDictionary retrieveLatestCompressionDictionary(String keyspaceName, String tableName)
+    public static CompressionDictionary retrieveLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' LIMIT 1";
-        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName);
+        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
             return CompressionDictionary.createFromRow(QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one());
@@ -464,14 +474,15 @@ public final class SystemDistributedKeyspace
      *
      * @param keyspaceName the keyspace name to retrieve the dictionary for
      * @param tableName the table name to retrieve the dictionary for
+     * @param tableId the table id to retrieve the dictionary for
      * @return the latest compression dictionary for the specified keyspace and table,
      *         or null if no dictionary exists or if an error occurs during retrieval
      */
     @Nullable
-    public static LightweightCompressionDictionary retrieveLightweightLatestCompressionDictionary(String keyspaceName, String tableName)
+    public static LightweightCompressionDictionary retrieveLightweightLatestCompressionDictionary(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT keyspace_name, table_name, kind, dict_id, dict_checksum, dict_length FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' LIMIT 1";
-        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName);
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_checksum, dict_length, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' LIMIT 1";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
         try
         {
             return CompressionDictionary.createFromRowLightweight(QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one());
@@ -488,15 +499,16 @@ public final class SystemDistributedKeyspace
      *
      * @param keyspaceName the keyspace name to retrieve the dictionary for
      * @param tableName the table name to retrieve the dictionary for
+     * @param tableId the table id to retrieve the dictionary for
      * @param dictionaryId the dictionary id to retrieve the dictionary for
      * @return the compression dictionary identified by the specified keyspace, table and dictionaryId,
      *         or null if no dictionary exists or if an error occurs during retrieval
      */
     @Nullable
-    public static CompressionDictionary retrieveCompressionDictionary(String keyspaceName, String tableName, long dictionaryId)
+    public static CompressionDictionary retrieveCompressionDictionary(String keyspaceName, String tableName, String tableId, long dictionaryId)
     {
-        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND dict_id=%s";
-        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, dictionaryId);
+        String query = "SELECT kind, dict_id, dict, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId, dictionaryId);
         try
         {
             return CompressionDictionary.createFromRow(QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE).one());
@@ -512,17 +524,87 @@ public final class SystemDistributedKeyspace
      *
      * @param keyspaceName the keyspace name to retrieve the dictionary for
      * @param tableName the table name to retrieve the dictionary for
+     * @param tableId the table id to retrieve the dictionary for
      * @return the compression dictionaries identified by the specified keyspace and table,
-     *         or null if no dictionary exists or if an error occurs during retrieval
+     *         empty list if no dictionary exists or null if an error occurs during retrieval
      */
     @Nullable
-    public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries(String keyspaceName, String tableName)
+    public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries(String keyspaceName, String tableName, String tableId)
     {
-        String query = "SELECT keyspace_name, table_name, kind, dict_id, dict_length, dict_checksum FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'";
-        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName);
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s'";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES, keyspaceName, tableName, tableId);
+        return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
+    }
+
+    /**
+     * Retrieves all compression dictionaries in a lightweight form.
+     *
+     * @return all compression dictionaries, lightweight form, empty list if no dictionary exists
+     *         or null if an error occurs during retrieval
+     */
+    @Nullable
+    public static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionaries()
+    {
+        String query = "SELECT keyspace_name, table_name, table_id, kind, dict_id, dict_length, dict_checksum, created_at FROM %s.%s";
+        String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, COMPRESSION_DICTIONARIES);
+        return retrieveLightweightCompressionDictionariesInternal(fmtQuery);
+    }
+
+    /**
+     * Retrieves all orphaned compression dictionaries in a lightweight form.
+     *
+     * @return all orphaned compression dictionaries, lightweight form, empty list if no dictionary exists
+     *         or null if an error occurs during retrieval
+     */
+    public static List<LightweightCompressionDictionary> retrieveOrphanedLightweightCompressionDictionaries()
+    {
+        List<LightweightCompressionDictionary> dicts = SystemDistributedKeyspace.retrieveLightweightCompressionDictionaries();
+        if (dicts == null || dicts.isEmpty())
+            return List.of();
+
+        List<LightweightCompressionDictionary> orphaned = new ArrayList<>();
+        for (LightweightCompressionDictionary dict : dicts)
+        {
+            TableMetadata tableMetadata = ClusterMetadata.current().schema.getTableMetadata(dict.keyspaceName, dict.tableName);
+            if (tableMetadata == null || !tableMetadata.id.toLongString().equals(dict.tableId))
+                orphaned.add(dict);
+        }
+
+        return orphaned;
+    }
+
+    /**
+     * Removes all orphaned compression dictionaries.
+     */
+    public static void clearOrphanedCompressionDictionaries()
+    {
+        for (LightweightCompressionDictionary orphanedDict : SystemDistributedKeyspace.retrieveOrphanedLightweightCompressionDictionaries())
+        {
+            try
+            {
+                QueryProcessor.execute(String.format("DELETE FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s' AND table_id='%s' AND dict_id=%s",
+                                                     SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
+                                                     SystemDistributedKeyspace.COMPRESSION_DICTIONARIES,
+                                                     orphanedDict.keyspaceName,
+                                                     orphanedDict.tableName,
+                                                     orphanedDict.tableId,
+                                                     orphanedDict.dictId.id),
+                                       ConsistencyLevel.ONE);
+            }
+            catch (Exception e)
+            {
+                logger.error("Unable to delete orphaned compression dictionary: {}, Reason: {}",
+                             orphanedDict.toString(),
+                             e.getMessage());
+            }
+        }
+    }
+
+    private static List<LightweightCompressionDictionary> retrieveLightweightCompressionDictionariesInternal(String query)
+    {
         try
         {
-            UntypedResultSet result = QueryProcessor.execute(fmtQuery, ConsistencyLevel.ONE);
+            UntypedResultSet result = QueryProcessor.execute(query, ConsistencyLevel.ONE);
             if (result.isEmpty())
                 return Collections.emptyList();
             List<LightweightCompressionDictionary> dictionaries = new ArrayList<>();

@@ -10,6 +10,7 @@ logs/
 data/
 !test/data
 conf/hotspot_compiler
+doc/antora.yml
 doc/cql3/CQL.html
 doc/build/
 lib/
@@ -36,8 +37,6 @@ debian/files
 
 # IntelliJ
 .idea/
-!.idea/codeStyles/codeStyleConfig.xml
-!.idea/codeStyles/Project.xml
 *.eml
 **/*.iml
 *.ipr
@@ -82,6 +81,9 @@ Thumbs.db
 .ant_targets
 
 # Generated files from the documentation
+doc/antora.yml
+doc/cql3/CQL.html
+doc/lib/
 doc/modules/cassandra/pages/managing/configuration/cass_yaml_file.adoc
 doc/modules/cassandra/pages/reference/native-protocol.adoc
 doc/modules/cassandra/attachments/native_protocol_v*.html

@@ -187,9 +187,9 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
-    @Deprecated(since="5.1")
+    @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = null;
-    @Deprecated(since="5.1")
+    @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
     public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
 
@@ -535,10 +535,6 @@ public class Config
     public volatile int compression_dictionary_cache_size = 10; // max dictionaries per table
     public volatile DurationSpec.IntSecondsBound compression_dictionary_cache_expire = new DurationSpec.IntSecondsBound("24h");
 
-    // Dictionary training settings
-    public volatile boolean compression_dictionary_training_auto_train_enabled = false;
-    public volatile float compression_dictionary_training_sampling_rate = 0.01f; // samples 1%
-
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 
     public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
@@ -593,6 +589,11 @@ public class Config
     public volatile int sstables_per_read_log_threshold = 100;
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
+
+    public volatile boolean write_thresholds_enabled = false;
+    public volatile DataStorageSpec.LongBytesBound write_size_warn_threshold = null;
+    public volatile DurationSpec.LongMillisecondsBound coordinator_write_warn_interval = new DurationSpec.LongMillisecondsBound("1000ms");
+    public volatile int write_tombstone_warn_threshold = -1;
 
     public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;
 
@@ -953,6 +954,13 @@ public class Config
     public volatile boolean drop_keyspace_enabled = true;
     public volatile boolean secondary_indexes_enabled = true;
 
+    /**
+     * If we encounter a Gossip bug where {@link org.apache.cassandra.gms.Gossiper#getMinVersion} is
+     * unable to accurately report a minimum version for the cluster, optionally force the optimized
+     * index status format added in CASSANDRA-20058.
+     */
+    public volatile boolean force_optimized_index_status_format = false;
+
     public volatile String default_secondary_index = CassandraIndex.NAME;
     public volatile boolean default_secondary_index_enabled = true;
 
@@ -1006,6 +1014,11 @@ public class Config
     public volatile boolean non_partition_restricted_index_query_enabled = true;
     public volatile boolean intersect_filtering_query_warned = true;
     public volatile boolean intersect_filtering_query_enabled = true;
+    public volatile boolean unset_training_min_frequency_warned = true;
+    public volatile boolean unset_training_min_frequency_enabled = true;
+
+    public volatile Map<String, String> minimum_client_driver_versions_warned = Collections.emptyMap();
+    public volatile Map<String, String> minimum_client_driver_versions_disallowed = Collections.emptyMap();
 
     public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
     public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
@@ -1501,6 +1514,7 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
     public volatile DurationSpec.LongSecondsBound discovery_timeout = new DurationSpec.LongSecondsBound("30s");
     public boolean unsafe_tcm_mode = false;
+    public boolean legacy_state_listener_sync_local_updates = true;
 
     public enum TriggersPolicy
     {

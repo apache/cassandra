@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -41,7 +42,10 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.MultiStepOperation;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
@@ -238,5 +242,18 @@ public class OwnershipUtils
         while(tokens.size() < numTokens)
             tokens.add(partitioner.getRandomToken(random));
         return tokens;
+    }
+
+    public static DataPlacements placementsAllSettled(ClusterMetadata metadata)
+    {
+        ClusterMetadata workingMetadata = metadata;
+        Iterator<MultiStepOperation<?>> iter = metadata.inProgressSequences.iterator();
+        while (iter.hasNext())
+        {
+            Transformation.Result result = iter.next().applyTo(workingMetadata);
+            assert result.isSuccess();
+            workingMetadata = result.success().metadata;
+        }
+        return workingMetadata.placements;
     }
 }

@@ -1560,7 +1560,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1));
         assertInvalidMessage("Cannot create index on keys of column v with non-map type",
                              "CREATE INDEX ON %s (keys(v))");
-        assertInvalidMessage("full() indexes can only be created on frozen collections",
+        assertInvalidMessage("full() non-SAI indexes can only be created on frozen collections",
                              "CREATE INDEX ON %s (full(v))");
         String indexName = createIndex("CREATE INDEX ON %s (values(v))");
 
@@ -1589,7 +1589,7 @@ public class SecondaryIndexTest extends CQLTester
         assertInvalidMessage("Cannot create index on non-frozen UDT column v", "CREATE INDEX ON %s (v)");
         assertInvalidMessage("Cannot create keys() index on v. Non-collection columns only support simple indexes", "CREATE INDEX ON %s (keys(v))");
         assertInvalidMessage("Cannot create values() index on v. Non-collection columns only support simple indexes", "CREATE INDEX ON %s (values(v))");
-        assertInvalidMessage("full() indexes can only be created on frozen collections", "CREATE INDEX ON %s (full(v))");
+        assertInvalidMessage("full() non-SAI indexes can only be created on frozen collections", "CREATE INDEX ON %s (full(v))");
     }
 
     @Test

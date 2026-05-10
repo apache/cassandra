@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -31,13 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
-import org.apache.cassandra.io.compress.IDictionaryCompressor;
-import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -56,9 +51,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     private final AtomicLong sampleCount;
     private final int compressionLevel; // optimal if using the same level for training as when compressing.
 
-    // Sampling rate can be updated during training
-    private volatile float samplingRate;
-
     // Minimum number of samples required by ZSTD library
     private static final int MIN_SAMPLES_REQUIRED = 11;
 
@@ -71,28 +63,12 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
 
     public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel)
     {
-        this(keyspaceName,
-             tableName,
-             compressionLevel,
-             DatabaseDescriptor.getCompressionDictionaryTrainingSamplingRate());
-    }
-
-    @VisibleForTesting
-    public ZstdDictionaryTrainer(String keyspaceName, String tableName, int compressionLevel, float samplingRate)
-    {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
         this.totalSampleSize = new AtomicLong(0);
         this.sampleCount = new AtomicLong(0);
         this.compressionLevel = compressionLevel;
-        this.samplingRate = samplingRate;
         this.currentTrainingStatus = TrainingStatus.NOT_STARTED;
-    }
-
-    @Override
-    public boolean shouldSample()
-    {
-        return zstdTrainer != null && ThreadLocalRandom.current().nextFloat() < samplingRate;
     }
 
     @Override
@@ -304,35 +280,32 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     }
 
     @Override
-    public boolean start(boolean manualTraining, CompressionDictionaryTrainingConfig trainingConfig)
+    public boolean start(CompressionDictionaryTrainingConfig trainingConfig)
     {
-        if (closed || !(manualTraining || shouldAutoStartTraining()))
+        if (closed)
             return false;
 
         try
         {
             // reset on starting; a new zstdTrainer instance is created during reset
             reset(trainingConfig);
-            logger.info("Started dictionary training for {}.{}", keyspaceName, tableName);
             currentTrainingStatus = TrainingStatus.SAMPLING;
             failureMessage = null; // Clear any previous failure message
             return true;
         }
         catch (Exception e)
         {
-            logger.warn("Failed to create ZstdDictTrainer for {}.{}", keyspaceName, tableName, e);
-            failureMessage = "Failed to create ZstdDictTrainer: " + e.getMessage();
+            String message = String.format("Failed to create %s for %s.%s, reason: %s",
+                                           ZstdDictTrainer.class.getSimpleName(),
+                                           keyspaceName,
+                                           tableName,
+                                           e.getMessage());
+
+            logger.warn(message);
+            failureMessage = message;
             currentTrainingStatus = TrainingStatus.FAILED;
         }
         return false;
-    }
-
-    /**
-     * Determines if training should auto-start based on configuration.
-     */
-    private boolean shouldAutoStartTraining()
-    {
-        return DatabaseDescriptor.getCompressionDictionaryTrainingAutoTrainEnabled();
     }
 
     @Override
@@ -348,7 +321,15 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         {
             totalSampleSize.set(0);
             sampleCount.set(0);
-            zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
+            try
+            {
+                zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
+            }
+            catch (Throwable t)
+            {
+                throw new IllegalStateException(t);
+            }
+
             config = trainingConfig;
         }
     }
@@ -363,16 +344,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
     public void setDictionaryTrainedListener(Consumer<CompressionDictionary> listener)
     {
         this.dictionaryTrainedListener = listener;
-    }
-
-    @Override
-    public void updateSamplingRate(float newSamplingRate)
-    {
-        if (newSamplingRate <= 0.0f || newSamplingRate > 1.0f)
-            throw new IllegalArgumentException("Sampling rate has to be between (0.0;1], it is " + newSamplingRate);
-
-        this.samplingRate = newSamplingRate;
-        logger.debug("Updated sampling rate to {} for {}.{}", newSamplingRate, keyspaceName, tableName);
     }
 
     /**
@@ -394,27 +365,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
                 logger.warn("Error notifying dictionary trained listener for {}.{}", keyspaceName, tableName, e);
             }
         }
-    }
-
-    @Override
-    public boolean isCompatibleWith(CompressionParams newParams)
-    {
-        if (!newParams.isDictionaryCompressionEnabled())
-        {
-            return false;
-        }
-
-        IDictionaryCompressor newCompressor = (IDictionaryCompressor) newParams.getSstableCompressor();
-
-        // Check if the compressor type is compatible with this trainer
-        if (newCompressor.acceptableDictionaryKind() != Kind.ZSTD)
-        {
-            return false;
-        }
-
-        ZstdDictionaryCompressor zstdDictionaryCompressor = (ZstdDictionaryCompressor) newCompressor;
-        // For Zstd compressors, check if compression level matches
-        return this.compressionLevel == zstdDictionaryCompressor.compressionLevel();
     }
 
     @Override

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nullable;
@@ -652,4 +653,46 @@ public interface GuardrailsConfig
      * @return configuration for role name policy guardrail.
      */
     CustomGuardrailConfig getRoleNamePolicyConfig();
+
+    /**
+     * Sets whether a user will be warned when creating a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyWarned(boolean value);
+
+    /**
+     *
+     * @return true if a user will be warned when training compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyWarned();
+
+    /**
+     * Sets whether it is allowed to create a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyEnabled(boolean value);
+
+    /**
+     *
+     * @return true if it is possible to train compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyEnabled();
+
+    /**
+     * @return a map of driver name to minimum version that triggers a warning when the client's
+     * driver version is below the specified minimum.
+     */
+    Map<String, String> getMinimumClientDriverVersionsWarned();
+
+    /**
+     * @return a map of driver name to minimum version that triggers a failure when the client's
+     * driver version is below the specified minimum.
+     */
+    Map<String, String> getMinimumClientDriverVersionsDisallowed();
 }

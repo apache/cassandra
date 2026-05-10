@@ -116,6 +116,17 @@ public interface Terms
      */
     List<ByteBuffer> bindAndGet(QueryOptions options);
 
+    default boolean isSingleTerm(QueryOptions options)
+    {
+        return false;
+    }
+
+    default ByteBuffer bindAndGetSingleTermValue(QueryOptions options)
+    {
+        throw new IllegalStateException("bindAndGetSingleTermValue() method is not implemented, " +
+                                        "isSingleTerm() must be always checked before invoking this method");
+    }
+
     /**
      * A shorter for {@code bind(options).getElements()}.
      * We expose it mainly because for constants it can avoid allocating a temporary
@@ -626,6 +637,19 @@ public interface Terms
                 {
                     return Collections.singletonList(term.bindAndGet(options));
                 }
+
+                @Override
+                public boolean isSingleTerm(QueryOptions options)
+                {
+                    return true;
+                }
+
+                @Override
+                public ByteBuffer bindAndGetSingleTermValue(QueryOptions options)
+                {
+                    return term.bindAndGet(options);
+                }
+
 
                 @Override
                 public List<List<ByteBuffer>> bindAndGetElements(QueryOptions options)

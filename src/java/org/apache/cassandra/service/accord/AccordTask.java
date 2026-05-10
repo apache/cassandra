@@ -21,11 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -45,6 +47,8 @@ import accord.api.Journal;
 import accord.api.RoutingKey;
 import accord.local.Command;
 import accord.local.CommandStore;
+import accord.local.CommandSummaries;
+import accord.local.CommandSummaries.Summary;
 import accord.local.LoadKeys;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
@@ -53,6 +57,7 @@ import accord.primitives.AbstractRanges;
 import accord.primitives.AbstractUnseekableKeys;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
@@ -85,7 +90,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCO
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.service.accord.AccordTask.State.CANCELLED;
 import static org.apache.cassandra.service.accord.AccordTask.State.FAILED;
-import static org.apache.cassandra.service.accord.AccordTask.State.FAILING;
 import static org.apache.cassandra.service.accord.AccordTask.State.FINISHED;
 import static org.apache.cassandra.service.accord.AccordTask.State.INITIALIZED;
 import static org.apache.cassandra.service.accord.AccordTask.State.LOADING;
@@ -159,10 +163,9 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         WAITING_TO_RUN(INITIALIZED, SCANNING_RANGES, WAITING_TO_LOAD, LOADING),
         RUNNING(WAITING_TO_RUN),
         PERSISTING(RUNNING),
-        FAILING(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING),
         FINISHED(RUNNING, PERSISTING),
         CANCELLED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN),
-        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING, FAILING);
+        FAILED(WAITING_TO_SCAN_RANGES, SCANNING_RANGES, WAITING_TO_LOAD, LOADING, WAITING_TO_RUN, RUNNING, PERSISTING);
 
         private final int permittedFrom;
 
@@ -211,7 +214,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Nullable ArrayDeque<AccordCacheEntry<?, ?>> waitingToLoad;
     @Nullable RangeTxnScanner rangeScanner;
     boolean hasRanges;
-    @Nullable CommandsForRanges commandsForRanges;
+    @Nullable CommandSummaries commandsForRanges;
     @Nullable private TaskQueue queued;
 
     private BiConsumer<? super R, Throwable> callback;
@@ -233,8 +236,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
         String id = loggingId;
         if (id == null)
         {
-            TxnId primaryTxnId = preLoadContext.primaryTxnId();
-            id = "0x" + Long.toHexString(nextLoggingId.incrementAndGet()) + (primaryTxnId != null ? '/' + primaryTxnId.toString() : "");
+            id = "0x" + Long.toHexString(nextLoggingId.incrementAndGet());
             if (!loggingIdUpdater.compareAndSet(this, null, id))
                 id = loggingId;
         }
@@ -244,12 +246,17 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     @Override
     public String toString()
     {
-        return "AccordTask{" + state + "}-" + loggingId();
+        return preLoadContext.describe() + ' ' + toBriefString();
+    }
+
+    public String toBriefString()
+    {
+        return '{' + loggingId() + ',' + state + '}';
     }
 
     public String toDescription()
     {
-        return "AccordTask{" + state + "}-" + loggingId() + ": "
+        return toBriefString() + ": "
                + (queued == null ? "unqueued" : queued.kind)
                + ", primaryTxnId: " + preLoadContext.primaryTxnId()
                + ", waitingToLoad: " + summarise(waitingToLoad)
@@ -730,46 +737,28 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     public void fail(Throwable throwable)
     {
-        commandStore.agent().onException(throwable);
         if (state.isComplete())
             return;
 
-        if (commandStore.hasSafeStore())
-            commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
-
-        state(FAILING);
-        if (callback != null)
-            callback.accept(null, throwable);
-    }
-
-    public void failExclusive(Throwable throwable)
-    {
-        boolean newFailure = state != FAILING;
         try
         {
-            if (newFailure)
-            {
-                commandStore.agent().onException(throwable);
-                if (state.isComplete())
-                    return;
-
-                if (commandStore.hasSafeStore())
-                    commandStore.agent().onException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
-            }
-
+            commandStore.agent().onException(throwable);
             state(FAILED);
         }
         finally
         {
-            if (newFailure && callback != null)
+            if (callback != null)
                 callback.accept(null, throwable);
         }
     }
 
+    public void failExclusive(Throwable throwable)
+    {
+        fail(throwable);
+    }
+
     protected void cleanupExclusive()
     {
-        if (state == FAILING)
-            state(FAILED);
         Invariants.expect(state.isExecuted());
         releaseResources(commandStore.cachesExclusive());
         if (runningAt != 0)
@@ -803,8 +792,10 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     public void cancelExclusive()
     {
         state(CANCELLED);
+        if (rangeScanner != null)
+            rangeScanner.cancelled = true;
         if (callback != null)
-            callback.accept(null, new CancellationException());
+            commandStore.executor().submit(() -> callback.accept(null, new CancellationException()));
     }
 
     void cancelExclusive(AccordExecutor owner)
@@ -901,7 +892,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         for (AccordSafeState<K, V> safeState : map.values())
         {
-            if (safeState.invalidated()) continue;
+            if (safeState.isUnsafe()) continue;
             try { cache.release(safeState, this); }
             catch (Throwable t) { suppressedBy.addSuppressed(t); }
         }
@@ -911,7 +902,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
     {
         for (AccordSafeState<?, ?> safeState : map.values())
         {
-            if (safeState.invalidated()) continue;
+            if (safeState.isUnsafe()) continue;
             try { cache.release(safeState, this); }
             catch (Throwable t) { suppressedBy.addSuppressed(t); }
         }
@@ -969,6 +960,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             }
         }
 
+        // TODO (expected): produce key summaries to avoid locking all in memory
         final Set<TokenKey> intersectingKeys = new ObjectHashSet<>();
         final KeyWatcher keyWatcher = new KeyWatcher();
         final Ranges ranges = ((AbstractRanges) preLoadContext.keys()).toRanges();
@@ -979,8 +971,6 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             this.commandsForKeyCache = commandsForKeyCache;
         }
 
-        boolean scanned;
-
         protected void runInternal()
         {
             for (Range range : ranges)
@@ -988,7 +978,11 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                 CommandsForKeyAccessor.findAllKeysBetween(commandStore.id(), commandStore.tableId(), getPartitioner(),
                                                           (TokenKey) range.start(), range.startInclusive(),
                                                           (TokenKey) range.end(), range.endInclusive(),
-                                                          intersectingKeys::add);
+                                                          key -> {
+                                                              if (cancelled)
+                                                                  throw new CancellationException();
+                                                              intersectingKeys.add(key);
+                                                          });
             }
             super.runInternal();
         }
@@ -1017,7 +1011,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                     if (v == null) return;
                     else if (v instanceof CommandsForKey)
                     {
-                        if (!summaryLoader.isRelevant((CommandsForKey) v))
+                        if (!loader.isRelevant((CommandsForKey) v))
                             return;
                     }
                     else
@@ -1025,7 +1019,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
                         TxnId last = CommandSerializers.txnId.deserialize((ByteBuffer) v);
                         int position = (int)CommandSerializers.txnId.serializedSize(last);
                         TxnId minUndecided = CommandSerializers.txnId.deserialize((ByteBuffer) v, position);
-                        if (!summaryLoader.isRelevant(entry.key(), last, minUndecided))
+                        if (!loader.isRelevant(entry.key(), last, minUndecided))
                             return;
                     }
 
@@ -1060,7 +1054,7 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
             super.cleanup(caches);
         }
 
-        CommandsForRanges finish(Caches caches)
+        CommandSummaries finish(Caches caches)
         {
             caches.commandsForKeys().unregister(keyWatcher);
             return super.finish(caches);
@@ -1069,39 +1063,23 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
     public class RangeTxnScanner extends AccordExecutor.AbstractIOTask
     {
-        class CommandWatcher implements AccordCache.Listener<TxnId, Command>
-        {
-            @Override
-            public void onUpdate(AccordCacheEntry<TxnId, Command> state)
-            {
-                CommandsForRanges.Summary summary = summaryLoader.ifRelevant(state);
-                if (summary != null)
-                    summaries.put(summary.plainTxnId(), summary);
-            }
-        }
+        final Map<Timestamp, Summary> summaries = new HashMap<>();
+        final Map<Timestamp, Summary> mutexSummaries = Collections.synchronizedMap(summaries);
 
-        final ConcurrentHashMap<TxnId, CommandsForRanges.Summary> summaries = new ConcurrentHashMap<>();
-        // TODO (expected): produce key summaries to avoid locking all in memory
-        final CommandWatcher commandWatcher = new CommandWatcher();
-        final Unseekables<?> keysOrRanges = preLoadContext.keys();
-
-        CommandsForRanges.Loader summaryLoader;
+        RangeIndex.Loader loader;
         boolean scanned;
         Throwable failure;
 
+        volatile boolean cancelled;
+
         protected void runInternal()
         {
-            summaryLoader.intersects(txnId -> {
-                if (summaries.containsKey(txnId))
-                    return;
+            loader.load(mutexSummaries, () -> cancelled);
+        }
 
-                CommandsForRanges.Summary summary = summaryLoader.load(txnId);
-                if (summary != null)
-                {
-                    summaries.putIfAbsent(txnId, summary);
-                    summaryLoader.maybeRecordFutureRx(summary);
-                }
-            });
+        PreLoadContext preLoadContext()
+        {
+            return preLoadContext;
         }
 
         @Override
@@ -1126,9 +1104,8 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void startInternal(Caches caches)
         {
-            summaryLoader = commandStore.commandsForRanges().loader(preLoadContext.primaryTxnId(), preLoadContext.loadKeysFor(), keysOrRanges);
-            summaryLoader.forEachInCache(keysOrRanges, summary -> summaries.put(summary.plainTxnId(), summary), caches);
-            caches.commands().register(commandWatcher);
+            loader = commandStore.rangeIndex().loader(preLoadContext.primaryTxnId(), preLoadContext.executeAt(), preLoadContext.loadKeysFor(), preLoadContext.keys());
+            loader.loadExclusive(mutexSummaries, caches);
         }
 
         public void scannedExclusive()
@@ -1147,19 +1124,21 @@ public abstract class AccordTask<R> extends SubmittableTask implements Function<
 
         void cleanup(Caches caches)
         {
-            caches.commands().tryUnregister(commandWatcher);
+            if (loader != null)
+                loader.cleanupExclusive(caches);
         }
 
-        CommandsForRanges finish(Caches caches)
+        CommandSummaries finish(Caches caches)
         {
-            caches.commands().unregister(commandWatcher);
-            return new CommandsForRanges(summaries);
+            loader.finish(summaries);
+            TreeMap<Timestamp, Summary> byId = new TreeMap<>(summaries);
+            return (CommandSummaries.ByTxnIdSnapshot) () -> byId;
         }
 
         @Override
         public String description()
         {
-            return "Scanning range intersections for " + AccordTask.this;
+            return "Scanning range intersections for " + preLoadContext.reason() + ' ' + toBriefString();
         }
 
         @Override

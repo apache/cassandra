@@ -125,6 +125,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -141,6 +142,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.writes.thresholds.CoordinatorWriteWarnings;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
@@ -303,12 +305,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         ClientWarn.instance.captureWarnings();
         CoordinatorWarnings.init();
+        CoordinatorWriteWarnings.init();
         try
         {
             QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(query);
             ResultMessage result = prepared.statement.executeLocally(QueryProcessor.internalQueryState(),
                                                                      QueryProcessor.makeInternalOptions(prepared.statement, args));
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
 
             if (result != null)
                 result.setWarnings(ClientWarn.instance.getWarnings());
@@ -317,11 +321,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         catch (Exception | Error e)
         {
             CoordinatorWarnings.done();
+            CoordinatorWriteWarnings.done();
             throw e;
         }
         finally
         {
             CoordinatorWarnings.reset();
+            CoordinatorWriteWarnings.reset();
             ClientWarn.instance.resetWarnings();
         }
     }
@@ -921,6 +927,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         ActiveRepairService.instance().start();
         StreamManager.instance.start();
         PaxosState.startAutoRepairs();
+        StorageService.instance.doAutoRepairSetup();
         CassandraDaemon.getInstanceForTesting().completeSetup();
     }
 
@@ -997,6 +1004,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                         throw e;
                 }
             };
+            error = parallelRun(error, executor,
+                    // If an index build completes as shutting down, setIndexBuild may trigger
+                    // a CFS.forceBlockingFlush
+                    () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES)
+            );
+
+            error = parallelRun(error, executor, () -> {
+                if (AccordService.isSetupOrStarting())
+                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
+            });
 
             error = parallelRun(error, executor,
                                 shutdownBatchlogAndHints,
@@ -1007,7 +1024,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamManager.instance.stop(),
-                                () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
                                 () -> IndexSummaryManager.instance.shutdownAndWait(1L, MINUTES),
                                 () -> ColumnFamilyStore.shutdownExecutorsAndWait(1L, MINUTES),
                                 () -> BufferPools.shutdownLocalCleaner(1L, MINUTES),
@@ -1019,6 +1035,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
+                                () -> AutoRepair.instance.shutdownBlocking(),
                                 () -> EpochAwareDebounce.instance.close(),
                                 SnapshotManager.instance::close,
                                 () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
@@ -1039,10 +1056,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
-            error = parallelRun(error, executor, () -> {
-                if (AccordService.isSetupOrStarting())
-                    AccordService.unsafeInstance().shutdownAndWait(1L, MINUTES);
-            });
+            // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it and
+            // before CommitLog, as any thread calling executeInternal could wait indefinitely
+            // on commitlog allocator (e.g. SSTableReader tidier on non-periodic calling
+            // SystemKeyspace.clearSSTableReadMeter)
+            error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)

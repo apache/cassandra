@@ -275,8 +275,14 @@ public class AccordObjectSizes
 
         size += dependencies.keyDeps.txnIdCount() * TIMESTAMP_SIZE;
         size += dependencies.rangeDeps.txnIdCount() * TIMESTAMP_SIZE;
-        size += KeyDeps.SerializerSupport.keysToTxnIds(dependencies.keyDeps).length * 4L;
-        size += RangeDeps.SerializerSupport.rangesToTxnIds(dependencies.rangeDeps).length * 4L;
+        if (dependencies.keyDeps.hasByKey())
+            size += KeyDeps.SerializerSupport.keysToTxnIds(dependencies.keyDeps).length * 4L;
+        if (dependencies.keyDeps.hasByTxnId())
+            size += KeyDeps.SerializerSupport.txnIdsToKeys(dependencies.keyDeps).length * 4L;
+        if (dependencies.rangeDeps.hasByRange())
+            size += RangeDeps.SerializerSupport.rangesToTxnIds(dependencies.rangeDeps).length * 4L;
+        if (dependencies.rangeDeps.hasByTxnId())
+            size += RangeDeps.SerializerSupport.txnIdsToRanges(dependencies.rangeDeps).length * 4L;
         return size;
     }
 

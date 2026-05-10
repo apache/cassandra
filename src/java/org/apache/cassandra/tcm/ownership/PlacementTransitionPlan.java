@@ -110,29 +110,32 @@ public class PlacementTransitionPlan
 
         toSplit.forEach((replication, delta) -> {
             delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
         });
 
         toMaximal.forEach((replication, delta) -> {
             delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
             addToWrites.put(replication, delta.onlyWrites());
             moveReads.put(replication, delta.onlyReads());
         });
 
         toFinal.forEach((replication, delta) -> {
             delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
             moveReads.put(replication, delta.onlyReads());
             removeFromWrites.put(replication, delta.onlyWrites());
         });
 
         toMerged.forEach((replication, delta) -> {
             delta.reads.additions.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
+            delta.reads.removals.flattenValues().forEach(r -> affectedRanges.add(replication, r.range()));
             removeFromWrites.put(replication, delta);
         });
         this.addToWrites = addToWrites.build();
         this.moveReads = moveReads.build();
         this.removeFromWrites = removeFromWrites.build();
         this.affectedRanges = affectedRanges.build();
-
     }
 
     @Override

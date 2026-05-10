@@ -33,7 +33,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="5.1"/>
+    <property name="base.version" value="6.0-alpha2"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git"/>
@@ -614,6 +614,7 @@
     <target name="gen-doc" description="Generate documentation" depends="gen-asciidoc,generate-cql-html" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="html"/>
+            <arg value="manpages"/>
         </exec>
     </target>
 
@@ -697,7 +698,7 @@
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
     </target>
 
-    <target name="check" depends="_main-jar,build-test,gen-doc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+    <target name="check" depends="_main-jar,build-test,gen-asciidoc" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
         <antcall target="rat-check" inheritrefs="true"/>
         <antcall target="checkstyle" inheritrefs="true"/>
         <antcall target="checkstyle-test" inheritrefs="true"/>
@@ -993,6 +994,8 @@
     </target>
 
     <target name="_artifacts-init" depends="jar">
+      <!-- gen-doc should be depended on, but it requires antora and pandoc installed,
+            so for now it's seperated to artifacts-with-docs -->
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />
@@ -1012,8 +1015,12 @@
         </fileset>
       </copy>
       <copy todir="${dist.dir}/doc/html" failonerror="false">
-        <fileset dir="doc" />
-        <globmapper from="build/html/*" to="*"/>
+        <fileset dir="build/html" />
+      </copy>
+      <copy todir="${dist.dir}/doc/man" failonerror="false">
+        <fileset dir="build/man">
+          <include name="*.gz" />
+        </fileset>
       </copy>
       <copy todir="${dist.dir}/bin">
         <fileset dir="bin"/>
@@ -1047,6 +1054,10 @@
         </fileset>
       </copy>
     </target>
+
+    <!-- creates release tarballs with documentation -->
+    <target name="artifacts-with-docs" depends="gen-doc,artifacts"
+            description="Create Cassandra tarball and maven artifacts with documentation"/>
 
     <!-- creates release tarballs -->
     <target name="artifacts" depends="_artifacts-init,check,sources-jar,sstableloader-sources-jar"
@@ -2131,11 +2142,7 @@
 
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,_createVersionPropFile" description="Generate IDEA files">
-    <delete>
-      <fileset dir=".idea">
-        <exclude name="codeStyles/**"/>
-      </fileset>
-    </delete>
+    <delete dir=".idea"/>
     <delete file="${eclipse.project.name}.iml"/>
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
@@ -2194,7 +2201,7 @@
     </path>
     <pathconvert property="eclipse-libs-list" refid="eclipse-project-libs-path" pathsep="${line.separator}">
         <mapper>
-            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1\" \/&gt;'/>
+            <regexpmapper from="^(.*)$$" to='&lt;classpathentry kind="lib" path="\1" /&gt;'/>
         </mapper>
     </pathconvert>
     <property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
@@ -2213,6 +2220,8 @@
   <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/simulator/test"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/harry/main"/>
   <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
@@ -2222,8 +2231,8 @@
   <classpathentry kind="src" output="build/test/sstableloader-classes" path="tools/sstableloader/test/unit" />
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
   <classpathentry kind="output" path="build/classes/eclipse"/>
+  <classpathentry kind="lib" path="${build.classes.main}"/>
   <classpathentry kind="lib" path="test/conf"/>
-  <classpathentry kind="lib" path="${java.home}/../lib/tools.jar"/>
   ${eclipse-libs-list}
 </classpath>
 ]]>

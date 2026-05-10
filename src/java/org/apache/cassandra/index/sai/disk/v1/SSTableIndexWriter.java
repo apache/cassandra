@@ -32,6 +32,7 @@ import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
@@ -85,6 +86,18 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         if (index.termType().isNonFrozenCollection())
         {
             Iterator<ByteBuffer> valueIterator = index.termType().valuesOf(row, nowInSec);
+            if (valueIterator != null)
+            {
+                while (valueIterator.hasNext())
+                {
+                    ByteBuffer value = valueIterator.next();
+                    addTerm(index.termType().asIndexBytes(value.duplicate()), key, sstableRowId);
+                }
+            }
+        }
+        else if (index.termType().isFrozenCollection() && index.termType().indexTargetType() != IndexTarget.Type.FULL)
+        {
+            Iterator<ByteBuffer> valueIterator = index.termType().valuesOfFrozenCollection(row, nowInSec);
             if (valueIterator != null)
             {
                 while (valueIterator.hasNext())

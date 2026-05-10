@@ -365,12 +365,16 @@ public abstract class GuardrailsConfigCommand extends AbstractCommand
                                                                                 "SimpleStrategyEnabled", "simplestrategy_enabled",
                                                                                 "NonPartitionRestrictedQueryEnabled", "non_partition_restricted_index_query_enabled");
 
-    private static final Set<String> ignored = Set.of("password_policy", "role_name_policy");
+    private static final Set<String> ignored = Set.of("password_policy", "role_name_policy",
+                                                       "minimum_client_driver_versions_warned",
+                                                       "minimum_client_driver_versions_disallowed");
 
     /**
      * Set of guardrails which are flags, even though their suffix would suggest they are part of "values" which have warned, ignored, and disallowed sub-categories
      */
-    private static final Set<String> specialFlags = Set.of("intersect_filtering_query_warned", "zero_ttl_on_twcs_warned");
+    private static final Set<String> specialFlags = Set.of("intersect_filtering_query_warned",
+                                                           "unset_training_min_frequency_warned",
+                                                           "zero_ttl_on_twcs_warned");
 
     @VisibleForTesting
     public enum GuardrailCategory

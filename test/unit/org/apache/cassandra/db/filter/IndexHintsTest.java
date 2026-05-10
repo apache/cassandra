@@ -451,11 +451,11 @@ public class IndexHintsTest extends CQLTester
         {
             // ...with a version that supports index hints
             DataOutputBuffer out = new DataOutputBuffer();
-            ReadCommand.serializer.serialize(command, out, MessagingService.VERSION_51);
-            Assertions.assertThat(ReadCommand.serializer.serializedSize(command, MessagingService.VERSION_51))
+            ReadCommand.serializer.serialize(command, out, MessagingService.VERSION_60);
+            Assertions.assertThat(ReadCommand.serializer.serializedSize(command, MessagingService.VERSION_60))
                       .isEqualTo(out.buffer().remaining());
             DataInputBuffer in = new DataInputBuffer(out.buffer(), true);
-            command = ReadCommand.serializer.deserialize(in, MessagingService.VERSION_51);
+            command = ReadCommand.serializer.deserialize(in, MessagingService.VERSION_60);
             actualHints = command.rowFilter().indexHints;
             Assertions.assertThat(actualHints).isEqualTo(expectedHints);
 
@@ -1110,7 +1110,7 @@ public class IndexHintsTest extends CQLTester
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             IndexHints hints = IndexHints.create(indexes, null);
-            Assertions.assertThatThrownBy(() -> IndexHints.serializer.serialize(hints, out, MessagingService.VERSION_51))
+            Assertions.assertThatThrownBy(() -> IndexHints.serializer.serialize(hints, out, MessagingService.VERSION_60))
                       .isInstanceOf(AssertionError.class)
                       .hasMessageContaining(TOO_MANY_INDEXES_ERROR + indexes.size());
         }
@@ -1119,7 +1119,7 @@ public class IndexHintsTest extends CQLTester
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             IndexHints hints = IndexHints.create(null, indexes);
-            Assertions.assertThatThrownBy(() -> IndexHints.serializer.serialize(hints, out, MessagingService.VERSION_51))
+            Assertions.assertThatThrownBy(() -> IndexHints.serializer.serialize(hints, out, MessagingService.VERSION_60))
                       .isInstanceOf(AssertionError.class)
                       .hasMessageContaining(TOO_MANY_INDEXES_ERROR + indexes.size());
         }

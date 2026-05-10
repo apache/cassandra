@@ -21,13 +21,13 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.mindrot.jbcrypt.BCrypt;
@@ -76,6 +76,19 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     public static final String PASSWORD_KEY = "password";
     private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(AuthenticationMode.PASSWORD);
 
+    @VisibleForTesting
+    static final Set<IRoleManager.Option> SUPPORTED_ROLE_OPTIONS =
+            EnumSet.of(IRoleManager.Option.PASSWORD,
+                       IRoleManager.Option.HASHED_PASSWORD,
+                       IRoleManager.Option.GENERATED_PASSWORD,
+                       IRoleManager.Option.GENERATED_NAME);
+
+    @VisibleForTesting
+    static final Set<IRoleManager.Option> ALTERABLE_ROLE_OPTIONS =
+            EnumSet.of(IRoleManager.Option.PASSWORD,
+                       IRoleManager.Option.HASHED_PASSWORD,
+                       IRoleManager.Option.GENERATED_PASSWORD);
+
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
 
@@ -87,7 +100,26 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         AuthCacheService.instance.register(cache);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Set<IRoleManager.Option> getSupportedRoleOptions()
+    {
+        return SUPPORTED_ROLE_OPTIONS;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Set<IRoleManager.Option> getAlterableRoleOptions()
+    {
+        return ALTERABLE_ROLE_OPTIONS;
+    }
+
     // No anonymous access.
+    @Override
     public boolean requireAuthentication()
     {
         return true;
@@ -207,7 +239,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     public Set<DataResource> protectedResources()
     {
         // Also protected by CassandraRoleManager, but the duplication doesn't hurt and is more explicit
-        return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES));
+        return Set.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES));
     }
 
     public void validateConfiguration() throws ConfigurationException
@@ -347,6 +379,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                                                      // invalidate the key if the sentinel is loaded during a refresh
         }
 
+        @Override
         public void invalidateCredentials(String roleName)
         {
             invalidate(roleName);

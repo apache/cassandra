@@ -120,13 +120,13 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     }
 
     @Override
-    public void invalidate()
+    public void markUnsafe()
     {
         invalidated = true;
     }
 
     @Override
-    public boolean invalidated()
+    public boolean isUnsafe()
     {
         return invalidated;
     }

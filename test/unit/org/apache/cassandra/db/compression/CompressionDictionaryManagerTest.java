@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.junit.After;
@@ -37,7 +36,6 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class CompressionDictionaryManagerTest
@@ -150,61 +148,28 @@ public class CompressionDictionaryManagerTest
 
         managerWithoutDict.maybeReloadFromSchema(dictParams);
 
-        // Should now have a trainer
-        assertThat(managerWithoutDict.trainer())
-        .as("Should have a trainer after enabling dictionary compression")
-        .isNotNull();
+        // Should be now enabled
+        assertThat(managerWithoutDict.isEnabled())
+        .as("manager should have enabled dictionary compression")
+        .isTrue();
     }
 
     @Test
     public void testMaybeReloadFromSchemaDisableDictionaryCompression()
     {
         // Verify we have a trainer initially
-        assertThat(managerWithDict.trainer()).isNotNull();
+        assertThat(managerWithDict.isEnabled())
+        .as("manager with a dictionary support should be enabled")
+        .isTrue();
 
         // Disable dictionary compression
         CompressionParams nonDictParams = CompressionParams.lz4();
         managerWithDict.maybeReloadFromSchema(nonDictParams);
 
         // Should disable training
-        assertThat(managerWithDict.trainer())
-        .as("Should not have trainer when dictionary compression is disabled")
-        .isNull();
-    }
-
-    @Test
-    public void testTrainerCompatibilityCheck()
-    {
-        ICompressionDictionaryTrainer initialTrainer = managerWithDict.trainer();
-        assertThat(initialTrainer).isNotNull();
-
-        // Change compression level - should create new trainer
-        CompressionParams differentLevelParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
-                                                                        Map.of("compression_level", "5"));
-        managerWithDict.maybeReloadFromSchema(differentLevelParams);
-        ICompressionDictionaryTrainer newTrainer = managerWithDict.trainer();
-
-        // Should have a different trainer instance
-        assertThat(newTrainer)
-        .as("Should create new trainer when compression level changes")
-        .isNotSameAs(initialTrainer);
-    }
-
-    @Test
-    public void testAddSample()
-    {
-        ByteBuffer sample = ByteBuffer.wrap("test sample data".getBytes());
-        ByteBuffer emptyBuffer = ByteBuffer.allocate(0);
-
-        // Should not throw for dictionary-enabled table
-        assertThatNoException().isThrownBy(() -> managerWithDict.addSample(sample));
-        assertThatNoException().isThrownBy(() -> managerWithDict.addSample(null));
-        assertThatNoException().isThrownBy(() -> managerWithDict.addSample(emptyBuffer));
-
-        // Should not throw for non-dictionary table (graceful handling)
-        assertThatNoException().isThrownBy(() -> managerWithoutDict.addSample(sample));
-        assertThatNoException().isThrownBy(() -> managerWithoutDict.addSample(null));
-        assertThatNoException().isThrownBy(() -> managerWithoutDict.addSample(emptyBuffer));
+        assertThat(managerWithDict.isEnabled())
+        .as("manager without a dictionary support should be disabled")
+        .isFalse();
     }
 
     @Test
@@ -230,7 +195,7 @@ public class CompressionDictionaryManagerTest
         // Start with non-dictionary table
         TrainingState initialTrainingState = TrainingState.fromCompositeData(managerWithoutDict.getTrainingState());
         assertThat(initialTrainingState.getStatus()).isEqualTo(TrainingStatus.NOT_STARTED);
-        assertThat(managerWithoutDict.trainer()).isNull();
+        assertThat(managerWithoutDict.isEnabled()).isFalse();
 
         // Enable dictionary compression
         CompressionParams dictParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
@@ -238,7 +203,7 @@ public class CompressionDictionaryManagerTest
         managerWithoutDict.maybeReloadFromSchema(dictParams);
 
         // Should now support training
-        assertThat(managerWithoutDict.trainer()).isNotNull();
+        assertThat(managerWithoutDict.isEnabled()).isTrue();
 
         // Change compression level
         CompressionParams newDictParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
@@ -246,13 +211,13 @@ public class CompressionDictionaryManagerTest
         managerWithoutDict.maybeReloadFromSchema(newDictParams);
 
         // Should still support training with new parameters
-        assertThat(managerWithoutDict.trainer()).isNotNull();
+        assertThat(managerWithoutDict.isEnabled()).isTrue();
 
         // Disable dictionary compression
         CompressionParams nonDictParams = CompressionParams.lz4();
         managerWithoutDict.maybeReloadFromSchema(nonDictParams);
 
         // Should disable training
-        assertThat(managerWithoutDict.trainer()).isNull();
+        assertThat(managerWithoutDict.isEnabled()).isFalse();
     }
 }

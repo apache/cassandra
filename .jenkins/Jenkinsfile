@@ -166,13 +166,15 @@ def tasks() {
   def buildSteps = [
     'jar': [script: 'build-jars.sh', toCopy: null],
     'artifacts': [script: 'build-artifacts.sh', toCopy: 'apache-cassandra-*.tar.gz,apache-cassandra-*.jar,apache-cassandra-*.pom'],
-    'lint': [script: 'check-code.sh', toCopy: null],
+    'lint': [script: 'check-code.sh', size: 'medium', toCopy: null],
     'debian': [script: 'build-debian.sh', toCopy: 'cassandra_*,cassandra-tools_*'],
     'redhat': [script: 'build-redhat.sh rpm', toCopy: '*.rpm'],
   ]
   buildSteps.each() {
     it.value.put('type', 'build')
-    it.value.put('size', 'small')
+    if (!it.value['size']) {
+        it.value.put('size', 'small')
+    }
     it.value.put('splits', 1)
   }
 
@@ -434,6 +436,11 @@ def test(command, cell) {
             if (!cell.step.startsWith("microbench")) {
               junit testResults: "test/**/TEST-*.xml,test/**/cqlshlib*.xml,test/**/nosetests*.xml", testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
             }
+            // check if we had Linux OOM killer active within the test container which could kill forked JUnit JVM processes
+             sh """
+                echo "docker memory/oomkiller debug:"
+                cat /sys/fs/cgroup/docker/memory.events || true
+              """
             sh """
                 find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f
                 echo "test result files compressed"; find test/output -type f -name "*.xml.xz" | wc -l

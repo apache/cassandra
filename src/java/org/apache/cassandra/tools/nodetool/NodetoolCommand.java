@@ -20,7 +20,6 @@ package org.apache.cassandra.tools.nodetool;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
-import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 
 import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
@@ -61,6 +60,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          AccordAdmin.class,
                          AlterTopology.class,
                          Assassinate.class,
+                         AsyncProfileCommandGroup.class,
                          AutoRepairStatus.class,
                          Bootstrap.class,
                          CIDRFilteringStats.class,
@@ -71,6 +71,7 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          Compact.class,
                          CompactionHistory.class,
                          CompactionStats.class,
+                         CompressionDictionaryCommandGroup.class,
                          ConsensusMigrationAdmin.class,
                          DataPaths.class,
                          Decommission.Abort.class,
@@ -149,7 +150,6 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          NetStats.class,
                          PauseHandoff.class,
                          ProfileLoad.class,
-                         AsyncProfileCommandGroup.class,
                          ProxyHistograms.class,
                          RangeKeySample.class,
                          Rebuild.class,
@@ -208,7 +208,6 @@ import static org.apache.cassandra.tools.nodetool.Help.printTopCommandUsage;
                          TableStats.class,
                          TopPartitions.class,
                          TpStats.class,
-                         CompressionDictionaryCommandGroup.class,
                          TruncateHints.class,
                          UpdateCIDRGroup.class,
                          UpgradeSSTable.class,
@@ -219,12 +218,6 @@ public class NodetoolCommand implements Runnable
 {
     @Spec
     public CommandSpec spec;
-
-    // TODO CASSANDRA-20790 this option is used only in several commands and should not be the global option.
-    //  It should be pushed down to specific commands to clean up the global hierarchy, while maintaining backwards compatibility.
-    //  Calls such as './nodetool --print-port subcommand', and './nodetool subcommand --print-port' should work as expected.
-    @Option(names = { "-pp", "--print-port" }, description = "Operate in 4.0 mode with hosts disambiguated by port number")
-    public boolean printPort = false;
 
     public void run()
     {

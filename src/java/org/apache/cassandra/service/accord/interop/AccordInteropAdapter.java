@@ -43,7 +43,7 @@ import accord.primitives.Writes;
 import accord.topology.Topologies;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.service.accord.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,7 +118,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         {
             logger.debug("Query cancelled (timeout)", e);
             response = null;
-            assert !command.isCompleted() : "Read marked as completed despite being aborted by timeout to table " + command.metadata();
+            Preconditions.checkState(!command.isCompleted(), "Read marked as completed despite being aborted by timeout to table %s", command.metadata());
         }
 
         if (command.complete())

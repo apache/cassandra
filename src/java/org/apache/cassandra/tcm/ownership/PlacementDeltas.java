@@ -21,12 +21,15 @@ package org.apache.cassandra.tcm.ownership;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -150,6 +153,14 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
         public PlacementDelta onlyRemovals()
         {
             return new PlacementDelta(reads.onlyRemovals(), writes.onlyRemovals());
+        }
+
+        // TODO deltas (& placements in general) should deal in node ids, not endpoints.
+        public Set<InetAddressAndPort> affectedEndpoints()
+        {
+            Set<InetAddressAndPort> affectedEndpoints = new HashSet<>(reads.allEndpoints());
+            affectedEndpoints.addAll(writes.allEndpoints());
+            return affectedEndpoints;
         }
 
         public DataPlacement apply(Epoch epoch, DataPlacement placement)

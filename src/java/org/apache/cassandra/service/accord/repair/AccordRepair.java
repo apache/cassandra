@@ -28,7 +28,7 @@ import javax.annotation.Nullable;
 import accord.local.Node;
 import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
-import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -39,13 +39,13 @@ import org.apache.cassandra.metrics.LatencyMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.RequestBookkeeping;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.Pair;
@@ -56,7 +56,6 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static accord.local.durability.DurabilityService.SyncLocal.NoLocal;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.primitives.Timestamp.mergeMax;
-import static accord.primitives.Timestamp.minForEpoch;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordRepairTimeoutNanos;
 
@@ -184,7 +183,7 @@ public class AccordRepair
             RequestBookkeeping bookkeeping = new LatencyRequestBookkeeping(latency);
             long timeoutNanos = getAccordRepairTimeoutNanos();
             long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
-                Timestamp conflictMax = mergeMax(conflict, minForEpoch(this.minEpoch.getEpoch()));
+                TxnId conflictMax = mergeMax(TxnId.atLeast(conflict), TxnId.minForEpoch(this.minEpoch.getEpoch()), TxnId::fromValues);
                 return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), including, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc()).chain();
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;

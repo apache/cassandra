@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 
 public class SelectSingleColumnRelationTest extends CQLTester
@@ -33,7 +34,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
     public void textInvalidMapEntryPredicate()  throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck frozen<map<int, int>>, v int, PRIMARY KEY(pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
-        assertInvalidMessage("Map-entry predicates on frozen map column ck are not supported",
+        assertInvalidMessage(String.format(Relation.FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, "ck"),
                              "SELECT * FROM %s WHERE pk=? AND ck[0] = ?", 0, 0);
     }
 

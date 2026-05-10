@@ -464,7 +464,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     static Index.QueryPlan findIndexQueryPlan(TableMetadata table, RowFilter rowFilter)
     {
-        if (table.indexes.isEmpty() || rowFilter.isEmpty())
+        if (table.indexes.isEmpty() || rowFilter.isEmpty() || table.isVirtual())
             return null;
 
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
@@ -644,19 +644,24 @@ public abstract class ReadCommand extends AbstractReadQuery
             public Row applyToRow(Row row)
             {
                 boolean hasTombstones = false;
-                for (Cell<?> cell : row.cells())
+                final long nowInSec = ReadCommand.this.nowInSec();
+                final boolean rowHasDeletion = row.hasDeletion(nowInSec);
+                if (rowHasDeletion) // perf optimization, to avoid iteration if all cells are alive
                 {
-                    if (!cell.isLive(ReadCommand.this.nowInSec()))
+                    for (Cell<?> cell : row.cells())
                     {
-                        countTombstone(row.clustering());
-                        hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        if (!cell.isLive(nowInSec))
+                        {
+                            countTombstone(row.clustering());
+                            hasTombstones = true; // allows to avoid counting an extra tombstone if the whole row expired
+                        }
                     }
                 }
 
-                if (row.hasLiveData(ReadCommand.this.nowInSec(), enforceStrictLiveness))
+                if (row.hasLiveData(nowInSec, enforceStrictLiveness))
                     ++liveRows;
-                else if (!row.primaryKeyLivenessInfo().isLive(ReadCommand.this.nowInSec())
-                        && row.hasDeletion(ReadCommand.this.nowInSec())
+                else if (!row.primaryKeyLivenessInfo().isLive(nowInSec)
+                        && rowHasDeletion
                         && !hasTombstones)
                 {
                     // We're counting primary key deletions only here.
@@ -889,6 +894,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     /**
      *  A transformation used for simulating slow queries by tests.
      */
+    @VisibleForTesting
     private static class DelayInjector extends Transformation<UnfilteredRowIterator>
     {
         @Override
@@ -1399,7 +1405,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 Epoch.serializer.serialize(command.serializedAtEpoch, out);
             out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
             serializeFiltersAndLimits(command, out, version);
@@ -1454,7 +1460,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             TableId tableId = TableId.deserialize(in);
 
             Epoch schemaVersion = Epoch.EMPTY;
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 schemaVersion = Epoch.serializer.deserialize(in);
             TableMetadata tableMetadata;
             try
@@ -1510,7 +1516,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
-                   + (version >= MessagingService.VERSION_51 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
+                   + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)

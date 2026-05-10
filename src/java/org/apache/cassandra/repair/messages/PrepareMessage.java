@@ -108,7 +108,7 @@ public class PrepareMessage extends RepairMessage
             for (TableId tableId : message.tableIds)
                 tableId.serialize(out);
             message.parentRepairSession.serialize(out);
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 out.writeUTF(message.partitioner.getClass().getCanonicalName());
             out.writeInt(message.ranges.size());
             for (Range<Token> r : message.ranges)
@@ -128,7 +128,7 @@ public class PrepareMessage extends RepairMessage
             for (int i = 0; i < tableIdCount; i++)
                 tableIds.add(TableId.deserialize(in));
             TimeUUID parentRepairSession = TimeUUID.deserialize(in);
-            IPartitioner partitioner = version >= MessagingService.VERSION_51
+            IPartitioner partitioner = version >= MessagingService.VERSION_60
                                        ? FBUtilities.newPartitioner(in.readUTF())
                                        : IPartitioner.global();
             int rangeCount = in.readInt();
@@ -149,7 +149,7 @@ public class PrepareMessage extends RepairMessage
             for (TableId tableId : message.tableIds)
                 size += tableId.serializedSize();
             size += TimeUUID.sizeInBytes();
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 size += TypeSizes.sizeof(message.partitioner.getClass().getCanonicalName());
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> r : message.ranges)

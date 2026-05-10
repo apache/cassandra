@@ -245,7 +245,7 @@ history, and are used for invalidating older `TxnId`s, so that a newly
 bootstrapped node may have a complete log as of a point in time `TxnId`,
 and replicas could purge/GC earlier transaction metadata.
 
-SyncPoints are not expected to be processed by the the whole cluster,
+SyncPoints are not expected to be processed by the whole cluster,
 and we do not want transaction processing to be held up, so while these
 are processed much like a transaction, they are invisible to real
 transactions which may proceed before SyncPoint is witnessed by the node

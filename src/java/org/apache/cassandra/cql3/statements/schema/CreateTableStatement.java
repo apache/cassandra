@@ -227,7 +227,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
         if (useCompactStorage)
             Guardrails.compactTablesEnabled.ensureEnabled(state);
 
-        validateDefaultTimeToLive(attrs.asNewTableParams(keyspaceName));
+        TableParams paramsForValidation = attrs.asNewTableParams(keyspaceName);
+        validateDefaultTimeToLive(paramsForValidation);
+        validateMinimumTrainingFrequencyForDictionaryCompressor(paramsForValidation);
 
         rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }

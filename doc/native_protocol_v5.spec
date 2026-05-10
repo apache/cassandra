@@ -1359,6 +1359,82 @@ Table of Contents
                             for the failure. The map is encoded starting with an [int] n
                             followed by n pairs of <endpoint><failure_code> where
                             <endpoint> is an [inetaddr] and <failure_code> is a [short].
+                            The currently defined <failure_code> values are:
+                             - 0x0000  UNKNOWN: the failure reason is
+                               unknown. This code is also used when the
+                               coordinator receives an unrecognized code
+                               from a replica running a newer version, for
+                               forward compatibility. Clients should handle
+                               unknown failure codes gracefully.
+                             - 0x0001  READ_TOO_MANY_TOMBSTONES: the read
+                               scanned too many tombstones on the replica
+                               and was aborted. The threshold is configured
+                               by tombstone_failure_threshold in
+                               cassandra.yaml (default: 100000).
+                             - 0x0002  TIMEOUT: the replica did not respond
+                               to the coordinator within the expected
+                               timeout for this operation. This is a
+                               per-replica failure reported within the
+                               <reason_map>; it differs from Read_timeout
+                               (0x1200) and Write_timeout (0x1100), which
+                               indicate that the overall consistency level
+                               could not be met.
+                             - 0x0003  INCOMPATIBLE_SCHEMA: the replica
+                               could not process the request because its
+                               schema differs from the coordinator's (e.g.
+                               a column or table referenced in the request
+                               is not recognized). This can occur during
+                               rolling upgrades or when schema changes have
+                               not yet propagated to all nodes.
+                             - 0x0004  READ_SIZE: the amount of data read
+                               on the replica exceeded a configured size
+                               threshold and the read was aborted. The
+                               thresholds are local_read_size_fail_threshold
+                               and row_index_read_size_fail_threshold in
+                               cassandra.yaml (both disabled by default;
+                               require read_thresholds_enabled: true).
+                             - 0x0005  NODE_DOWN: the replica was known to
+                               be down when the coordinator was assembling
+                               the request. The replica was never contacted.
+                             - 0x0006  INDEX_NOT_AVAILABLE: a secondary
+                               index required by the query is not yet
+                               available on the replica. This can occur
+                               after a node restart, before the index has
+                               completed its initial build or recovery.
+                             - 0x0007  READ_TOO_MANY_INDEXES: the read
+                               referenced more SSTable indexes via SAI
+                               (Storage-Attached Indexes) than the
+                               configured guardrail allows. The threshold
+                               is sai_sstable_indexes_per_query_fail_threshold
+                               in cassandra.yaml.
+                             - 0x0008  NOT_CMS: the request was sent to a
+                               node that is not a member of the Cluster
+                               Metadata Service (CMS), but the operation
+                               requires a CMS member.
+                             - 0x0009  INVALID_ROUTING: the replica does
+                               not own the token or token range for the
+                               requested data according to its current
+                               cluster metadata. This typically indicates
+                               that the coordinator's topology view is
+                               stale.
+                             - 0x000A  COORDINATOR_BEHIND: the coordinator's
+                               cluster metadata is behind the replica's
+                               (e.g. it references a table that has been
+                               dropped, or does not yet know about a table
+                               that has been created). The coordinator
+                               needs to update its metadata before retrying.
+                             - 0x000B  RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM:
+                               the operation was attempted using one
+                               transaction system (Accord or Paxos) but
+                               must be retried using the other, because
+                               the data is managed by or conflicts with
+                               operations on the other system.
+                             - 0x01F7  INDEX_BUILD_IN_PROGRESS: a secondary
+                               index required by the query is currently
+                               being rebuilt on the replica and cannot
+                               serve reads until the build completes. This
+                               is a more specific form of
+                               INDEX_NOT_AVAILABLE (0x0006).
                 <data_present> is a single byte. If its value is 0, it means
                                the replica that was asked for data had not
                                responded. Otherwise, the value is != 0.
@@ -1385,6 +1461,9 @@ Table of Contents
                             for the failure. The map is encoded starting with an [int] n
                             followed by n pairs of <endpoint><failure_code> where
                             <endpoint> is an [inetaddr] and <failure_code> is a [short].
+                            See the <failure_code> values defined in
+                            Read_failure (0x1300) above. The same set of
+                            codes applies to write failures.
                 <writeType> is a [string] that describes the type of the write
                             that failed. The value of that string can be one
                             of:

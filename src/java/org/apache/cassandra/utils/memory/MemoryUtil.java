@@ -24,6 +24,9 @@ import java.nio.ByteOrder;
 
 import com.sun.jna.Native;
 
+import org.apache.cassandra.utils.concurrent.Ref;
+
+import jdk.internal.ref.Cleaner;
 import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
@@ -330,9 +333,47 @@ public abstract class MemoryUtil
             return;
 
         DirectBuffer db = (DirectBuffer) buffer;
-        if (db.attachment() != null)
-            return; // duplicate or slice
+        Cleaner cleaner = db.cleaner();
 
-        unsafe.invokeCleaner(buffer);
+        if (cleaner == null)
+        {
+            // No cleaner means this buffer does not own its memory (e.g. slice, duplicate, pool sub-allocation,
+            // hollow buffer). A non-null attachment confirms it's a view; null attachment means it's a hollow/synthetic
+            // buffer or was already cleaned.
+            if (db.attachment() != null)
+                throw new IllegalArgumentException(
+                    "Cannot clean a buffer with no cleaner and attachment type "
+                    + db.attachment().getClass().getName() + "; this buffer does not own its memory. "
+                    + "For slices/duplicates, resolve to the root allocation before calling clean()");
+            return;
+        }
+
+        Object attachment = db.attachment();
+        if (!isSafeAttachment(attachment))
+            throw new IllegalArgumentException(
+                "Buffer has a cleaner but an unexpected attachment type "
+                + attachment.getClass().getName()
+                + "; this may indicate corrupted buffer state");
+
+        cleaner.clean();
     }
+
+    /**
+     * Allow-list of attachment types expected on buffers that have a cleaner. Any new attachment type set
+     * on a root allocation via {@link #setAttachment} must be added here with justification.
+     * <ul>
+     *   <li>{@code null} – normal case for root allocations ({@code ByteBuffer.allocateDirect}) and mmap buffers</li>
+     *   <li>{@link Runnable} – mmap force callback set by {@code ListenableFileSystem} and dispatched
+     *       by {@code SyncUtil.force()} to simulate mmap flush behaviour in tests</li>
+     *   <li>{@link Ref.DirectBufferRef} – reference tracking metadata set on root allocations by
+     *       {@code MerkleTree} when {@code Ref.TRACE_ENABLED} is true</li>
+     * </ul>
+     */
+    private static boolean isSafeAttachment(Object attachment)
+    {
+        return attachment == null
+               || attachment instanceof Runnable
+               || attachment instanceof Ref.DirectBufferRef;
+    }
+
 }

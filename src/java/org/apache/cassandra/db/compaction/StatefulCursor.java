@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReusableLivenessInfo;
@@ -55,9 +56,9 @@ class StatefulCursor extends SSTableCursorReader
 
     private boolean isOpenRangeTombstonePresent = false;
 
-    public StatefulCursor(SSTableReader reader)
+    public StatefulCursor(SSTableReader reader, DiskAccessMode diskAccessMode)
     {
-        super(reader);
+        super(reader, diskAccessMode);
         currPartition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
         prevPartition = new PartitionDescriptor(reader.getPartitioner().createReusableKey(0));
         unfiltered = new UnfilteredDescriptor(reader.header.clusteringTypes().toArray(AbstractType[]::new));

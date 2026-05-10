@@ -31,8 +31,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 
@@ -50,6 +52,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
 import static org.apache.cassandra.auth.AuthTestUtils.grantRolesTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CassandraRoleManagerTest
 {
@@ -162,6 +165,53 @@ public class CassandraRoleManagerTest
         }
     }
 
+    public void testPasswordUpdateRateLimiting() throws Exception
+    {
+        try
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(100);
+
+            IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+            roleManager.setup();
+
+            RoleResource testRole = RoleResource.role("test_password_role");
+            RoleOptions options = getLoginRoleOptions("initial_password");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, testRole, options);
+
+            // Wait for the rate limit interval to pass
+            Thread.sleep(150);
+
+            // First password change should succeed
+            RoleOptions newOptions1 = getLoginRoleOptions("new_password_1");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, newOptions1);
+
+            // Immediate second password change should fail with OverloadedException
+            try
+            {
+                RoleOptions newOptions2 = getLoginRoleOptions("new_password_2");
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, newOptions2);
+                fail("Expected OverloadedException due to password update rate limiting");
+            }
+            catch (OverloadedException e)
+            {
+                assertEquals("Password for role test_password_role can only be changed every 100ms. ", e.getMessage());
+            }
+
+            // Wait for the rate limit interval to pass
+            Thread.sleep(150);
+
+            // After waiting, password change should succeed again
+            RoleOptions newOptions3 = getLoginRoleOptions("new_password_3");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, newOptions3);
+
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, testRole);
+        }
+        finally
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt());
+        }
+    }
+
     @Test
     public void warmCacheWithEmptyTable()
     {
@@ -249,5 +299,87 @@ public class CassandraRoleManagerTest
         ));
         Assertions.assertThat(crm.getInvalidClientDisconnectPeriodMillis()).isEqualTo(0);
         Assertions.assertThat(crm.getInvalidClientDisconnectMaxJitterMillis()).isEqualTo(1000);
+    }
+
+    public void testPasswordUpdateRateLimitingDisabled() throws Exception
+    {
+        try
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(0);
+
+            IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+            roleManager.setup();
+
+            RoleResource testRole = RoleResource.role("test_no_limit_role");
+            RoleOptions options = getLoginRoleOptions("initial_password");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, testRole, options);
+
+            // Multiple rapid password changes should all succeed when rate limiting is disabled
+            for (int i = 0; i < 5; i++)
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, testRole, getLoginRoleOptions("password_" + i));
+
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, testRole);
+        }
+        finally
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt());
+        }
+    }
+
+    @Test
+    public void testPasswordUpdateRateLimitingPerRole() throws Exception
+    {
+        try
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(100);
+
+            IRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
+            roleManager.setup();
+
+            RoleResource role1 = RoleResource.role("test_role_1");
+            RoleResource role2 = RoleResource.role("test_role_2");
+
+            RoleOptions options1 = getLoginRoleOptions("password1");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role1, options1);
+
+            RoleOptions options2 = getLoginRoleOptions("password2");
+            roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role2, options2);
+
+            // Wait for the rate limit interval to pass
+            Thread.sleep(150);
+
+            RoleOptions newOptions1 = getLoginRoleOptions("new_password1");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role1, newOptions1);
+
+            RoleOptions newOptions2 = getLoginRoleOptions("new_password2");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role2, newOptions2);
+
+            try
+            {
+                RoleOptions newOptions1Again = getLoginRoleOptions("another_password1");
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role1, newOptions1Again);
+                fail("Expected OverloadedException for test_role_1");
+            }
+            catch (OverloadedException e)
+            {
+                assertEquals("Password for role test_role_1 can only be changed every 100ms.", e.getMessage());
+            }
+
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, role1);
+            roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, role2);
+        }
+        finally
+        {
+            CassandraRoleManager.updatePasswordUpdateMinInterval(CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt());
+        }
+    }
+
+    public static RoleOptions getLoginRoleOptions(String password)
+    {
+        RoleOptions roleOptions = new RoleOptions();
+        roleOptions.setOption(IRoleManager.Option.SUPERUSER, false);
+        roleOptions.setOption(IRoleManager.Option.LOGIN, true);
+        roleOptions.setOption(IRoleManager.Option.PASSWORD, password);
+        return roleOptions;
     }
 }
