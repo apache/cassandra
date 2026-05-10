@@ -3248,6 +3248,85 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("paxos repair for {} complete", reason);
     }
 
+    public void paxosCleanup(String keyspace, String... tables)
+    {
+        Keyspaces keyspaces = keyspace == null || keyspace.isEmpty()
+                              ? Schema.instance.distributedKeyspaces().without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES)
+                              : Keyspaces.of(Schema.instance.getKeyspaceMetadata(keyspace));
+
+        if (!tablesSpecified(tables) && keyspaces.isEmpty())
+            throw new IllegalArgumentException("No keyspaces available for paxos cleanup");
+
+        for (String ksName : keyspaces.names())
+        {
+            Keyspace ks = Keyspace.open(ksName);
+            Collection<Range<Token>> ranges = getLocalReplicas(ksName).onlyFull().ranges();
+            if (ranges.isEmpty())
+                continue;
+
+            List<TableMetadata> selectedTables = tablesSpecified(tables)
+                                                ? resolveTables(ksName, tables)
+                                                : Lists.newArrayList(ClusterMetadata.current().schema.getKeyspaces().getNullable(ksName).tables);
+
+            for (TableMetadata table : selectedTables)
+            {
+                if (!table.supportsPaxosOperations())
+                    continue;
+
+                logger.info("Starting paxos cleanup for {}.{}", table.keyspace, table.name);
+
+                for (Range<Token> range : ranges)
+                {
+                    EndpointsForRange replicas = ClusterMetadata.current()
+                                                                .placements.get(ks.getMetadata().params.replication)
+                                                                .reads.forRange(range.right).get();
+                    Set<InetAddressAndPort> liveEndpoints = replicas.filter(FailureDetector.isReplicaAlive).endpoints();
+
+                    waitOnPaxosCleanup(liveEndpoints, table, Collections.singleton(range));
+                }
+            }
+        }
+    }
+
+    private static boolean tablesSpecified(String... tables)
+    {
+        return tables != null && tables.length > 0;
+    }
+
+    private static List<TableMetadata> resolveTables(String keyspace, String... tables)
+    {
+        List<TableMetadata> resolved = new ArrayList<>(tables.length);
+        for (String table : tables)
+        {
+            TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+            if (metadata == null)
+                throw new IllegalArgumentException("Unknown table: " + keyspace + "." + table);
+            resolved.add(metadata);
+        }
+        return resolved;
+    }
+
+    private static void waitOnPaxosCleanup(Collection<InetAddressAndPort> liveEndpoints, TableMetadata table, Collection<Range<Token>> ranges)
+    {
+        try
+        {
+            ActiveRepairService.instance().schedulePaxosCleanup(SharedContext.Global.instance,
+                                                                liveEndpoints,
+                                                                table,
+                                                                ranges,
+                                                                repairCommandExecutor()).get();
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while running paxos cleanup", e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException("Error during paxos cleanup", e);
+        }
+    }
+
     @VisibleForTesting
     public Future<?> startRepairPaxosForTopologyChange(String reason)
     {

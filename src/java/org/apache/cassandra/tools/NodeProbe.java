@@ -1052,6 +1052,11 @@ public class NodeProbe implements AutoCloseable
         return snapshotProxy.getTrueSnapshotSize();
     }
 
+    public void paxosCleanup(String keyspace, String... tables) throws IOException
+    {
+        ssProxy.paxosCleanup(keyspace, tables);
+    }
+
     public boolean isJoined()
     {
         return ssProxy.isJoined();
