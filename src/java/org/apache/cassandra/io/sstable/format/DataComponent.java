@@ -18,13 +18,14 @@
 
 package org.apache.cassandra.io.sstable.format;
 
-import java.util.EnumSet;
+import java.util.EnumMap;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.FlushCompression;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
+import org.apache.cassandra.io.DirectIoSupport;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.DirectCompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -37,15 +38,41 @@ import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.io.DirectIoSupport.SUPPORTED;
+import static org.apache.cassandra.io.DirectIoSupport.UNSUPPORTED_CORRECTNESS;
+import static org.apache.cassandra.io.DirectIoSupport.UNSUPPORTED_POLICY;
+
 public class DataComponent
 {
 
-    private static final EnumSet<OperationType> DIRECT_IO_EXCLUDED = EnumSet.of(
-        // Memtbale data is useful to remain in the page cache due to the likelihood of access
-        OperationType.FLUSH,
-        // Scrub uses SSTableRewriter.tryAppend() which requires mark/resetAndTruncate for corrupt partition rollback
-        OperationType.SCRUB
-    );
+    private static final EnumMap<OperationType, DirectIoSupport> DIRECT_WRITE_SUPPORT = buildDirectWriteSupport();
+
+    private static EnumMap<OperationType, DirectIoSupport> buildDirectWriteSupport()
+    {
+        EnumMap<OperationType, DirectIoSupport> m = new EnumMap<>(OperationType.class);
+
+        // append()-only writers; safe under O_DIRECT.
+        m.put(OperationType.CLEANUP, SUPPORTED);
+        m.put(OperationType.UPGRADE_SSTABLES, SUPPORTED);
+        m.put(OperationType.MAJOR_COMPACTION, SUPPORTED);
+        m.put(OperationType.GARBAGE_COLLECT, SUPPORTED);
+        m.put(OperationType.WRITE, SUPPORTED);
+        m.put(OperationType.ANTICOMPACTION, SUPPORTED);
+        m.put(OperationType.COMPACTION, SUPPORTED);
+        m.put(OperationType.TOMBSTONE_COMPACTION, SUPPORTED);
+        m.put(OperationType.STREAM, SUPPORTED);
+
+        // tryAppend() needs mark()/resetAndTruncate(), unsupported under O_DIRECT.
+        m.put(OperationType.SCRUB, UNSUPPORTED_CORRECTNESS);
+
+        // Flushed data is hot; keep it in the page cache.
+        m.put(OperationType.FLUSH, UNSUPPORTED_POLICY);
+
+        for (OperationType op : OperationType.values())
+            if (op.writesData && !m.containsKey(op))
+                throw new AssertionError("Missing direct-write classification for " + op);
+        return m;
+    }
 
     public static SequentialWriter buildWriter(Descriptor descriptor,
                                                TableMetadata metadata,
@@ -57,10 +84,10 @@ public class DataComponent
     {
         if (metadata.params.compression.isEnabled())
         {
-            final CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
+            CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
 
-            DiskAccessMode backgroundWriteMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
-            if (backgroundWriteMode == DiskAccessMode.direct && !DIRECT_IO_EXCLUDED.contains(operationType))
+            if (DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == DiskAccessMode.direct
+                && isDirectWriteSupported(operationType))
             {
                 return new DirectCompressedSequentialWriter(descriptor.fileFor(Components.DATA),
                                                             descriptor.fileFor(Components.COMPRESSION_INFO),
@@ -130,4 +157,14 @@ public class DataComponent
         }
         return compressionParams;
     }
+
+    private static boolean isDirectWriteSupported(OperationType operationType)
+    {
+        DirectIoSupport support = DIRECT_WRITE_SUPPORT.get(operationType);
+        if (support == null)
+            throw new IllegalArgumentException("OperationType " + operationType
+                                               + " has no direct-write classification — likely a read-only operation routed through buildWriter()");
+        return support.isSupported();
+    }
+
 }
