@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Reduce memory allocations in miscellaneous places along read path (CASSANDRA-21360)
  * Avoid ByteBuffer wrapping in cql3.selection.Selector.InputRow to reduce memory allocation rate (CASSANDRA-21362)
  * Reduce cost to calculate BTreeRow.minDeletionTime (CASSANDRA-21414)
  * Implement custom CassandraThread to keep direct references to frequently used thread local objects (CASSANDRA-21020)

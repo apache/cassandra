@@ -547,12 +547,15 @@ public abstract class UnfilteredRowIterators
             private Unfiltered.Kind nextKind;
 
             private final Row.Merger rowMerger;
-            private final RangeTombstoneMarker.Merger markerMerger;
+            private RangeTombstoneMarker.Merger markerMerger;
+            private final int size;
+            private final boolean reversed;
 
             private MergeReducer(int size, boolean reversed, MergeListener listener)
             {
                 this.rowMerger = new Row.Merger(size, columns().regulars.hasComplex());
-                this.markerMerger = new RangeTombstoneMarker.Merger(size, partitionLevelDeletion(), reversed);
+                this.size = size;
+                this.reversed = reversed;
                 this.listener = listener;
             }
 
@@ -569,23 +572,42 @@ public abstract class UnfilteredRowIterators
                 if (nextKind == Unfiltered.Kind.ROW)
                     rowMerger.add(idx, (Row)current);
                 else
+                {
+                    if (markerMerger == null)
+                        markerMerger = new RangeTombstoneMarker.Merger(size, partitionLevelDeletion(), reversed);
                     markerMerger.add(idx, (RangeTombstoneMarker)current);
+                }
             }
 
             protected Unfiltered getReduced()
             {
+                if (nextKind == null)
+                    return null;
+
                 if (nextKind == Unfiltered.Kind.ROW)
                 {
-                    Row merged = rowMerger.merge(markerMerger.activeDeletion());
+                    DeletionTime activeDeletion = markerMerger != null ? markerMerger.activeDeletion() : partitionLevelDeletion();
+                    Row merged = rowMerger.merge(activeDeletion);
                     if (listener != null)
                         listener.onMergedRows(merged == null ? BTreeRow.emptyRow(rowMerger.mergedClustering()) : merged, rowMerger.mergedRows());
                     return merged;
                 }
                 else
                 {
-                    RangeTombstoneMarker merged = markerMerger.merge();
+                    RangeTombstoneMarker merged;
+                    RangeTombstoneMarker[] mergedMarkers;
+                    if (markerMerger != null)
+                    {
+                        merged = markerMerger.merge();
+                        mergedMarkers = markerMerger.mergedMarkers();
+                    }
+                    else
+                    {
+                        merged = null;
+                        mergedMarkers = RangeTombstoneMarker.Merger.EMPTY_MARKERS;
+                    }
                     if (listener != null)
-                        listener.onMergedRangeTombstoneMarkers(merged, markerMerger.mergedMarkers());
+                        listener.onMergedRangeTombstoneMarkers(merged, mergedMarkers);
                     return merged;
                 }
             }
@@ -594,7 +616,7 @@ public abstract class UnfilteredRowIterators
             {
                 if (nextKind == Unfiltered.Kind.ROW)
                     rowMerger.clear();
-                else
+                else if (markerMerger != null)
                     markerMerger.clear();
             }
         }

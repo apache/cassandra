@@ -73,6 +73,7 @@ public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
      */
     public static class Merger
     {
+        static final RangeTombstoneMarker[] EMPTY_MARKERS = new RangeTombstoneMarker[]{};
         private final DeletionTime partitionDeletion;
         private final boolean reversed;
 
