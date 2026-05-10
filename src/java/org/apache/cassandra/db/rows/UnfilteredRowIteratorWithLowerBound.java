@@ -21,7 +21,6 @@
 package org.apache.cassandra.db.rows;
 
 import java.util.Comparator;
-import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -58,7 +57,8 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     private final boolean isReverseOrder;
     private final ColumnFilter selectedColumns;
     private final SSTableReadsListener listener;
-    private Optional<Unfiltered> lowerBoundMarker;
+    private boolean lowerBoundComputed;
+    private Unfiltered lowerBoundMarker;
     private boolean firstItemRetrieved;
 
     public UnfilteredRowIteratorWithLowerBound(DecoratedKey partitionKey,
@@ -89,8 +89,8 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
 
     public Unfiltered lowerBound()
     {
-        if (lowerBoundMarker != null)
-            return lowerBoundMarker.orElse(null);
+        if (lowerBoundComputed)
+            return lowerBoundMarker;
 
         // lower bound from cache may be more accurate as it stores information about clusterings range for that exact
         // row, so we try it first (without initializing iterator)
@@ -99,12 +99,10 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
             // If we couldn't get the lower bound from cache, we try with metadata
             lowerBound = maybeGetLowerBoundFromMetadata();
 
-        if (lowerBound != null)
-            lowerBoundMarker = Optional.of(makeBound(lowerBound));
-        else
-            lowerBoundMarker = Optional.empty();
+        lowerBoundMarker = lowerBound != null ? makeBound(lowerBound) : null;
+        lowerBoundComputed = true;
 
-        return lowerBoundMarker.orElse(null);
+        return lowerBoundMarker;
     }
 
     private Unfiltered makeBound(ClusteringBound<?> bound)

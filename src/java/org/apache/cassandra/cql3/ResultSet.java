@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -149,7 +148,7 @@ public class ResultSet
                     else
                     {
                         sb.append(" | ");
-                        if (metadata.flags.contains(Flag.NO_METADATA))
+                        if (Flag.contains(metadata.flags, Flag.NO_METADATA))
                             sb.append("0x").append(ByteBufferUtil.bytesToHex(ByteBuffer.wrap(v)));
                         else
                             sb.append(metadata.names.get(i).type.getString(ByteBuffer.wrap(v)));
@@ -220,9 +219,9 @@ public class ResultSet
     {
         public static final CBCodec<ResultMetadata> codec = new Codec();
 
-        public static final ResultMetadata EMPTY = new ResultMetadata(MD5Digest.compute(new byte[0]), EnumSet.of(Flag.NO_METADATA), null, 0, null);
+        public static final ResultMetadata EMPTY = new ResultMetadata(MD5Digest.compute(new byte[0]), Flag.of(Flag.NO_METADATA), null, 0, null);
 
-        private final EnumSet<Flag> flags;
+        private int flags;
         // Please note that columnCount can actually be smaller than names, even if names is not null. This is
         // used to include columns in the resultSet that we need to do post-query re-orderings
         // (SelectStatement.orderResults) but that shouldn't be sent to the user as they haven't been requested
@@ -234,9 +233,9 @@ public class ResultSet
 
         public ResultMetadata(MD5Digest digest, List<ColumnSpecification> names)
         {
-            this(digest, EnumSet.noneOf(Flag.class), names, names.size(), null);
+            this(digest, Flag.none(), names, names.size(), null);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
-                flags.add(Flag.GLOBAL_TABLES_SPEC);
+                flags = Flag.add(flags, Flag.GLOBAL_TABLES_SPEC);
         }
 
         // Problem is that we compute the metadata from the columns on creation;
@@ -250,12 +249,12 @@ public class ResultSet
         // when re-preparing we create the intermediate object
         public ResultMetadata(List<ColumnSpecification> names, PagingState pagingState)
         {
-            this(computeResultMetadataId(names), EnumSet.noneOf(Flag.class), names, names.size(), pagingState);
+            this(computeResultMetadataId(names), Flag.none(), names, names.size(), pagingState);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
-                flags.add(Flag.GLOBAL_TABLES_SPEC);
+                flags = Flag.add(flags, Flag.GLOBAL_TABLES_SPEC);
         }
 
-        private ResultMetadata(MD5Digest resultMetadataId, EnumSet<Flag> flags, List<ColumnSpecification> names, int columnCount, PagingState pagingState)
+        private ResultMetadata(MD5Digest resultMetadataId, int flags, List<ColumnSpecification> names, int columnCount, PagingState pagingState)
         {
             this.resultMetadataId = resultMetadataId;
             this.flags = flags;
@@ -266,7 +265,7 @@ public class ResultSet
 
         public ResultMetadata copy()
         {
-            return new ResultMetadata(resultMetadataId, EnumSet.copyOf(flags), names, columnCount, pagingState);
+            return new ResultMetadata(resultMetadataId, flags, names, columnCount, pagingState);
         }
 
         /**
@@ -285,7 +284,7 @@ public class ResultSet
         }
 
         @VisibleForTesting
-        public EnumSet<Flag> getFlags()
+        public int getFlags()
         {
             return flags;
         }
@@ -319,19 +318,19 @@ public class ResultSet
         {
             this.pagingState = pagingState;
             if (pagingState == null)
-                flags.remove(Flag.HAS_MORE_PAGES);
+                flags = Flag.remove(flags, Flag.HAS_MORE_PAGES);
             else
-                flags.add(Flag.HAS_MORE_PAGES);
+                flags = Flag.add(flags, Flag.HAS_MORE_PAGES);
         }
 
         public void setSkipMetadata()
         {
-            flags.add(Flag.NO_METADATA);
+            flags = Flag.add(flags, Flag.NO_METADATA);
         }
 
         public void setMetadataChanged()
         {
-            flags.add(Flag.METADATA_CHANGED);
+            flags = Flag.add(flags, Flag.METADATA_CHANGED);
         }
 
         public MD5Digest getResultMetadataId()
@@ -358,7 +357,7 @@ public class ResultSet
 
             ResultMetadata that = (ResultMetadata) other;
 
-            return Objects.equals(flags, that.flags)
+            return flags == that.flags
                    && Objects.equals(names, that.names)
                    && columnCount == that.columnCount
                    && Objects.equals(pagingState, that.pagingState);
@@ -388,7 +387,7 @@ public class ResultSet
                     sb.append(", ").append(name.type).append("]");
                 }
             }
-            if (flags.contains(Flag.HAS_MORE_PAGES))
+            if (Flag.contains(flags, Flag.HAS_MORE_PAGES))
                 sb.append(" (to be continued)");
             return sb.toString();
         }
@@ -398,28 +397,26 @@ public class ResultSet
             public ResultMetadata decode(ByteBuf body, ProtocolVersion version)
             {
                 // flags & column count
-                int iflags = body.readInt();
+                int flags = Flag.deserialize(body.readInt());
                 int columnCount = body.readInt();
 
-                EnumSet<Flag> flags = Flag.deserialize(iflags);
-
                 MD5Digest resultMetadataId = null;
-                if (flags.contains(Flag.METADATA_CHANGED))
+                if (Flag.contains(flags, Flag.METADATA_CHANGED))
                 {
                     assert version.isGreaterOrEqualTo(ProtocolVersion.V5) : "MetadataChanged flag is not supported before native protocol v5";
-                    assert !flags.contains(Flag.NO_METADATA) : "MetadataChanged and NoMetadata are mutually exclusive flags";
+                    assert !Flag.contains(flags, Flag.NO_METADATA) : "MetadataChanged and NoMetadata are mutually exclusive flags";
 
                     resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
                 }
 
                 PagingState state = null;
-                if (flags.contains(Flag.HAS_MORE_PAGES))
+                if (Flag.contains(flags, Flag.HAS_MORE_PAGES))
                     state = PagingState.deserialize(CBUtil.readValueNoCopy(body), version);
 
-                if (flags.contains(Flag.NO_METADATA))
+                if (Flag.contains(flags, Flag.NO_METADATA))
                     return new ResultMetadata(null, flags, null, columnCount, state);
 
-                boolean globalTablesSpec = flags.contains(Flag.GLOBAL_TABLES_SPEC);
+                boolean globalTablesSpec = Flag.contains(flags, Flag.GLOBAL_TABLES_SPEC);
 
                 String globalKsName = null;
                 String globalCfName = null;
@@ -444,10 +441,10 @@ public class ResultSet
 
             public void encode(ResultMetadata m, ByteBuf dest, ProtocolVersion version)
             {
-                boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
-                boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
-                boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
-                boolean metadataChanged = m.flags.contains(Flag.METADATA_CHANGED);
+                boolean noMetadata = Flag.contains(m.flags, Flag.NO_METADATA);
+                boolean globalTablesSpec = Flag.contains(m.flags, Flag.GLOBAL_TABLES_SPEC);
+                boolean hasMorePages = Flag.contains(m.flags, Flag.HAS_MORE_PAGES);
+                boolean metadataChanged = Flag.contains(m.flags, Flag.METADATA_CHANGED);
                 assert version.isGreaterThan(ProtocolVersion.V1) || (!hasMorePages && !noMetadata)
                     : "version = " + version + ", flags = " + m.flags;
 
@@ -487,10 +484,10 @@ public class ResultSet
 
             public int encodedSize(ResultMetadata m, ProtocolVersion version)
             {
-                boolean noMetadata = m.flags.contains(Flag.NO_METADATA);
-                boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
-                boolean hasMorePages = m.flags.contains(Flag.HAS_MORE_PAGES);
-                boolean metadataChanged = m.flags.contains(Flag.METADATA_CHANGED);
+                boolean noMetadata = Flag.contains(m.flags, Flag.NO_METADATA);
+                boolean globalTablesSpec = Flag.contains(m.flags, Flag.GLOBAL_TABLES_SPEC);
+                boolean hasMorePages = Flag.contains(m.flags, Flag.HAS_MORE_PAGES);
+                boolean metadataChanged = Flag.contains(m.flags, Flag.METADATA_CHANGED);
 
                 int size = 8;
                 if (hasMorePages)
@@ -531,18 +528,18 @@ public class ResultSet
     {
         public static final CBCodec<PreparedMetadata> codec = new Codec();
 
-        private final EnumSet<Flag> flags;
+        private int flags;
         public final List<ColumnSpecification> names;
         private final short[] partitionKeyBindIndexes;
 
         public PreparedMetadata(List<ColumnSpecification> names, short[] partitionKeyBindIndexes)
         {
-            this(EnumSet.noneOf(Flag.class), names, partitionKeyBindIndexes);
+            this(Flag.none(), names, partitionKeyBindIndexes);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
-                flags.add(Flag.GLOBAL_TABLES_SPEC);
+                flags = Flag.add(flags, Flag.GLOBAL_TABLES_SPEC);
         }
 
-        private PreparedMetadata(EnumSet<Flag> flags, List<ColumnSpecification> names, short[] partitionKeyBindIndexes)
+        private PreparedMetadata(int flags, List<ColumnSpecification> names, short[] partitionKeyBindIndexes)
         {
             this.flags = flags;
             this.names = names;
@@ -551,7 +548,7 @@ public class ResultSet
 
         public PreparedMetadata copy()
         {
-            return new PreparedMetadata(EnumSet.copyOf(flags), names, partitionKeyBindIndexes);
+            return new PreparedMetadata(flags, names, partitionKeyBindIndexes);
         }
 
         @Override
@@ -565,7 +562,7 @@ public class ResultSet
 
             PreparedMetadata that = (PreparedMetadata) other;
             return this.names.equals(that.names) &&
-                   this.flags.equals(that.flags) &&
+                   this.flags == that.flags &&
                    Arrays.equals(this.partitionKeyBindIndexes, that.partitionKeyBindIndexes);
         }
 
@@ -610,10 +607,8 @@ public class ResultSet
             public PreparedMetadata decode(ByteBuf body, ProtocolVersion version)
             {
                 // flags & column count
-                int iflags = body.readInt();
+                int flags = Flag.deserialize(body.readInt());
                 int columnCount = body.readInt();
-
-                EnumSet<Flag> flags = Flag.deserialize(iflags);
 
                 short[] partitionKeyBindIndexes = null;
                 if (version.isGreaterOrEqualTo(ProtocolVersion.V4))
@@ -627,7 +622,7 @@ public class ResultSet
                     }
                 }
 
-                boolean globalTablesSpec = flags.contains(Flag.GLOBAL_TABLES_SPEC);
+                boolean globalTablesSpec = Flag.contains(flags, Flag.GLOBAL_TABLES_SPEC);
 
                 String globalKsName = null;
                 String globalCfName = null;
@@ -652,7 +647,7 @@ public class ResultSet
 
             public void encode(PreparedMetadata m, ByteBuf dest, ProtocolVersion version)
             {
-                boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
+                boolean globalTablesSpec = Flag.contains(m.flags, Flag.GLOBAL_TABLES_SPEC);
                 dest.writeInt(Flag.serialize(m.flags));
                 dest.writeInt(m.names.size());
 
@@ -691,7 +686,7 @@ public class ResultSet
 
             public int encodedSize(PreparedMetadata m, ProtocolVersion version)
             {
-                boolean globalTablesSpec = m.flags.contains(Flag.GLOBAL_TABLES_SPEC);
+                boolean globalTablesSpec = Flag.contains(m.flags, Flag.GLOBAL_TABLES_SPEC);
                 int size = 8;
                 if (globalTablesSpec)
                 {
@@ -725,24 +720,51 @@ public class ResultSet
         NO_METADATA,
         METADATA_CHANGED;
 
-        public static EnumSet<Flag> deserialize(int flags)
+        private final int mask;
+
+        Flag()
         {
-            EnumSet<Flag> set = EnumSet.noneOf(Flag.class);
-            Flag[] values = Flag.values();
-            for (int n = 0; n < values.length; n++)
-            {
-                if ((flags & (1 << n)) != 0)
-                    set.add(values[n]);
-            }
-            return set;
+            this.mask = 1 << this.ordinal();
         }
 
-        public static int serialize(EnumSet<Flag> flags)
+        public static int none()
         {
-            int i = 0;
-            for (Flag flag : flags)
-                i |= 1 << flag.ordinal();
-            return i;
+            return 0;
+        }
+
+        public static int of(Flag flag)
+        {
+            return add(none(), flag);
+        }
+
+        public static int of(Flag flag1, Flag flag2)
+        {
+            return add(add(none(), flag1), flag2);
+        }
+
+        public static int add(int flags, Flag flag)
+        {
+            return flags | flag.mask;
+        }
+
+        public static int remove(int flags, Flag flag)
+        {
+            return flags & ~flag.mask;
+        }
+
+        public static boolean contains(int flags, Flag flag)
+        {
+            return (flags & flag.mask) != 0;
+        }
+
+        public static int serialize(int flags)
+        {
+            return flags;
+        }
+
+        public static int deserialize(int flags)
+        {
+            return flags;
         }
     }
 
