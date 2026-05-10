@@ -43,11 +43,13 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.BiLongAccumulator;
+import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.memory.Cloner;
 
 /**
@@ -716,7 +718,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
         private int rowsToMerge;
         private int lastRowSet = -1;
 
-        private final List<ColumnData> dataBuffer = new ArrayList<>();
+        private static final ColumnData[] EMPTY_DATA_BUFFER = new ColumnData[0];
+
+        private ColumnData[] dataBuffer = EMPTY_DATA_BUFFER;
+        private int dataBufferSize;
         private final ColumnDataReducer columnDataReducer;
 
         public Merger(int size, boolean hasComplex)
@@ -728,7 +733,8 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
 
         public void clear()
         {
-            dataBuffer.clear();
+            Arrays.fill(dataBuffer, 0, dataBufferSize, null);
+            dataBufferSize = 0;
             Arrays.fill(rows, null);
             columnDataIterators.clear();
             rowsToMerge = 0;
@@ -778,8 +784,22 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             if (activeDeletion.deletes(rowInfo))
                 rowInfo = LivenessInfo.EMPTY;
 
+            int columnsCountEstimation = 0;
             for (Row row : rows)
-                columnDataIterators.add(row == null ? Collections.emptyIterator() : row.iterator());
+            {
+                if (row != null)
+                {
+                    columnDataIterators.add(row.iterator());
+                    columnsCountEstimation = Math.max(columnsCountEstimation, row.columnCount());
+                }
+                else
+                {
+                    columnDataIterators.add(Collections.emptyIterator());
+                }
+            }
+            // try to estimate and set a potential target capacity
+            if (dataBuffer.length < columnsCountEstimation)
+                dataBuffer = new ColumnData[columnsCountEstimation];
 
             columnDataReducer.setActiveDeletion(activeDeletion);
             Iterator<ColumnData> merged = MergeIterator.get(columnDataIterators, ColumnData.comparator, columnDataReducer);
@@ -787,13 +807,28 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             {
                 ColumnData data = merged.next();
                 if (data != null)
-                    dataBuffer.add(data);
+                {
+                    ensureDataBufferCapacity();
+                    dataBuffer[dataBufferSize++] = data;
+                }
             }
 
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
-            return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
-                 ? null
-                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer));
+            if (rowInfo.isEmpty() && rowDeletion.isLive() && dataBufferSize == 0)
+                return null;
+
+            try (BulkIterator<ColumnData> it = BulkIterator.of(dataBuffer))
+            {
+                return BTreeRow.create(clustering, rowInfo, rowDeletion,
+                                       BTree.build(it, dataBufferSize, UpdateFunction.noOp()));
+            }
+        }
+
+        private void ensureDataBufferCapacity()
+        {
+            if (dataBufferSize == dataBuffer.length)
+                // increase capacity by 50%, use 4 as a default capacity
+                dataBuffer = Arrays.copyOf(dataBuffer, Math.max(dataBuffer.length + (dataBuffer.length >> 1), 4));
         }
 
         public Clustering<?> mergedClustering()
