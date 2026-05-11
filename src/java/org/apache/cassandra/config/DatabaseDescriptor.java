@@ -372,9 +372,9 @@ public class DatabaseDescriptor
 
         applyCompatibilityMode();
 
-        applyCompressionProvider();
-
         applySSTableFormats();
+
+        applyCompressorProviders();
 
         applySimpleConfig();
 
@@ -440,7 +440,7 @@ public class DatabaseDescriptor
         applyCompatibilityMode();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
-        applyCompressionProvider();
+        applyCompressorProviders();
     }
 
     private static void assertNotDaemonInitialized()
@@ -554,7 +554,7 @@ public class DatabaseDescriptor
 
         applySSTableFormats();
 
-        applyCompressionProvider();
+        applyCompressorProviders();
 
         applyCryptoProvider();
 
@@ -585,9 +585,9 @@ public class DatabaseDescriptor
         applyStartupChecks();
     }
 
-    public static void applyCompressionProvider()
+    public static void applyCompressorProviders()
     {
-        CompressorRegistry.instance.registerServices(conf.compression_provider_options);
+        CompressorRegistry.instance.registerProviders(conf.compressor_providers);
     }
 
     private static void applySimpleConfig()
@@ -2046,6 +2046,11 @@ public class DatabaseDescriptor
     public static void setCryptoProvider(AbstractCryptoProvider cryptoProvider)
     {
         DatabaseDescriptor.cryptoProvider = cryptoProvider;
+    }
+
+    public static Map<String, ParameterizedClass> getCompressionProviders()
+    {
+        return conf.compressor_providers;
     }
 
     /**

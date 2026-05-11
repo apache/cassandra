@@ -37,11 +37,6 @@ import static java.lang.String.format;
  */
 public class DefaultCompressionProvider extends AbstractCompressionProvider
 {
-    public DefaultCompressionProvider()
-    {
-        super();
-    }
-
     /**
      * Checks if this compression provider is healthy and ready to use.
      * The default provider is always considered healthy as it has no external
@@ -108,27 +103,4 @@ public class DefaultCompressionProvider extends AbstractCompressionProvider
             throw new ConfigurationException("Cannot initialize class " + compressorClass.getName());
         }
     }
-
-    /**
-     * Returns the fully qualified class name of this compression provider.
-     *
-     * @return The complete class name: {@code org.apache.cassandra.io.compress.DefaultCompressionProvider}
-     */
-    @Override
-    public String getProviderName()
-    {
-        return this.getClass().getName();
-    }
-
-    /**
-     * Returns the simple class name of this compression provider.
-     *
-     * @return The simple class name: {@code DefaultCompressionProvider}
-     */
-    @Override
-    public String getProviderSimpleName()
-    {
-        return this.getClass().getSimpleName();
-    }
-
 }

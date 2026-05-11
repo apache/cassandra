@@ -34,7 +34,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.compress.AbstractCompressionProvider;
 import org.apache.cassandra.io.compress.CompressorRegistry;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -323,22 +322,8 @@ public final class CompressionParams
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
         }
-        try
-        {
-            // Get the compressor provider for the specified compressor class and use it to create the compressor instance.
-            AbstractCompressionProvider provider = registry.getProvider(compressorClass.getSimpleName());
-            ICompressor serviceProviderCompressor = provider.createCompressor(compressorClass, compressionOptions);
 
-            // Associate the compressor class name with the provider classname in the registry
-            // This information is needed when we save compression metadata, when deserializing compression parameters etc.
-            // This is the only place where we know the mapping, so we need to do it here.
-            registry.mapProviderInstanceToCompressor(serviceProviderCompressor.getClass().getSimpleName(), compressorClass.getName());
-            return serviceProviderCompressor;
-        }
-        catch (Exception e)
-        {
-            throw e;
-        }
+        return registry.getProvider(compressorClass).createCompressor(compressorClass, compressionOptions);
     }
 
     public static ICompressor createCompressor(ParameterizedClass compression) throws ConfigurationException
@@ -487,7 +472,7 @@ public final class CompressionParams
 
         Map<String, String> options = new HashMap<>(otherOptions);
         // Use the one saved in the registry, we don't want to save the name of the service provider compressor here!
-        options.put(CLASS, registry.getCompressorTypeFullName(sstableCompressor.getClass().getSimpleName()));
+        options.put(CLASS, sstableCompressor.serializedAs().getName());
         options.put(CHUNK_LENGTH_IN_KB, chunkLengthInKB());
         if (minCompressRatio != DEFAULT_MIN_COMPRESS_RATIO)
             options.put(MIN_COMPRESS_RATIO, String.valueOf(minCompressRatio));
@@ -533,7 +518,7 @@ public final class CompressionParams
         public void serialize(CompressionParams parameters, DataOutputPlus out, int version) throws IOException
         {
             assert version >= MessagingService.VERSION_40;
-            out.writeUTF(registry.getCompressorTypeSimpleName(parameters.sstableCompressor.getClass().getSimpleName()));
+            out.writeUTF(parameters.sstableCompressor.serializedAs().getSimpleName());
             out.writeInt(parameters.otherOptions.size());
             for (Map.Entry<String, String> entry : parameters.otherOptions.entrySet())
             {
@@ -574,7 +559,7 @@ public final class CompressionParams
         public long serializedSize(CompressionParams parameters, int version)
         {
             assert version >= MessagingService.VERSION_40;
-            long size = TypeSizes.sizeof(parameters.sstableCompressor.getClass().getSimpleName());
+            long size = TypeSizes.sizeof(parameters.sstableCompressor.serializedAs().getSimpleName());
             size += TypeSizes.sizeof(parameters.otherOptions.size());
             for (Map.Entry<String, String> entry : parameters.otherOptions.entrySet())
             {

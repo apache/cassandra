@@ -18,141 +18,215 @@
 
 package org.apache.cassandra.io.compress;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.MockedStatic;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
-
 
 public class CompressorRegistryTest
 {
-    private CompressorRegistry registry;
-    private Config originalConfig;
+    private Config config;
 
     @Before
-    public void setUp() {
-        originalConfig = DatabaseDescriptor.loadConfig();
-        registry = null;
+    public void setUp()
+    {
+        config = DatabaseDescriptor.loadConfig();
     }
 
     @After
-    public void tearDown() {
-        registry = null;
+    public void tearDown()
+    {
+        CompressorRegistry.instance.reset();
     }
 
     @Test
     public void testRegisterAndGetInbuiltCompressor()
     {
-        //Make sure default provider is registered and is returned when an in-built compressor is requested
-        DatabaseDescriptor.setConfig(originalConfig);
-        DatabaseDescriptor.applyCompressionProvider();
-        registry = CompressorRegistry.instance;
-        AbstractCompressionProvider provider = registry.getProvider("LZ4Compressor");
-        assertThat(provider).isNotNull();
-        assertThat(provider.getProviderSimpleName()).isEqualTo("DefaultCompressionProvider");
-        assertThat(registry.getCompressorTypeFullName("LZ4Compressor")).isEqualTo("org.apache.cassandra.io.compress.LZ4Compressor");
-        assertThat(registry.getCompressorTypeSimpleName("LZ4Compressor")).isEqualTo("LZ4Compressor");
+        DatabaseDescriptor.setConfig(config);
+        DatabaseDescriptor.applyCompressorProviders();
+
+        for (CompressorRegistry.CompressorType type : CompressorRegistry.CompressorType.values())
+        {
+            AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass);
+            assertThat(provider).isNotNull();
+            assertThat(provider).isEqualTo(CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
+        }
     }
 
     @Test
     public void testRegisterServiceProvider() throws Exception
     {
-        //Register a custom provider and ensure it is returned when requested
-        Config config = originalConfig;
-        Map<String, String> params = new HashMap<>();
-        params.put(CompressorRegistry.FALLBACK_TO_DEFAULT_PROVIDER, "true");
-        config.compression_provider_options.put("NoopCompressor", new ParameterizedClass("TestCompressionProvider", params));
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        config.compressor_providers.put(NoopCompressor.class.getSimpleName(), new ParameterizedClass(HealthyTestCompressionProvider.class.getName(), params));
+
         DatabaseDescriptor.setConfig(config);
+        DatabaseDescriptor.applyCompressorProviders();
 
-        AbstractCompressionProvider mockProvider = mock(AbstractCompressionProvider.class);
-        when(mockProvider.isHealthy()).thenReturn(true);
-        when(mockProvider.getProviderSimpleName()).thenReturn("TestCompressionProvider");
-        when(mockProvider.getProviderName()).thenReturn("TestCompressionProvider");
-
-        try (MockedStatic<FBUtilities> fbUtilsMock = mockStatic(FBUtilities.class))
-        {
-            fbUtilsMock.when(() -> FBUtilities.newCompressionProvider("TestCompressionProvider"))
-                       .thenReturn(mockProvider);
-            DatabaseDescriptor.applyCompressionProvider();
-            registry = CompressorRegistry.instance;
-            AbstractCompressionProvider provider = registry.getProvider("NoopCompressor");
-            assertThat(provider).isNotNull();
-            assertThat(provider.isHealthy()).isTrue();
-            assertThat(provider.getProviderSimpleName()).isEqualTo("TestCompressionProvider");
-        }
-    }
-
-    @Test
-    public void testUnhealthyProviderWithFallback() throws Exception
-    {
-        //Try registering a custom provider that is unhealthy and ensure the registry falls back to the default provider
-        Map<String, String> params = new HashMap<>();
-        params.put(CompressorRegistry.FALLBACK_TO_DEFAULT_PROVIDER, "true");
-
-        AbstractCompressionProvider mockProvider = mock(AbstractCompressionProvider.class);
-        when(mockProvider.isHealthy()).thenReturn(false);
-        try (MockedStatic<FBUtilities> fbUtilsMock = mockStatic(FBUtilities.class))
-        {
-            fbUtilsMock.when(() -> FBUtilities.newCompressionProvider("TestCompressionProvider"))
-                       .thenReturn(mockProvider);
-
-            registry = CompressorRegistry.instance;
-            AbstractCompressionProvider provider = registry.getServiceProvider(new ParameterizedClass("TestCompressionProvider", params));
-            assertThat(provider).isNotNull();
-            assertThat(provider.getProviderSimpleName()).isEqualTo("DefaultCompressionProvider");
-        }
-    }
-
-    @Test
-    public void testUnhealthyProviderWithoutFallback() throws Exception
-    {
-        //Try registering a custom provider that is unhealthy and ensure the registry throws an exception when fallback is disabled
-        Config config = originalConfig;
-        Map<String, String> params = new HashMap<>();
-        params.put(CompressorRegistry.FALLBACK_TO_DEFAULT_PROVIDER, "false");
-        DatabaseDescriptor.setConfig(config);
-
-        AbstractCompressionProvider mockProvider = mock(AbstractCompressionProvider.class);
-        when(mockProvider.isHealthy()).thenReturn(false);
-        try (MockedStatic<FBUtilities> fbUtilsMock = mockStatic(FBUtilities.class))
-        {
-            fbUtilsMock.when(() -> FBUtilities.newCompressionProvider("TestCompressionProvider"))
-                       .thenReturn(mockProvider);
-            registry = CompressorRegistry.instance;
-            assertThatExceptionOfType(ConfigurationException.class)
-            .isThrownBy(() -> registry.getServiceProvider(new ParameterizedClass("TestCompressionProvider", params)))
-            .withMessageContaining("Failed to initialize compression provider");
-        }
-    }
-
-    @Test
-    public void testCustomCompressor()
-    {
-        // This tests a custom compressor, here provider is not applicable
-        Config config = originalConfig;
-        Map<String, String> params = new HashMap<>();
-        config.compression_provider_options.put("TestCompressor", new ParameterizedClass("TestCompressionProvider", params));
-        DatabaseDescriptor.setConfig(config);
-        DatabaseDescriptor.applyCompressionProvider();
-        registry = CompressorRegistry.instance;
-        AbstractCompressionProvider provider = spy(registry.getProvider("TestCompressor"));
+        AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(NoopCompressor.class);
         assertThat(provider).isNotNull();
-        assertThat(provider.getProviderSimpleName()).isEqualTo("DefaultCompressionProvider");
+        assertThat(provider.isHealthy()).isTrue();
+        assertThat(provider.getClass()).isEqualTo(HealthyTestCompressionProvider.class);
+    }
+
+    @Test
+    public void testProviderConfigKeyVariants()
+    {
+        // The registry resolves a compressor type to its plugin via three accepted key forms in
+        // compressor_providers: fully qualified class name, simple class name, and the
+        // CompressorType abbreviation. Verify each form independently routes to the plugin.
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        String[] keys = {
+        NoopCompressor.class.getName(),                                  // FQCN
+        NoopCompressor.class.getSimpleName(),                            // simple name
+        CompressorRegistry.CompressorType.NOOP.abbreviation              // abbreviation
+        };
+
+        for (String key : keys)
+        {
+            CompressorRegistry.instance.reset();
+            config.compressor_providers.clear();
+            config.compressor_providers.put(key, new ParameterizedClass(HealthyTestCompressionProvider.class.getName(), params));
+
+            DatabaseDescriptor.setConfig(config);
+            DatabaseDescriptor.applyCompressorProviders();
+
+            AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(NoopCompressor.class);
+            assertThat(provider).as("provider resolved via key '%s'", key).isNotNull();
+            assertThat(provider.getClass()).as("provider class resolved via key '%s'", key)
+                                           .isEqualTo(HealthyTestCompressionProvider.class);
+        }
+    }
+
+    @Test
+    public void testUnhealthyProviderWithFallback()
+    {
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        ParameterizedClass parameterizedClass = new ParameterizedClass(UnhealthyTestCompressionProvider.class.getName(), params);
+
+        AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(parameterizedClass);
+        assertThat(provider).isNotNull();
+        assertThat(provider.getClass()).isEqualTo(DefaultCompressionProvider.class);
+    }
+
+    @Test
+    public void testUnhealthyProviderWithoutFallback()
+    {
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.FALSE.toString());
+        ParameterizedClass parameterizedClass = new ParameterizedClass(UnhealthyTestCompressionProvider.class.getName(), params);
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .isThrownBy(() -> CompressorRegistry.instance.resolveProvider(parameterizedClass))
+        .withMessageContaining("Failed to initialize compression provider " + parameterizedClass);
+    }
+
+    @Test
+    public void testProviderInstantiationFailureFallsBackToDefault()
+    {
+        // FBUtilities.newCompressionProvider throws ConfigurationException for an unknown class —
+        // this exercises the catch block in resolveProvider, distinct from the isHealthy()==false
+        // path. With fallback enabled, the default provider must be returned and the original
+        // exception's cause chain should be available in the warn log (not just its message).
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        ParameterizedClass parameterizedClass = new ParameterizedClass("org.apache.cassandra.does.not.Exist", params);
+
+        AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(parameterizedClass);
+        assertThat(provider).isEqualTo(CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
+    }
+
+    @Test
+    public void testNullParametersDoesNotNPE()
+    {
+        // ParameterizedClass.parameters is nullable: SnakeYAML uses the no-arg constructor and
+        // leaves the field null when the yaml entry has only 'class_name:' (no 'parameters:'
+        // block). resolveProvider must tolerate this rather than NPE on getOrDefault.
+        ParameterizedClass pc = new ParameterizedClass();
+        pc.class_name = "org.apache.cassandra.does.not.Exist";
+
+        AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(pc);
+        assertThat(provider).isEqualTo(CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
+    }
+
+    @Test
+    public void testMissingClassNameThrows()
+    {
+        // A compressor_providers entry with no 'class_name' is a config mistake and must fail
+        // loudly — silently substituting the default would mask typos like 'clas_name:'.
+        ParameterizedClass parameterizedClass = new ParameterizedClass(null,
+                                                                       Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString()));
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .isThrownBy(() -> CompressorRegistry.instance.resolveProvider(parameterizedClass))
+        .withMessageContaining("missing required 'class_name'");
+    }
+
+    @Test
+    public void testProviderInstantiationFailureWithoutFallbackThrows()
+    {
+        // Same catch block as above, but with fallback disabled — the resolver must surface a
+        // ConfigurationException rather than silently use the default.
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.FALSE.toString());
+        ParameterizedClass parameterizedClass = new ParameterizedClass("org.apache.cassandra.does.not.Exist", params);
+
+        assertThatExceptionOfType(ConfigurationException.class)
+        .isThrownBy(() -> CompressorRegistry.instance.resolveProvider(parameterizedClass))
+        .withMessageContaining("Failed to initialize compression provider " + parameterizedClass);
+    }
+
+    @Test
+    public void testInitReceivesParametersMinusReservedKey()
+    {
+        // A plugin that does not override init() must still be able to retrieve its parameters via
+        // the default getParameters() accessor, with the registry-reserved key stripped out.
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString(),
+                                            "abc", "1",
+                                            "def", "2");
+        ParameterizedClass pc = new ParameterizedClass(HealthyTestCompressionProvider.class.getName(), params);
+
+        AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(pc);
+        assertThat(provider).isInstanceOf(HealthyTestCompressionProvider.class);
+
+        assertThat(provider.getParameters())
+        .containsEntry("abc", "1")
+        .containsEntry("def", "2")
+        .doesNotContainKey(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER);
+    }
+
+    public static class UnhealthyTestCompressionProvider extends AbstractCompressionProvider
+    {
+        @Override
+        public boolean isHealthy()
+        {
+            return false;
+        }
+
+        @Override
+        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options) throws IllegalStateException
+        {
+            return null;
+        }
+    }
+
+    public static class HealthyTestCompressionProvider extends AbstractCompressionProvider
+    {
+        @Override
+        public boolean isHealthy()
+        {
+            return true;
+        }
+
+        @Override
+        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options) throws IllegalStateException
+        {
+            return null;
+        }
     }
 }

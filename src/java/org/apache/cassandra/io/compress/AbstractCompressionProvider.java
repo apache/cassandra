@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.compress;
 
+import java.util.Collections;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -32,24 +33,11 @@ public abstract class AbstractCompressionProvider
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractCompressionProvider.class);
 
-    public AbstractCompressionProvider()
-    {
-    }
-
     /**
-     * Returns the fully qualified class name of the compression provider.
-     *
-     * @return Fully qualified name of the provider
+     * Configuration key for enabling fallback to the default provider.
      */
-    public abstract String getProviderName();
+    public static final String FALLBACK_TO_DEFAULT_PROVIDER = "fallback_to_default_provider";
 
-    /**
-     * Returns the simple class name of the compression provider.
-     * 
-     * @return Class name of the provider
-     */
-    public abstract String getProviderSimpleName();
-   
     /**
      * Checks if this compression provider is in a healthy state and ready to use.
      *
@@ -63,14 +51,40 @@ public abstract class AbstractCompressionProvider
 
     /**
      * Creates a new compressor instance with the given compression parameters.
-     * 
+     *
      * <p>This method is called when a new compressor is needed. The implementation
      * should create and configure a compressor based on the provided options.</p>
-     * 
+     *
      * @param options Configuration options for the compressor. May be null or empty.
      * @return A new ICompressor instance
      * @throws IllegalStateException if the compressor cannot be created
      */
     public abstract ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options) throws IllegalStateException;
 
+    private Map<String, String> parameters = Collections.emptyMap();
+
+    /**
+     * Initialises this provider with the {@code parameters} block from its
+     * {@code compressor_providers} entry in cassandra.yaml. Called by {@link CompressorRegistry}
+     * exactly once, after no-arg construction and before {@link #isHealthy()}. The map never
+     * contains the registry-reserved key {@link #FALLBACK_TO_DEFAULT_PROVIDER} — that one is
+     * consumed by the registry itself. May be empty but is never null.
+     * <p>
+     * The default implementation stores the map so subclasses can retrieve it via
+     * {@link #getParameters()}. Subclasses that override this method must call
+     * {@code super.init(parameters)} if they want {@code getParameters()} to work.
+     */
+    public void init(Map<String, String> parameters)
+    {
+        this.parameters = parameters;
+    }
+
+    /**
+     * Returns the {@code parameters} this provider was initialised with, or an empty map if
+     * {@link #init} has not been called.
+     */
+    public Map<String, String> getParameters()
+    {
+        return parameters;
+    }
 }
