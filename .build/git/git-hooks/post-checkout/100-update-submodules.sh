@@ -31,11 +31,18 @@ _main() {
   root_dir="$(git rev-parse --show-toplevel)"
   cd "$root_dir"
 
-  if [[ ! -e .gitmodules ]]; then
+  if ! git ls-files --error-unmatch .gitmodules &>/dev/null; then
     # nothing to see here, look away!
     return 0
   fi
-  git submodule update --init --recursive
+
+  local extra_args=()
+  if [[ -n "${BUILD_OFFLINE:-}" ]]; then
+    echo "BUILD_OFFLINE is defined; using --no-fetch for submodule updates (local SHAs only)."
+    echo "If your submodules are not already available locally, expect this to error out."
+    extra_args+=(--no-fetch)
+  fi
+  git submodule update --init --recursive "${extra_args[@]}"
 }
 
 _main "$@"
