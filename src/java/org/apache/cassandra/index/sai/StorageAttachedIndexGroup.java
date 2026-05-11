@@ -63,6 +63,7 @@ import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.MemtableDiscardedNotification;
 import org.apache.cassandra.notifications.MemtableRenewedNotification;
+import org.apache.cassandra.notifications.MemtableSwitchedNotification;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.TableMetadata;
@@ -277,6 +278,10 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         {
             indexes.forEach(index -> index.memtableIndexManager().renewMemtable(((MemtableRenewedNotification) notification).renewed));
         }
+        else if (notification instanceof MemtableSwitchedNotification)
+        {
+            indexes.forEach(index -> index.memtableIndexManager().maybeInitializeMemtableIndex(((MemtableSwitchedNotification) notification).next));
+        }
         else if (notification instanceof MemtableDiscardedNotification)
         {
             indexes.forEach(index -> index.memtableIndexManager().discardMemtable(((MemtableDiscardedNotification) notification).memtable));
@@ -382,6 +387,17 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         }
 
         return complete;
+    }
+
+    @Override
+    public boolean supportsL0Shards()
+    {
+        for (StorageAttachedIndex index : indexes)
+            if (!index.supportsL0Shards())
+                return false;
+
+        // All indexes must support L0 sharding for the flush to shard at L0
+        return true;
     }
 
     /**

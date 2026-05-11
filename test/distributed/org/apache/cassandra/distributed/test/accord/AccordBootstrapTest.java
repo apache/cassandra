@@ -74,7 +74,7 @@ public class AccordBootstrapTest extends AccordBootstrapTestBase
         IInvokableInstance newInstance = cluster.bootstrap(config);
         newInstance.startup(cluster);
         spinUntilTrue(() -> cluster.stream().anyMatch(instance -> instance.callOnInstance(() -> StreamListener.listener.hasFailedStream)));
-        try { newInstance.shutdown(false).get(5L, TimeUnit.MINUTES); }
+        try { newInstance.shutdown(false).get(3L, TimeUnit.MINUTES); }
         catch (InterruptedException | ExecutionException | TimeoutException e) { throw new RuntimeException(e); }
         cluster.get(1, 2).forEach(instance -> instance.runOnInstance(() -> StreamListener.listener.failStream = false));
         newInstance.startup(cluster);

@@ -22,7 +22,7 @@ notifications:
   jira_options: link worklog
 
 github:
-  description: "Apache Cassandra®"
+  description: "Open source transactional distributed database. Linear scalability and proven fault-tolerance on commodity hardware or cloud infrastructure without compromising performance."
   homepage: https://cassandra.apache.org/
   enabled_merge_buttons:
     squash: false

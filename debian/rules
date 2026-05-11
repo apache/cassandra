@@ -41,9 +41,7 @@ build: build-stamp
 build-stamp: $(QUILT_STAMPFN)
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
-
-	$(ANT) generate-cql-html
-	$(ANT) jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true
+	$(ANT) jar -Djavadoc.skip=true -Dcheck.skip=true -Dant.gen-doc.skip=true
 	cd pylib && python3 setup.py install --no-compile --install-layout deb \
 		--root $(CURDIR)/debian/cassandra
 

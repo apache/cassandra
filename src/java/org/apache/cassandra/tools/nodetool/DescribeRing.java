@@ -23,15 +23,19 @@ import java.io.PrintStream;
 import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Parameters;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "describering", description = "Shows the token ranges info of a given keyspace")
-public class DescribeRing extends WithPortDisplayAbstractCommand
+public class DescribeRing extends AbstractCommand
 {
     @Parameters(description = "The keyspace name", arity = "1")
     private String keyspace = EMPTY;
+
+    @Mixin
+    private PrintPortMixin printPortMixin = new PrintPortMixin();
 
     @Override
     public void execute(NodeProbe probe)
@@ -41,7 +45,7 @@ public class DescribeRing extends WithPortDisplayAbstractCommand
         out.println("TokenRange: ");
         try
         {
-            for (String tokenRangeString : probe.describeRing(keyspace, printPort))
+            for (String tokenRangeString : probe.describeRing(keyspace, printPortMixin.printPort))
             {
                 out.println("\t" + tokenRangeString);
             }

@@ -18,16 +18,23 @@
 */
 package org.apache.cassandra.db.compaction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Iterables;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -51,6 +58,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class CompactionsPurgeTest
 {
     private static final String KEYSPACE1 = "CompactionsPurgeTest1";
@@ -61,6 +69,40 @@ public class CompactionsPurgeTest
     private static final String CF_CACHED = "CachedCF";
     private static final String KEYSPACE_CQL = "cql_keyspace";
     private static final String CF_CQL = "table1";
+
+    @Parameterized.Parameter(0)
+    public DiskAccessMode compactionReadDiskAccessMode;
+
+    @Parameterized.Parameter(1)
+    public boolean cursorCompactionEnabled;
+
+    @Parameterized.Parameters(name = "diskAccessMode={0},cursor={1}")
+    public static Collection<Object[]> params()
+    {
+        return Arrays.asList(new Object[]{ DiskAccessMode.standard, true },
+                             new Object[]{ DiskAccessMode.standard, false },
+                             new Object[]{ DiskAccessMode.direct, true },
+                             new Object[]{ DiskAccessMode.direct, false });
+    }
+
+    private DiskAccessMode originalDiskAccessMode;
+    private boolean originalCursorCompactionEnabled;
+
+    @Before
+    public void setCompactionParams()
+    {
+        originalDiskAccessMode = DatabaseDescriptor.getCompactionReadDiskAccessMode();
+        originalCursorCompactionEnabled = DatabaseDescriptor.cursorCompactionEnabled();
+        DatabaseDescriptor.setCompactionReadDiskAccessMode(compactionReadDiskAccessMode);
+        DatabaseDescriptor.setCursorCompactionEnabled(cursorCompactionEnabled);
+    }
+
+    @After
+    public void restoreCompactionParams()
+    {
+        DatabaseDescriptor.setCompactionReadDiskAccessMode(originalDiskAccessMode);
+        DatabaseDescriptor.setCursorCompactionEnabled(originalCursorCompactionEnabled);
+    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException

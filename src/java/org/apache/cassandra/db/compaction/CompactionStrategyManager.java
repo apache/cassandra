@@ -1403,7 +1403,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean onlyPurgeRepairedTombstones()
     {
-        return Boolean.parseBoolean(params.options().get(AbstractCompactionStrategy.ONLY_PURGE_REPAIRED_TOMBSTONES));
+        return params.onlyPurgeRepairedTombstones();
     }
 
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,

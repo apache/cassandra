@@ -302,6 +302,7 @@ These parameters are meant to be configured via CQL for each respective table if
 * `training_max_total_sample_size` (default: `10MiB`): Maximum total size of sample data to collect for training, approximately 10MB. This parameter is configured in the 
 table's compression options for `ZstdDictionaryCompressor`.
 * `training_max_dictionary_size` (default: `64KiB`): Maximum size of trained dictionaries in bytes. Larger dictionaries can  capture more patterns but increase memory overhead. This is a parameter of `ZstdDictionaryCompressor` of a table, in `compression` section.
+* `training_min_frequency` (default: `0m`): Minimum time which needs to pass until we can train another compression dictionary. For example, if this property is set to `1h`, then we can train another dictionary no earlier than 1 hour after the last training was conducted. `0m`, default, means we can train as frequently as we want. The purpose of this parameter is to prevent excessive training which might not make sense from operational and performance perspective. If an operator wants to prevent training altogether, they can set this property to overly big value, like 36500d which means that next training can occur at least after 100 years from the last one, effectively disabling any training. The minimum resolution of `training_min_frequency` is in minutes. Accepts minutes (`m`), hours (`h`) and days (`d`).
 
 Example:
 
@@ -312,13 +313,13 @@ ALTER TABLE keyspace.table
        'class': 'ZstdDictionaryCompressor',
        'compression_level': '3',
        'training_max_total_sample_size': '20MiB',
-       'training_max_dictionary_size': '128KiB'
+       'training_max_dictionary_size': '128KiB',
+       'training_min_frequency': '1d'
    };
 ----
 
-It is possible to override these training parameters by `nodetool compressiondictionary train` command as
-explained in the section futher down below. If `train` subcommand do not override them, CQL parameters are
-taken into account.
+It is possible to override these training parameters by `nodetool compressiondictionary train` command (except `training_min_frequency` which is configurable via CQL only) as
+explained in the section further down below. If `train` subcommand do not override them, CQL parameters are taken into account.
 
 == Other options
 

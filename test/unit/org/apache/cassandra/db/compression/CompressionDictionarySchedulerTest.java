@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.HashSet;
-import java.util.Set;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,7 +26,8 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
 
 import static org.apache.cassandra.Util.spinUntilTrue;
 import static org.apache.cassandra.io.compress.IDictionaryCompressor.DEFAULT_TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_VALUE;
@@ -66,12 +64,12 @@ public class CompressionDictionarySchedulerTest extends CQLTester
 
         try (CompressionDictionaryManager manager = cfs.compressionDictionaryManager())
         {
-            Set<SSTableReader> sstables = new HashSet<>();
+            ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (x) -> false));
             CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
 
             // Should not throw, but task will complete quickly with no SSTables
-            scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
-            spinUntilTrue(() -> !scheduler.isManualTrainingRunning());
+            scheduler.scheduleSSTableBasedTraining(refViewFragment, cfs.metadata.get().params.compression, config, manager::handleNewDictionary, true);
+            spinUntilTrue(() -> !scheduler.isTrainingRunning());
             assertThat(manager.getCurrent()).isNull();
         }
     }
@@ -89,17 +87,16 @@ public class CompressionDictionarySchedulerTest extends CQLTester
         {
             createSSTables();
 
-            Set<SSTableReader> sstables = cfs.getLiveSSTables();
-            assertThat(sstables).isNotEmpty();
+            ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
+            assertThat(refViewFragment.sstables).isNotEmpty();
 
             CompressionDictionaryTrainingConfig config = createSampleAllTrainingConfig(cfs);
-            manager.trainer().start(config);
 
             assertThat(manager.getCurrent()).as("There should be no dictionary at this step").isNull();
-            scheduler.scheduleSSTableBasedTraining(manager.trainer(), sstables, config, true);
+            scheduler.scheduleSSTableBasedTraining(refViewFragment, cfs.metadata.get().params.compression, config, manager::handleNewDictionary, true);
 
             // Task should be scheduled
-            assertThat(scheduler.isManualTrainingRunning()).isTrue();
+            assertThat(scheduler.isTrainingRunning()).isTrue();
             // A dictionary should be trained
             spinUntilTrue(() -> manager.getCurrent() != null);
         }

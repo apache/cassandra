@@ -75,7 +75,7 @@ public class ValidationRequest extends RepairMessage
         {
             RepairJobDesc.serializer.serialize(message.desc, out, version);
             out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(message.nowInSec) : (int) message.nowInSec);
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 out.writeBoolean(message.dontPurgeTombstones);
         }
 
@@ -83,7 +83,7 @@ public class ValidationRequest extends RepairMessage
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(dis, version);
             long nowInsec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(dis.readInt()) : dis.readInt();
-            boolean dontPurgeTombstones = version >= MessagingService.VERSION_51 ? dis.readBoolean() : false;
+            boolean dontPurgeTombstones = version >= MessagingService.VERSION_60 ? dis.readBoolean() : false;
             return new ValidationRequest(desc, nowInsec, dontPurgeTombstones);
         }
 
@@ -91,7 +91,7 @@ public class ValidationRequest extends RepairMessage
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
             size += TypeSizes.INT_SIZE;
-            size += version >= MessagingService.VERSION_51 ? TypeSizes.sizeof(message.dontPurgeTombstones) : 0;
+            size += version >= MessagingService.VERSION_60 ? TypeSizes.sizeof(message.dontPurgeTombstones) : 0;
             return size;
         }
     };

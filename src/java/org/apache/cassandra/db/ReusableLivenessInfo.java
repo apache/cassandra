@@ -49,6 +49,12 @@ public class ReusableLivenessInfo implements LivenessInfo
         return localExpirationTime != NO_EXPIRATION_TIME;
     }
 
+    @Override
+    public boolean isExpired()
+    {
+        return ttl == EXPIRED_LIVENESS_TTL;
+    }
+
     /**
      * {@link org.apache.cassandra.db.rows.AbstractCell#isTombstone()}
      */

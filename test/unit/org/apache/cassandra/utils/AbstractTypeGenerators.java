@@ -94,6 +94,7 @@ import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TimestampUtf8Type;
 import org.apache.cassandra.db.marshal.TokenUtf8Type;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.TxnIdUtf8Type;
@@ -126,6 +127,7 @@ public final class AbstractTypeGenerators
                                                                                                 .put(FrozenType.class, "Fake class only used during parsing... the parsing creates this and the real type under it, then this gets swapped for the real type")
                                                                                                 .put(TxnIdUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
                                                                                                 .put(TokenUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
+                                                                                                .put(TimestampUtf8Type.class, "Used only internally by accord debug virtual tables - could be tested, but class initialisation order prevents easy reuse of the relevant type generators")
                                                                                                 .build();
 
     /**

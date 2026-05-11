@@ -91,6 +91,36 @@ public class ASTGenerators
 {
     public static final EnumSet<KnownIssue> IGNORED_ISSUES = KnownIssue.ignoreAll();
 
+    public enum RangeType {UNBOUND, BOUND , BETWEEN}
+
+    /**
+     * Applies a range condition to a builder for a single column.
+     */
+    public static void applyRangeCondition(Conditional.ConditionalBuilder<?> builder,
+                                           RangeType rangeType,
+                                           Symbol column,
+                                           Conditional.Where.Inequality lowerKind,
+                                           Conditional.Where.Inequality upperKind,
+                                           Expression lowerValue,
+                                           Expression upperValue)
+    {
+        switch (rangeType)
+        {
+            case UNBOUND:
+                builder.where(column, lowerKind, lowerValue);
+                break;
+            case BOUND:
+                builder.where(column, lowerKind, lowerValue);
+                builder.where(column, upperKind, upperValue);
+                break;
+            case BETWEEN:
+                builder.between(column, lowerValue, upperValue);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported RangeType: " + rangeType);
+        }
+    }
+
     public static Gen<LinkedHashMap<Symbol, Object>> columnValues(List<Symbol> columns)
     {
         List<Gen<?>> gens = new ArrayList<>(columns.size());
@@ -403,7 +433,7 @@ public class ASTGenerators
 
     public static class MutationGenBuilder
     {
-        public enum DeleteKind { Partition, Row, Column }
+        public enum DeleteKind { Partition, Row, Column, Range }
         private final TableMetadata metadata;
         private final LinkedHashSet<Symbol> allColumns;
         private final LinkedHashSet<Symbol> partitionColumns, clusteringColumns;
@@ -845,6 +875,8 @@ public class ASTGenerators
                         // if there are no columns to delete, fallback to row
                         if (deleteKind == DeleteKind.Column && regularAndStaticColumns.isEmpty())
                             deleteKind = DeleteKind.Row;
+                        if (deleteKind == DeleteKind.Range && clusteringColumns.isEmpty())
+                            deleteKind = DeleteKind.Partition;
                         if (deleteKind == DeleteKind.Row && clusteringColumns.isEmpty())
                             deleteKind = DeleteKind.Partition;
 
@@ -907,6 +939,9 @@ public class ASTGenerators
                                     }
                                 }
                                 break;
+                            case Range:
+                                valueRange(rnd, columnExpressions, builder, clusteringColumns);
+                                break;
                             default:
                                 throw new UnsupportedOperationException();
                         }
@@ -958,6 +993,12 @@ public class ASTGenerators
                                     columns = new ArrayList<>(uniq);
                                 }
                                 break;
+                                case Range:
+                                {
+                                    columns = Collections.emptyList();
+                                    existAllowed = false;
+                                }
+                                break;
                                 default:
                                     throw new UnsupportedOperationException(deleteKind.name());
                             }
@@ -981,6 +1022,40 @@ public class ASTGenerators
                 }
             };
         }
+
+        private static final Gen<Conditional.Where.Inequality> RANGE_INEQUALITY_GEN = SourceDSL.arbitrary().pick(Conditional.Where.Inequality.GREATER_THAN_EQ,
+                                                                                                                 Conditional.Where.Inequality.GREATER_THAN,
+                                                                                                                 Conditional.Where.Inequality.LESS_THAN_EQ,
+                                                                                                                 Conditional.Where.Inequality.LESS_THAN);
+
+        private static final Gen<Conditional.Where.Inequality> LOWER_BOUND_GEN = SourceDSL.arbitrary().pick(Conditional.Where.Inequality.GREATER_THAN,
+                                                                                                            Conditional.Where.Inequality.GREATER_THAN_EQ);
+
+        private static final Gen<Conditional.Where.Inequality> UPPER_BOUND_GEN = SourceDSL.arbitrary().pick(Conditional.Where.Inequality.LESS_THAN,
+                                                                                                            Conditional.Where.Inequality.LESS_THAN_EQ);
+
+
+        private void valueRange(RandomnessSource rnd,
+                                Map<Symbol, ExpressionBuilder> columnExpressions,
+                                Conditional.ConditionalBuilder<?> builder,
+                                LinkedHashSet<Symbol> columns)
+        {
+            List<Symbol> columnList = new ArrayList<>(columns);
+
+            assert  !columnList.isEmpty();
+
+            Symbol s = columnList.get(0);
+            Gen<Expression> expressionGen = columnExpressions.get(s).build();
+
+            RangeType type = SourceDSL.arbitrary().enumValues(RangeType.class).generate(rnd);
+            applyRangeCondition(builder, type, s,
+                                type == RangeType.UNBOUND ? RANGE_INEQUALITY_GEN.generate(rnd) : LOWER_BOUND_GEN.generate(rnd),
+                                UPPER_BOUND_GEN.generate(rnd),
+                                expressionGen.generate(rnd),
+                                expressionGen.generate(rnd));
+
+        }
+
 
         private void generateRemaining(RandomnessSource rnd,
                                        Gen<Boolean> bool,

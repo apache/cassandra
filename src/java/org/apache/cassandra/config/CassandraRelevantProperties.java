@@ -205,6 +205,8 @@ public enum CassandraRelevantProperties
     /** Controls the type of bufffer (heap/direct) used for shared scratch buffers */
     DATA_OUTPUT_BUFFER_ALLOCATE_TYPE("cassandra.dob.allocate_type"),
     DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE("cassandra.data_output_stream_plus_temp_buffer_size", "8192"),
+    DATA_RESPONSE_BUFFER_INITIAL_SIZE_MAX("cassandra.data_response_buffer_initial_size_max", "4096"),
+    DATA_RESPONSE_BUFFER_INITIAL_SIZE_MIN("cassandra.data_response_buffer_initial_size_min", "128"),
     DECAYING_ESTIMATED_HISTOGRAM_RESERVOIR_STRIPE_COUNT("cassandra.dehr_stripe_count", "2"),
     DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES("default.provide.overlapping.tombstones"),
     /** determinism properties for testing */
@@ -473,6 +475,8 @@ public enum CassandraRelevantProperties
      */
     RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
     RING_DELAY("cassandra.ring_delay_ms"),
+    /** How often a role's password can be changed */
+    ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS("cassandra.role_password_update_min_interval_in_ms", "5000"),
 
     // SAI specific properties
 
@@ -507,15 +511,21 @@ public enum CassandraRelevantProperties
     /** Whether to allow the user to specify custom options to the hnsw index */
     SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.vector.allow_custom_parameters", "false"),
 
+    /**
+     * The maximum number of primary keys that a WHERE clause may materialize before the query planner switches
+     * from a search-then-sort execution strategy to an order-by-then-filter strategy. Increasing this limit allows
+     * more primary keys to be buffered in memory, enabling either (a) brute-force sorting or (b) graph traversal
+     * with a restrictive filter that admits only nodes whose primary keys matched the WHERE clause.
+     *
+     * Note also that the SAI_INTERSECTION_CLAUSE_LIMIT is applied to the WHERE clause before using a search to
+     * build a potential result set for search-then-sort query execution.
+     */
+    SAI_VECTOR_SEARCH_MAX_MATERIALIZE_KEYS("cassandra.sai.vector_search.max_materialized_keys", "16000"),
+
     /** Controls the maximum top-k limit for vector search */
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
 
-    /**
-     * Controls the maximum number of PrimaryKeys that will be read into memory at one time when ordering/limiting
-     * the results of an ANN query constrained by non-ANN predicates.
-     */
-    SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "100000"),
-
+    SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
 
@@ -526,8 +536,9 @@ public enum CassandraRelevantProperties
      */
     SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
     SERIALIZATION_EMPTY_TYPE_NONEMPTY_BEHAVIOR("cassandra.serialization.emptytype.nonempty_behavior"),
-    SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "true"),
+    SET_SEP_THREAD_NAME("cassandra.set_sep_thread_name", "false"),
     SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
+    SIMULATOR_ITERATIONS("simulator.iterations", "3"),
     SIMULATOR_SEED("cassandra.simulator.seed"),
     SIMULATOR_STARTED("cassandra.simulator.started"),
     SIZE_RECORDER_INTERVAL("cassandra.size_recorder_interval", "300"),
@@ -559,7 +570,6 @@ public enum CassandraRelevantProperties
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
     SSL_ENABLE("ssl.enable"),
     SSL_STORAGE_PORT("cassandra.ssl_storage_port"),
-    SSTABLE_FORMAT_DEFAULT("cassandra.sstable.format.default"),
     START_GOSSIP("cassandra.start_gossip", "true"),
     START_NATIVE_TRANSPORT("cassandra.start_native_transport"),
     STORAGE_DIR("cassandra.storagedir"),
@@ -579,6 +589,7 @@ public enum CassandraRelevantProperties
     SUN_STDERR_ENCODING("sun.stderr.encoding"),
     SUN_STDOUT_ENCODING("sun.stdout.encoding"),
     SUPERUSER_SETUP_DELAY_MS("cassandra.superuser_setup_delay_ms", "10000"),
+    SYNC_SYSTEM_PEERS_TABLES_AT_STARTUP("cassandra.sync_system_peers_tables_at_startup", "true"),
     SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),
     SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
     SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
@@ -586,6 +597,8 @@ public enum CassandraRelevantProperties
     // transactional cluster metadata relevant properties
     // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
     //       but it makes sense to group logically related properties together
+    TCM_SHADOW_ROUND_MAX_ATTEMPTS("cassandra.shadow_round_max_attempts", "3"),
+    TCM_SHADOW_ROUND_TIMEOUT("cassandra.shadow_round_timeout_millis", "15000"),
     /**
      * for testing purposes disable the automatic CMS reconfiguration after a bootstrap/replace/move operation
      */

@@ -45,7 +45,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -81,6 +81,7 @@ public abstract class PrepareCMSReconfiguration implements Transformation
             return Transformation.success(prev.transformer(), LockedRanges.AffectedRanges.EMPTY);
         }
 
+        logger.info("Proposed CMS reconfiguration resulted in {}", diff);
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
         Set<NodeId> cms = prev.fullCMSMembers().stream().map(prev.directory::peerId).collect(Collectors.toSet());
         Set<NodeId> tmp = new HashSet<>(cms);

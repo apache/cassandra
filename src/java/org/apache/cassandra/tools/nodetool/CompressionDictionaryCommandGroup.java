@@ -31,9 +31,9 @@ import javax.management.openmbean.TabularData;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData;
 import org.apache.cassandra.db.compression.CompressionDictionaryDetailsTabularData.CompressionDictionaryDataObject;
+import org.apache.cassandra.db.compression.CompressionDictionaryTrainingConfig;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
 import org.apache.cassandra.db.compression.TrainingState;
 import org.apache.cassandra.io.util.File;
@@ -182,7 +182,7 @@ public class CompressionDictionaryCommandGroup
             {
                 try
                 {
-                    new DataStorageSpec.IntKibibytesBound(trainingMaxDictionarySize).toBytes();
+                    CompressionDictionaryTrainingConfig.getMaxDictionarySize(Map.of(TRAINING_MAX_DICTIONARY_SIZE_PARAMETER_NAME, trainingMaxDictionarySize));
                 }
                 catch (Throwable t)
                 {
@@ -195,7 +195,7 @@ public class CompressionDictionaryCommandGroup
             {
                 try
                 {
-                    new DataStorageSpec.IntKibibytesBound(trainingMaxTotalSampleSize).toBytes();
+                    CompressionDictionaryTrainingConfig.getMaxTotalSampleSize(Map.of(TRAINING_MAX_TOTAL_SAMPLE_SIZE_PARAMETER_NAME, trainingMaxTotalSampleSize));
                 }
                 catch (Throwable t)
                 {

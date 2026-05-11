@@ -505,15 +505,15 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         Permitted permitted = response.permitted();
 
         // If the peer's local electorate disagreed with ours it will be signalled in the permitted response.
-        // Pre 5.1 this used gossip state to assess the relative currency of either peer's view of the ring/placements
-        // from which the electorate is derived. Post 5.1, this is driven by cluster metadata rather than gossip but we
+        // Pre 6.0 this used gossip state to assess the relative currency of either peer's view of the ring/placements
+        // from which the electorate is derived. Post 6.0, this is driven by cluster metadata rather than gossip but we
         // preserve the signalling via gossip state for continuity during upgrades
         Epoch remoteElectorateEpoch = permitted.electorateEpoch;
 
         if (remoteElectorateEpoch.is(Epoch.EMPTY) && permitted.gossipInfo.isEmpty())
         {
             // we agree about the electorate, so can simply accept the promise/permission
-            // TODO: once 5.1 is the minimum supported version, we can stop sending and checking gossipInfo and just
+            // TODO: once 6.0 is the minimum supported version, we can stop sending and checking gossipInfo and just
             //       use the electorateEpoch
             permitted(permitted, from);
         }
@@ -527,8 +527,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         }
         else
         {
-            // The remote peer indicated a mismatch, but is either still running a pre-5.1 version or we have not yet
-            // initialized the CMS following upgrade to 5.1. Topology changes while in this state are not supported,
+            // The remote peer indicated a mismatch, but is either still running a pre-6.0 version or we have not yet
+            // initialized the CMS following upgrade to 6.0. Topology changes while in this state are not supported,
             // failed nodes must be DOWN during upgrade and should be replaced after the CMS has been initialized.
             if (needsGossipUpdate(permitted.gossipInfo))
             {
@@ -1163,7 +1163,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                                                                       request.partitionKey,
                                                                       consistency(request.ballot));
                     Map<InetAddressAndPort, EndpointState> gossipInfo = verifyElectorate(request.electorate, localElectorate);
-                    // TODO when 5.1 is the minimum supported version we can modify verifyElectorate to just return this epoch
+                    // TODO when 6.0 is the minimum supported version we can modify verifyElectorate to just return this epoch
                     Epoch electorateEpoch = gossipInfo.isEmpty() ? Epoch.EMPTY : localElectorate.createdAt;
                     ReadResponse readResponse = null;
 
@@ -1244,7 +1244,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 request.table.id.serialize(out);
                 DecoratedKey.serializer.serialize(request.partitionKey, out, version);
             }
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 out.writeBoolean(request.isForRecovery);
         }
 
@@ -1257,7 +1257,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) ReadCommand.serializer.deserialize(in, version);
                 boolean isForRecovery = false;
-                if (version >= MessagingService.VERSION_51)
+                if (version >= MessagingService.VERSION_60)
                     isForRecovery = in.readBoolean();
                 return construct(param, ballot, electorate, readCommand, (flag & 2) == 0, isForRecovery);
             }
@@ -1266,7 +1266,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 TableMetadata table = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
                 DecoratedKey partitionKey = (DecoratedKey) DecoratedKey.serializer.deserialize(in, table.partitioner, version);
                 boolean isForRecovery = false;
-                if (version >= MessagingService.VERSION_51)
+                if (version >= MessagingService.VERSION_60)
                     isForRecovery = in.readBoolean();
                 return construct(param, ballot, electorate, partitionKey, table, (flag & 2) != 0, isForRecovery);
             }
@@ -1281,7 +1281,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         ? ReadCommand.serializer.serializedSize(request.read, version)
                         : request.table.id.serializedSize()
                             + DecoratedKey.serializer.serializedSize(request.partitionKey, version));
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 size += TypeSizes.sizeof(request.isForRecovery);
             return size;
         }
@@ -1331,7 +1331,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 if (promised.readResponse != null)
                     ReadResponse.serializer.serialize(promised.readResponse, out, version);
                 serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
-                if (version >= MessagingService.VERSION_51)
+                if (version >= MessagingService.VERSION_60)
                     Epoch.messageSerializer.serialize(promised.electorateEpoch, out, version);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
@@ -1353,7 +1353,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Committed committed = Committed.serializer.deserialize(in, version);
                 ReadResponse readResponse = (flags & 4) != 0 ? ReadResponse.serializer.deserialize(in, version) : null;
                 Map<InetAddressAndPort, EndpointState> gossipInfo = deserializeMap(in, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
-                Epoch electorateEpoch = version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
+                Epoch electorateEpoch = version >= MessagingService.VERSION_60 ? Epoch.messageSerializer.deserialize(in, version) : Epoch.EMPTY;
                 MaybePromise.Outcome outcome = (flags & 16) != 0 ? PERMIT_READ : PROMISE;
                 boolean hasProposalStability = (flags & 8) != 0;
                 Ballot supersededBy = null;
@@ -1378,7 +1378,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + Committed.serializer.serializedSize(permitted.latestCommitted, version)
                         + (permitted.readResponse == null ? 0 : ReadResponse.serializer.serializedSize(permitted.readResponse, version))
                         + serializedMapSize(permitted.gossipInfo, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer)
-                        + (version >= MessagingService.VERSION_51 ? Epoch.messageSerializer.serializedSize(permitted.electorateEpoch, version) : 0)
+                        + (version >= MessagingService.VERSION_60 ? Epoch.messageSerializer.serializedSize(permitted.electorateEpoch, version) : 0)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
 

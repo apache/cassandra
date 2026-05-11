@@ -32,10 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.compression.CompressionDictionary.DictId;
 import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
-import org.apache.cassandra.io.compress.IDictionaryCompressor;
-import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -298,8 +295,14 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         }
         catch (Exception e)
         {
-            logger.warn("Failed to create ZstdDictTrainer for {}.{}", keyspaceName, tableName, e);
-            failureMessage = "Failed to create ZstdDictTrainer: " + e.getMessage();
+            String message = String.format("Failed to create %s for %s.%s, reason: %s",
+                                           ZstdDictTrainer.class.getSimpleName(),
+                                           keyspaceName,
+                                           tableName,
+                                           e.getMessage());
+
+            logger.warn(message);
+            failureMessage = message;
             currentTrainingStatus = TrainingStatus.FAILED;
         }
         return false;
@@ -318,7 +321,15 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
         {
             totalSampleSize.set(0);
             sampleCount.set(0);
-            zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
+            try
+            {
+                zstdTrainer = new ZstdDictTrainer(trainingConfig.maxTotalSampleSize, trainingConfig.maxDictionarySize, compressionLevel);
+            }
+            catch (Throwable t)
+            {
+                throw new IllegalStateException(t);
+            }
+
             config = trainingConfig;
         }
     }
@@ -354,27 +365,6 @@ public class ZstdDictionaryTrainer implements ICompressionDictionaryTrainer
                 logger.warn("Error notifying dictionary trained listener for {}.{}", keyspaceName, tableName, e);
             }
         }
-    }
-
-    @Override
-    public boolean isCompatibleWith(CompressionParams newParams)
-    {
-        if (!newParams.isDictionaryCompressionEnabled())
-        {
-            return false;
-        }
-
-        IDictionaryCompressor newCompressor = (IDictionaryCompressor) newParams.getSstableCompressor();
-
-        // Check if the compressor type is compatible with this trainer
-        if (newCompressor.acceptableDictionaryKind() != Kind.ZSTD)
-        {
-            return false;
-        }
-
-        ZstdDictionaryCompressor zstdDictionaryCompressor = (ZstdDictionaryCompressor) newCompressor;
-        // For Zstd compressors, check if compression level matches
-        return this.compressionLevel == zstdDictionaryCompressor.compressionLevel();
     }
 
     @Override

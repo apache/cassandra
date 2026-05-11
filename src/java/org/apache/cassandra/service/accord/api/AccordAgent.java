@@ -38,8 +38,11 @@ import accord.api.ReplicaEventListener;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
+import accord.coordinate.Exhausted;
+import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.local.Command;
+import accord.local.LogUnavailableException;
 import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
@@ -65,6 +68,7 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 
+import org.apache.cassandra.config.AccordSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
@@ -73,7 +77,7 @@ import org.apache.cassandra.metrics.AccordSystemMetrics;
 import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTracing;
+import org.apache.cassandra.service.accord.debug.AccordTracing;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -120,6 +124,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
     private final AccordTracing tracing = new AccordTracing();
     private final RandomSource random = new DefaultRandom();
     protected Node.Id self;
+    protected AccordSpec config;
 
     public AccordAgent()
     {
@@ -142,9 +147,10 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return this;
     }
 
-    public void setNodeId(Node.Id id)
+    public void setup(Node.Id id)
     {
         self = id;
+        config = DatabaseDescriptor.getAccord();
     }
 
     @Override
@@ -185,7 +191,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
         else
         {
             logger.error(message, phase, ranges, ". Retrying in " + retryDelayMicros + "us.", failure);
-            AccordService.instance().scheduler().once(() -> {
+            AccordService.unsafeInstance().scheduler().once(() -> {
                 logger.info("Retrying bootstrap of {}", ranges);
                 retry.run();
             }, retryDelayMicros, MICROSECONDS);
@@ -204,9 +210,11 @@ public class AccordAgent implements Agent, OwnershipEventListener
             return;
 
         AccordSystemMetrics.metrics.errors.inc();
-        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout)
-            return;
-        JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
+        if (t instanceof CancellationException || t instanceof TimeoutException || t instanceof Timeout || t instanceof Preempted || t instanceof Exhausted || t instanceof LogUnavailableException)
+            // TODO (required): leaky logger, permitting multiple messages per time period and reporting how many were dropped
+            noSpamLogger.warn("", t);
+        else
+            JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
     @Override
@@ -263,6 +271,21 @@ public class AccordAgent implements Agent, OwnershipEventListener
         return 1024;
     }
 
+    @Override
+    public boolean softReject(long unappliedCount, long maxUnappliedAge, long cumulativeUnappliedAge)
+    {
+        return unappliedCount > config.min_soft_reject_count
+               && (unappliedCount > config.max_soft_reject_count
+                || maxUnappliedAge > config.soft_reject_age.toMicroseconds()
+                || cumulativeUnappliedAge > config.soft_reject_cumulative_age.toMicroseconds());
+    }
+
+    @Override
+    public boolean hardReject(int softRejectCount, int totalCount)
+    {
+        return (softRejectCount / (float) totalCount) >= config.hard_reject_ratio;
+    }
+
     /**
      * Create an empty transaction that Accord can use for its internal transactions. This is not suitable
      * for tests since it skips validation done by regular transactions.
@@ -292,10 +315,19 @@ public class AccordAgent implements Agent, OwnershipEventListener
     public long slowCoordinatorDelay(Node node, SafeCommandStore safeStore, TxnId txnId, TimeUnit units, int attempt)
     {
         SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
-        Invariants.nonNull(safeCommand);
+        if (safeCommand == null)
+        {
+            noSpamLogger.warn("{} invoked slowCoordinatorDelay for {} without having it in cache", safeStore.commandStore(), txnId, new RuntimeException());
+            return recover(txnId).computeWait(attempt, units);
+        }
 
         Command command = safeCommand.current();
-        Invariants.nonNull(command);
+        if (command == null)
+        {
+            noSpamLogger.warn("{} invoked slowCoordinatorDelay for {} without knowing the command", safeStore.commandStore(), txnId, new RuntimeException());
+            return recover(txnId).computeWait(attempt, units);
+        }
+
 
         // TODO (expected): make this a configurable calculation on normal request latencies (like ContentionStrategy)
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
@@ -365,7 +397,20 @@ public class AccordAgent implements Agent, OwnershipEventListener
     @Override
     public long slowReplicaDelay(Node node, SafeCommandStore safeStore, TxnId txnId, int attempt, BlockedUntil blockedUntil, TimeUnit units)
     {
-        Command command = Invariants.nonNull(safeStore.unsafeGetNoCleanup(txnId).current());
+        SafeCommand safeCommand = safeStore.unsafeGetNoCleanup(txnId);
+        if (safeCommand == null)
+        {
+            noSpamLogger.warn("{} invoked slowReplicaDelay for {} without having it in cache", safeStore.commandStore(), txnId, new RuntimeException());
+            return fetch(txnId).computeWait(attempt, units);
+        }
+
+        Command command = safeCommand.current();
+        if (command == null)
+        {
+            noSpamLogger.warn("{} invoked slowReplicaDelay for {} without knowing the command", safeStore.commandStore(), txnId, new RuntimeException());
+            return fetch(txnId).computeWait(attempt, units);
+        }
+
         long nowMicros = MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         long mostRecentStart = mostRecentStart(command, nowMicros);
         long waitMicros = fetch(txnId).computeWait(attempt, units);

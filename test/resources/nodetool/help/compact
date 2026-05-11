@@ -4,7 +4,7 @@ NAME
 
 SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
-                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] compact
                 [(-et <end_token> | --end-token <end_token>)]
@@ -33,9 +33,6 @@ OPTIONS
 
         --partition <partition_key>
             String representation of the partition key
-
-        -pp, --print-port
-            Operate in 4.0 mode with hosts disambiguated by port number
 
         -pw <password>, --password <password>
             Remote jmx agent password

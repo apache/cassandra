@@ -42,6 +42,7 @@ import accord.local.cfk.Serialize;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.Clustering;
@@ -115,6 +116,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
+import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -154,7 +156,7 @@ public class AccordKeyspace
         return builder.build();
     }
 
-    public static final TableMetadata Journal = journalMetadata(JOURNAL, true);
+    public static final TableMetadata Journal = journalMetadata(JOURNAL, DatabaseDescriptor.getAccord().range_index_mode == journal_sai);
 
     private static ColumnMetadata getColumn(TableMetadata metadata, String name)
     {
@@ -238,7 +240,7 @@ public class AccordKeyspace
 
         public static ByteBuffer makeSystemTableKeyBytes(int commandStore, TokenKey key)
         {
-            ByteBuffer result = ByteBuffer.allocate(4 + TokenKey.serializer.serializedSizeWithoutPrefix(key));
+            ByteBuffer result = ByteBuffer.allocate(4 + TokenKey.serializer.serializedSizeWithoutPrefixOrLength(key));
             result.putInt(commandStore);
             TokenKey.serializer.serializeWithoutPrefixOrLength(key, result);
             result.flip();

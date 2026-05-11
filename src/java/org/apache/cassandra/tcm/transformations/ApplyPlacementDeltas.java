@@ -19,11 +19,14 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -58,6 +61,13 @@ public abstract class ApplyPlacementDeltas implements Transformation
     public PlacementDeltas delta()
     {
         return delta;
+    }
+
+    public Set<InetAddressAndPort> affectedEndpoints()
+    {
+        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
+        delta.forEach((replication, d) -> affectedEndpoints.addAll(d.affectedEndpoints()));
+        return affectedEndpoints;
     }
 
     @Override

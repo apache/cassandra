@@ -1160,4 +1160,84 @@ public interface GuardrailsMBean
      * @param value configuration of new role name validator.
      */
     void setRoleNamePolicy(String value);
+
+    /**
+     * Sets whether a user will be warned when creating a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyWarned(boolean value);
+
+    /**
+     *
+     * @return true if a user will be warned when training compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyWarned();
+
+    /**
+     * Sets whether it is allowed to create a table with a dictionary-based compressor which
+     * does not have any limit how often dictionaries can be trained.
+     *
+     * @param value value to set
+     */
+    void setUnsetTrainingMinFrequencyEnabled(boolean value);
+
+    /**
+     *
+     * @return true if it is possible to train compression dictionaries for tables backed by
+     * dictionary compressor as frequently as needed, without any limits, false otherwise.
+     */
+    boolean getUnsetTrainingMinFrequencyEnabled();
+
+    /**
+     * @return JSON representation of the minimum client driver versions that trigger a warning.
+     */
+    String getMinimumClientDriverVersionsWarned();
+
+    /**
+     * @return JSON representation of the minimum client driver versions that trigger a failure.
+     */
+    String getMinimumClientDriverVersionsDisallowed();
+
+    /**
+     * Sets the minimum client driver versions that trigger a warning.
+     *
+     * @param value JSON representation of a map of driver name to minimum version string.
+     */
+    void setMinimumClientDriverVersionsWarned(String value);
+
+    /**
+     * Sets the minimum client driver versions that trigger a failure.
+     *
+     * @param value JSON representation of a map of driver name to minimum version string.
+     */
+    void setMinimumClientDriverVersionsDisallowed(String value);
+
+    /**
+     * @return {@code true} if a warning is logged when a prepared statement is created without parameters,
+     * {@code false} otherwise.
+     */
+    boolean getPreparedStatementsRequireParametersWarned();
+
+    /**
+     * @return {@code true} if creating a prepared statement without parameters is rejected,
+     * {@code false} otherwise.
+     */
+    boolean getPreparedStatementsRequireParametersEnabled();
+
+    /**
+     * Sets whether to log a warning when a prepared statement is created without parameters.
+     *
+     * @param warned {@code true} to enable the warning, {@code false} to disable it.
+     */
+    void setPreparedStatementsRequireParametersWarned(boolean warned);
+
+    /**
+     * Sets whether to reject creating a prepared statement without parameters.
+     *
+     * @param enabled {@code true} to reject, {@code false} to allow.
+     */
+    void setPreparedStatementsRequireParametersEnabled(boolean enabled);
 }

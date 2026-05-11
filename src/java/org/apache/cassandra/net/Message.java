@@ -60,7 +60,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
-import static org.apache.cassandra.net.MessagingService.VERSION_51;
+import static org.apache.cassandra.net.MessagingService.VERSION_60;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
@@ -922,7 +922,7 @@ public class Message<T> implements ResponseContext
                 return -1; // not enough bytes to read id
             index += idSize;
 
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
             {
                 int epochSize = computeUnsignedVIntSize(buf, index, readerLimit);
                 if (epochSize < 0)
@@ -984,7 +984,7 @@ public class Message<T> implements ResponseContext
             index += computeUnsignedVIntSize(id);
 
             Epoch epoch = Epoch.EMPTY;
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
             {
                 long epochl = getUnsignedVInt(buf, index);
                 index += computeUnsignedVIntSize(epochl);
@@ -1018,7 +1018,7 @@ public class Message<T> implements ResponseContext
         private void serializeHeader(Header header, DataOutputPlus out, int version) throws IOException
         {
             out.writeUnsignedVInt(header.id);
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
                 Epoch.messageSerializer.serialize(header.epoch, out, version);
             // int cast cuts off the high-order half of the timestamp, which we can assume remains
             // the same between now and when the recipient reconstructs it.
@@ -1033,7 +1033,7 @@ public class Message<T> implements ResponseContext
         {
             long id = in.readUnsignedVInt();
             Epoch epoch = Epoch.EMPTY;
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
                 epoch = Epoch.messageSerializer.deserialize(in, version);
             long currentTimeNanos = approxTime.now();
             MonotonicClockTranslation timeSnapshot = approxTime.translate();
@@ -1049,7 +1049,7 @@ public class Message<T> implements ResponseContext
         private void skipHeader(DataInputPlus in, int version) throws IOException
         {
             skipUnsignedVInt(in); // id
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
                 skipUnsignedVInt(in); // epoch
             in.skipBytesFully(4); // createdAt
             skipUnsignedVInt(in); // expiresIn
@@ -1062,7 +1062,7 @@ public class Message<T> implements ResponseContext
         {
             long size = 0;
             size += sizeofUnsignedVInt(header.id);
-            if (version >= VERSION_51)
+            if (version >= VERSION_60)
                 size += sizeofUnsignedVInt(header.epoch.getEpoch());
             size += CREATION_TIME_SIZE;
             size += sizeofUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
@@ -1279,9 +1279,9 @@ public class Message<T> implements ResponseContext
                 if (serializedSize50 == 0)
                     serializedSize50 = serializer.serializedSize(this, VERSION_50);
                 return serializedSize50;
-            case VERSION_51:
+            case VERSION_60:
                 if (serializedSize51 == 0)
-                    serializedSize51 = serializer.serializedSize(this, VERSION_51);
+                    serializedSize51 = serializer.serializedSize(this, VERSION_60);
                 return serializedSize51;
             default:
                 throw new IllegalStateException("Unknown serialization version " + version);
@@ -1304,9 +1304,9 @@ public class Message<T> implements ResponseContext
                 if (payloadSize50 < 0)
                     payloadSize50 = serializer.payloadSize(this, VERSION_50);
                 return payloadSize50;
-            case VERSION_51:
+            case VERSION_60:
                 if (payloadSize51 < 0)
-                    payloadSize51 = serializer.payloadSize(this, VERSION_51);
+                    payloadSize51 = serializer.payloadSize(this, VERSION_60);
                 return payloadSize51;
 
             default:

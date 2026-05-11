@@ -23,8 +23,8 @@ public interface AccordSafeState<K, V> extends SafeState<V>
 {
     void set(V update);
     V original();
-    void invalidate();
-    boolean invalidated();
+    void markUnsafe();
+    boolean isUnsafe();
     void preExecute();
 
     AccordCacheEntry<K, V> global();
@@ -51,7 +51,7 @@ public interface AccordSafeState<K, V> extends SafeState<V>
 
     default void checkNotInvalidated()
     {
-        if (invalidated())
+        if (isUnsafe())
             throw new IllegalStateException("Cannot access invalidated " + this);
     }
 }

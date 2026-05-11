@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -82,6 +83,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.RejectException;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
+import org.apache.cassandra.db.WriteThresholds;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -2023,7 +2025,13 @@ public class StorageProxy implements StorageProxyMBean
             {
                 try
                 {
+                    MessageParams.reset();
+
+                    boolean trackWriteWarnings = description instanceof Mutation && handler instanceof AbstractWriteResponseHandler && DatabaseDescriptor.getWriteThresholdsEnabled();
+                    if (trackWriteWarnings)
+                        WriteThresholds.checkWriteThresholds((Mutation) description);
                     runnable.run();
+
                     handler.onResponse(null);
                 }
                 catch (Exception ex)
@@ -2031,6 +2039,10 @@ public class StorageProxy implements StorageProxyMBean
                     if (!(ex instanceof WriteTimeoutException) && !(ex instanceof RetryOnDifferentSystemException))
                         logger.error("Failed to apply mutation locally : ", ex);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
+                }
+                finally
+                {
+                    MessageParams.reset();
                 }
             }
 
@@ -2750,7 +2762,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     logger.debug("Query cancelled (timeout)", e);
                     response = null;
-                    assert !command.isCompleted() : "Local read marked as completed despite being aborted by timeout to table " + command.metadata();
+                    Preconditions.checkState(!command.isCompleted(), "Local read marked as completed despite being aborted by timeout to table %s", command.metadata());
                 }
 
                 if (command.complete())

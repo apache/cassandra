@@ -488,6 +488,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Rewrites all sstables from the given list of SSTable Data.db files.
+     * The tombstone option defines the granularity of the procedure: ROW removes deleted partitions and rows, CELL also removes overwritten or deleted cells.
+     */
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Flush all memtables for the given column families, or all columnfamilies for the given keyspace
      * if none are explicitly listed.
      * @param keyspaceName
@@ -1046,7 +1052,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getTombstoneWarnThreshold();
     /** Sets the threshold for warning queries with many tombstones */
     public void setTombstoneWarnThreshold(int tombstoneDebugThreshold);
-
+    /** Returns the threshold for write warning of queries with many tombstones */
+    public int getWriteTombstoneWarnThreshold();
+    /** Sets the threshold for write warning queries with many tombstones */
+    public void setWriteTombstoneWarnThreshold(int writeTombstoneDebugThreshold);
     /** Returns the threshold for abandoning queries with many tombstones */
     public int getTombstoneFailureThreshold();
     /** Sets the threshold for abandoning queries with many tombstones */
@@ -1312,6 +1321,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getRowIndexReadSizeAbortThreshold();
     public void setRowIndexReadSizeAbortThreshold(String value);
 
+    public boolean getWriteThresholdsEnabled();
+    public void setWriteThresholdsEnabled(boolean value);
+
+    public String getWriteTooLargeWarnThreshold();
+    public void setWriteTooLargeWarnThreshold(String value);
+
     public void setDefaultKeyspaceReplicationFactor(int value);
     public int getDefaultKeyspaceReplicationFactor();
 
@@ -1400,6 +1415,15 @@ public interface StorageServiceMBean extends NotificationEmitter
     void alterTopology(String updates);
     /** Gets the names of all tables for the given keyspace */
     public List<String> getTablesForKeyspace(String keyspace);
+
+    /**
+     * Validates that system.peers and system.peers_v2 are consistent with ClusterMetadata,
+     * inserting missing peer entries and removing stale ones. This runs automatically on
+     * startup but can be triggered manually if a discrepancy is suspected.
+     * <p>
+     * Note: mutates data in system.peers and system.peers_v2.
+     */
+    public void validateAndRepairPeersMetadata();
 
     /** Mutates the repaired state of all SSTables for the given SSTables */
     public List<String> mutateSSTableRepairedState(boolean repaired, boolean preview, String keyspace, List<String> tables);

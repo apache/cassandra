@@ -657,7 +657,8 @@ public class AbstractReadQueryToCQLStringTest extends CQLTester
         test("SELECT * FROM %s WHERE u = {a: 'a', b: 1} ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE l['a'] = 'a' ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE s['a'] = 'a' ALLOW FILTERING");
-        testInvalid("SELECT * FROM %s WHERE m['a'] = 'a' ALLOW FILTERING");
+        // CASSANDRA-18492 Allow filtering works with map[key]
+        test("SELECT * FROM %s WHERE m['a'] = 'a' ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE u.a = 'a' ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE u.b = 0 ALLOW FILTERING");
         testInvalid("SELECT * FROM %s WHERE u.a = 'a' ANd u.b = 0 ALLOW FILTERING");

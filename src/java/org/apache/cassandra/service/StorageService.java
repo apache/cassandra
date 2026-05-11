@@ -103,6 +103,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.SystemPeersValidator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -133,6 +134,7 @@ import org.apache.cassandra.gms.VersionedValue.VersionedValueFactory;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -161,7 +163,6 @@ import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
-import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.autorepair.AutoRepair;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -176,7 +177,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.service.accord.AccordKeyspace.AccordColumnFamilyStores;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationTarget;
@@ -188,7 +188,6 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupLocalCoordinator;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
@@ -247,6 +246,7 @@ import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -258,7 +258,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_RETRY_DELAY_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
-import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.INTERNALLY_FORCED;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -418,7 +417,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public Collection<Range<Token>> getLocalAndPendingRanges(String ks)
     {
-        return ClusterMetadata.current().localWriteRanges(Keyspace.open(ks).getMetadata());
+        return ClusterMetadata.current().localWriteRanges(Keyspace.open(ks).getMetadata()).ranges();
     }
 
     public OwnedRanges getNormalizedLocalRanges(String keyspaceName, InetAddressAndPort broadcastAddress)
@@ -858,6 +857,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
+
+        if (CassandraRelevantProperties.SYNC_SYSTEM_PEERS_TABLES_AT_STARTUP.getBoolean())
+            SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
 
         try
         {
@@ -2834,6 +2836,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
+    public int userDefinedGarbageCollect(String tombstoneOptionString, int jobs, List<String> userDefinedTables) throws ExecutionException, InterruptedException
+    {
+        TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);
+        CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
+        logger.info("Starting {} on {}", OperationType.GARBAGE_COLLECT, userDefinedTables);
+        for (Map.Entry<ColumnFamilyStore, Collection<Descriptor>> entry : Descriptor.fromFilenamesGrouped(userDefinedTables).asMap().entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getKey();
+            Collection<Descriptor> sstables = entry.getValue();
+            CompactionManager.AllSSTableOpStatus oneStatus = cfs.partialGarbageCollect(tombstoneOption, jobs, sstables);
+            if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
+                status = oneStatus;
+        }
+        logger.info("Completed {} with status {}", OperationType.GARBAGE_COLLECT, status);
+        return status.statusCode;
+    }
+
     @Override
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
@@ -3167,27 +3186,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new FutureTask<>(task);
     }
 
-    public RepairCoordinator repairAccordKeyspace(String keyspace, Collection<Range<Token>> ranges)
+    public RepairCoordinator newRepairCoordinator(String keyspace, RepairOption options)
     {
         int cmd = nextRepairCommand.incrementAndGet();
-        RepairOption options = new RepairOption(RepairParallelism.PARALLEL, // parallelism
-                                                false,                       // primaryRange
-                                                false,                      // incremental
-                                                false,                      // trace
-                                                5,                          // jobThreads
-                                                ranges,                     // ranges
-                                                true,                       // pullRepair
-                                                true,                       // forceRepair
-                                                PreviewKind.NONE,           // previewKind
-                                                false,                      // optimiseStreams
-                                                true,                       // ignoreUnreplicatedKeyspaces
-                                                true,                       // repairData
-                                                false,                      // repairPaxos
-                                                true,                       // dontPurgeTombstones
-                                                false,                      // repairAccord
-                                                false                       // permit no quorum
-        );
-
         return new RepairCoordinator(this, cmd, options, keyspace);
     }
 
@@ -3867,7 +3868,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             if (AccordService.isSetupOrStarting())
-                AccordService.unsafeInstance().markShuttingDown();
+                AccordService.unsafeInstance().stop();
 
             // In-progress writes originating here could generate hints to be written,
             // which is currently scheduled on the mutation stage. So shut down MessagingService
@@ -3885,12 +3886,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (AccordService.isSetupOrStarting())
             {
-                logger.info("Flushing Accord caches");
-                if (!AccordService.unsafeInstance().flushCaches().awaitUninterruptibly(1, MINUTES))
-                    logger.error("Could not flush Accord caches promptly");
-                if (AccordColumnFamilyStores.commandsForKey != null)
-                    AccordColumnFamilyStores.commandsForKey.forceBlockingFlush(INTERNALLY_FORCED);
-                AccordService.unsafeInstance().shutdownAndWait(1, MINUTES);
+                try
+                {
+                    AccordService.unsafeInstance().shutdownAndWait(DatabaseDescriptor.getAccord().shutdown_grace_period.toDuration().toNanos(), NANOSECONDS);
+                }
+                catch (Throwable t)
+                {
+                    logger.error("AccordService exception shutting down", t);
+                }
             }
 
             // ScheduledExecutors shuts down after MessagingService, as MessagingService may issue tasks to it.
@@ -4758,6 +4761,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
+    public int getWriteTombstoneWarnThreshold()
+    {
+        return DatabaseDescriptor.getWriteTombstoneWarnThreshold();
+    }
+
+    public void setWriteTombstoneWarnThreshold(int threshold)
+    {
+        DatabaseDescriptor.setWriteTombstoneWarnThreshold(threshold);
+        logger.info("updated write_tombstone_warn_threshold to {}", threshold);
+    }
+
     public int getTombstoneFailureThreshold()
     {
         return DatabaseDescriptor.getTombstoneFailureThreshold();
@@ -5329,6 +5343,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
+    public boolean getWriteThresholdsEnabled()
+    {
+        return DatabaseDescriptor.getWriteThresholdsEnabled();
+    }
+
+    @Override
+    public void setWriteThresholdsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setWriteThresholdsEnabled(value);
+    }
+
+    @Override
+    public String getWriteTooLargeWarnThreshold()
+    {
+        return toString(DatabaseDescriptor.getWriteSizeWarnThreshold());
+    }
+
+    @Override
+    public void setWriteTooLargeWarnThreshold(String threshold)
+    {
+        DatabaseDescriptor.setWriteSizeWarnThreshold(parseDataStorageSpec(threshold));
+    }
+
+    @Override
     public String getLocalReadTooLargeAbortThreshold()
     {
         return toString(DatabaseDescriptor.getLocalReadSizeFailThreshold());
@@ -5765,6 +5803,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public List<String> getTablesForKeyspace(String keyspace)
     {
         return Keyspace.open(keyspace).getColumnFamilyStores().stream().map(cfs -> cfs.name).collect(Collectors.toList());
+    }
+
+    @Override
+    public void validateAndRepairPeersMetadata()
+    {
+        SystemPeersValidator.validateAndRepair(ClusterMetadata.current());
     }
 
     @Override

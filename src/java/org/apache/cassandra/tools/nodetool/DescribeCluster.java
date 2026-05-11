@@ -31,13 +31,17 @@ import org.apache.cassandra.locator.LocationInfoMBean;
 import org.apache.cassandra.tools.NodeProbe;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Mixin;
 
 @Command(name = "describecluster", description = "Print the name, snitch, partitioner and schema version of a cluster")
-public class DescribeCluster extends WithPortDisplayAbstractCommand
+public class DescribeCluster extends AbstractCommand
 {
     private boolean resolveIp = false;
     private String keyspace = null;
     private Collection<String> joiningNodes, leavingNodes, movingNodes, liveNodes, unreachableNodes;
+
+    @Mixin
+    private PrintPortMixin printPortMixin = new PrintPortMixin();
 
     @Override
     public void execute(NodeProbe probe)
@@ -63,7 +67,7 @@ public class DescribeCluster extends WithPortDisplayAbstractCommand
 
         // display schema version for each node
         out.println("\tSchema versions:");
-        Map<String, List<String>> schemaVersions = printPort ? probe.getSpProxy().getSchemaVersionsWithPort() : probe.getSpProxy().getSchemaVersions();
+        Map<String, List<String>> schemaVersions = printPortMixin.printPort ? probe.getSpProxy().getSchemaVersionsWithPort() : probe.getSpProxy().getSchemaVersions();
         for (Map.Entry<String, List<String>> entry : schemaVersions.entrySet())
         {
             out.printf("\t\t%s: %s%n%n", entry.getKey(), entry.getValue());

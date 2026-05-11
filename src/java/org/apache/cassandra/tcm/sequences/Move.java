@@ -44,6 +44,7 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -61,6 +62,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -192,6 +194,16 @@ public class Move extends MultiStepOperation<Epoch>
     public Transformation.Result applyTo(ClusterMetadata metadata)
     {
         return applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove));
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        Set<InetAddressAndPort> affectedEndpoints = new HashSet<>();
+        affectedEndpoints.addAll(startMove.affectedEndpoints());
+        affectedEndpoints.addAll(midMove.affectedEndpoints());
+        affectedEndpoints.addAll(finishMove.affectedEndpoints());
+        return endpointsToIds(affectedEndpoints, directory);
     }
 
     @Override

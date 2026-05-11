@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,6 +39,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
@@ -51,6 +52,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -67,6 +69,7 @@ import org.apache.cassandra.db.guardrails.NoOpGenerator;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -78,6 +81,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -86,29 +90,16 @@ import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
- * Responsible for the creation, maintenance and deletion of roles
- * for the purposes of authentication and authorization.
- * Role data is stored internally, using the roles and role_members tables
- * in the system_auth keyspace.
+ * Responsible for the creation, maintenance and deletion of roles for the purposes of authentication and
+ * authorization. Role data is stored internally, using the roles and role_members tables in the system_auth
+ * keyspace.
  *
- * Additionally, if org.apache.cassandra.auth.PasswordAuthenticator is used,
- * encrypted passwords are also stored in the system_auth.roles table. This
- * coupling between the IAuthenticator and IRoleManager implementations exists
- * because setting a role's password via CQL is done with a CREATE ROLE or
- * ALTER ROLE statement, the processing of which is handled by IRoleManager.
- * As IAuthenticator is concerned only with credentials checking and has no
- * means to modify passwords, PasswordAuthenticator depends on
- * CassandraRoleManager for those functions.
- *
- * Alternative IAuthenticator implementations may be used in conjunction with
- * CassandraRoleManager, but WITH PASSWORD = 'password' will not be supported
- * in CREATE/ALTER ROLE statements.
- *
- * Such a configuration could be implemented using a custom IRoleManager that
- * extends CassandraRoleManager and which includes Option.PASSWORD in the {@code Set<Option>}
- * returned from supportedOptions/alterableOptions. Any additional processing
- * of the password itself (such as storing it in an alternative location) would
- * be added in overridden createRole and alterRole implementations.
+ * Authenticators (implementations of {@link IAuthenticator}) can specify additional attributes to be stored.
+ * For example, {@link org.apache.cassandra.auth.PasswordAuthenticator}, stores encrypted passwords in the
+ * system_auth.roles table. This coupling between the IAuthenticator and IRoleManager implementations exists because
+ * setting a role's password via CQL is done with a CREATE ROLE or ALTER ROLE statement, the processing of which is
+ * handled by IRoleManager. Authenticators depend on CassandraRoleManager for those functions because IAuthenticator
+ * is concerned only with credentials checking and has no means to directly modify passwords.
  */
 public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerMBean
 {
@@ -118,8 +109,24 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
     public static final String DEFAULT_SUPERUSER_NAME = "cassandra";
     public static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
 
+    /**
+     * Role options which are supported for all authentication mechanisms. IAuthenticator implementations can declare
+     * additional supported role options via {@link IAuthenticator#getSupportedRoleOptions()}.
+     */
+    @VisibleForTesting
+    static final Set<Option> DEFAULT_SUPPORTED_ROLE_OPTIONS = Set.of(Option.LOGIN, Option.SUPERUSER);
+
+    /**
+     * User-alterable role options which are supported for all authentication mechanisms. IAuthenticator
+     * implementations can declare additional alterable role options via
+     * {@link IAuthenticator#getAlterableRoleOptions()}.
+     */
+    @VisibleForTesting
+    static final Set<Option> DEFAULT_ALTERABLE_ROLE_OPTIONS = Set.of();
+
     @VisibleForTesting
     static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD = "invalid_role_disconnect_task_period";
+
     @VisibleForTesting
     static final String PARAM_INVALID_ROLE_DISCONNECT_TASK_MAX_JITTER = "invalid_role_disconnect_task_max_jitter";
 
@@ -154,8 +161,22 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         }
     };
 
+    private static int PASSWORD_UPDATE_MIN_INTERVAL_MS = CassandraRelevantProperties.ROLE_PASSWORD_UPDATE_MIN_INTERVAL_MS.getInt();
+    // in-memory protection against excessive loadRoleWithWritetimeStatement queries
+    private static Cache<String, Boolean> recentPasswordUpdates = Caffeine.newBuilder()
+                                        .expireAfterWrite(PASSWORD_UPDATE_MIN_INTERVAL_MS, TimeUnit.MILLISECONDS)
+                                        .build();
+
+    @VisibleForTesting
+    public static synchronized void updatePasswordUpdateMinInterval(int newInterval)
+    {
+        recentPasswordUpdates = Caffeine.newBuilder().expireAfterWrite(newInterval, TimeUnit.MILLISECONDS).build();
+        PASSWORD_UPDATE_MIN_INTERVAL_MS = newInterval;
+    }
+
     private SelectStatement loadRoleStatement;
     private SelectStatement loadIdentityStatement;
+    private SelectStatement loadRoleWithWritetimeStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
@@ -172,17 +193,21 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public CassandraRoleManager(Map<String, String> parameters)
     {
-        Set<Option> allowedOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                                     ? EnumSet.of(Option.LOGIN, Option.SUPERUSER, Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD, Option.GENERATED_NAME)
-                                     : EnumSet.of(Option.LOGIN, Option.SUPERUSER);
+        Set<Option> supportedOptions = Stream.concat(
+                                           DEFAULT_SUPPORTED_ROLE_OPTIONS.stream(),
+                                           DatabaseDescriptor.getAuthenticator().getSupportedRoleOptions().stream()
+                                                             .filter(Objects::nonNull))
+                                             .collect(Collectors.toSet());
 
         if (Guardrails.roleNamePolicy.getGenerator() != NoOpGenerator.INSTANCE)
-            allowedOptions.add(Option.OPTIONS);
+            supportedOptions.add(Option.OPTIONS);
 
-        supportedOptions = ImmutableSet.copyOf(allowedOptions);
-        alterableOptions = DatabaseDescriptor.getAuthenticator() instanceof PasswordAuthenticator
-                           ? ImmutableSet.of(Option.PASSWORD, Option.HASHED_PASSWORD, Option.GENERATED_PASSWORD)
-                           : ImmutableSet.<Option>of();
+        this.supportedOptions = Set.copyOf(supportedOptions);
+
+        alterableOptions = Stream.concat(DEFAULT_ALTERABLE_ROLE_OPTIONS.stream(),
+                                         DatabaseDescriptor.getAuthenticator().getAlterableRoleOptions().stream()
+                                                           .filter(Objects::nonNull))
+                                 .collect(Collectors.toUnmodifiableSet());
 
         // Inherit parsing and validation from existing config parser
         invalidClientDisconnectPeriodMillis = new DurationSpec.LongMillisecondsBound(parameters.getOrDefault(PARAM_INVALID_ROLE_DISCONNECT_TASK_PERIOD, "0h")).toMilliseconds();
@@ -281,6 +306,10 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
+
+        loadRoleWithWritetimeStatement = (SelectStatement) prepare("SELECT writetime(salted_hash) AS salted_hash_writetime from %s.%s WHERE role = ?",
+                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                   AuthKeyspace.ROLES);
     }
 
 
@@ -339,6 +368,9 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public void alterRole(AuthenticatedUser performer, RoleResource role, RoleOptions options)
     {
+        if (options.getPassword().isPresent())
+            enforcePasswordUpdateRateLimit(performer, role.getRoleName());
+
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
         String assignments = optionsToAssignments(options.getOptions());
@@ -479,8 +511,8 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
 
     public Set<? extends IResource> protectedResources()
     {
-        return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES),
-                               DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_MEMBERS));
+        return Set.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES),
+                      DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_MEMBERS));
     }
 
     public void validateConfiguration() throws ConfigurationException
@@ -704,7 +736,40 @@ public class CassandraRoleManager implements IRoleManager, CassandraRoleManagerM
                       .collect(Collectors.joining(","));
     }
 
+    /**
+     * Rate limit password updates on each role.
+     * @throws OverloadedException if the password was changed within ROLE_PASSWORD_UPDATE_INTERVAL
+     */
+    private void enforcePasswordUpdateRateLimit(AuthenticatedUser performer, String roleName)
+    {
+        if (PASSWORD_UPDATE_MIN_INTERVAL_MS <= 0)
+            return;
 
+        if (Boolean.TRUE != recentPasswordUpdates.getIfPresent(roleName))
+        {
+            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRoleRead(roleName),
+                                                                 Collections.singletonList(ByteBufferUtil.bytes(roleName)));
+
+            ResultMessage.Rows rows = select(loadRoleWithWritetimeStatement, options);
+            boolean hasRecentPasswordUpdates = !rows.result.isEmpty();
+            if (hasRecentPasswordUpdates)
+            {
+                UntypedResultSet.Row row = UntypedResultSet.create(rows.result).one();
+
+                hasRecentPasswordUpdates = row.has("salted_hash_writetime")
+                                           && PASSWORD_UPDATE_MIN_INTERVAL_MS >= (Clock.Global.currentTimeMillis() - TimeUnit.MICROSECONDS.toMillis(row.getLong("salted_hash_writetime")));
+            }
+            if (!hasRecentPasswordUpdates)
+            {
+                recentPasswordUpdates.put(roleName, Boolean.TRUE);
+                logger.info(String.format("Password changing for role %s by %s", roleName, performer.getName()));
+                return;
+            }
+        }
+        String failure = String.format("Password for role %s can only be changed every %sms.", roleName, PASSWORD_UPDATE_MIN_INTERVAL_MS);
+        logger.warn(String.format("%s [performer: %s]", failure, performer.getName()));
+        throw new OverloadedException(failure);
+    }
 
     private static String hashpw(String password)
     {

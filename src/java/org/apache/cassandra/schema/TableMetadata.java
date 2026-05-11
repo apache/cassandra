@@ -76,7 +76,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.fastpath.FastPathStrategy;
+import org.apache.cassandra.service.accord.topology.FastPathStrategy;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
@@ -223,6 +223,9 @@ public class TableMetadata implements SchemaElement
     public final List<ColumnMetadata> columnsWithConstraints;
     public final List<ColumnMetadata> notNullColumns;
 
+    // remember whether there are masked columns or not
+    private final boolean hasMaskedColumns;
+
     protected TableMetadata(Builder builder)
     {
         flags = Sets.immutableEnumSet(builder.flags);
@@ -285,6 +288,7 @@ public class TableMetadata implements SchemaElement
 
         List<ColumnMetadata> columnsWithConstraints = new ArrayList<>();
         List<ColumnMetadata> notNullColumns = new ArrayList<>();
+        boolean hasMaskedColumns = false;
 
         for (ColumnMetadata column : this.columns())
         {
@@ -295,7 +299,10 @@ public class TableMetadata implements SchemaElement
                     notNullColumns.add(column);
 
             }
+            if (column.isMasked())
+                hasMaskedColumns = true;
         }
+        this.hasMaskedColumns = hasMaskedColumns;
         this.columnsWithConstraints = columnsWithConstraints;
         this.notNullColumns = notNullColumns;
     }
@@ -584,12 +591,7 @@ public class TableMetadata implements SchemaElement
      */
     public boolean hasMaskedColumns()
     {
-        for (ColumnMetadata column : columns.values())
-        {
-            if (column.isMasked())
-                return true;
-        }
-        return false;
+        return hasMaskedColumns;
     }
 
     /**

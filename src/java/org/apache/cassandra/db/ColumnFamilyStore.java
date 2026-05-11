@@ -408,8 +408,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         return () -> {
             for (Keyspace keyspace : Keyspace.all())
+            {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                {
+                    if (SchemaConstants.ACCORD_KEYSPACE_NAME.equals(cfs.keyspace.getName()))
+                        continue;
+
                     CompactionManager.instance.submitBackground(cfs);
+                }
+            }
+
         };
     }
 
@@ -1144,6 +1152,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return postFlushExecutor.submit(current::getCommitLogLowerBound);
     }
 
+    public Future<Void> waitForPriorFlushes()
+    {
+        return postFlushExecutor.submit(() -> null);
+    }
+
     public CommitLogPosition forceBlockingFlush(FlushReason reason)
     {
         return FBUtilities.waitOnFuture(forceFlush(reason));
@@ -1855,6 +1868,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+    }
+
+    public CompactionManager.AllSSTableOpStatus partialGarbageCollect(TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> sstables)
+    {
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, sstables);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)

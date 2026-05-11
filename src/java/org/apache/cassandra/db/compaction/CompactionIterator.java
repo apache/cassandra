@@ -89,9 +89,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.AccordJournal;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightImage;
-import org.apache.cassandra.service.accord.AccordJournalValueSerializers.FlyweightSerializer;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.AccordService;
@@ -100,8 +97,14 @@ import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfos;
 import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate;
-import org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.TopologyImage;
+import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
+import org.apache.cassandra.service.accord.journal.CommandChanges;
+import org.apache.cassandra.service.accord.journal.MergeSerializer;
+import org.apache.cassandra.service.accord.journal.MergeSerializers;
+import org.apache.cassandra.service.accord.journal.MergeSerializers.CommandChangeSerializer;
+import org.apache.cassandra.service.accord.journal.Merger;
+import org.apache.cassandra.service.accord.journal.TopologyRecord;
+import org.apache.cassandra.service.accord.journal.TopologyRecord.TopologyImage;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
@@ -122,8 +125,9 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CFKAccessor;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JournalColumns.getJournalKey;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Image;
-import static org.apache.cassandra.service.accord.journal.AccordTopologyUpdate.Kind.Repeat;
+import static org.apache.cassandra.service.accord.journal.MergeSerializers.TopologySerializer.INSTANCE;
+import static org.apache.cassandra.service.accord.journal.TopologyRecord.Kind.Image;
+import static org.apache.cassandra.service.accord.journal.TopologyRecord.Kind.Repeat;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -875,7 +879,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnMetadata versionColumn;
 
         JournalKey key;
-        AccordRowCompactor<?> compactor;
+        AccordRowCompactor<?, ?> compactor;
         final Version userVersion;
 
         public AccordJournalPurger(AccordCompactionInfos compactionInfos, Version version, ColumnFamilyStore cfs)
@@ -899,7 +903,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                         compactor = new AccordCommandRowCompactor(infos, userVersion, nowInSec);
                         break;
                     case TOPOLOGY_UPDATE:
-                        compactor = new TopologyCompactor((FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator>) key.type.serializer, userVersion, infos.minEpoch);
+                        compactor = new TopologyCompactor(userVersion, infos.minEpoch);
                         break;
                     default:
                         compactor = new AccordMergingCompactor(key.type.serializer, userVersion);
@@ -939,11 +943,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static abstract class AccordRowCompactor<T extends FlyweightImage>
+    static abstract class AccordRowCompactor<V, T extends Merger>
     {
-        final FlyweightSerializer<Object, T> serializer;
+        final MergeSerializer<V, ? super T, T> serializer;
 
-        AccordRowCompactor(FlyweightSerializer<Object, T> serializer)
+        AccordRowCompactor(MergeSerializer<V, ? super T, T> serializer)
         {
             this.serializer = serializer;
         }
@@ -953,15 +957,15 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         abstract UnfilteredRowIterator result(JournalKey journalKey, DecoratedKey partitionKey) throws IOException;
     }
 
-    static class TopologyCompactor extends AccordMergingCompactor<AccordTopologyUpdate.Accumulator>
+    static class TopologyCompactor extends AccordMergingCompactor<TopologyRecord, MergeSerializers.TopologyMerger>
     {
         TopologyImage lastImage;
         boolean hasWritten;
         final long minEpoch;
 
-        TopologyCompactor(FlyweightSerializer<Object, AccordTopologyUpdate.Accumulator> serializer, Version userVersion, long minEpoch)
+        TopologyCompactor(Version userVersion, long minEpoch)
         {
-            super(serializer, userVersion);
+            super(INSTANCE, userVersion);
             this.minEpoch = minEpoch;
         }
 
@@ -1004,7 +1008,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordMergingCompactor<T extends FlyweightImage> extends AccordRowCompactor<T>
+    static class AccordMergingCompactor<V, T extends Merger> extends AccordRowCompactor<V, T>
     {
         final T builder;
         final Version userVersion;
@@ -1012,7 +1016,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         long lastDescriptor;
         int lastOffset;
 
-        AccordMergingCompactor(FlyweightSerializer<Object, T> serializer, Version userVersion)
+        AccordMergingCompactor(MergeSerializer<V, ? super T, T> serializer, Version userVersion)
         {
             super(serializer);
             this.builder = serializer.mergerFor();
@@ -1072,7 +1076,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     static class AccordCommandRowEntry
     {
-        final AccordJournal.Builder builder = new AccordJournal.Builder();
+        final CommandChanges builder = new CommandChanges();
         Row row;
         boolean modified;
 
@@ -1094,7 +1098,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    static class AccordCommandRowCompactor extends AccordRowCompactor<AccordJournal.Builder>
+    static class AccordCommandRowCompactor extends AccordRowCompactor<CommandChangeWriter, CommandChanges>
     {
         static final Object[] rowTemplate = BTree.build(BulkIterator.of(new Object[2]), 2, UpdateFunction.noOp);
         final long timestamp = ClientState.getTimestamp();
@@ -1103,14 +1107,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         final ColumnData userVersionCell;
         final long nowInSec;
 
-        final AccordJournal.Builder mainBuilder = new AccordJournal.Builder();
+        final CommandChanges mainBuilder = new CommandChanges();
         final List<AccordCommandRowEntry> entries = new ArrayList<>();
         final ArrayDeque<AccordCommandRowEntry> reuseEntries = new ArrayDeque<>();
         AccordCompactionInfo info;
 
         AccordCommandRowCompactor(AccordCompactionInfos infos, Version userVersion, long nowInSec)
         {
-            super((FlyweightSerializer<Object, AccordJournal.Builder>) JournalKey.Type.COMMAND_DIFF.serializer);
+            super((CommandChangeSerializer) JournalKey.Type.COMMAND_DIFF.serializer);
             this.infos = infos;
             this.userVersion = userVersion;
             this.userVersionCell = BufferCell.live(AccordKeyspace.JournalColumns.user_version, timestamp, Int32Type.instance.decompose(userVersion.version));

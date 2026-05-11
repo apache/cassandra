@@ -190,9 +190,9 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
-    @Deprecated(since="5.1")
+    @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = null;
-    @Deprecated(since="5.1")
+    @Deprecated(since="6.0")
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
     public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
 
@@ -582,6 +582,11 @@ public class Config
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
 
+    public volatile boolean write_thresholds_enabled = false;
+    public volatile DataStorageSpec.LongBytesBound write_size_warn_threshold = null;
+    public volatile DurationSpec.LongMillisecondsBound coordinator_write_warn_interval = new DurationSpec.LongMillisecondsBound("1000ms");
+    public volatile int write_tombstone_warn_threshold = -1;
+
     public TombstonesMetricGranularity tombstone_read_purgeable_metric_granularity = TombstonesMetricGranularity.disabled;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
@@ -936,6 +941,8 @@ public class Config
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean alter_table_enabled = true;
     public volatile boolean group_by_enabled = true;
+    public volatile boolean prepared_statements_require_parameters_warned = true;
+    public volatile boolean prepared_statements_require_parameters_enabled = false;
     public volatile boolean bulk_load_enabled = true;
     public volatile boolean drop_truncate_table_enabled = true;
     public volatile boolean drop_keyspace_enabled = true;
@@ -1001,6 +1008,11 @@ public class Config
     public volatile boolean non_partition_restricted_index_query_enabled = true;
     public volatile boolean intersect_filtering_query_warned = true;
     public volatile boolean intersect_filtering_query_enabled = true;
+    public volatile boolean unset_training_min_frequency_warned = true;
+    public volatile boolean unset_training_min_frequency_enabled = true;
+
+    public volatile Map<String, String> minimum_client_driver_versions_warned = Collections.emptyMap();
+    public volatile Map<String, String> minimum_client_driver_versions_disallowed = Collections.emptyMap();
 
     public volatile int sai_sstable_indexes_per_query_warn_threshold = 32;
     public volatile int sai_sstable_indexes_per_query_fail_threshold = -1;
@@ -1496,6 +1508,7 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
     public volatile DurationSpec.LongSecondsBound discovery_timeout = new DurationSpec.LongSecondsBound("30s");
     public boolean unsafe_tcm_mode = false;
+    public boolean legacy_state_listener_sync_local_updates = true;
 
     public enum TriggersPolicy
     {

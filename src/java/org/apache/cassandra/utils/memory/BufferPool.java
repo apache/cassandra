@@ -1566,7 +1566,11 @@ public class BufferPool
             if (parent != null)
                 parent.free(slab);
             else
-                MemoryUtil.clean(slab);
+            {
+                // slab may be an aligned slice from allocateDirectAligned(); clean the root allocation
+                ByteBuffer attachment = (ByteBuffer) ((DirectBuffer) slab).attachment();
+                MemoryUtil.clean(attachment != null ? attachment : slab);
+            }
         }
 
         static void unsafeRecycle(Chunk chunk)

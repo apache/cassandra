@@ -30,6 +30,7 @@ import com.google.common.collect.RangeSet;
 import org.apache.cassandra.cql3.ColumnsExpression;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.Relation;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
@@ -157,6 +158,14 @@ public final class SimpleRestriction implements SingleRestriction
                 || columnsExpression.isMapElementExpression();
     }
 
+    /**
+     * Checks if this restriction is a map element expression (e.g., map['key'] = value).
+     */
+    public boolean isMapElementExpression()
+    {
+        return columnsExpression.isMapElementExpression();
+    }
+
     @Override
     public boolean needsFilteringOrIndexing()
     {
@@ -217,6 +226,18 @@ public final class SimpleRestriction implements SingleRestriction
     {
         if (isOnToken())
             return false;
+
+        // For map element expressions, check if the index explicitly supports them.
+        if (columnsExpression.isMapElementExpression())
+        {
+            // If the index directly supports map element expressions, return true
+            if (index.supportsMapElementExpression())
+                return true;
+
+            // Supports post-filtering only and require ALLOW FILTERING
+            if (index.supportsFilteringOnMapElementExpression())
+                return false;
+        }
 
         for (ColumnMetadata column : columns())
         {
@@ -415,13 +436,28 @@ public final class SimpleRestriction implements SingleRestriction
                 // TODO only map elements supported for now
                 if (columnsExpression.isMapElementExpression())
                 {
+                    // For frozen maps, check if any index on the column can support map entry predicates
+                    // either directly or via filtering. If not, throw an error.
+                    if (column.type.isFrozenCollection())
+                    {
+                        for (Index index : indexRegistry.listIndexes())
+                        {
+                            if (index.dependsOn(column)
+                                && !index.supportsMapElementExpression()
+                                && !index.supportsFilteringOnMapElementExpression())
+                            {
+                                throw invalidRequest(Relation.FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, column.name);
+                            }
+                        }
+                    }
+
                     ByteBuffer key = columnsExpression.element(options);
                     if (key == null)
-                        throw invalidRequest("Invalid null map key for column %s", firstColumn().name.toCQLString());
+                        throw invalidRequest("Invalid null map key for column %s", column.name.toCQLString());
                     if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                        throw invalidRequest("Invalid unset map key for column %s", firstColumn().name.toCQLString());
+                        throw invalidRequest("Invalid unset map key for column %s", column.name.toCQLString());
                     List<ByteBuffer> values = bindAndGet(options);
-                    filter.addMapEquality(firstColumn(), key, operator, values.get(0));
+                    filter.addMapEquality(column, key, operator, values.get(0));
                 }
                 break;
             default: throw new UnsupportedOperationException();

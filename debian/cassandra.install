@@ -32,3 +32,5 @@ lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/x86_64/* usr/share/cassandra/lib/x86_64
 lib/aarch64/* usr/share/cassandra/lib/aarch64
+build/html/* usr/share/doc/cassandra/html
+build/man/*.7.gz usr/share/man/man7

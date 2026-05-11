@@ -257,7 +257,7 @@ public class AccordMetricsTest extends AccordTestBase
         assertReplicaMetrics(0, "rw", 0, 0, 0);
         assertReplicaMetrics(1, "rw", 0, 0, 0);
 
-        assertCoordinatorMetrics(0, "ro", 0, 0, 0, 0, 1);
+        assertCoordinatorMetrics(0, "ro", 0, 0, 0, 0, 0);
         assertCoordinatorMetrics(1, "ro", 0, 0, 0, 0, 0);
         assertReplicaMetrics(0, "ro", 0, 0, 0);
         assertReplicaMetrics(1, "ro", 0, 0, 0);

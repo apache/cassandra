@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.db.compression;
 
-import java.util.Set;
+import java.util.function.Consumer;
 
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
+import org.apache.cassandra.schema.CompressionParams;
 
 /**
  * Interface for managing scheduled tasks for compression dictionary operations.
@@ -40,15 +41,24 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
     /**
      * Schedules SSTable-based training that samples from existing SSTables.
      *
-     * @param trainer the trainer to use
-     * @param sstables the set of SSTables to sample from
+     * A caller of this method should ensure that SSTables referred in {@code refViewFragment} are closed
+     * eventually, either directly at the end of that method or by other means, when training is running
+     * asynchronously.
+     *
+     * A caller of this method might assume that {@code trainer} might be closed after this method finishes, either
+     * directly in this method or indirectly when training is running asynchronously.
+     *
+     * @param refViewFragment the view of SSTables to sample from
+     * @param compressionParams parameters for compression
      * @param config the training configuration
+     * @param listener listener invoked when a dictionary is trained
      * @param force force the dictionary training even if there are not enough samples
      * @throws IllegalStateException if training is already in progress
      */
-    void scheduleSSTableBasedTraining(ICompressionDictionaryTrainer trainer,
-                                      Set<SSTableReader> sstables,
+    void scheduleSSTableBasedTraining(RefViewFragment refViewFragment,
+                                      CompressionParams compressionParams,
                                       CompressionDictionaryTrainingConfig config,
+                                      Consumer<CompressionDictionary> listener,
                                       boolean force);
 
     /**
@@ -57,4 +67,6 @@ public interface ICompressionDictionaryScheduler extends AutoCloseable
      * @param enabled whether the scheduler should be enabled
      */
     void setEnabled(boolean enabled);
+
+    TrainingState getLastTrainingState();
 }

@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.compression;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.ICompressionDictionaryTrainer.TrainingStatus;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -440,37 +438,6 @@ public class ZstdDictionaryTrainerTest
         .isGreaterThan(id3);
 
         assertThat(id3).isNotEqualTo(id1).isNotEqualTo(id2);
-    }
-
-    @Test
-    public void testIsCompatibleWith()
-    {
-        CompressionParams compatibleParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
-                                                                    Map.of("compression_level", "3"));
-
-        assertThat(trainer.isCompatibleWith(compatibleParams))
-        .as("Should be compatible with same compression level")
-        .isTrue();
-
-
-        CompressionParams incompatibleParams = CompressionParams.lz4();
-
-        assertThat(trainer.isCompatibleWith(incompatibleParams))
-        .as("Should not be compatible with different compressor")
-        .isFalse();
-
-        CompressionParams differentLevelParams = CompressionParams.zstd(CompressionParams.DEFAULT_CHUNK_LENGTH, true,
-                                                                        Map.of("compression_level", "4"));
-
-        assertThat(trainer.isCompatibleWith(differentLevelParams))
-        .as("Should not be compatible with different compression level")
-        .isFalse();
-
-        CompressionParams disabledParams = CompressionParams.noCompression();
-
-        assertThat(trainer.isCompatibleWith(disabledParams))
-        .as("Should not be compatible with disabled compression")
-        .isFalse();
     }
 
     @Test

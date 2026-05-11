@@ -96,7 +96,7 @@ public class StreamSummary implements Serializable
             out.writeInt(summary.files);
             out.writeLong(summary.totalSize);
             Token.logPartitioner = true;
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 CollectionSerializers.serializeCollection(summary.ranges, out, version, Range.rangeSerializer);
             Token.logPartitioner = false;
         }
@@ -108,7 +108,7 @@ public class StreamSummary implements Serializable
             int files = in.readInt();
             long totalSize = in.readLong();
             List<Range<Token>> ranges = ImmutableList.of();
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
             {
                 TableMetadata tableMetadata = Schema.instance.getTableMetadata(tableId);
                 IPartitioner p = tableMetadata != null ? tableMetadata.partitioner : IPartitioner.global();
@@ -124,7 +124,7 @@ public class StreamSummary implements Serializable
             long size = summary.tableId.serializedSize();
             size += TypeSizes.sizeof(summary.files);
             size += TypeSizes.sizeof(summary.totalSize);
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 size += CollectionSerializers.serializedCollectionSize(summary.ranges, version, Range.rangeSerializer);
             return size;
         }

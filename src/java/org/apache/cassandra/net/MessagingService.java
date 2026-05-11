@@ -225,9 +225,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         // c14227 TTL overflow, 'uint' timestamps
         VERSION_50(13),
         // TCM, index hints
-        VERSION_51(14);
+        VERSION_60(14);
 
-        public static final Version MIN_ACCORD_VERSION = Version.VERSION_51;
+        public static final Version MIN_ACCORD_VERSION = Version.VERSION_60;
 
         public final int value;
 
@@ -265,9 +265,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
-    public static final int VERSION_51 = 14; // TCM, index hints
+    public static final int VERSION_60 = 14; // TCM, index hints
     public static final int minimum_version = VERSION_40;
-    public static final int maximum_version = VERSION_51;
+    public static final int maximum_version = VERSION_60;
     // we want to use a modified behavior for the tools and clients - that is, since they are not running a server, they
     // should not need to run in a compatibility mode. They should be able to connect to the server regardless whether
     // it uses messaving version 4 or 5
@@ -309,7 +309,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
     private static Version currentVersion()
     {
-        return DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_51;
+        return DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? Version.VERSION_40 : Version.VERSION_60;
     }
 
     private static class MSHandle

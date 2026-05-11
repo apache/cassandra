@@ -19,7 +19,6 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Optional;
 
-import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -31,7 +30,7 @@ final class CredentialsCacheKeysTable extends AbstractMutableVirtualTable
     private static final String ROLE = "role";
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private final Optional<PasswordAuthenticator> passwordAuthenticatorOptional;
+    private final Optional<PasswordAuthenticator> maybePasswordAuthenticator;
 
     CredentialsCacheKeysTable(String keyspace)
     {
@@ -42,18 +41,14 @@ final class CredentialsCacheKeysTable extends AbstractMutableVirtualTable
                 .addPartitionKeyColumn(ROLE, UTF8Type.instance)
                 .build());
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
-        if (authenticator instanceof PasswordAuthenticator)
-            this.passwordAuthenticatorOptional = Optional.of((PasswordAuthenticator) authenticator);
-        else
-            this.passwordAuthenticatorOptional = Optional.empty();
+        maybePasswordAuthenticator = DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class);
     }
 
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
 
-        passwordAuthenticatorOptional
+        maybePasswordAuthenticator
                 .ifPresent(passwordAuthenticator -> passwordAuthenticator.getCredentialsCache().getAll()
                         .forEach((roleName, ignored) -> result.row(roleName)));
 
@@ -65,14 +60,14 @@ final class CredentialsCacheKeysTable extends AbstractMutableVirtualTable
     {
         String roleName = partitionKey.value(0);
 
-        passwordAuthenticatorOptional
+        maybePasswordAuthenticator
                 .ifPresent(passwordAuthenticator -> passwordAuthenticator.getCredentialsCache().invalidate(roleName));
     }
 
     @Override
     public void truncate()
     {
-        passwordAuthenticatorOptional
+        maybePasswordAuthenticator
                 .ifPresent(passwordAuthenticator -> passwordAuthenticator.getCredentialsCache().invalidate());
     }
 }

@@ -93,6 +93,46 @@ public class StatusTest extends CQLTester
                 .contains("probably still bootstrapping. Effective ownership information is meaningless.");
     }
 
+    /**
+     * Verify that {@code -pp/--print-port} works in both positions:
+     * - {@code nodetool status -pp} natural picocli parsing via Mixin
+     * - {@code nodetool -pp status} backward compatibility relocation
+     */
+    @Test
+    public void testPrintPortOptionPositionBackwardCompatibility()
+    {
+        HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(), false, null);
+        String withPort = host.ipOrDns(true);
+        String withoutPort = host.ipOrDns(false);
+
+        ToolRunner.ToolResult baseline = ToolRunner.invokeNodetoolInJvm("status");
+        baseline.assertOnCleanExit();
+        assertThat(baseline.getStdout()).contains(withoutPort);
+
+        ToolRunner.ToolResult afterCmd = ToolRunner.invokeNodetoolInJvm("status", "-pp");
+        afterCmd.assertOnCleanExit();
+        assertThat(afterCmd.getStdout()).contains(withPort);
+
+        ToolRunner.ToolResult beforeCmd = ToolRunner.invokeNodetoolInJvm("-pp", "status");
+        beforeCmd.assertOnCleanExit();
+        assertThat(beforeCmd.getStdout()).contains(withPort);
+
+        assertThat(afterCmd.getStdout()).isEqualTo(beforeCmd.getStdout());
+
+        host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(), true, null);
+        withPort = host.ipOrDns(true);
+
+        afterCmd = ToolRunner.invokeNodetoolInJvm("status", "-r", "--print-port");
+        afterCmd.assertOnCleanExit();
+        assertThat(afterCmd.getStdout()).contains(withPort);
+
+        beforeCmd = ToolRunner.invokeNodetoolInJvm("--print-port", "status", "-r");
+        beforeCmd.assertOnCleanExit();
+        assertThat(beforeCmd.getStdout()).contains(withPort);
+
+        assertThat(afterCmd.getStdout()).isEqualTo(beforeCmd.getStdout());
+    }
+
     private void validateStatusOutput(String hostForm, String... args)
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);

@@ -112,7 +112,6 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         assertEquals(2, dicts.size());
         assertEquals(tableId, dicts.get(0).tableId);
         assertEquals(tableId, dicts.get(1).tableId);
-
     }
 
     private void assertOrphaned(String tableId)
@@ -159,6 +158,8 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
         .contains(tableName);
     }
 
+    private static int batch = 1;
+
     private void createSSTables()
     {
         for (int file = 0; file < 10; file++)
@@ -166,12 +167,14 @@ public class CompressionDictionaryOrphanedTest extends CQLTester
             int batchSize = 1000;
             for (int i = 0; i < batchSize; i++)
             {
-                int index = i + file * batchSize;
+                int index = batch + (i + file * batchSize);
                 executeFormattedQuery(format("INSERT INTO %s.%s (id, data) VALUES (?, ?)", keyspace(), tableName),
                                       index, "test data " + index);
             }
 
             flush();
         }
+
+        batch++;
     }
 }

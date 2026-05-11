@@ -18,7 +18,7 @@
 -->
 <project basedir=".." name="apache-cassandra-accord-build"
          xmlns:if="ant:if">
-    <target name="_build-accord" depends="init">
+    <target name="_build-accord" depends="init" unless="no-build-accord">
       <exec executable="${basedir}/${accord.dir}/gradlew" dir="${basedir}/${accord.dir}" logError="true" failonerror="true" failifexecutionfails="true">
         <!-- Need to call clean as a version change with a jar that didn't have code changes will not produce a new jar with the new version... so need clean to make sure build is stable -->
         <arg value="clean" />

@@ -211,11 +211,7 @@ public interface LivenessInfo extends IMeasurableMemory
         return isExpiring();
     }
 
-    default boolean isExpired()
-    {
-        return false;
-    }
-
+    boolean isExpired();
     /**
      * Returns a copy of this liveness info updated with the provided timestamp.
      *
@@ -402,6 +398,12 @@ public interface LivenessInfo extends IMeasurableMemory
         public boolean isLive(long nowInSec)
         {
             return !isEmpty();
+        }
+
+        @Override
+        public boolean isExpired()
+        {
+            return false;
         }
 
         @Override

@@ -28,6 +28,7 @@ import accord.messages.Request;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>

@@ -46,9 +46,19 @@ If you would like to contribute to this documentation, you are welcome to do so 
 
 == Meta information
 
+ifndef::local-build[]
 * xref:master@_:ROOT:bugs.adoc[Reporting bugs]
 * xref:master@_:ROOT:contactus.adoc[Contact us]
 * xref:master@_:ROOT:development/index.adoc[Contributing code]
 * xref:master@_:ROOT:docdev/index.adoc[Contributing to the docs]
 * xref:master@_:ROOT:community.adoc[Community]
 * xref:master@_:ROOT:download.adoc[Download]
+endif::[]
+ifdef::local-build[]
+* https://cassandra.apache.org/_/bugs.html[Reporting bugs]
+* https://cassandra.apache.org/_/contactus.html[Contact us]
+* https://cassandra.apache.org/_/development/index.html[Contributing code]
+* https://cassandra.apache.org/_/docdev/index.html[Contributing to the docs]
+* https://cassandra.apache.org/_/community.html[Community]
+* https://cassandra.apache.org/download/[Download]
+endif::[]

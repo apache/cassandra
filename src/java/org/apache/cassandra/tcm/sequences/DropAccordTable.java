@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -39,6 +40,8 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -127,6 +130,12 @@ public class DropAccordTable extends MultiStepOperation<Epoch>
     public Transformation.Kind nextStep()
     {
         return FINISH_DROP_ACCORD_TABLE;
+    }
+
+    @Override
+    public Set<NodeId> affectedPeers(Directory directory)
+    {
+        return Set.of();
     }
 
     @Override

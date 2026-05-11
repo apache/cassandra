@@ -26,6 +26,7 @@ import java.util.Map;
 import accord.local.Node;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public enum SimpleAccordEndpointMapper implements AccordEndpointMapper

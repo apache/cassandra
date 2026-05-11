@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Ranges;
+import accord.primitives.TxnId;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -49,9 +50,9 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTopology;
 import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
@@ -230,7 +231,7 @@ public class CassandraStreamReceiver implements StreamReceiver
             long deadlineNanos = startedAtNanos + timeoutNanos;
             // TODO (expected): use the source bounds for the streams to avoid waiting unnecessarily long
             AccordService.getBlocking(accordService.maxConflict(accordRanges)
-                                                   .flatMap(min -> accordService.sync("[Stream #" + session.planId() + ']', min, accordRanges, null, Self, NoRemote, timeoutNanos, NANOSECONDS).chain())
+                                                   .flatMap(min -> accordService.sync("[Stream #" + session.planId() + ']', TxnId.atLeast(min), accordRanges, null, Self, NoRemote, timeoutNanos, NANOSECONDS).chain())
                                       , accordRanges, new LatencyRequestBookkeeping(cfs.metric.accordPostStreamRepair), startedAtNanos, deadlineNanos);
         }
 

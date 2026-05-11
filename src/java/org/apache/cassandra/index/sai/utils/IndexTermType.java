@@ -34,6 +34,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableSet;
 import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
@@ -309,6 +311,11 @@ public class IndexTermType
         return columnMetadata.name.toString();
     }
 
+    public IndexTarget.Type indexTargetType()
+    {
+        return indexTargetType;
+    }
+
     public AbstractType<?> vectorElementType()
     {
         assert isVector();
@@ -453,10 +460,80 @@ public class IndexTermType
         }
     }
 
+    @Nullable
+    public Iterator<ByteBuffer> valuesOfFrozenCollection(Row row, long nowInSecs)
+    {
+        if (row == null)
+            return null;
+
+        ByteBuffer buffer;
+
+        if (columnMetadata.kind == ColumnMetadata.Kind.CLUSTERING)
+             buffer = row.clustering().bufferAt(columnMetadata.position());
+        else
+        {
+            Cell<?> cell = row.getCell(columnMetadata);
+            if (cell == null || !cell.isLive(nowInSecs))
+                return null;
+            buffer = cell.buffer();
+        }
+
+        if (buffer == null || buffer.remaining() == 0)
+            return null;
+
+        CollectionType<?> collectionType = (CollectionType<?>) columnMetadata.type.unwrap();
+        List<ByteBuffer> elements = collectionType.unpack(buffer);
+
+        switch (collectionType.kind)
+        {
+            case LIST:
+            case SET:
+                break;
+            case MAP:
+                elements = extractMapElements(elements);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported type of collection - " + collectionType.kind);
+        }
+
+        if (isInetAddress())
+            elements.sort((c1, c2) -> compareInet(encodeInetAddress(c1), encodeInetAddress(c2)));
+
+        return elements.iterator();
+    }
+
+    private List<ByteBuffer> extractMapElements(List<ByteBuffer> elements)
+    {
+        List<ByteBuffer> result = new ArrayList<>(elements.size());
+
+        for (int i = 0; i < elements.size(); i += 2)
+        {
+            ByteBuffer key = elements.get(i);
+            ByteBuffer value = i + 1 < elements.size() ? elements.get(i + 1) : null;
+
+            switch (indexTargetType)
+            {
+                case KEYS:
+                    result.add(key);
+                    break;
+                case VALUES:
+                    if (value != null)
+                        result.add(value);
+                    break;
+                case KEYS_AND_VALUES:
+                    if (value != null)
+                        result.add(CompositeType.build(ByteBufferAccessor.instance, key, value));
+                    break;
+            }
+        }
+
+        return result;
+    }
+
     public Comparator<ByteBuffer> comparator()
     {
-        // Override the comparator for BigInteger, frozen collections and composite types
-        if (isBigInteger() || isBigDecimal() || isComposite() || isFrozen())
+        // Override the comparator for BigInteger, BigDecimal and composite types
+        if (isBigInteger() || isBigDecimal() || isComposite())
             return FastByteOperations::compareUnsigned;
 
         return indexType;
@@ -474,9 +551,9 @@ public class IndexTermType
             return compareInet(b1, b2);
         else if (isLong())
             return indexType.unwrap().compare(b1, b2);
-        // BigInteger values, frozen types and composite types (map entries) use compareUnsigned to maintain
+        // BigInteger, BigDecimal and composite types (map entries) use compareUnsigned to maintain
         // a consistent order between the in-memory index and the on-disk index.
-        else if (isBigInteger() || isBigDecimal() || isComposite() || isFrozen())
+        else if (isBigInteger() || isBigDecimal() || isComposite())
             return FastByteOperations.compareUnsigned(b1, b2);
 
         return indexType.compare(b1, b2);
@@ -612,6 +689,23 @@ public class IndexTermType
             return indexTargetType == IndexTarget.Type.KEYS_AND_VALUES && indexOperator == Expression.IndexOperator.EQ;
         }
 
+        if (isFrozenCollection())
+        {
+            if (indexTargetType == IndexTarget.Type.VALUES)
+                return indexOperator == Expression.IndexOperator.CONTAINS_VALUE;
+
+            if (indexTargetType == IndexTarget.Type.KEYS)
+                return indexOperator == Expression.IndexOperator.CONTAINS_KEY;
+
+            if (indexTargetType == IndexTarget.Type.KEYS_AND_VALUES)
+                return indexOperator == Expression.IndexOperator.EQ;
+
+            if (indexTargetType == IndexTarget.Type.FULL)
+                return indexOperator == Expression.IndexOperator.EQ;
+
+            return false;
+        }
+
         if (indexTargetType == IndexTarget.Type.FULL)
             return indexOperator == Expression.IndexOperator.EQ;
 
@@ -725,7 +819,9 @@ public class IndexTermType
 
     private AbstractType<?> calculateIndexType(AbstractType<?> baseType, EnumSet<Capability> capabilities, IndexTarget.Type indexTargetType)
     {
-        return capabilities.contains(Capability.NON_FROZEN_COLLECTION) ? collectionCellValueType(baseType, indexTargetType) : baseType;
+        if (IndexTarget.Type.FULL == indexTargetType)
+            return baseType;
+        return capabilities.contains(Capability.COLLECTION) ? collectionCellValueType(baseType, indexTargetType) : baseType;
     }
 
     private Iterator<ByteBuffer> collectionIterator(ComplexColumnData cellData, long nowInSecs)
@@ -747,7 +843,7 @@ public class IndexTermType
     {
         if (isNonFrozenCollection())
         {
-            switch (((CollectionType<?>) columnMetadata.type).kind)
+            switch (((CollectionType<?>) columnMetadata.type.unwrap()).kind)
             {
                 case LIST:
                     return cell.buffer();
@@ -770,7 +866,7 @@ public class IndexTermType
 
     private AbstractType<?> collectionCellValueType(AbstractType<?> type, IndexTarget.Type indexType)
     {
-        CollectionType<?> collection = ((CollectionType<?>) type);
+        CollectionType<?> collection = ((CollectionType<?>) type.unwrap());
         switch (collection.kind)
         {
             case LIST:

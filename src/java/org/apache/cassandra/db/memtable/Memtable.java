@@ -19,11 +19,12 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.apache.cassandra.db.CellSourceIdentifier;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -56,7 +57,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  *
  * See Memtable_API.md for details on implementing and using alternative memtable implementations.
  */
-public interface Memtable extends Comparable<Memtable>, UnfilteredSource
+public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSourceIdentifier
 {
     public static final long NO_MIN_TIMESTAMP = -1;
 
@@ -424,7 +425,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     }
 
     // returns null if already flushed
-    <T extends Consumer<TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory);
+    <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory);
     void notifyFlushed();
 
     /**

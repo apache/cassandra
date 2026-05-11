@@ -156,9 +156,14 @@ public class ThreadLocalReadAheadBuffer implements Closeable
         blockBuffer.clear();
         if (deallocate)
         {
-            MemoryUtil.clean(blockBuffer);
+            cleanBuffer(blockBuffer);
             block.buffer = null;
         }
+    }
+
+    protected void cleanBuffer(ByteBuffer buffer)
+    {
+        MemoryUtil.clean(buffer);
     }
 
     @Override

@@ -191,6 +191,10 @@ public class KeyspaceMetrics
 
     public final Meter tooManySSTableIndexesReadWarnings;
     public final Meter tooManySSTableIndexesReadAborts;
+
+    public final Meter writeSizeWarnings;
+    public final Meter writeTombstoneWarnings;
+
     public final Meter bytesAnticompacted;
     public final Meter bytesMutatedAnticompaction;
     public final Meter bytesPreviewed;
@@ -308,6 +312,9 @@ public class KeyspaceMetrics
 
         tooManySSTableIndexesReadWarnings = createKeyspaceMeter("TooManySSTableIndexesReadWarnings");
         tooManySSTableIndexesReadAborts = createKeyspaceMeter("TooManySSTableIndexesReadAborts");
+
+        writeSizeWarnings = createKeyspaceMeter("WriteSizeWarnings");
+        writeTombstoneWarnings = createKeyspaceMeter("WriteTombstoneWarnings");
 
         formatSpecificGauges = createFormatSpecificGauges(keyspace);
 

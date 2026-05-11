@@ -352,7 +352,7 @@ public class PaxosRepairHistory
     {
         public void serialize(PaxosRepairHistory history, DataOutputPlus out, int version) throws IOException
         {
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 out.writeUTF(history.partitioner.getClass().getCanonicalName());
             out.writeUnsignedVInt32(history.size());
             for (int i = 0; i < history.size() ; ++i)
@@ -365,7 +365,7 @@ public class PaxosRepairHistory
 
         public PaxosRepairHistory deserialize(DataInputPlus in, int version) throws IOException
         {
-            IPartitioner partitioner = version >= MessagingService.VERSION_51
+            IPartitioner partitioner = version >= MessagingService.VERSION_60
                                        ? FBUtilities.newPartitioner(in.readUTF())
                                        : IPartitioner.global();
             int size = in.readUnsignedVInt32();
@@ -383,7 +383,7 @@ public class PaxosRepairHistory
         public long serializedSize(PaxosRepairHistory history, int version)
         {
             long size = 0;
-            if (version >= MessagingService.VERSION_51)
+            if (version >= MessagingService.VERSION_60)
                 size += TypeSizes.sizeof(history.partitioner.getClass().getCanonicalName());
             size += TypeSizes.sizeofUnsignedVInt(history.size());
             for (int i = 0; i < history.size() ; ++i)

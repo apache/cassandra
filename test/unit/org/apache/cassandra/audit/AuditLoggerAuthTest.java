@@ -82,6 +82,7 @@ public class AuditLoggerAuthTest
         });
 
         SUPERUSER_SETUP_DELAY_MS.setLong(0);
+        CassandraRoleManager.updatePasswordUpdateMinInterval(0);
         embedded = ServerTestUtils.startEmbeddedCassandraService();
         AuthTestUtils.waitForExistingRoles();
 

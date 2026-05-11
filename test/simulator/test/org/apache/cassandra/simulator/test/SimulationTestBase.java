@@ -84,6 +84,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_ITERATIONS;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.UNLIMITED;
 import static org.apache.cassandra.simulator.ClusterSimulation.ISOLATE;
@@ -96,9 +97,14 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class SimulationTestBase
 {
+    public static final int DEFAULT_ITERATIONS = SIMULATOR_ITERATIONS.getInt();
+
     @BeforeClass
     public static void beforeAll()
     {
+        // The shutdown threadcount invariant for normal tests does not apply to the Simulator
+        CassandraRelevantProperties.DTEST_IGNORE_SHUTDOWN_THREADCOUNT.setBoolean(true);
+
         // Disallow time on the bootstrap classloader
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Delegating");
@@ -251,6 +257,16 @@ public class SimulationTestBase
         simulate(init, test, teardown, configure, (i1, i2) -> {});
     }
 
+    static void simulate(Function<SimpleSimulation, ActionList> init,
+                         Function<SimpleSimulation, ActionList> test,
+                         Function<SimpleSimulation, ActionList> teardown,
+                         Consumer<ClusterSimulation.Builder<SimpleSimulation>> configure,
+                         int iterations) throws IOException
+    {
+        simulate(System::currentTimeMillis, new DTestClusterSimulationBuilder(init, test, teardown, (i1, i2) -> {}),
+                 configure, iterations);
+    }
+
     @SuppressWarnings("unused")
     static void simulate(long seed,
                          Function<SimpleSimulation, ActionList> init,
@@ -326,42 +342,74 @@ public class SimulationTestBase
                                                        ClusterSimulation.Builder<T> factory,
                                                        Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
     {
+        simulate(seedGen, factory, configure, 1);
+    }
+
+    public static <T extends Simulation> void simulate(LongSupplier seedGen,
+                                                       ClusterSimulation.Builder<T> factory,
+                                                       Consumer<ClusterSimulation.Builder<T>> configure,
+                                                       int iterations) throws IOException
+    {
         SimulationRunner.beforeAll();
         long seed = seedGen.getAsLong();
         // Development seed:
         //long seed = 1687184561194L;
         System.out.printf("Simulation seed: %dL%n", seed);
         configure.accept(factory);
-        try (ClusterSimulation<?> cluster = factory.create(seed))
+        for (int i = 0; i < iterations; i++)
         {
-            try (Simulation simulation = cluster.simulation())
+            long currentSeed = seed + i;
+            System.out.printf("Running iteration %d of %d with seed %dL%n", i + 1, iterations, currentSeed);
+            try (ClusterSimulation<?> cluster = factory.create(currentSeed))
             {
-                simulation.run();
+                try (Simulation simulation = cluster.simulation())
+                {
+                    simulation.run();
+                }
+                catch (Throwable t)
+                {
+                    throw new SimulationException(currentSeed, t);
+                }
             }
             catch (Throwable t)
             {
-                throw new SimulationException(seed, t);
+                if (t instanceof SimulationException)
+                    throw t;
+                throw new SimulationException(currentSeed, t);
             }
-        }
-        catch (Throwable t)
-        {
-            if (t instanceof SimulationException)
-                throw t;
-            throw new SimulationException(seed, t);
         }
     }
 
     public static void simulate(IIsolatedExecutor.SerializableRunnable run,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
-        simulate(new IIsolatedExecutor.SerializableRunnable[]{run},
-                 check);
+        simulate(new IIsolatedExecutor.SerializableRunnable[]{run}, check, 1);
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable run,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                int iterations)
+    {
+        simulate(new IIsolatedExecutor.SerializableRunnable[]{run}, check, iterations);
     }
 
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
                                 IIsolatedExecutor.SerializableRunnable check)
     {
-        simulate(runnables, check, System.currentTimeMillis());
+        simulate(runnables, check, 1);
+    }
+
+    public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,
+                                IIsolatedExecutor.SerializableRunnable check,
+                                int iterations)
+    {
+        long seed = System.currentTimeMillis();
+        for (int i = 0; i < iterations; i++)
+        {
+            long currentSeed = seed + i;
+            System.out.printf("Running iteration %d of %d with seed %dL%n", i + 1, iterations, currentSeed);
+            simulate(runnables, check, currentSeed);
+        }
     }
 
     public static void simulate(IIsolatedExecutor.SerializableRunnable[] runnables,

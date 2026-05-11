@@ -24,28 +24,46 @@ import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import org.junit.Rule;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Builder;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.auth.AuthCache.MBEAN_NAME_BASE;
 import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.config.YamlConfigurationLoaderTest.load;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Tests instantiation of various authenticators through AuthConfig, and the accessibility of the configured
+ * authenticators and role manager options through DatabaseDescriptor.
+ */
 public class AuthConfigTest
 {
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
+    private static final String IDENTITIES_CACHE_MBEAN = MBEAN_NAME_BASE + MutualTlsAuthenticator.CACHE_NAME;
+
+    private static final String CREDENTIALS_CACHE_MBEAN = MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME;
+
+    @Before
+    public void setup()
+    {
+        AuthConfig.reset();
+    }
+
+    @After
+    public void teardown()
+    {
+        unregisterCaches();
+    }
 
     @Test
     public void testNewInstanceForMutualTlsInternodeAuthenticator() throws IOException, CertificateException
@@ -53,13 +71,11 @@ public class AuthConfigTest
         Config config = load("cassandra-mtls.yaml");
         config.internode_authenticator.class_name = "org.apache.cassandra.auth.MutualTlsInternodeAuthenticator";
         config.internode_authenticator.parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
-        config.server_encryption_options = new Builder(config.server_encryption_options)
-                                           .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
-                                           .withOutboundKeystorePassword("cassandra")
-                                           .build();
-        DatabaseDescriptor.setConfig(config);
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
         MutualTlsInternodeAuthenticator authenticator = ParameterizedClass.newInstance(config.internode_authenticator,
                                                                                        Arrays.asList("", "org.apache.cassandra.auth."));
+        assertNotNull(authenticator);
 
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.1");
 
@@ -68,36 +84,91 @@ public class AuthConfigTest
 
         Certificate[] unauthorizedCertificates = loadCertificateChain("auth/SampleUnauthorizedMtlsClientCertificate.pem");
         assertFalse(authenticator.authenticate(address.getAddress(), address.getPort(), unauthorizedCertificates, INBOUND));
+        unregisterCaches();
+    }
+
+    @Test
+    public void testNewInstanceForPasswordAuthenticator()
+    {
+        Config config = load("cassandra-passwordauth.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        assertNotNull(authenticator);
+
+        assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class))
+            .isPresent()
+            .get()
+            .isSameAs(authenticator);
+        assertThat(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class)).isEmpty();
+        assertThat(DatabaseDescriptor.getAuthenticator(MutualTlsWithPasswordFallbackAuthenticator.class)).isEmpty();
+        assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(CassandraRoleManager.DEFAULT_SUPPORTED_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(PasswordAuthenticator.SUPPORTED_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(CassandraRoleManager.DEFAULT_ALTERABLE_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(PasswordAuthenticator.ALTERABLE_ROLE_OPTIONS));
     }
 
     @Test
     public void testNewInstanceForMutualTlsWithPasswordFallbackAuthenticator()
     {
         Config config = load("cassandra-mtls.yaml");
-        config.client_encryption_options.applyConfig();
         config.authenticator.class_name = "org.apache.cassandra.auth.MutualTlsWithPasswordFallbackAuthenticator";
         config.authenticator.parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
-        DatabaseDescriptor.setConfig(config);
-        MutualTlsWithPasswordFallbackAuthenticator authenticator = ParameterizedClass.newInstance(config.authenticator,
-                                                                                                  Arrays.asList("", "org.apache.cassandra.auth."));
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
         assertNotNull(authenticator);
-        unregisterIdentitesCache();
+
+        // MutualTlsWithPasswordFallbackAuthenticator is-a PasswordAuthenticator, so we expect getAuthenticator to
+        // return it when asked to return a PasswordAuthenticator.
+        assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class))
+            .isPresent()
+            .get()
+            .isSameAs(authenticator);
+        assertThat(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class)).isEmpty();
+        assertThat(DatabaseDescriptor.getAuthenticator(MutualTlsWithPasswordFallbackAuthenticator.class))
+            .isPresent()
+            .get()
+            .isSameAs(authenticator);
+
+        // Similarly, we expect the same role options as for PasswordAuthenticator.
+        assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(CassandraRoleManager.DEFAULT_SUPPORTED_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(PasswordAuthenticator.SUPPORTED_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(CassandraRoleManager.DEFAULT_ALTERABLE_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(PasswordAuthenticator.ALTERABLE_ROLE_OPTIONS));
     }
 
     @Test
-    public void testNewInstanceForMutualTlsAuthenticator() throws IOException, CertificateException
+    public void testNewInstanceForMutualTlsAuthenticator()
     {
         Config config = load("cassandra-mtls.yaml");
-        config.client_encryption_options.applyConfig();
-        DatabaseDescriptor.setConfig(config);
-        MutualTlsAuthenticator authenticator = ParameterizedClass.newInstance(config.authenticator,
-                                                                              Arrays.asList("", "org.apache.cassandra.auth."));
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
         assertNotNull(authenticator);
-        unregisterIdentitesCache();
+
+        assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class)).isEmpty();
+        assertThat(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class))
+            .isPresent()
+            .get()
+            .isSameAs(authenticator);
+        assertThat(DatabaseDescriptor.getAuthenticator(MutualTlsWithPasswordFallbackAuthenticator.class)).isEmpty();
+
+        assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(CassandraRoleManager.DEFAULT_SUPPORTED_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().supportedOptions().containsAll(authenticator.getSupportedRoleOptions()));
+        assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(CassandraRoleManager.DEFAULT_ALTERABLE_ROLE_OPTIONS));
+        assertTrue(DatabaseDescriptor.getRoleManager().alterableOptions().containsAll(authenticator.getAlterableRoleOptions()));
     }
 
-    private void unregisterIdentitesCache()
+    private void unregisterCaches()
     {
-        MBeanWrapper.instance.unregisterMBean("org.apache.cassandra.auth:type=IdentitiesCache");
+        safeUnregisterMbean(IDENTITIES_CACHE_MBEAN);
+        safeUnregisterMbean(CREDENTIALS_CACHE_MBEAN);
+    }
+
+    private void safeUnregisterMbean(String mbeanName)
+    {
+        if (MBeanWrapper.instance.isRegistered(mbeanName))
+            MBeanWrapper.instance.unregisterMBean(mbeanName);
     }
 }

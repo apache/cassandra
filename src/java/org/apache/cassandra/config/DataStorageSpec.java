@@ -170,6 +170,8 @@ public abstract class DataStorageSpec
      */
     public final static class LongBytesBound extends DataStorageSpec
     {
+        private final long bytes;
+
         /**
          * Creates a {@code DataStorageSpec.LongBytesBound} of the specified amount.
          *
@@ -178,6 +180,7 @@ public abstract class DataStorageSpec
         public LongBytesBound(String value)
         {
             super(value, BYTES, Long.MAX_VALUE);
+            bytes = unit().toBytes(quantity());
         }
 
         /**
@@ -189,6 +192,7 @@ public abstract class DataStorageSpec
         public LongBytesBound(long quantity, DataStorageUnit unit)
         {
             super(quantity, unit, BYTES, Long.MAX_VALUE, quantity + unit.symbol);
+            bytes = unit().toBytes(quantity());
         }
 
         /**
@@ -206,7 +210,7 @@ public abstract class DataStorageSpec
          */
         public long toBytes()
         {
-            return unit().toBytes(quantity());
+            return bytes;
         }
 
         /**
@@ -225,6 +229,8 @@ public abstract class DataStorageSpec
      */
     public final static class IntBytesBound extends DataStorageSpec
     {
+        private final int bytes;
+
         /**
          * Creates a {@code DataStorageSpec.IntBytesBound} of the specified amount.
          *
@@ -233,6 +239,7 @@ public abstract class DataStorageSpec
         public IntBytesBound(String value)
         {
             super(value, BYTES, Integer.MAX_VALUE);
+            bytes = Ints.saturatedCast(unit().toBytes(quantity()));
         }
 
         /**
@@ -244,6 +251,7 @@ public abstract class DataStorageSpec
         public IntBytesBound(long quantity, DataStorageUnit unit)
         {
             super(quantity, unit, BYTES, Integer.MAX_VALUE, quantity + unit.symbol);
+            bytes = Ints.saturatedCast(unit().toBytes(quantity()));
         }
 
         /**
@@ -263,7 +271,7 @@ public abstract class DataStorageSpec
          */
         public int toBytes()
         {
-            return Ints.saturatedCast(unit().toBytes(quantity()));
+            return bytes;
         }
     }
 
@@ -274,6 +282,8 @@ public abstract class DataStorageSpec
      */
     public final static class IntKibibytesBound extends DataStorageSpec
     {
+        private final int bytes;
+
         /**
          * Creates a {@code DataStorageSpec.IntKibibytesBound} of the specified amount.
          *
@@ -282,6 +292,7 @@ public abstract class DataStorageSpec
         public IntKibibytesBound(String value)
         {
             super(value, KIBIBYTES, Integer.MAX_VALUE);
+            bytes = Ints.saturatedCast(unit().toBytes(quantity()));
         }
 
         /**
@@ -293,6 +304,7 @@ public abstract class DataStorageSpec
         public IntKibibytesBound(long quantity, DataStorageUnit unit)
         {
             super(quantity, unit, KIBIBYTES, Integer.MAX_VALUE, quantity + unit.symbol);
+            bytes = Ints.saturatedCast(unit().toBytes(quantity()));
         }
 
         /**
@@ -312,7 +324,7 @@ public abstract class DataStorageSpec
          */
         public int toBytes()
         {
-            return Ints.saturatedCast(unit().toBytes(quantity()));
+            return bytes;
         }
 
         /**
@@ -341,6 +353,8 @@ public abstract class DataStorageSpec
      */
     public final static class LongMebibytesBound extends DataStorageSpec
     {
+        private final long bytes;
+
         /**
          * Creates a {@code DataStorageSpec.LongMebibytesBound} of the specified amount.
          *
@@ -349,6 +363,7 @@ public abstract class DataStorageSpec
         public LongMebibytesBound(String value)
         {
             super(value, MEBIBYTES, Long.MAX_VALUE);
+            bytes = unit().toBytes(quantity());
         }
 
         /**
@@ -360,6 +375,7 @@ public abstract class DataStorageSpec
         public LongMebibytesBound(long quantity, DataStorageUnit unit)
         {
             super(quantity, unit, MEBIBYTES, Long.MAX_VALUE, quantity + unit.symbol);
+            bytes = unit().toBytes(quantity());
         }
 
         /**
@@ -377,7 +393,7 @@ public abstract class DataStorageSpec
          */
         public long toBytes()
         {
-            return unit().toBytes(quantity());
+            return bytes;
         }
 
         /**
@@ -404,6 +420,7 @@ public abstract class DataStorageSpec
      */
     public final static class IntMebibytesBound extends DataStorageSpec
     {
+        private final int bytes;
         /**
          * Creates a {@code DataStorageSpec.IntMebibytesBound} of the specified amount.
          *
@@ -412,6 +429,7 @@ public abstract class DataStorageSpec
         public IntMebibytesBound(String value)
         {
             super(value, MEBIBYTES, Integer.MAX_VALUE);
+            bytes = Ints.saturatedCast(unit().toBytes(quantity()));
         }
 
         /**
@@ -423,6 +441,7 @@ public abstract class DataStorageSpec
         public IntMebibytesBound(long quantity, DataStorageUnit unit)
         {
             super(quantity, unit, MEBIBYTES, Integer.MAX_VALUE, quantity + unit.symbol);
+            bytes = Ints.saturatedCast(unit().toBytes(quantity()));
         }
 
         /**
@@ -442,7 +461,7 @@ public abstract class DataStorageSpec
          */
         public int toBytes()
         {
-            return Ints.saturatedCast(unit().toBytes(quantity()));
+            return bytes;
         }
 
         /**

@@ -54,7 +54,7 @@ public class ClusterMetadataUpgradeHibernateTest extends UpgradeTestBase
         .runAfterClusterUpgrade((cluster) -> {
             // manually upgrade node3 to be able to keep join_ring=false
             cluster.get(3).shutdown().get();
-            cluster.get(3).setVersion(Versions.find().getLatest(v51));
+            cluster.get(3).setVersion(Versions.find().getLatest(v60));
             assertTrue(hibernating(cluster.get(1), "127.0.0.3"));
             withProperty(CassandraRelevantProperties.JOIN_RING, false, () -> cluster.get(3).startup());
             cluster.forEach(i -> checkPlacements(i, true));

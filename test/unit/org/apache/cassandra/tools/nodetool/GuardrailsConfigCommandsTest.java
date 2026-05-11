@@ -209,10 +209,14 @@ public class GuardrailsConfigCommandsTest extends CQLTester
     "intersect_filtering_query_enabled                true\n"  +
     "intersect_filtering_query_warned                 true\n"  +
     "non_partition_restricted_index_query_enabled     true\n"  +
+    "prepared_statements_require_parameters_enabled   false\n"  +
+    "prepared_statements_require_parameters_warned    true\n"  +
     "read_before_write_list_operations_enabled        true\n"  +
     "secondary_indexes_enabled                        true\n"  +
     "simplestrategy_enabled                           true\n"  +
     "uncompressed_tables_enabled                      true\n"  +
+    "unset_training_min_frequency_enabled             true\n"  +
+    "unset_training_min_frequency_warned              true\n"  +
     "user_timestamps_enabled                          true\n"  +
     "vector_type_enabled                              true\n"  +
     "zero_ttl_on_twcs_enabled                         true\n"  +

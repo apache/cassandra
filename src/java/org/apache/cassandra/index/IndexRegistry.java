@@ -46,6 +46,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
@@ -346,6 +348,11 @@ public interface IndexRegistry extends Iterable<Index>
 
     Optional<Index> getBestIndexFor(RowFilter.Expression expression, IndexHints hints);
 
+    default boolean supportsMultipleIndexExpressions()
+    {
+        return false;
+    }
+
     /**
      * Called at write time to ensure that values present in the update
      * are valid according to the rules of all registered indexes which
@@ -369,6 +376,13 @@ public interface IndexRegistry extends Iterable<Index>
         if (!DatabaseDescriptor.isDaemonInitialized())
             return NON_DAEMON;
 
-        return table.isVirtual() ? EMPTY : Keyspace.openAndGetStore(table).indexManager;
+        if (!table.isVirtual())
+            return Keyspace.openAndGetStore(table).indexManager;
+
+        VirtualTable vtable = VirtualKeyspaceRegistry.instance.getTableNullable(table.id);
+        if (vtable == null)
+            return EMPTY;
+
+        return vtable.indexes();
     }
 }

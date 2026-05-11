@@ -52,7 +52,7 @@ public class JournalTest
         Journal<TimeUUID, Long> journal =
             new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop(), new OpOrder());
 
-        journal.start();
+        journal.start(0L);
 
         TimeUUID id1 = nextTimeUUID();
         TimeUUID id2 = nextTimeUUID();
@@ -69,17 +69,17 @@ public class JournalTest
         assertEquals(3L, (long) journal.readLast(id3));
         assertEquals(4L, (long) journal.readLast(id4));
 
-        journal.shutdown();
+        journal.stop();
 
         journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE, SegmentCompactor.noop(), new OpOrder());
-        journal.start();
+        journal.start(0L);
 
         assertEquals(1L, (long) journal.readLast(id1));
         assertEquals(2L, (long) journal.readLast(id2));
         assertEquals(3L, (long) journal.readLast(id3));
         assertEquals(4L, (long) journal.readLast(id4));
 
-        journal.shutdown();
+        journal.stop();
     }
 
     static class LongSerializer implements ValueSerializer<TimeUUID, Long>

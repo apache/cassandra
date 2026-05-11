@@ -31,6 +31,7 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.compression.CompressionDictionary;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.AbstractCompressionProvider;
@@ -259,6 +260,19 @@ public final class CompressionParams
     public boolean isDictionaryCompressionEnabled()
     {
         return isEnabled() && sstableCompressor instanceof IDictionaryCompressor;
+    }
+
+    /**
+     * @return kind of compression dictionary the compressor accepts, or null if none
+     */
+    public CompressionDictionary.Kind getCompressionDictionaryKind()
+    {
+        if (isDictionaryCompressionEnabled())
+        {
+            return ((IDictionaryCompressor<?>) sstableCompressor).acceptableDictionaryKind();
+        }
+
+        return null;
     }
 
     /**

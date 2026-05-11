@@ -418,6 +418,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.recompressSSTables(keyspaceName, jobs, tableNames);
     }
 
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables);
+    }
+
     private void checkJobs(PrintStream out, int jobs)
     {
         int compactors = ssProxy.getConcurrentCompactors();
@@ -489,6 +494,15 @@ public class NodeProbe implements AutoCloseable
         {
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
             throw new RuntimeException("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+        }
+    }
+
+    public void userDefinedGarbageCollect(PrintStream out, String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        if (userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables) != 0)
+        {
+            out.println("Aborted garbage collection for at least one table, check server logs for more information.");
+            throw new RuntimeException("Aborted garbage collection for at least one table, check server logs for more information.");
         }
     }
 
