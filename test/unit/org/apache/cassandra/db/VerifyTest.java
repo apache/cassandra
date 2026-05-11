@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.Objects;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
@@ -308,7 +309,7 @@ public class VerifyTest
 
         try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
-            Long correctChecksum = Long.valueOf(file.readLine());
+            long correctChecksum = Long.parseLong(Objects.requireNonNull(file.readLine()));
 
             writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         }
@@ -441,7 +442,7 @@ public class VerifyTest
         Long correctChecksum;
         try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
-            correctChecksum = Long.parseLong(file.readLine());
+            correctChecksum = Long.parseLong(Objects.requireNonNull(file.readLine()));
         }
         writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().mutateRepairStatus(false).invokeDiskFailurePolicy(true).build()))
@@ -510,7 +511,7 @@ public class VerifyTest
         Long correctChecksum;
         try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
-            correctChecksum = Long.parseLong(file.readLine());
+            correctChecksum = Long.parseLong(Objects.requireNonNull(file.readLine()));
         }
         writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().invokeDiskFailurePolicy(true).mutateRepairStatus(true).build()))
@@ -586,7 +587,7 @@ public class VerifyTest
 
         try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw"))
         {
-            Long correctChecksum = Long.valueOf(file.readLine());
+            long correctChecksum = Long.parseLong(Objects.requireNonNull(file.readLine()));
 
             writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
         }
