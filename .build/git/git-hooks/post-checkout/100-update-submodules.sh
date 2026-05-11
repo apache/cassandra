@@ -36,13 +36,13 @@ _main() {
     return 0
   fi
 
-  local extra_args=()
+  local extra_args=""
   if [[ -n "${BUILD_OFFLINE:-}" ]]; then
     echo "BUILD_OFFLINE is defined; using --no-fetch for submodule updates (local SHAs only)."
     echo "If your submodules are not already available locally, expect this to error out."
-    extra_args+=(--no-fetch)
+    extra_args="--no-fetch"
   fi
-  git submodule update --init --recursive "${extra_args[@]}"
+  git submodule update --init --recursive ${extra_args:-}
 }
 
 _main "$@"
