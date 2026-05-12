@@ -91,7 +91,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
         @Override
         public synchronized void append(Entry entry)
         {
-            boolean needsSorting = entries.isEmpty() ? false : entry.epoch.isDirectlyAfter(entries.get(entries.size() - 1).epoch);
+            boolean needsSorting = !entries.isEmpty() && entry.epoch.isBefore(entries.get(entries.size() - 1).epoch);
             entries.add(entry);
             if (needsSorting)
                 Collections.sort(entries);
