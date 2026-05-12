@@ -107,7 +107,7 @@ class OutgoingMutations
 
         private long key(int hostId, int offset)
         {
-            return ((long) hostId << 32) | offset;
+            return ((long) hostId << 32) | (offset & 0xffffffffL);
         }
 
         private enum OutgoingStatus

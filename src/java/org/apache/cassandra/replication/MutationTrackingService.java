@@ -338,7 +338,7 @@ public class MutationTrackingService
         try
         {
             Preconditions.checkArgument(!mutationId.isNone());
-            Shard shard = getShardNullable(mutationId);
+            Shard shard = getShardNullable(mutationId.asLogId());
             // A response to the coordinator (for a forwarded write) won't have the coordinator log matching it
             if (shard != null)
                 shard.receivedWriteResponse(mutationId, fromHost);
@@ -358,10 +358,7 @@ public class MutationTrackingService
             logger.debug("{} receivedActivationAck from {}", transfer.logPrefix(), fromHost);
             Preconditions.checkArgument(!transfer.id().isNone());
 
-            // REVIEW: This will be called with ShortMutationId, which overrides hashCode from CoordinatorLogId, but map
-            // is updated with CoordinatorLogId; shouldn't call this with a ShortMutationId, not sure why that's working
-            // elsewhere
-            Shard shard = getShardNullable(new CoordinatorLogId(transfer.id().logId()));
+            Shard shard = getShardNullable(transfer.id().asLogId());
             // Local activation acknowledged in MutationTrackingService.activateLocal
             if (shard != null && !fromHost.equals(FBUtilities.getBroadcastAddressAndPort()))
                 shard.receivedActivationResponse(transfer, fromHost);
