@@ -30,17 +30,21 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class CoordinatorLogId implements Serializable
 {
-    private static final CoordinatorLogId NONE = new CoordinatorLogId(Integer.MIN_VALUE, Integer.MIN_VALUE);
+    static final int NONE_HOST_ID = Integer.MIN_VALUE;
+    static final int NONE_HOST_LOG_ID = Integer.MIN_VALUE;
+
+    static final long NONE_LOG_ID = asLong(NONE_HOST_ID, NONE_HOST_LOG_ID);
+    static final CoordinatorLogId NONE = new CoordinatorLogId(NONE_LOG_ID);
 
     /** TCM host ID */
-    protected final int hostId;
+    public final int hostId;
 
     /**
      * Host log ID (unique within the host).
      * Allocated anew on host restart - one per token range replicated by the host.
      * Persisted on allocation, unique within the host.
      */
-    protected final int hostLogId;
+    public final int hostLogId;
 
     CoordinatorLogId(long id)
     {
@@ -84,11 +88,6 @@ public class CoordinatorLogId implements Serializable
         return (int) coordinatorLogId;
     }
 
-    public static CoordinatorLogId none()
-    {
-        return NONE;
-    }
-
     public static CoordinatorLogId fromLong(long logId)
     {
         return new CoordinatorLogId(logId);
@@ -96,12 +95,12 @@ public class CoordinatorLogId implements Serializable
 
     static boolean isNone(int hostId, int hostLogId)
     {
-        return hostId == NONE.hostId && hostLogId == NONE.hostLogId;
+        return hostId == NONE_HOST_ID && hostLogId == NONE_HOST_LOG_ID;
     }
 
     public boolean isNone()
     {
-        return this == NONE || isNone(hostId, hostLogId);
+        return isNone(hostId, hostLogId);
     }
 
     @Override
@@ -135,31 +134,18 @@ public class CoordinatorLogId implements Serializable
             out.writeInt(logId.hostLogId);
         }
 
-        public void serialize(long logId, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeInt(hostId(logId));
-            out.writeInt(hostLogId(logId));
-        }
-
         @Override
         public CoordinatorLogId deserialize(DataInputPlus in, int version) throws IOException
         {
             int hostId = in.readInt();
             int hostLogId = in.readInt();
-            if (isNone(hostId, hostLogId))
-                return none();
-            return new CoordinatorLogId(hostId, hostLogId);
+            return isNone(hostId, hostLogId) ? NONE : new CoordinatorLogId(hostId, hostLogId);
         }
 
         @Override
         public long serializedSize(CoordinatorLogId logId, int version)
         {
             return TypeSizes.sizeof(logId.hostId) + TypeSizes.sizeof(logId.hostLogId);
-        }
-
-        public long serializedSize(long logId, int version)
-        {
-            return TypeSizes.sizeof(logId);
         }
     }
 

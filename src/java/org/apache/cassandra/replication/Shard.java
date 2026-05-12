@@ -309,7 +309,7 @@ public class Shard
         return getOrCreate(mutation.id());
     }
 
-    private CoordinatorLog getOrCreate(MutationId mutationId)
+    private CoordinatorLog getOrCreate(ShortMutationId mutationId)
     {
         Preconditions.checkArgument(!mutationId.isNone());
         return getOrCreate(mutationId.logId());

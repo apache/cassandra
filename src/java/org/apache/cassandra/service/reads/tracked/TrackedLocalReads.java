@@ -179,7 +179,7 @@ public class TrackedLocalReads implements ExpiredStatePurger.Expireable
         while (transferIds.hasNext())
         {
             ShortMutationId id = transferIds.next();
-            builder.builderForLog(id).unreconciled.add(id.offset());
+            builder.builderForLog(id.asLogId()).unreconciled.add(id.offset());
         }
         return builder.build();
     }

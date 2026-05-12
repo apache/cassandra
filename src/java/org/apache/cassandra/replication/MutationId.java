@@ -26,6 +26,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
+import static org.apache.cassandra.replication.CoordinatorLogId.NONE_LOG_ID;
+
 /**
  * Full mutation id, with the addition of timestamp component.
  * <p>
@@ -34,11 +36,10 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  */
 public class MutationId extends ShortMutationId
 {
-    private static final long NONE_LOG_ID = CoordinatorLogId.none().asLong();
-    private static final long NONE_SEQUENCE_ID = Long.MIN_VALUE;
-    private static final int NONE_OFFSET = offset(NONE_SEQUENCE_ID);
-    private static final int NONE_TIMESTAMP = timestamp(NONE_SEQUENCE_ID);
-    private static final MutationId NONE = new MutationId(NONE_LOG_ID, NONE_SEQUENCE_ID);
+    static final int NONE_TIMESTAMP = 0;
+    static final long NONE_SEQUENCE_ID = sequenceId(NONE_OFFSET, NONE_TIMESTAMP);
+
+    static final MutationId NONE = new MutationId(NONE_LOG_ID, NONE_SEQUENCE_ID);
 
     /**
      * 4 byte timestamp. The timestamp is monotonically non-decreasing.
@@ -71,7 +72,7 @@ public class MutationId extends ShortMutationId
 
     public static long sequenceId(int offset, int timestamp)
     {
-        return ((long) offset << 32) | timestamp;
+        return ((long) offset << 32) | (timestamp & 0xffffffffL);
     }
 
     public static int offset(long sequenceId)
@@ -95,17 +96,16 @@ public class MutationId extends ShortMutationId
         return NONE;
     }
 
+    @Override
     public boolean isNone()
     {
-        if (this == NONE)
-            return true;
-        return logId() == NONE_LOG_ID && offset() == NONE_OFFSET && timestamp() == NONE_TIMESTAMP;
+        return logId() == NONE_LOG_ID && sequenceId() == NONE_SEQUENCE_ID;
     }
 
     @Override
     public String toString()
     {
-        return "MutationId{" + hostId() + ", " + hostLogId() + ", " + offset() + ", " + timestamp() + '}';
+        return "MutationId{" + hostId + ", " + hostLogId + ", " + offset + ", " + timestamp + '}';
     }
 
     /**
@@ -131,10 +131,9 @@ public class MutationId extends ShortMutationId
         long logId = buffer.getLong(pos);
         long sequenceId = buffer.getLong(pos + 8);
 
-        if (logId == MutationId.none().logId() && sequenceId == MutationId.none().sequenceId())
-            return MutationId.none();
-
-        return new MutationId(logId, sequenceId);
+        return logId == NONE_LOG_ID && sequenceId == NONE_SEQUENCE_ID
+             ? NONE
+             : new MutationId(logId, sequenceId);
     }
 
     public static class Serializer implements IVersionedSerializer<MutationId>
@@ -151,9 +150,9 @@ public class MutationId extends ShortMutationId
         {
             long logId = in.readLong();
             long sequenceId = in.readLong();
-            if (logId == NONE_LOG_ID && sequenceId == NONE_SEQUENCE_ID)
-                return none();
-            return new MutationId(logId, sequenceId);
+            return logId == NONE_LOG_ID && sequenceId == NONE_SEQUENCE_ID
+                 ? NONE
+                 : new MutationId(logId, sequenceId);
         }
 
         @Override
@@ -167,7 +166,7 @@ public class MutationId extends ShortMutationId
             in.readLong();
             in.readLong();
         }
-    };
+    }
 
     public static Serializer serializer = new Serializer();
 }
