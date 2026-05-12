@@ -308,15 +308,15 @@ public class CMSAdmin extends AbstractCommand
 
         static class DumpOptions
         {
-            @Option(names = { "-e", "--epoch" }, paramLabel = "Epoch",
+            @Option(names = { "-e", "--epoch" }, paramLabel = "epoch",
             description = "Epoch at which cluster metadata should be dumped", required = true)
             Long epoch;
 
-            @Option(names = { "-te", "--transform-epoch" }, paramLabel = "Transform Epoch",
+            @Option(names = { "-te", "--transform-epoch" }, paramLabel = "transform_epoch",
             description = "Force metadata to given X epoch while dumping", required = true)
             Long transformEpoch;
 
-            @Option(names = { "-sv", "--serialization-version" }, paramLabel = "Serialization Version",
+            @Option(names = { "-sv", "--serialization-version" }, paramLabel = "serialization_version",
             description = "Serialization Version", required = true)
             Version version;
         }
