@@ -38,6 +38,10 @@
 
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
+    <property name="resolver-ant-tasks.retryCount" value="5" />
+    <property name="resolver-ant-tasks.retrydelayMs" value="150000" /> <!-- long enough to bypass Maven Central rate limit period -->
+
+
     <!--
        Fetch Resolver Ant Tasks and Cassandra's dependencies.
     -->
@@ -46,7 +50,7 @@
         <echo>Downloading Resolver ANT Tasks...</echo>
         <mkdir dir="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
 
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
                  dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
         </retry>
@@ -84,7 +88,7 @@
             <attribute name="failonmissingattachments" default="true"/>
             <element name="elements" implicit="yes"/>
             <sequential>
-                <retry retrycount="3">
+                <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
                     <resolver:resolve failonmissingattachments="@{failonmissingattachments}">
                         <resolver:remoterepos refid="all"/>
                         <elements/>
@@ -97,7 +101,7 @@
             <attribute name="id"/>
             <element name="elements" implicit="yes" optional="yes"/>
             <sequential>
-                <retry retrycount="3">
+                <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
                     <resolver:pom file="@{file}" id="@{id}">
                         <remoterepos refid="all"/>
                         <elements/>
@@ -182,13 +186,13 @@
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
         <resolvepom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps" />
 
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <resolve>
                 <dependencies pomRef="all-pom"/>
                 <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
             </resolve>
         </retry>
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <resolve>
                 <dependencies pomRef="pom-deps"/>
                 <!-- Needed to include compile here, so ant _build-test would not fail on missing jimfs dependency -->
@@ -209,7 +213,7 @@
     <target name="resolver-dist-lib" depends="resolver-retrieve-build,_build_subprojects">
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <resolve failOnMissingAttachments="true">
                 <dependencies pomRef="all-pom"/>
                 <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
@@ -219,7 +223,7 @@
         <mkdir dir="${build.lib}/aarch64"/> <!-- uname -m on arm prints aarch64 instead of aarch_64 -->
 
         <!-- artifacts needs AmazonCorrettoCryptoProvider for multiple archs -->
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <resolve>
                 <dependencies>
                     <dependency groupId="software.amazon.cryptools" artifactId="AmazonCorrettoCryptoProvider" version="2.2.0" classifier="linux-x86_64" />
@@ -227,7 +231,7 @@
                 <files dir="${build.lib}/x86_64" layout="{artifactId}-{version}-{classifier}.{extension}" />
             </resolve>
         </retry>
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <resolve>
                 <dependencies>
                     <dependency groupId="software.amazon.cryptools" artifactId="AmazonCorrettoCryptoProvider" version="2.2.0" classifier="linux-aarch_64" />
@@ -236,7 +240,7 @@
             </resolve>
         </retry>
 
-        <retry retrycount="3" retrydelay="10" >
+        <retry retrycount="${resolver-ant-tasks.retryCount}" retrydelay="${resolver-ant-tasks.retrydelayMs}" >
             <antcall target="_resolver-dist-lib_get_files"/>
         </retry>
 
