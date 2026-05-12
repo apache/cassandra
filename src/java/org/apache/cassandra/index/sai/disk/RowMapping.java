@@ -105,7 +105,7 @@ public class RowMapping
     {
         assert complete : "RowMapping is not built.";
 
-        Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator(minKey.partitionKey(), maxKey.partitionKey());
+        Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator = index.iterator(minKey.partitionKey(), maxKey.partitionKey());
         return new AbstractGuavaIterator<>()
         {
             @Override
@@ -113,10 +113,10 @@ public class RowMapping
             {
                 while (iterator.hasNext())
                 {
-                    Pair<ByteComparable, PrimaryKeys> pair = iterator.next();
+                    Pair<ByteComparable, Iterator<PrimaryKey>> pair = iterator.next();
 
                     LongArrayList postings = null;
-                    Iterator<PrimaryKey> primaryKeys = pair.right.iterator();
+                    Iterator<PrimaryKey> primaryKeys = pair.right;
 
                     while (primaryKeys.hasNext())
                     {

@@ -173,7 +173,7 @@ public class ShardedMemtableIndex implements MemtableIndex
         return builder.build();
     }
 
-    public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator(DecoratedKey min, DecoratedKey max)
+    public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
     {
         int minSubrange = min == null ? 0 : boundaries.getShardForKey(min);
         int maxSubrange = max == null ? shards.length - 1 : boundaries.getShardForKey(max);
@@ -193,7 +193,7 @@ public class ShardedMemtableIndex implements MemtableIndex
     // min and max keys passed to the iterator method. It doesn't strictly do any reduction because the terms in each
     // shard are unique. It will receive at most one shard entry per selected shard before getReduced
     // is called.
-    private static class PrimaryKeysMergeReducer extends MergeIterator.Reducer<Pair<ByteComparable, PrimaryKeys>, Pair<ByteComparable, PrimaryKeys>>
+    private static class PrimaryKeysMergeReducer extends MergeIterator.Reducer<Pair<ByteComparable, PrimaryKeys>, Pair<ByteComparable, Iterator<PrimaryKey>>>
     {
         private final Pair<ByteComparable, PrimaryKeys>[] shardEntriesToMerge;
         private final Comparator<PrimaryKey> comparator;
@@ -221,16 +221,16 @@ public class ShardedMemtableIndex implements MemtableIndex
         }
 
         @Override
-        protected Pair<ByteComparable, PrimaryKeys> getReduced()
+        protected Pair<ByteComparable, Iterator<PrimaryKey>> getReduced()
         {
             Preconditions.checkArgument(term != null, "The term must exist in memory index");
 
-            PrimaryKeys primaryKeys = new PrimaryKeys();
+            List<Iterator<PrimaryKey>> keyIterators = new ArrayList<>(shardEntriesToMerge.length);
             for (Pair<ByteComparable, PrimaryKeys> p : shardEntriesToMerge)
                 if (p != null && p.right != null && !p.right.isEmpty())
-                    for (PrimaryKey pk : p.right)
-                        primaryKeys.add(pk);
+                    keyIterators.add(p.right.iterator());
 
+            Iterator<PrimaryKey> primaryKeys = MergeIterator.get(keyIterators, comparator, new MergeIterator.Reducer.Trivial<>());
             return Pair.create(term, primaryKeys);
         }
 

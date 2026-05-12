@@ -109,9 +109,25 @@ public class UnshardedMemtableIndex implements MemtableIndex
         return memoryIndex.search(queryContext, expression, keyRange);
     }
 
-    public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator(DecoratedKey min, DecoratedKey max)
+    public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
     {
-        return memoryIndex.iterator();
+        Iterator<Pair<ByteComparable, PrimaryKeys>> memoryIndexIterator = memoryIndex.iterator();
+
+        return new Iterator<>()
+        {
+            @Override
+            public boolean hasNext()
+            {
+                return memoryIndexIterator.hasNext();
+            }
+
+            @Override
+            public Pair<ByteComparable, Iterator<PrimaryKey>> next()
+            {
+                Pair<ByteComparable, PrimaryKeys> p = memoryIndexIterator.next();
+                return Pair.create(p.left, p.right.iterator());
+            }
+        };
     }
 
     /** Used only for Vector Indexes */

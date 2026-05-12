@@ -37,7 +37,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -71,7 +70,7 @@ public interface MemtableIndex extends MemtableOrdering
      * Bounds are used for shard selection only; implementations
      * without sharding may ignore them.
      */
-    Iterator<Pair<ByteComparable, PrimaryKeys>> iterator(DecoratedKey min, DecoratedKey max);
+    Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
 
     /** Implementation only for Vector Indexes */
     default SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,

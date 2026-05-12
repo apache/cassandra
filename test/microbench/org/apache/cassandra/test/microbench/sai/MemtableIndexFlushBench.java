@@ -19,8 +19,8 @@
 package org.apache.cassandra.test.microbench.sai;
 
 import java.nio.ByteBuffer;
+import java.util.Iterator;
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -36,30 +36,26 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.memory.UnshardedMemtableIndex;
-import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-@BenchmarkMode(Mode.Throughput)
+@BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 6, time = 3)
+@Warmup(iterations = 3, time = 2)
 @Measurement(iterations = 5, time = 5)
 @Fork(value = 1, jvmArgsAppend = { "-Xmx4G", "-Xms4G", "-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
 @State(Scope.Benchmark)
-public class MemtableIndexPartitionReadBench extends AbstractMemtableIndexBench
+public class MemtableIndexFlushBench extends AbstractMemtableIndexBench
 {
     // 1 Million partitionKeys
     private static final int NUM_PARTITION_KEYS = 1000000;
-    private static final int NUMBER_OF_SEARCHES = 1000;
     private static final int SMALL_POOL_SIZE = 8 * 1024;
 
     @Param({ "1", "4", "8"})
@@ -69,15 +65,6 @@ public class MemtableIndexPartitionReadBench extends AbstractMemtableIndexBench
     int numberOfTerms;
 
     private char[] smallPool = new char[SMALL_POOL_SIZE];
-    private Expression[] stringEqualityExpressions;
-    private QueryContext queryContext;
-    private AbstractBounds<PartitionPosition>[] keyRanges;
-
-    @State(Scope.Thread)
-    public static class ThreadState
-    {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-    }
 
     @Setup(Level.Trial)
     public void setup()
@@ -86,14 +73,7 @@ public class MemtableIndexPartitionReadBench extends AbstractMemtableIndexBench
         setupTableAndKeyspace();
         setupCfsAndIndex();
         setupPartitionKeys();
-        setupQueryContext();
         setupIndexesExpressionsAndTerms();
-    }
-
-    private void setupQueryContext()
-    {
-        // setup a dummy query context, interface signature needs it.
-        queryContext = new QueryContext(null, Long.MAX_VALUE);
     }
 
     public void setupPartitionKeys()
@@ -111,8 +91,7 @@ public class MemtableIndexPartitionReadBench extends AbstractMemtableIndexBench
                         new UnshardedMemtableIndex(index);
 
         setupTerms(numberOfTerms);
-        populateIndexDataAndKeyRanges();
-        populateExpressions();
+        populateIndexData();
     }
 
     @Override
@@ -126,19 +105,17 @@ public class MemtableIndexPartitionReadBench extends AbstractMemtableIndexBench
         terms = new ByteBuffer[numberOfTerms];
         for (int i = 0; i < numberOfTerms; i++)
             terms[i] = UTF8Type.instance.decompose(
-                new String(smallPool, random.nextInt(SMALL_POOL_SIZE - length), length));
+            new String(smallPool, random.nextInt(SMALL_POOL_SIZE - length), length));
     }
 
-    private void populateIndexDataAndKeyRanges()
+    private void populateIndexData()
     {
         int termCount = 0;
-        keyRanges = new AbstractBounds[NUM_PARTITION_KEYS];
 
         for (int i = 0; i < NUM_PARTITION_KEYS; i++)
         {
             DecoratedKey partitionKey = partitionKeys[i];
             memtableIndex.index(partitionKey, Clustering.EMPTY, terms[termCount]);
-            keyRanges[i] = new Bounds<>(partitionKey, partitionKey);
 
             if (++termCount == numberOfTerms)
             {
@@ -147,21 +124,20 @@ public class MemtableIndexPartitionReadBench extends AbstractMemtableIndexBench
         }
     }
 
-    private void populateExpressions()
-    {
-        Random random = new Random();
-        stringEqualityExpressions = new Expression[NUMBER_OF_SEARCHES];
-        for (int i = 0; i < NUMBER_OF_SEARCHES; i++)
-            stringEqualityExpressions[i] = Expression.create(index).add(Operator.EQ, terms[random.nextInt(terms.length)]);
-    }
-
     @Benchmark
-    public long stringEqualityPartitionRestrictedRangeSearch(ThreadState state)
+    public long flushBench()
     {
-        long size = 0;
-        memtableIndex.search(queryContext,
-                             stringEqualityExpressions[state.random.nextInt(stringEqualityExpressions.length)],
-                             keyRanges[state.random.nextInt(keyRanges.length)]);
-        return size;
+        Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> it = memtableIndex.iterator(null, null);
+        long count = 0;
+        while (it.hasNext())
+        {
+            Iterator<PrimaryKey> primaryKeyIterator = it.next().right;
+            while (primaryKeyIterator.hasNext())
+            {
+                primaryKeyIterator.next();
+                count++;
+            }
+        }
+        return count;
     }
 }
