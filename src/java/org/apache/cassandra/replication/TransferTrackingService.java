@@ -346,6 +346,7 @@ public class TransferTrackingService
                     pendingDir.deleteRecursive();
                 }
             }
+            local.remove(transfer.planId);
         }
         finally
         {

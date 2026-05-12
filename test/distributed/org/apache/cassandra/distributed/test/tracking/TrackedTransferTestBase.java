@@ -126,6 +126,10 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
     protected final static Token TOKEN_201 = new Murmur3Partitioner.LongToken(TOKEN_VALUE_201);
     protected final static ByteBuffer KEY_201 = Murmur3Partitioner.LongToken.keyForToken(TOKEN_201.getLongValue());
 
+    protected final static long TOKEN_VALUE_300 = 3074457345618258602L;
+    protected final static Token TOKEN_300 = new Murmur3Partitioner.LongToken(TOKEN_VALUE_300);
+    protected final static ByteBuffer KEY_300 = Murmur3Partitioner.LongToken.keyForToken(TOKEN_300.getLongValue());
+
     protected final static Range<Token> SHARD_ALIGNED_RANGE_2 = new Range<>(new Murmur3Partitioner.LongToken(TOKEN_VALUE_200 - 10), new Murmur3Partitioner.LongToken(TOKEN_VALUE_200 + 10));
 
     static
@@ -138,6 +142,9 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
 
         reversed = Murmur3Partitioner.instance.decorateKey(KEY_201);
         Assertions.assertThat(reversed.getToken()).isEqualTo(TOKEN_201);
+
+        reversed = Murmur3Partitioner.instance.decorateKey(KEY_300);
+        Assertions.assertThat(reversed.getToken()).isEqualTo(TOKEN_300);
     }
 
     protected static Cluster cluster() throws IOException
@@ -191,12 +198,12 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
         assertPendingDirs(validate, KEYSPACE, forPendingUuidDir);
     }
 
-    protected static void assertPendingDirs(Iterable<IInvokableInstance> validate, String keysapce, IIsolatedExecutor.SerializableConsumer<File> forPendingUuidDir)
+    protected static void assertPendingDirs(Iterable<IInvokableInstance> validate, String keyspace, IIsolatedExecutor.SerializableConsumer<File> forPendingUuidDir)
     {
         for (IInvokableInstance instance : validate)
         {
             instance.runOnInstance(() -> {
-                Set<File> allPendingDirs = ColumnFamilyStore.getIfExists(keysapce, TABLE).getDirectories().getPendingLocations();
+                Set<File> allPendingDirs = ColumnFamilyStore.getIfExists(keyspace, TABLE).getDirectories().getPendingLocations();
                 for (File pendingDir : allPendingDirs)
                 {
                     File[] pendingUuidDirs = pendingDir.listUnchecked(File::isDirectory);
@@ -315,7 +322,7 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
 
     protected static void doImport(Cluster cluster, IInvokableInstance target, Consumer<List<String>> onFailedDirs, String keyspace, @Nullable String createIndexCql) throws IOException
     {
-        String file = Files.createTempDirectory(MutationTrackingTest.class.getSimpleName()).toString();
+        String file = Files.createTempDirectory(TrackedTransferTestBase.class.getSimpleName()).toString();
 
         // Needs to run outside of instance executor because creates schema
         CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
@@ -357,10 +364,6 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
     {
         for (IInvokableInstance instance : validate)
         {
-            {
-                Object[][] rows = instance.executeInternal(withKeyspace("SELECT * FROM %s." + TABLE + " WHERE k = 1", keyspace));
-                onRows.accept(rows);
-            }
             {
                 Object[][] rows = instance.executeInternal(withKeyspace("SELECT * FROM %s." + TABLE, keyspace));
                 onRows.accept(rows);

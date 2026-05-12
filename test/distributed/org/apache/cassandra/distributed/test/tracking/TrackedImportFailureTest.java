@@ -331,7 +331,9 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
             // Await cleanup of failed stream
             Uninterruptibles.sleepUninterruptibly(5, TimeUnit.SECONDS);
 
-            assertPendingDirs(cluster, (File pendingUuidDir) -> {
+            // We exclude the missed instance because the SSTables streamed to the pending directory
+            // are not linked to TransferTrackingService and hence cleanup does not know which SSTables to clean up
+            assertPendingDirs(cluster.stream().filter(instance -> instance != missed).collect(Collectors.toList()), (File pendingUuidDir) -> {
                 Assertions.assertThat(pendingUuidDir.listUnchecked(File::isFile)).isEmpty();
             });
 
@@ -350,9 +352,10 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
             createSchema(cluster, keyspace);
 
             Iterable<IInvokableInstance> down = Collections.singleton(cluster.get(3));
-            Iterable<IInvokableInstance> up = cluster.stream().filter(instance -> instance != down).collect(Collectors.toList());
             for (IInvokableInstance instance : down)
                 instance.shutdown().get();
+
+            Iterable<IInvokableInstance> up = cluster.stream().filter(instance -> !instance.isShutdown()).collect(Collectors.toList());
 
             doImport(cluster, keyspace);
 

@@ -149,12 +149,6 @@ public class CassandraStreamReceiver implements StreamReceiver
         txn.update(finished);
         sstables.addAll(finished);
         receivedEntireSSTable = file.isEntireSSTable();
-
-        if (useTrackedTransferPath())
-        {
-            PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
-            MutationTrackingService.instance().received(transfer);
-        }
     }
 
     @Override
@@ -282,7 +276,11 @@ public class CassandraStreamReceiver implements StreamReceiver
 
                 // SSTables involved in a coordinated transfer become live when the transfer is activated
                 if (useTrackedTransferPath())
+                {
+                    PendingLocalTransfer transfer = new PendingLocalTransfer(cfs.metadata().id, session.planId(), sstables);
+                    MutationTrackingService.instance().received(transfer);
                     return;
+                }
 
                 if (session.streamOperation() == StreamOperation.BOOTSTRAP)
                 {

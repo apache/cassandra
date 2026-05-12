@@ -88,19 +88,22 @@ public class TrackedImportTransfer extends CoordinatedTransfer
 
     final Collection<SSTableReader> sstables;
     private final ConsistencyLevel cl;
+    final Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionForSSTables;
 
     @VisibleForTesting
     TrackedImportTransfer(Range<Token> range, MutationId id)
     {
         super(id, null, range);
         this.sstables = Collections.emptyList();
+        this.positionForSSTables = Collections.emptyMap();
         this.cl = null;
     }
 
-    TrackedImportTransfer(String keyspace, Range<Token> range, Participants participants, Collection<SSTableReader> sstables, ConsistencyLevel cl, Supplier<MutationId> nextId)
+    TrackedImportTransfer(String keyspace, Range<Token> range, Participants participants, Collection<SSTableReader> sstables, Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionForSSTables, ConsistencyLevel cl, Supplier<MutationId> nextId)
     {
         super(nextId.get(), participants, keyspace, range);
         this.sstables = sstables;
+        this.positionForSSTables = positionForSSTables;
         this.cl = cl;
 
         ClusterMetadata cm = ClusterMetadata.current();
@@ -228,8 +231,8 @@ public class TrackedImportTransfer extends CoordinatedTransfer
             if (!purgeable)
                 return;
 
-            notifyFailure();
             TransferTrackingService.instance().scheduleCleanup();
+            notifyFailure();
         }
         catch (Throwable t)
         {
@@ -361,7 +364,7 @@ public class TrackedImportTransfer extends CoordinatedTransfer
         for (SSTableReader sstable : sstables)
         {
             List<Range<Token>> ranges = Collections.singletonList(range);
-            List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(ranges);
+            List<SSTableReader.PartitionPositionBounds> positions = positionForSSTables.get(sstable);
             long estimatedKeys = sstable.estimatedKeysForRanges(ranges);
             OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.IMPORT, sstable.ref(), positions, ranges, estimatedKeys);
             plan.transferStreams(to, Collections.singleton(stream));
