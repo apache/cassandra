@@ -22,8 +22,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
@@ -67,10 +70,19 @@ public class TrackedImportTransfers implements Iterable<TrackedImportTransfer>
         shards.forEachShard(shard -> {
             Range<Token> range = shard.tokenRange();
             Collection<SSTableReader> sstablesForRange = intervals.search(Interval.create(range.left.minKeyBound(), range.right.maxKeyBound()));
+            List<Range<Token>> ranges = Collections.singletonList(range);
+            Map<SSTableReader, List<SSTableReader.PartitionPositionBounds>> positionForSSTables = new HashMap<>();
+            sstablesForRange.removeIf(sstable -> {
+                List<SSTableReader.PartitionPositionBounds> position = sstable.getPositionsForRanges(ranges);
+                if (!position.isEmpty())
+                    positionForSSTables.put(sstable, position);
+                return position.isEmpty();
+            });
+
             if (sstablesForRange.isEmpty())
                 return;
 
-            TrackedImportTransfer transfer = new TrackedImportTransfer(keyspace, range, shard.participants, sstablesForRange, cl, shard::nextId);
+            TrackedImportTransfer transfer = new TrackedImportTransfer(keyspace, range, shard.participants, sstablesForRange, positionForSSTables, cl, shard::nextId);
             transfers.add(transfer);
         });
         return new TrackedImportTransfers(transfers);

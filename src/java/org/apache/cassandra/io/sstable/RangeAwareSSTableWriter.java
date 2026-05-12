@@ -146,7 +146,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     public SSTableMultiWriter setOpenResult(boolean openResult)
     {
         finishedWriters.forEach((w) -> w.setOpenResult(openResult));
-        currentWriter.setOpenResult(openResult);
+        if (currentWriter != null)
+            currentWriter.setOpenResult(openResult);
         return this;
     }
 

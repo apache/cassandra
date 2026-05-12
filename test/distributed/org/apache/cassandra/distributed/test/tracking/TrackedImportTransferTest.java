@@ -19,13 +19,18 @@
 package org.apache.cassandra.distributed.test.tracking;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,7 +41,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
+import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -85,14 +92,14 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
         assertCompaction(cluster, keyspace, cluster, TRANSFERS_EXIST, TRANSFERS_EMPTY);
 
         // Run after compaction, to enforce offset persistence + broadcast
-        /*assertSummary(cluster, keyspace, summary -> {
+        assertSummary(cluster, keyspace, summary -> {
             assertThat(summary).satisfies(s -> {
                 assert s.reconciledIds() == 1;
                 assert s.unreconciledIds() == 0;
             });
-        });*/
+        });
 
-        /*assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(1, 1)));*/
+        assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(1, 1)));
     }
 
     @Test
@@ -198,5 +205,43 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
                 assertThat(summary).isNull();
             });
         }
+    }
+
+    @Test
+    public void importIntervalTreeFalsePositive() throws IOException
+    {
+        String keyspace = "interval_tree_false_positive";
+        cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
+        cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(keyspace) + " (k BLOB PRIMARY KEY, v INT)");
+
+        String file = Files.createTempDirectory(TrackedTransferTestBase.class.getSimpleName()).toString();
+
+        // Needs to run outside of instance executor because creates schema
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                           .forTable("CREATE TABLE " + tableWithKeyspace(keyspace) + " (k BLOB PRIMARY KEY, v INT)")
+                                                           .inDirectory(file)
+                                                           .using("INSERT INTO " + tableWithKeyspace(keyspace) + " (k, v) " + "VALUES (?, ?)");
+
+        try (CQLSSTableWriter writer = builder.build())
+        {
+            writer.addRow(KEY_100, 1);
+            writer.addRow(KEY_300, 1);
+        }
+
+        // empty
+        assertLocalSelect(cluster, keyspace, AssertUtils::assertRows);
+
+        List<String> failed = cluster.get(1).callOnInstance(() -> {
+            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, TABLE);
+            Set<String> paths = Set.of(file);
+            logger.info("Importing SSTables {}", paths);
+            return cfs.importNewSSTables(paths, true, true, true, true, true, true, true);
+        });
+
+        // Sleep for a while to make sure import completes
+        Uninterruptibles.sleepUninterruptibly(3, TimeUnit.SECONDS);
+
+        Assertions.assertThat(failed).isEmpty();
+        assertLocalSelect(cluster, keyspace, rows -> assertRows(rows, row(KEY_100, 1), row(KEY_300, 1)));
     }
 }
