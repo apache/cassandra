@@ -329,6 +329,7 @@ public abstract class TrackedTransferTestBase extends TestBaseImpl
         try (CQLSSTableWriter writer = builder.build())
         {
             writer.addRow(IMPORT_PK, 1);
+            writer.addRow(3, 1);
         }
 
         // empty
