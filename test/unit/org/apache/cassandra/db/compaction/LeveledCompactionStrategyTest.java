@@ -76,6 +76,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
+import static org.apache.cassandra.schema.MockSchema.readerBounds;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -1059,6 +1060,14 @@ public class LeveledCompactionStrategyTest
             assertFalse(task.reduceScopeForLimitedSpace(Sets.newHashSet(sstables), 0));
             assertEquals(Sets.newHashSet(sstables), txn.originals());
         }
+    }
+
+    @Test
+    public void testLevelScannerIntersection()
+    {
+        Collection<SSTableReader> sstable = Collections.singleton(MockSchema.sstableWithLevel(1, 10, 20, 1, cfs));
+        Range<Token> range = new Range<>(readerBounds(1).getToken(), readerBounds(10).getToken());
+        assertEquals(1, LeveledCompactionStrategy.LeveledScanner.intersecting(sstable, Collections.singleton(range)).size());
     }
 
     private Pair<Set<SSTableReader>, Set<SSTableReader>> groupByLevel(Iterable<SSTableReader> sstables)
