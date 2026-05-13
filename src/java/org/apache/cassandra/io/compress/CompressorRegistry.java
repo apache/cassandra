@@ -47,9 +47,11 @@ public final class CompressorRegistry
     public static final AbstractCompressionProvider DEFAULT_COMPRESSION_PROVIDER = new DefaultCompressionProvider();
 
     /**
-     * Map of compressor classes to their registered providers.
+     * Map of compressor class names to their registered providers. Keyed by FQN (not {@code Class<?>})
+     * so that registration of built-in compressors does not force their classloading — that would
+     * trigger native library loads (snappy, zstd) at tool/client init time. See CASSANDRA-20975.
      */
-    private static final Map<Class<?>, AbstractCompressionProvider> compressionProviders = new HashMap<>();
+    private static final Map<String, AbstractCompressionProvider> compressionProviders = new HashMap<>();
 
     /**
      * Singleton instance of the registry.
@@ -68,23 +70,40 @@ public final class CompressorRegistry
 
     /**
      * Enum representing in-built supported compressor types and their abbreviations.
+     *
+     * The compressor class is stored as a FQN string rather than a {@code Class<?>} literal so that
+     * iterating the enum (e.g. during {@link #registerProviders}) does not force classloading of
+     * every built-in compressor — important because {@link SnappyCompressor} and the {@code Zstd*}
+     * compressors trigger native-library loads in their static initializers, which we want to defer
+     * until the compressor is actually used.
      */
     public enum CompressorType
     {
-        DEFLATE(DeflateCompressor.class, "deflate"),
-        LZ4(LZ4Compressor.class, "lz4"),
-        NOOP(NoopCompressor.class, "noop"),
-        SNAPPY(SnappyCompressor.class, "snappy"),
-        ZSTD(ZstdCompressor.class, "zstd"),
-        ZSTD_DICTIONARY(ZstdDictionaryCompressor.class, "zstd_dictionary");
+        DEFLATE("org.apache.cassandra.io.compress.DeflateCompressor", "deflate"),
+        LZ4("org.apache.cassandra.io.compress.LZ4Compressor", "lz4"),
+        NOOP("org.apache.cassandra.io.compress.NoopCompressor", "noop"),
+        SNAPPY("org.apache.cassandra.io.compress.SnappyCompressor", "snappy"),
+        ZSTD("org.apache.cassandra.io.compress.ZstdCompressor", "zstd"),
+        ZSTD_DICTIONARY("org.apache.cassandra.io.compress.ZstdDictionaryCompressor", "zstd_dictionary");
 
-        public final Class<?> compressorClass;
+        public final String compressorClassName;
+        public final String simpleName;
         public final String abbreviation;
 
-        CompressorType(Class<?> compressorClass, String abbreviation)
+        CompressorType(String compressorClassName, String abbreviation)
         {
-            this.compressorClass = compressorClass;
+            this.compressorClassName = compressorClassName;
+            this.simpleName = compressorClassName.substring(compressorClassName.lastIndexOf('.') + 1);
             this.abbreviation = abbreviation;
+        }
+
+        /**
+         * Resolves the compressor {@link Class} on demand. First call forces classloading of the
+         * underlying compressor implementation (and any side effects of its static initializer).
+         */
+        public Class<?> compressorClass()
+        {
+            return FBUtilities.classForName(compressorClassName, "compressor");
         }
     }
 
@@ -99,7 +118,7 @@ public final class CompressorRegistry
      */
     public AbstractCompressionProvider getProvider(Class<?> compressorClass)
     {
-        AbstractCompressionProvider provider = compressionProviders.get(compressorClass);
+        AbstractCompressionProvider provider = compressionProviders.get(compressorClass.getName());
         return provider == null ? DEFAULT_COMPRESSION_PROVIDER : provider;
     }
 
@@ -119,8 +138,8 @@ public final class CompressorRegistry
         Set<String> validKeys = new HashSet<>();
         for (CompressorType type : CompressorType.values())
         {
-            validKeys.add(type.compressorClass.getName());
-            validKeys.add(type.compressorClass.getSimpleName());
+            validKeys.add(type.compressorClassName);
+            validKeys.add(type.simpleName);
             validKeys.add(type.abbreviation);
         }
         for (String key : providerOptions.keySet())
@@ -136,23 +155,23 @@ public final class CompressorRegistry
             ParameterizedClass providerConfig = findProviderConfig(providerOptions, type);
             if (providerConfig == null)
             {
-                compressionProviders.put(type.compressorClass, DEFAULT_COMPRESSION_PROVIDER);
+                compressionProviders.put(type.compressorClassName, DEFAULT_COMPRESSION_PROVIDER);
             }
             else
             {
                 AbstractCompressionProvider provider = resolveProvider(providerConfig);
-                compressionProviders.put(type.compressorClass, provider);
-                logger.info("Adding '{}' provider for '{}'", provider.getClass().getName(), type.compressorClass.getName());
+                compressionProviders.put(type.compressorClassName, provider);
+                logger.info("Adding '{}' provider for '{}'", provider.getClass().getName(), type.compressorClassName);
             }
         }
     }
 
     private ParameterizedClass findProviderConfig(Map<String, ParameterizedClass> providerOptions, CompressorType type)
     {
-        ParameterizedClass parameterizedClass = providerOptions.get(type.compressorClass.getName());
+        ParameterizedClass parameterizedClass = providerOptions.get(type.compressorClassName);
 
         if (parameterizedClass == null)
-            parameterizedClass = providerOptions.get(type.compressorClass.getSimpleName());
+            parameterizedClass = providerOptions.get(type.simpleName);
 
         if (parameterizedClass == null)
             parameterizedClass = providerOptions.get(type.abbreviation);

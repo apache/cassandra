@@ -56,7 +56,7 @@ public class CompressorRegistryTest
 
         for (CompressorRegistry.CompressorType type : CompressorRegistry.CompressorType.values())
         {
-            AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass);
+            AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass());
             assertThat(provider).isNotNull();
             assertThat(provider).isEqualTo(CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
         }

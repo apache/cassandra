@@ -64,7 +64,7 @@ public class CompressorProviderTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 for (CompressorRegistry.CompressorType type : CompressorRegistry.CompressorType.values())
                 {
-                    AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass);
+                    AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass());
                     assertNotNull("Provider missing for " + type, provider);
                     assertSame("Built-in compressor " + type + " must use the default provider when none is configured",
                                DefaultCompressionProvider.class, provider.getClass());
@@ -96,9 +96,9 @@ public class CompressorProviderTest extends TestBaseImpl
 
                 for (CompressorRegistry.CompressorType type : CompressorRegistry.CompressorType.values())
                 {
-                    if (type.compressorClass == SnappyCompressor.class)
+                    if (type.compressorClass() == SnappyCompressor.class)
                         continue;
-                    AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass);
+                    AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(type.compressorClass());
                     assertSame(DefaultCompressionProvider.class, provider.getClass());
                 }
             });

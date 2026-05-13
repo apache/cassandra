@@ -38,6 +38,8 @@ public abstract class AbstractCompressionProvider
      */
     public static final String FALLBACK_TO_DEFAULT_PROVIDER = "fallback_to_default_provider";
 
+    private Map<String, String> parameters = Collections.emptyMap();
+
     /**
      * Checks if this compression provider is in a healthy state and ready to use.
      *
@@ -60,8 +62,6 @@ public abstract class AbstractCompressionProvider
      * @throws IllegalStateException if the compressor cannot be created
      */
     public abstract ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options) throws IllegalStateException;
-
-    private Map<String, String> parameters = Collections.emptyMap();
 
     /**
      * Initialises this provider with the {@code parameters} block from its
