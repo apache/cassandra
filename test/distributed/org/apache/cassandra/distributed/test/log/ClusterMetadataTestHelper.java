@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
@@ -1155,7 +1156,7 @@ public class ClusterMetadataTestHelper
         final SettableFuture<MessageDelivery> future = SettableFuture.create();
         Set<Verb> ignore = Sets.newHashSet(ignored);
         MessagingService.instance().outboundSink.clear();
-        MessagingService.instance().outboundSink.add((Message<?> message, InetAddressAndPort to) ->
+        MessagingService.instance().outboundSink.add((Message<?> message, InetAddressAndPort to, ConnectionType type) ->
                                                      {
                                                          if (!ignore.contains(message.verb()))
                                                              future.set(new MessageDelivery(message, to));

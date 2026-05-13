@@ -222,7 +222,7 @@ public interface Selectable extends AssignmentTestable
             // something a lot more helpful and in practice user can bind those markers by position or, even better,
             // use bind markers.
             Term term = rawTerm.prepare(table.keyspace, new ColumnSpecification(table.keyspace, table.name, bindMarkerNameInSelection, type));
-            term.collectMarkerSpecification(boundNames);
+            term.collectMarkerSpecification(boundNames, table);
             return TermSelector.newFactory(rawTerm.getText(), term, type);
         }
 
@@ -1481,7 +1481,7 @@ public interface Selectable extends AssignmentTestable
             ColumnSpecification boundSpec = specForElementOrSlice(selected, receiver, ((CollectionType) type).kind, "Element");
 
             Term elt = element.prepare(cfm.keyspace, boundSpec);
-            elt.collectMarkerSpecification(boundNames);
+            elt.collectMarkerSpecification(boundNames, cfm);
             return ElementsSelector.newElementFactory(toString(), factory, (CollectionType)type, elt);
         }
 
@@ -1571,8 +1571,8 @@ public interface Selectable extends AssignmentTestable
             // The equivalent of doing this when preparing values would be to use UNSET.
             Term f = from == null ? Constants.UNSET_VALUE : from.prepare(cfm.keyspace, boundSpec);
             Term t = to == null ? Constants.UNSET_VALUE : to.prepare(cfm.keyspace, boundSpec);
-            f.collectMarkerSpecification(boundNames);
-            t.collectMarkerSpecification(boundNames);
+            f.collectMarkerSpecification(boundNames, cfm);
+            t.collectMarkerSpecification(boundNames, cfm);
             return ElementsSelector.newSliceFactory(toString(), factory, (CollectionType)type, f, t);
         }
 

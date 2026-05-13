@@ -39,9 +39,7 @@ import com.google.common.collect.Sets;
 import org.quicktheories.impl.JavaRandom;
 
 import accord.local.Command;
-import accord.local.Command.Truncated;
 import accord.local.DurableBefore;
-import accord.local.ICommand;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
@@ -271,15 +269,15 @@ public class AccordGenerators
             this.keysOrRanges = txn.keys();
         }
 
-        private ICommand attributes(SaveStatus saveStatus)
+        public Command build(SaveStatus saveStatus)
         {
-            ICommand.Builder builder = new ICommand.Builder(txnId);
+            accord.local.CommandBuilder builder = new accord.local.CommandBuilder(txnId);
             if (saveStatus.known.isDefinitionKnown())
                 builder.partialTxn(partialTxn);
             if (saveStatus.known.deps().hasPreAcceptedOrProposedOrDecidedDeps())
                 builder.partialDeps(partialDeps);
 
-            builder.setParticipants(StoreParticipants.all(route, saveStatus));
+            builder.participants(StoreParticipants.all(route, saveStatus));
             builder.durability(NotDurable);
             if (saveStatus.compareTo(SaveStatus.PreAccepted) >= 0)
                 builder.executeAt(executeAt);
@@ -290,72 +288,13 @@ public class AccordGenerators
                 builder.acceptedOrCommitted(Ballot.ZERO);
             if (saveStatus.compareTo(SaveStatus.Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
                 builder.waitingOn(waitingOn);
-            if (saveStatus.hasBeen(Status.PreApplied) && !saveStatus.hasBeen(Status.Truncated))
+            if (saveStatus.hasBeen(Status.PreApplied) && saveStatus.compareTo(SaveStatus.TruncatedApplyWithOutcome) <= 0)
             {
                 if (txnId.is(Write))
                     builder.writes(new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))));
                 builder.result(new TxnData());
             }
-            return builder;
-        }
-
-        public Command build(SaveStatus saveStatus)
-        {
-            ICommand command = attributes(saveStatus);
-            switch (saveStatus)
-            {
-                default: throw new AssertionError("Unhandled saveStatus: " + saveStatus);
-                case Uninitialised:
-                case NotDefined:
-                    return Command.NotDefined.notDefined(command, Ballot.ZERO);
-                case PreAccepted:
-                case PreAcceptedWithVote:
-                case PreAcceptedWithDeps:
-                    return Command.PreAccepted.preaccepted(command, saveStatus);
-                case AcceptedInvalidate:
-                    return Command.NotAcceptedWithoutDefinition.acceptedInvalidate(command);
-
-                case AcceptedMedium:
-                case AcceptedMediumWithDefinition:
-                case AcceptedMediumWithDefAndVote:
-                case AcceptedInvalidateWithDefinition:
-                case AcceptedSlow:
-                case AcceptedSlowWithDefinition:
-                case AcceptedSlowWithDefAndVote:
-                case PreCommittedWithDefinition:
-                case PreCommittedWithDeps:
-                case PreCommittedWithFixedDeps:
-                case PreCommittedWithDefAndDeps:
-                case PreCommittedWithDefAndFixedDeps:
-                case PreCommitted:
-                    return Command.Accepted.accepted(command, saveStatus);
-
-                case Committed:
-                    return Command.Committed.committed(command, saveStatus);
-
-                case Stable:
-                case ReadyToExecute:
-                    return Command.Committed.committed(command, saveStatus);
-
-                case PreApplied:
-                case Applying:
-                case Applied:
-                    return Command.Executed.executed(command, saveStatus);
-
-                case TruncatedApply:
-                case TruncatedUnapplied:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, null, null, null, txnId);
-                    else return Truncated.truncated(command, saveStatus, executeAt, null, null, null, null);
-
-                case TruncatedApplyWithOutcome:
-                    if (txnId.kind().awaitsOnlyDeps()) return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))) : null, new TxnData(), txnId);
-                    else return Truncated.truncated(command, saveStatus, executeAt, command.partialDeps(), txnId.is(Write) ? new Writes(txnId, executeAt, keysOrRanges, new TxnWrite(TableMetadatas.none(), Collections.emptyList(), SimpleBitSets.allSet(1))) : null, new TxnData(), null);
-
-                case Erased:
-                case Vestigial:
-                case Invalidated:
-                    return Truncated.invalidated(txnId, command.participants());
-            }
+            return builder.build(saveStatus);
         }
     }
 

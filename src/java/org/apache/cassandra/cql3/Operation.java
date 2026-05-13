@@ -103,12 +103,13 @@ public abstract class Operation
      * Collects the column specification for the bind variables of this operation.
      *
      * @param boundNames the list of column specification where to collect the
-     * bind variables of this term in.
+     *                   bind variables of this term in.
+     * @param owner
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
         if (t != null)
-            t.collectMarkerSpecification(boundNames);
+            t.collectMarkerSpecification(boundNames, owner);
     }
 
     /**

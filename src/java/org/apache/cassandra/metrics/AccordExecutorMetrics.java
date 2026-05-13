@@ -39,6 +39,7 @@ public class AccordExecutorMetrics
     public final ShardedDecayingHistogram elapsedPreparingToRun = HISTOGRAMS.newHistogram(TimeUnit.SECONDS.toNanos(1L));
     public final ShardedDecayingHistogram elapsedWaitingToRun = HISTOGRAMS.newHistogram(TimeUnit.SECONDS.toNanos(1L));
     public final ShardedDecayingHistogram elapsedRunning = HISTOGRAMS.newHistogram(TimeUnit.SECONDS.toNanos(1L));
+    public final ShardedDecayingHistogram elapsed = HISTOGRAMS.newHistogram(TimeUnit.SECONDS.toNanos(1L));
 
     // number of keys involved
     public final ShardedDecayingHistogram keys = HISTOGRAMS.newHistogram(1 << 12);

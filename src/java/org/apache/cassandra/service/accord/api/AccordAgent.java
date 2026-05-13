@@ -35,6 +35,7 @@ import accord.api.CoordinatorEventListener;
 import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog.BlockedUntil;
 import accord.api.ReplicaEventListener;
+import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Tracing;
 import accord.coordinate.Coordination;
@@ -47,12 +48,11 @@ import accord.local.Node;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.TimeService;
-import accord.messages.ReplyContext;
+import accord.messages.MessageType;
 import accord.primitives.Keys;
 import accord.primitives.Participants;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
-import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
@@ -68,19 +68,19 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Cancellable;
 
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.metrics.AccordReplicaMetrics;
 import org.apache.cassandra.metrics.AccordSystemMetrics;
-import org.apache.cassandra.net.ResponseContext;
 import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.debug.AccordTracing;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -95,6 +95,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordScheduleDurabilityTxnIdLag;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireEpochWait;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireSyncPoint;
+import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.expireTxn;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.fetch;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.recover;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retryBootstrap;
@@ -104,7 +106,7 @@ import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retry
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.retrySyncPoint;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowRead;
 import static org.apache.cassandra.service.accord.api.AccordWaitStrategies.slowTxnPreaccept;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent, OwnershipEventListener
@@ -124,7 +126,7 @@ public class AccordAgent implements Agent, OwnershipEventListener
     private final AccordTracing tracing = new AccordTracing();
     private final RandomSource random = new DefaultRandom();
     protected Node.Id self;
-    protected AccordSpec config;
+    protected AccordConfig config;
 
     public AccordAgent()
     {
@@ -248,27 +250,19 @@ public class AccordAgent implements Agent, OwnershipEventListener
     @Override
     public long cfkHlcPruneDelta()
     {
-        return SECONDS.toMicros(10L);
+        return config.commands_for_key_prune_delta.to(MICROSECONDS);
     }
 
     @Override
     public int cfkPruneInterval()
     {
-        return 32;
+        return config.commands_for_key_prune_interval;
     }
 
-    // TODO (expected): we probably want additional configuration here
     @Override
     public long maxConflictsHlcPruneDelta()
     {
-        return SECONDS.toMicros(1);
-    }
-
-    // TODO (expected): I don't think we even need this - just prune each time we have doubled in size
-    @Override
-    public long maxConflictsPruneInterval()
-    {
-        return 1024;
+        return config.max_conflicts_prune_delta.to(MICROSECONDS);
     }
 
     @Override
@@ -456,40 +450,29 @@ public class AccordAgent implements Agent, OwnershipEventListener
     }
 
     @Override
-    public long expiresAt(ReplyContext replyContext, TimeUnit unit)
+    public long selfSlowAt(TxnId txnId, MessageType type, TimeUnit unit)
     {
-        return unit.convert(((ResponseContext)replyContext).expiresAtNanos(), NANOSECONDS);
+        if (type.getClass() == MessageType.StandardMessage.class)
+        {
+            switch ((MessageType.StandardMessage)type)
+            {
+                case PRE_ACCEPT_REQ:
+                    return unit.convert(slowTxnPreaccept.computeWaitUntil(1), unit);
+                case READ_EPHEMERAL_REQ:
+                case READ_REQ:
+                case STABLE_THEN_READ_REQ:
+                    return unit.convert(slowRead.computeWaitUntil(1), NANOSECONDS);
+            }
+        }
+        return -1;
     }
 
     @Override
-    public long selfSlowAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
+    public long selfExpiresAt(TxnId txnId, MessageType type, TimeUnit unit)
     {
-        switch (phase)
-        {
-            default: throw new UnhandledEnum(phase);
-            case PreAccept: return unit.convert(slowTxnPreaccept.computeWaitUntil(1), NANOSECONDS);
-            case Execute:   return unit.convert(slowRead.computeWaitUntil(1), NANOSECONDS);
-        }
-    }
-
-    @Override
-    public long selfExpiresAt(TxnId txnId, Status.Phase phase, TimeUnit unit)
-    {
-        long delayNanos;
-        switch (txnId.kind())
-        {
-            default: throw new UnhandledEnum(txnId.kind());
-            case Write:
-                delayNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
-                break;
-            case EphemeralRead:
-            case Read:
-                delayNanos = DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
-                break;
-            case ExclusiveSyncPoint:
-                delayNanos = DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos();
-        }
-        return unit.convert(nanoTime() + delayNanos, NANOSECONDS);
+        if (txnId == null || txnId.equals(TxnId.NONE))
+            return DatabaseDescriptor.getRpcTimeout(unit);
+        return unit.convert((txnId.isSyncPoint() ? expireSyncPoint : expireTxn).computeWaitUntil(1), NANOSECONDS);
     }
 
     @Override
@@ -515,5 +498,11 @@ public class AccordAgent implements Agent, OwnershipEventListener
     public long minStaleHlc(Node node, boolean requested)
     {
         return node.now() - (100 + getAccordScheduleDurabilityTxnIdLag(MICROSECONDS));
+    }
+
+    @Override
+    public boolean reportRemoteSuccess(Result success)
+    {
+        return success instanceof TxnResult && ((TxnResult) success).kind() == txn_data;
     }
 }

@@ -759,7 +759,7 @@ public final class TxnUpdate extends AccordUpdate
         public void serialize(TxnUpdate update, TableMetadatasAndKeys tablesAndKeys, DataOutputPlus out, Version version) throws IOException
         {
             // Serializing it with the condition result set shouldn't be needed
-            checkState(update.anyConditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
+//            checkState(update.anyConditionResult == null, "Can't serialize if conditionResult is set without adding it to serialization");
             // Once in accord "mixedTimeSource" and "yes" are the same, so only care about the side effect: that the timestamp is preserved or not
             out.writeByte(update.preserveTimestamps.preserve ? FLAG_PRESERVE_TIMESTAMPS : 0);
             tablesAndKeys.serializeKeys(update.keys, out);

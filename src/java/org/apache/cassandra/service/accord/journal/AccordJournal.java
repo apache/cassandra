@@ -41,6 +41,8 @@ import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.MinimalCommand;
+import accord.local.MinimalCommand.MinimalWithDeps;
 import accord.local.Node;
 import accord.local.RedundantBefore;
 import accord.primitives.EpochSupplier;
@@ -50,8 +52,8 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.PersistentField;
 
-import org.apache.cassandra.config.AccordSpec.JournalSpec;
-import org.apache.cassandra.config.AccordSpec.JournalSpec.ReplayMode;
+import org.apache.cassandra.config.AccordConfig.JournalConfig;
+import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.LongType;
@@ -77,7 +79,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import static accord.api.Journal.Load.MINIMAL;
 import static accord.api.Journal.Load.MINIMAL_WITH_DEPS;
 import static accord.local.Cleanup.Input.FULL;
-import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
+import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
 import static org.apache.cassandra.service.accord.JournalKey.Type.COMMAND_DIFF;
@@ -230,14 +232,14 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
-    public Command.Minimal loadMinimal(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    public MinimalCommand loadMinimal(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         CommandChanges builder = CommandChanges.cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL), redundantBefore, durableBefore);
         return builder == null ? null : builder.asMinimal();
     }
 
     @Override
-    public Command.MinimalWithDeps loadMinimalWithDeps(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
+    public MinimalWithDeps loadMinimalWithDeps(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         CommandChanges builder = CommandChanges.cleanupAndFilter(loadDiffs(commandStoreId, txnId, MINIMAL_WITH_DEPS), redundantBefore, durableBefore);
         return builder == null ? null : builder.asMinimalWithDeps();
@@ -596,8 +598,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     @Override
     public boolean replay(CommandStores commandStores, Object param)
     {
-        ReplayMode mode = params instanceof JournalSpec ? ((JournalSpec)params).replay
-                                                        : getAccord().journal.replay;
+        ReplayMode mode = params instanceof JournalConfig ? ((JournalConfig)params).replay
+                                                          : getAccord().journal.replay;
         return Replay.replay(this, mode, commandStores.all(), param);
     }
 

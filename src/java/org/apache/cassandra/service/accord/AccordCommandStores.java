@@ -48,14 +48,14 @@ import accord.utils.async.AsyncResults;
 import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
-import org.apache.cassandra.config.AccordSpec.QueueShardModel;
+import org.apache.cassandra.config.AccordConfig.QueueShardModel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.journal.Descriptor;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.AccordCommandStore.DurablyAppliedTo;
 import org.apache.cassandra.service.accord.AccordExecutor.AccordExecutorFactory;
 
-import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_PER_SHARD;
+import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_PER_SHARD;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueShardCount;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordQueueSubmissionModel;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;

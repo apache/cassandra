@@ -63,6 +63,7 @@ import accord.primitives.TxnId;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -139,6 +140,7 @@ public class CompactionAccordIteratorsTest
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+        DatabaseDescriptor.daemonInitialization();
         SchemaLoader.prepareServer();
         // Schema doesn't matter since this is a metadata only test
         SchemaLoader.createKeyspace("ks", KeyspaceParams.simple(1),

@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.topology;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -42,6 +43,8 @@ import accord.utils.async.AsyncResults.SettableByCallback;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.AccordConfig;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
@@ -94,9 +97,39 @@ public class AccordTopologyService implements TopologyService, TopologyListener
             previouslyRemovedIds = removed;
         }
         node.topology().addListener(watermarkCollector);
-        node.topology().addListener(syncPropagator);
-        syncPropagator.onNodesRemoved(removed);
+        if (DatabaseDescriptor.getAccord().topology_sync_propagator_enabled_pre_start)
+        {
+            node.topology().addListener(syncPropagator);
+            syncPropagator.onNodesRemoved(removed);
+        }
     }
+
+    public void afterStartup(Node node)
+    {
+        AccordConfig config = DatabaseDescriptor.getAccord();
+        if (config.topology_sync_propagator_enabled_post_startup && !config.topology_sync_propagator_enabled_pre_start)
+        {
+            node.topology().addListener(syncPropagator);
+            syncPropagator.onNodesRemoved(previouslyRemovedIds);
+        }
+
+        long watermarkIntervalNanos = config.topology_watermark_interval.toNanoseconds();
+        if (watermarkIntervalNanos > 0)
+            fetchAndReportWatermarksRecurring(node, watermarkIntervalNanos);
+    }
+
+    public void fetchAndReportWatermarksRecurring(Node node, long intervalNanos)
+    {
+        if (state == State.SHUTDOWN)
+            return;
+
+        ScheduledExecutors.scheduledFastTasks.scheduleSelfRecurring(() -> {
+            WatermarkCollector.fetchAndReportWatermarksAsync(node.topology()).addCallback((success, fail) -> {
+                fetchAndReportWatermarksRecurring(node, intervalNanos);
+            });
+        }, intervalNanos, TimeUnit.NANOSECONDS);
+    }
+
 
     public synchronized void shutdown()
     {

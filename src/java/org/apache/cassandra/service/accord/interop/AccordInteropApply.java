@@ -165,7 +165,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         // and prevents races where we respond before dispatching all the required reads (if the reads are
         // completing faster than the reads can be setup on all required shards)
         if (-1 == --waitingOnCount)
-            node.reply(replyTo, replyContext, ApplyReply.Applied, null);
+            node.reply(replyTo, replyContext, ApplyReply.Applied, null, tracing());
     }
 
     @Override
@@ -175,11 +175,11 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         {
             // Respond with insufficient which should make the coordinator send us the commit
             // we need to respond
-            node.reply(replyTo, replyContext, reply, failure);
+            node.reply(replyTo, replyContext, reply, failure, tracing());
         }
         else if (failure != null)
         {
-            node.reply(replyTo, replyContext, null, failure);
+            node.reply(replyTo, replyContext, null, failure, tracing());
             node.agent().onException(failure);
             fail();
         }

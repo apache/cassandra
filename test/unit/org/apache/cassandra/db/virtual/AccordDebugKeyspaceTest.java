@@ -29,7 +29,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiPredicate;
 
 import javax.annotation.Nullable;
 
@@ -78,8 +77,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.exceptions.ExceptionSerializer;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundSink;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -96,7 +97,7 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Condition;
 
-import static accord.api.ProtocolModifiers.Toggles.SendStableMessages.TO_ALL;
+import static accord.api.ProtocolModifiers.SendStableMessages.TO_ALL;
 import static accord.primitives.Routables.Slice.Minimal;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.TxnId.FastPath.Unoptimised;
@@ -248,16 +249,20 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ProtocolModifiers.Configure.setPermittedFastPaths(new TxnId.FastPaths(Unoptimised));
+        ProtocolModifiers.Configure.setSendStableMessages(TO_ALL);
+        ProtocolModifiers.Configure.setPermitCoordinatorLocalExecution(false);
+        ProtocolModifiers.Configure.setPermitLocalDelivery(false);
         Config.setOverrideLoadConfig(() -> {
             Config config = new YamlConfigurationLoader().loadConfig();
             config.accord.queue_shard_count = new OptionaldPositiveInt(1);
             config.concurrent_accord_operations = 1;
             config.accord.command_store_shard_count = new OptionaldPositiveInt(1);
             config.accord.enable_virtual_debug_only_keyspace = true;
+            config.accord.permit_fast_quorum_medium_path = true;
             return config;
         });
         daemonInitialization();
-        ProtocolModifiers.Toggles.setSendStableMessages(TO_ALL);
 
         CQLTester.setUpClass();
         CassandraDaemon.getInstanceForTesting().setupVirtualKeyspaces();
@@ -613,7 +618,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @Test
     public void inflight() throws ExecutionException, InterruptedException
     {
-        ProtocolModifiers.Toggles.setPermitLocalExecution(false);
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try
@@ -653,8 +657,6 @@ public class AccordDebugKeyspaceTest extends CQLTester
     @Test
     public void blocked() throws ExecutionException, InterruptedException
     {
-        ProtocolModifiers.Toggles.setPermitLocalExecution(false);
-        ProtocolModifiers.Toggles.setPermittedFastPaths(new TxnId.FastPaths(Unoptimised));
         AccordMsgFilter filter = new AccordMsgFilter();
         MessagingService.instance().outboundSink.add(filter);
         try
@@ -690,6 +692,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
             TxnId second = accord.node().nextTxnIdWithDefaultFlags(txn.keys(), Txn.Kind.Write, Routable.Domain.Key);
             filter.reset();
             filter.appliesTo(second);
+            logger.info("{}", second);
             accord.node().coordinate(second, txn).beginAsResult();
 
             filter.commit.awaitThrowUncheckedOnInterrupt();
@@ -1098,7 +1101,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         return (AccordService) AccordService.instance();
     }
 
-    private static class AccordMsgFilter implements BiPredicate<Message<?>, InetAddressAndPort>
+    private static class AccordMsgFilter implements OutboundSink.Filter
     {
         volatile Condition preAccept = Condition.newOneTimeCondition();
         volatile Condition commit = Condition.newOneTimeCondition();
@@ -1123,7 +1126,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         }
 
         @Override
-        public boolean test(Message<?> msg, InetAddressAndPort to)
+        public boolean test(Message<?> msg, InetAddressAndPort to, ConnectionType type)
         {
             if (!msg.verb().name().startsWith("ACCORD_"))
                 return true;

@@ -165,7 +165,7 @@ public class DiscoverySimulationTest
 
         public <REQ> void send(Message<REQ> message, InetAddressAndPort to)
         {
-            if (message.verb().isResponse())
+            if (message.verb().isManagedResponse())
             {
                 logger.info("{} sending response to {}", addr, to);
                 cluster.get(to).deliverResponse(Message.forgeIdentityForTests(message, addr));

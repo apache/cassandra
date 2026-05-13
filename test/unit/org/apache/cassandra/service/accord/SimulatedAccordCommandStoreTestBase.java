@@ -118,7 +118,14 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
 
     protected static TableMetadata intTbl, reverseTokenTbl;
     protected static Node.Id nodeId;
-    protected static final Node emptyNode = Utils.createNode(Node.Id.NONE, Topology.EMPTY, null, new MockCluster.Clock(0), new TestAgent());
+    private static Node emptyNode;
+
+    protected static Node emptyNode()
+    {
+         if (emptyNode == null)
+             emptyNode = Utils.createNode(Node.Id.NONE, Topology.EMPTY, null, new MockCluster.Clock(0), new TestAgent());
+         return emptyNode;
+    }
 
     @BeforeClass
     public static void setUpClass()
@@ -287,7 +294,7 @@ public abstract class SimulatedAccordCommandStoreTestBase extends CQLTester
         PreAccept preAccept = new PreAccept(nodeId, new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, instance.topology), txnId, txn, null, false, route);
 
         var preAcceptAsync = instance.processAsync(preAccept, safe -> {
-            preAccept.unsafeSetNode(emptyNode);
+            preAccept.unsafeSetNode(emptyNode());
             var reply = preAccept.apply(safe);
             Assertions.assertThat(reply.isOk()).isTrue();
             PreAccept.PreAcceptOk success = (PreAccept.PreAcceptOk) reply;

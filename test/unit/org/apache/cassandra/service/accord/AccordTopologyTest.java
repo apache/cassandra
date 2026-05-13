@@ -68,7 +68,7 @@ public class AccordTopologyTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        TableMetadata table = parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full'", "ks").build();
+        TableMetadata table = parse("CREATE TABLE tbl (k int, c int, v int, primary key (k, c)) WITH transactional_mode='full' AND fast_path='up'", "ks").build();
         tableId = table.id;
         keyspace = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3), Tables.of(table));
     }

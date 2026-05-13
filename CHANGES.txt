@@ -11,6 +11,9 @@ Merged from 5.0:
 
 
 6.0-alpha2
+ * Accord: Tail Latency Improvements (CASSANDRA-21361)
+ * Artificial Latency Injection (CASSANDRA-17024)
+ * Accord: Clean Shutdown/Restart, Rebootstrap, et al (CASSANDRA-21355)
  * Reduce memory allocations in SelectStatement.getQuery (CASSANDRA-21351)
  * Avoid allocation by getFunctions in SelectStatement.authorize (CASSANDRA-21347)
  * Avoid unit conversion in DatabaseDescriptor.getMaxValueSize() for every deserializing Cell (CASSANDRA-21295)

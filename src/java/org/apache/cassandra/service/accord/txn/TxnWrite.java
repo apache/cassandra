@@ -111,7 +111,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         public long estimatedSizeOnHeap()
         {
             // we don't measure the key, as this is shared
-            return EMPTY_SIZE + ByteBufferUtil.estimatedSizeOnHeap(unsafeBytes());
+            if (latestVersionBytes == null)
+                return EMPTY_SIZE;
+            return EMPTY_SIZE + ByteBufferUtil.estimatedSizeOnHeap(latestVersionBytes);
         }
 
         @Override
@@ -518,8 +520,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
-        for (Update update : this)
-            size += update.estimatedSizeOnHeap();
+        for (int i = 0 ; i < size() ; ++i)
+            size += get(i).estimatedSizeOnHeap();
         return size;
     }
 

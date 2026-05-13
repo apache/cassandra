@@ -165,8 +165,6 @@ public class Config
     @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
 
-    public volatile DurationSpec.LongMillisecondsBound accord_preaccept_timeout = new DurationSpec.LongMillisecondsBound("1s");
-
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
@@ -1240,7 +1238,7 @@ public class Config
      */
     public ParameterizedClass default_compaction = null;
 
-    public final AccordSpec accord = new AccordSpec();
+    public final AccordConfig accord = new AccordConfig();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {

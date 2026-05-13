@@ -34,6 +34,7 @@ import accord.local.Node;
 import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.TxnId;
+import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.service.accord.api.AccordTimeService;
 import org.apache.cassandra.tracing.Tracing;
@@ -248,10 +249,14 @@ public class AccordCoordinatorMetrics
                 {
                     switch (path)
                     {
+                        default: throw new UnhandledEnum(path);
                         case EPHEMERAL: metrics.ephemeral.mark(); break;
                         case FAST: metrics.fastPaths.mark(); break;
                         case MEDIUM: metrics.mediumPaths.mark(); break;
                         case SLOW: metrics.slowPaths.mark(); break;
+                        case BACKLOG:
+                        case RECOVER:
+                            break;
                     }
                 }
             }

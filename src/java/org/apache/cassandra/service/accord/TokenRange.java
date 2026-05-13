@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import accord.api.ProtocolModifiers.RangeSpec;
 import accord.api.RoutingKey;
 import accord.primitives.Range;
 import accord.utils.Invariants;
@@ -38,12 +37,14 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.api.ProtocolModifiers.isRangeEndInclusive;
+
 public class TokenRange extends Range
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new TokenRange(TokenKey.min(TableId.fromLong(0), Murmur3Partitioner.instance), TokenKey.max(TableId.fromLong(0), Murmur3Partitioner.instance)));
     static
     {
-        Invariants.require(RangeSpec.isEndInclusive());
+        Invariants.require(isRangeEndInclusive());
     }
 
     // Don't make this public use create or createUnsafe

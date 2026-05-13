@@ -176,11 +176,11 @@ public class DeleteStatement extends ModificationStatement
                 checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
                 Operation op = deletion.prepare(metadata.keyspace, def, metadata);
-                op.collectMarkerSpecification(bindVariables);
+                op.collectMarkerSpecification(bindVariables, attrs);
                 operations.add(op, metadata);
             }
 
-            StatementRestrictions restrictions = newRestrictions(state, metadata, bindVariables, operations, whereClause, conditions);
+            StatementRestrictions restrictions = newRestrictions(state, metadata, bindVariables, operations, whereClause, conditions, attrs);
 
             DeleteStatement stmt = new DeleteStatement(bindVariables,
                                                        metadata,

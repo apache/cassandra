@@ -116,7 +116,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
-import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
+import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -307,7 +307,7 @@ public class AccordKeyspace
                 return null;
 
             // TODO (desired): consider whether better to not compact any validation failures, since we expect is already overwritten
-            CommandsForKey updated = current.withGcBeforeAtLeast(redundantBefore.gcBefore(), false);
+            CommandsForKey updated = current.withCleanCfkBeforeAtLeast(redundantBefore.cleanCfkBefore(), false);
             if (current == updated)
                 return row;
 

@@ -93,7 +93,7 @@ public class ConditionStatement
             {
                 // In the IS NULL/IS NOT NULL case, the reference will always be on the LHS
                 RowDataReference reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
-                reference.collectMarkerSpecification(bindVariables);
+                reference.collectMarkerSpecification(bindVariables, null);
                 return new ConditionStatement(reference, kind, null, false);
             }
                 
@@ -124,8 +124,8 @@ public class ConditionStatement
                 throw new IllegalStateException("Either the left-hand or right-hand side must be a reference!");
             }
 
-            reference.collectMarkerSpecification(bindVariables);
-            value.collectMarkerSpecification(bindVariables);
+            reference.collectMarkerSpecification(bindVariables, null);
+            value.collectMarkerSpecification(bindVariables, null);
             return new ConditionStatement(reference, kind, value, reversed);
         }
     }
