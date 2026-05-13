@@ -6,6 +6,7 @@ Merged from 6.0:
  * Differentiate between legitimate cases where the first entry is the same as the last entry and empty bounds in SSTableCursorWriter#addIndexBlock() (CASSANDRA-21255)
  * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
 Merged from 5.0:
+ * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
 
 

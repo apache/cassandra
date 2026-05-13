@@ -499,6 +499,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
                                           OperationType.VERIFY,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
+                                          sstable.onDiskLength(),
                                           verificationCompactionId,
                                           ImmutableSet.of(sstable));
             }
