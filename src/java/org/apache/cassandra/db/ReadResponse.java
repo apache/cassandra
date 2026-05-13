@@ -80,7 +80,7 @@ public abstract class ReadResponse
     @VisibleForTesting
     static ReadResponse createInMemoryDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi, int maxRows)
     {
-        return new InMemoryDataResponse(data, command, rdi, maxRows);
+        return InMemoryDataResponse.build(data, command, rdi, maxRows);
     }
 
     @VisibleForTesting
@@ -325,8 +325,8 @@ public abstract class ReadResponse
         // TODO: can the digest be calculated over the raw bytes now?
         // The response, serialized in the current messaging version
         private final ByteBuffer data;
-        protected ByteBuffer repairedDataDigest;
-        protected boolean isRepairedDigestConclusive;
+        private final ByteBuffer repairedDataDigest;
+        private final boolean isRepairedDigestConclusive;
         private final int dataSerializationVersion;
         private final DeserializationHelper.Flag flag;
 
@@ -406,34 +406,41 @@ public abstract class ReadResponse
         // rows beyond the max-rows limit serialized to a buffer; null if all rows fit in memory
         private final ByteBuffer overflow;
 
-        private InMemoryDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi, int maxRows)
+        static InMemoryDataResponse build(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi, int maxRows)
         {
-            // pass fake values for rdi.getDigest(), rdi.isConclusive(), they will be calculated and set later
-            super(null, null, false, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            ImmutableBTreePartition partition;
+            ByteBuffer overflow;
 
             if (!iter.hasNext())
             {
-                this.partition = null;
-                this.overflow = null;
+                partition = null;
+                overflow = null;
             }
             else
             {
                 try (UnfilteredRowIterator rowIter = iter.next())
                 {
                     LimitedUnfilteredRowIterator limitedIter = new LimitedUnfilteredRowIterator(rowIter, maxRows);
-                    this.partition = ImmutableBTreePartition.create(limitedIter);
+                    partition = ImmutableBTreePartition.create(limitedIter);
                     // Uses buildOverflow (row-iterator level) to match the UnfilteredRowIteratorSerializer
                     // deserializer used in makeIterator.
-                    this.overflow = limitedIter.hasOverflow()
-                                    ? LocalDataResponse.buildOverflow(rowIter, command.columnFilter())
-                                    : null;
+                    overflow = limitedIter.hasOverflow()
+                               ? LocalDataResponse.buildOverflow(rowIter, command.columnFilter())
+                               : null;
                 }
             }
 
             // Capture digest after consuming the iterator so that any updates made by
             // RepairedDataInfo transformations are reflected in the digest.
-            this.repairedDataDigest = rdi.getDigest();
-            this.isRepairedDigestConclusive = rdi.isConclusive();
+            return new InMemoryDataResponse(partition, overflow, rdi.getDigest(), rdi.isConclusive());
+        }
+
+        private InMemoryDataResponse(ImmutableBTreePartition partition, ByteBuffer overflow,
+                                     ByteBuffer repairedDataDigest, boolean isRepairedDigestConclusive)
+        {
+            super(null, repairedDataDigest, isRepairedDigestConclusive, MessagingService.current_version, DeserializationHelper.Flag.LOCAL);
+            this.partition = partition;
+            this.overflow = overflow;
         }
 
         // Decorating iterator that stops after maxRows Unfiltered objects and records whether overflow occurred.
