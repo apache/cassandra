@@ -250,6 +250,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                                   OperationType.INDEX_BUILD,
                                   bytesProcessed,
                                   totalSizeInBytes,
+                                  totalSizeInBytes,
                                   compactionId,
                                   sstables.keySet());
     }

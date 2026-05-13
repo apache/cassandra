@@ -134,6 +134,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                                   OperationType.INDEX_BUILD,
                                   bytesProcessed,
                                   totalBytesToProcess,
+                                  totalBytesToProcess,
                                   compactionId,
                                   sstables.keySet(),
                                   targetDirectory);

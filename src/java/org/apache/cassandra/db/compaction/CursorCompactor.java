@@ -210,6 +210,7 @@ public class CursorCompactor extends CompactionInfo.Holder
     private final long nowInSec;
     private final TimeUUID compactionId;
     private final long totalInputBytes;
+    private final long totalCompressedInputBytes;
     private final StatefulCursor[] sstableCursors;
     private final boolean[] sstableCursorsEqualsNext;
     private final boolean hasStaticColumns;
@@ -268,9 +269,14 @@ public class CursorCompactor extends CompactionInfo.Holder
         this.compactionId = compactionId;
 
         long inputBytes = 0;
+        long compressedInputBytes = 0;
         for (ISSTableScanner scanner : scanners)
+        {
             inputBytes += scanner.getLengthInBytes();
+            compressedInputBytes += scanner.getCompressedLengthInBytes();
+        }
         this.totalInputBytes = inputBytes;
+        this.totalCompressedInputBytes = compressedInputBytes;
         this.partitionMergeCounters = new long[scanners.size()];
         this.staticRowMergeCounters = new long[partitionMergeCounters.length];
         this.rowMergeCounters = new long[partitionMergeCounters.length];
@@ -1461,6 +1467,7 @@ public class CursorCompactor extends CompactionInfo.Holder
                                   type,
                                   getBytesRead(),
                                   totalInputBytes,
+                                  totalCompressedInputBytes,
                                   compactionId,
                                   sstables,
                                   targetDirectory);
