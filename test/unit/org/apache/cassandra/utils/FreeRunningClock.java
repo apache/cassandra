@@ -19,6 +19,8 @@ package org.apache.cassandra.utils;
 
 import java.util.concurrent.TimeUnit;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+
 /**
  * A freely adjustable clock that can be used for unit testing. See {@link MonotonicClock#instance} how to
  * enable this class.
@@ -61,7 +63,7 @@ public class FreeRunningClock implements MonotonicClock
     @Override
     public MonotonicClockTranslation translate()
     {
-        return new AbstractEpochSamplingClock.AlmostSameTime(millisSinceEpoch, nanoTime, error);
+        return new AbstractEpochSamplingClock.AlmostSameTime(millisSinceEpoch, MILLISECONDS, nanoTime, error);
     }
 
     @Override

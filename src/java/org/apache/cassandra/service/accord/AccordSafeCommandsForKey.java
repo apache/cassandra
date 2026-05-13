@@ -24,10 +24,21 @@ import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.RoutingKey;
 import accord.local.cfk.CommandsForKey;
+import accord.local.cfk.NotifySink;
 import accord.local.cfk.SafeCommandsForKey;
 
 public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutingKey, CommandsForKey>
 {
+    public static class CommandsForKeyCacheEntry extends AccordCacheEntry<RoutingKey, CommandsForKey>
+    {
+        private NotifySink overrideSink;
+
+        CommandsForKeyCacheEntry(RoutingKey key, AccordCache.Type<RoutingKey, CommandsForKey, ?>.Instance owner)
+        {
+            super(key, owner);
+        }
+    }
+
     private boolean invalidated;
     private final AccordCacheEntry<RoutingKey, CommandsForKey> global;
     private CommandsForKey original;
@@ -39,6 +50,8 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
         this.global = global;
         this.original = null;
         this.current = null;
+//        if (overrideSink() == null)
+//            overrideSink(new RecordingNotifySink());
     }
 
     @Override
@@ -101,6 +114,18 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     {
         checkNotInvalidated();
         this.current = cfk;
+    }
+
+    @Override
+    public void overrideSink(NotifySink overrideSink)
+    {
+        ((CommandsForKeyCacheEntry)global).overrideSink = overrideSink;
+    }
+
+    @Override
+    public NotifySink overrideSink()
+    {
+        return ((CommandsForKeyCacheEntry)global).overrideSink;
     }
 
     public CommandsForKey original()

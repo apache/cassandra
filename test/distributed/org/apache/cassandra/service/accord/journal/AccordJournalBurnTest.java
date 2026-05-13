@@ -94,7 +94,7 @@ import org.apache.cassandra.tools.FieldUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
-import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.journal_sai;
+import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class AccordJournalBurnTest extends BurnTestBase

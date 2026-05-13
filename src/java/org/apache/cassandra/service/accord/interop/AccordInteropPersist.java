@@ -25,8 +25,6 @@ import accord.coordinate.ExecuteFlag;
 import accord.coordinate.Persist;
 import accord.coordinate.tracking.AllTracker;
 import accord.coordinate.tracking.QuorumTracker;
-import accord.coordinate.tracking.RequestStatus;
-import accord.coordinate.tracking.ResponseTracker;
 import accord.local.Node;
 import accord.local.SequentialAsyncExecutor;
 import accord.messages.Apply;
@@ -40,10 +38,13 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.topology.Topologies;
 import accord.utils.Invariants;
-import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.utils.Throwables;
+
+import static org.apache.cassandra.db.ConsistencyLevel.ALL;
+import static org.apache.cassandra.db.ConsistencyLevel.ONE;
+import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 
 /**
  * Similar to Accord persist, but can wait on a configurable number of responses and sends AccordInteropApply messages
@@ -52,129 +53,18 @@ import org.apache.cassandra.utils.Throwables;
  */
 public class AccordInteropPersist extends Persist
 {
-    private static class CallbackHolder
+    public AccordInteropPersist(Node node, SequentialAsyncExecutor executor, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, ExecuteFlag.CoordinationFlags flags, boolean informDurableOnDone, Apply.Kind applyKind, BiConsumer<? super Result, Throwable> callback)
     {
-        boolean isDone = false;
-        private final ResponseTracker tracker;
-        private final Result result;
-        private final BiConsumer<? super Result, Throwable> clientCallback;
-        private Throwable failure = null;
-
-        public CallbackHolder(ResponseTracker tracker, Result result, BiConsumer<? super Result, Throwable> clientCallback)
-        {
-            this.tracker = tracker;
-            this.result = result;
-            this.clientCallback = clientCallback;
-        }
-
-        private void handleStatus(RequestStatus status)
-        {
-            if (isDone)
-                return;
-
-            switch (status)
-            {
-                default: throw new IllegalStateException("Unhandled request status " + status);
-                case Success:
-                    isDone = true;
-                    clientCallback.accept(result, null);
-                    return;
-                case Failed:
-                    isDone = true;
-                    clientCallback.accept(null, failure);
-                    return;
-                case NoChange:
-                    // noop
-            }
-        }
-
-        public void recordSuccess(Node.Id node)
-        {
-            handleStatus(tracker.recordSuccess(node));
-        }
-
-        public void recordFailure(Node.Id node, Throwable throwable)
-        {
-            failure = Throwables.merge(failure, throwable);
-            handleStatus(tracker.recordFailure(node));
-        }
-
-        boolean recordCallbackFailure(Throwable throwable)
-        {
-            if (isDone)
-                return false;
-            isDone = true;
-            failure = Throwables.merge(failure, throwable);
-            clientCallback.accept(null, failure);
-            return true;
-        }
-    }
-
-    private final ConsistencyLevel consistencyLevel;
-    private CallbackHolder callback;
-
-    public AccordInteropPersist(Node node, SequentialAsyncExecutor executor, Topologies topologies, TxnId txnId, Route<?> sendTo, Ballot ballot, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ConsistencyLevel consistencyLevel, ExecuteFlag.CoordinationFlags flags, boolean informDurableOnDone, Apply.Kind applyKind, BiConsumer<? super Result, Throwable> clientCallback)
-    {
-        super(node, executor, topologies, txnId, ballot, sendTo, txn, executeAt, deps, writes, result, fullRoute, flags, informDurableOnDone, AccordInteropApply.FACTORY, applyKind);
-        Invariants.requireArgument(consistencyLevel == ConsistencyLevel.QUORUM || consistencyLevel == ConsistencyLevel.ALL || consistencyLevel == ConsistencyLevel.SERIAL || consistencyLevel == ConsistencyLevel.ONE);
-        this.consistencyLevel = consistencyLevel;
-        registerClientCallback(result, clientCallback);
-    }
-
-    public void registerClientCallback(Result result, BiConsumer<? super Result, Throwable> clientCallback)
-    {
-        Invariants.require(callback == null);
-        switch (consistencyLevel)
-        {
-            case ONE: // Can safely upgrade ONE to QUORUM/SERIAL to get a synchronous commit
-            case SERIAL:
-            case QUORUM:
-                callback = new CallbackHolder(new QuorumTracker(tracker.topologies()), result, clientCallback);
-                break;
-            case ALL:
-                callback = new CallbackHolder(new AllTracker(tracker.topologies()), result, clientCallback);
-                break;
-            default:
-                throw new IllegalArgumentException("Unhandled consistency level: " + consistencyLevel);
-        }
-    }
-
-    @Override
-    public void onSuccess(Node.Id from, Apply.ApplyReply reply)
-    {
-        super.onSuccess(from, reply);
-        switch (reply.kind)
-        {
-            case InsufficientEpochs: throw UnhandledEnum.invalid(reply.kind);
-            case Redundant:
-            case Applied:
-                callback.recordSuccess(from);
-                return;
-            case Insufficient:
-                // On insufficient Persist will send a commit with the missing information
-                // which will allow a final response to be returned later that could be successful
-                return;
-            default: throw UnhandledEnum.unknown(reply.kind);
-        }
+        super(node, executor, topologies, txnId, ballot, sendTo, txn, executeAt, deps, writes, result, fullRoute, flags, informDurableOnDone, AccordInteropApply.FACTORY, applyKind, consistencyLevel == ALL ? AllTracker::new : QuorumTracker::new, (ignore, fail) -> {
+            if (fail != null) callback.accept(null, fail);
+            else callback.accept(result, null);
+        });
+        Invariants.requireArgument(consistencyLevel == QUORUM || consistencyLevel == ALL || consistencyLevel == SERIAL || consistencyLevel == ONE);
     }
 
     @Override
     public void start()
     {
         super.start();
-    }
-
-    @Override
-    public void onFailure(Node.Id from, Throwable failure)
-    {
-        callback.recordFailure(from, failure);
-        super.onFailure(from, failure);
-    }
-
-    @Override
-    public boolean onCallbackFailure(Node.Id from, Throwable failure)
-    {
-        super.onCallbackFailure(from, failure);
-        return callback.recordCallbackFailure(failure);
     }
 }

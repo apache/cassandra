@@ -126,6 +126,7 @@ import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -574,7 +575,7 @@ public class DatabaseDescriptor
 
         applyGuardrails();
 
-        applyAccordProgressLog();
+        applyAccord();
 
         applyStartupChecks();
     }
@@ -1370,7 +1371,7 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void applyAccordProgressLog()
+    private static void applyAccord()
     {
         try
         {
@@ -1382,6 +1383,7 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Invalid accord progress log configuration: " + e.getMessage(), e);
         }
+        AccordService.applyProtocolModifiers(getAccord());
     }
 
     public static StartupChecksConfiguration getStartupChecksConfiguration()
@@ -1662,12 +1664,6 @@ public class DatabaseDescriptor
         {
             logInfo("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
             conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if (conf.accord_preaccept_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
-        {
-            logInfo("accord_preaccept_timeout", conf.accord_preaccept_timeout, LOWEST_ACCEPTED_TIMEOUT);
-            conf.accord_preaccept_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
     }
 
@@ -5634,18 +5630,17 @@ public class DatabaseDescriptor
         }
     }
 
-
-    public static AccordSpec getAccord()
+    public static AccordConfig getAccord()
     {
         return conf.accord;
     }
 
-    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
+    public static AccordConfig.TransactionalRangeMigration getTransactionalRangeMigration()
     {
         return conf.accord.range_migration;
     }
 
-    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
+    public static void setTransactionalRangeMigration(AccordConfig.TransactionalRangeMigration val)
     {
         conf.accord.range_migration = Preconditions.checkNotNull(val);
     }
@@ -5670,12 +5665,12 @@ public class DatabaseDescriptor
         conf.accord.enabled = b;
     }
 
-    public static AccordSpec.QueueShardModel getAccordQueueShardModel()
+    public static AccordConfig.QueueShardModel getAccordQueueShardModel()
     {
         return conf.accord.queue_shard_model;
     }
 
-    public static AccordSpec.QueueSubmissionModel getAccordQueueSubmissionModel()
+    public static AccordConfig.QueueSubmissionModel getAccordQueueSubmissionModel()
     {
         return conf.accord.queue_submission_model;
     }
@@ -6278,7 +6273,7 @@ public class DatabaseDescriptor
 
     public static boolean getAccordEphemeralReadEnabledEnabled()
     {
-        return conf.accord.ephemeralReadEnabled;
+        return conf.accord.ephemeral_reads;
     }
 
     public static AutoRepairConfig getAutoRepairConfig()

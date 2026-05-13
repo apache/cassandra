@@ -36,9 +36,9 @@ public class ConcurrentLinkedStack<T>
     private volatile Node<T> head;
     private static final AtomicReferenceFieldUpdater<ConcurrentLinkedStack, Node> headUpdater = AtomicReferenceFieldUpdater.newUpdater(ConcurrentLinkedStack.class, Node.class, "head");
 
-    public void push(T value)
+    public boolean push(T value)
     {
-        IntrusiveStack.getAndPush(headUpdater, this, (Node)new Node<>(value));
+        return null == IntrusiveStack.getAndPush(headUpdater, this, (Node)new Node<>(value));
     }
 
     public boolean isEmpty()

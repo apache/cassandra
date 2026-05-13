@@ -79,14 +79,8 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     void notifyWork()
     {
         lock.lock();
-        try
-        {
-            hasWork.signal();
-        }
-        finally
-        {
-            lock.unlock();
-        }
+        try { hasWork.signal(); }
+        finally { lock.unlock(); }
     }
 
     @Override
@@ -100,7 +94,7 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         lock.lock();
         try
         {
-            submitExternalExclusive(sync, async, p1s, p1a, p2, p3, p4);
+            submitExternalExclusive(sync, p1s, p2, p3, p4);
         }
         finally
         {

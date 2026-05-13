@@ -104,10 +104,10 @@ public final class ColumnCondition
      * @param boundNames the list of column specification where to collect the
      * bind variables of this term in.
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames)
+    public void collectMarkerSpecification(VariableSpecifications boundNames, Object owner)
     {
-        columnsExpression.collectMarkerSpecification(boundNames);
-        values.collectMarkerSpecification(boundNames);
+        columnsExpression.collectMarkerSpecification(boundNames, owner);
+        values.collectMarkerSpecification(boundNames, owner);
     }
 
     public ColumnCondition.Bound bind(QueryOptions options)

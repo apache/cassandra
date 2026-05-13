@@ -44,7 +44,7 @@ public interface FastPathStrategy
 {
     enum Kind
     {
-        SIMPLE, PARAMETERIZED, INHERIT_KEYSPACE;
+        SIMPLE, PARAMETERIZED, INHERIT_KEYSPACE, UP;
 
         static final String KEY = "kind";
         private static final Map<String, Kind> LOOKUP;
@@ -54,6 +54,7 @@ public interface FastPathStrategy
             builder.put(SIMPLE.name(), SIMPLE);
             builder.put(PARAMETERIZED.name(), PARAMETERIZED);
             builder.put(INHERIT_KEYSPACE.name(), INHERIT_KEYSPACE);
+            builder.put(UP.name(), UP);
             LOOKUP = builder.build();
         }
 
@@ -115,6 +116,8 @@ public interface FastPathStrategy
                 return ParameterizedFastPathStrategy.fromMap(map);
             case INHERIT_KEYSPACE:
                 return inheritKeyspace();
+            case UP:
+                return up();
             default:
                 throw new IllegalArgumentException("Unhandled strategy kind: " + kind);
         }
@@ -127,8 +130,10 @@ public interface FastPathStrategy
             return InheritKeyspaceFastPathStrategy.instance;
         if (s.equals("simple"))
             return SimpleFastPathStrategy.instance;
+        if (s.equals("up"))
+            return UpFastPathStrategy.instance;
 
-        throw new ConfigurationException("Fast path strategy must either be 'keyspace', `default` or a map size and optional dcs {'size':n, 'dcs': dc0,dc1...");
+        throw new ConfigurationException("Fast path strategy must either be 'keyspace', 'simple', 'up' or a map size and optional dcs {'size':n, 'dcs': dc0,dc1...");
     }
 
     static FastPathStrategy keyspaceStrategyFromString(String s)
@@ -136,13 +141,20 @@ public interface FastPathStrategy
         s = toLowerCaseLocalized(s).trim();
         if (s.equals("simple"))
             return SimpleFastPathStrategy.instance;
+        if (s.equals("up"))
+            return UpFastPathStrategy.instance;
 
-        throw new ConfigurationException("Fast path strategy must either be `default` or a map size and optional dcs {'size':n, 'dcs': dc0,dc1...");
+        throw new ConfigurationException("Fast path strategy must either be 'simple', 'up' or a map size and optional dcs {'size':n, 'dcs': dc0,dc1...");
     }
 
     static FastPathStrategy simple()
     {
         return SimpleFastPathStrategy.instance;
+    }
+
+    static FastPathStrategy up()
+    {
+        return UpFastPathStrategy.instance;
     }
 
     static FastPathStrategy inheritKeyspace()
@@ -171,6 +183,8 @@ public interface FastPathStrategy
                     return ParameterizedFastPathStrategy.serializer.deserialize(in, version);
                 case INHERIT_KEYSPACE:
                     return inheritKeyspace();
+                case UP:
+                    return up();
                 default:
                     throw new IllegalArgumentException("Unhandled type: " + type);
             }

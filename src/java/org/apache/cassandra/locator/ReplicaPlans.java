@@ -110,6 +110,7 @@ public class ReplicaPlans
                 return true;
             case LOCAL_ONE:
                 return countInOurDc(liveReplicas).hasAtleast(1, 1);
+            case UNSAFE_DELAY_LOCAL_QUORUM:
             case LOCAL_QUORUM:
                 return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(replicationStrategy), 1);
             case EACH_QUORUM:
@@ -157,6 +158,7 @@ public class ReplicaPlans
                     throw UnavailableException.create(consistencyLevel, 1, blockForFullReplicas, localLive.allReplicas(), localLive.fullReplicas());
                 break;
             }
+            case UNSAFE_DELAY_LOCAL_QUORUM:
             case LOCAL_QUORUM:
             {
                 Replicas.ReplicaCount localLive = countInOurDc(allLive);
@@ -753,7 +755,7 @@ public class ReplicaPlans
 
         Replicas.temporaryAssertFull(liveAndDown.all()); // TODO CASSANDRA-14547
 
-        if (consistencyForPaxos == ConsistencyLevel.LOCAL_SERIAL)
+        if (consistencyForPaxos.isDatacenterLocal())
         {
             // TODO: we should cleanup our semantics here, as we're filtering ALL nodes to localDC which is unexpected for ReplicaPlan
             // Restrict natural and pending to node in the local DC only

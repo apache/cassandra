@@ -27,6 +27,8 @@ import accord.local.Command;
 import accord.local.CommandSummaries;
 import accord.local.LoadKeysFor;
 import accord.local.MaxDecidedRX;
+import accord.local.MinimalCommand;
+import accord.local.MinimalCommand.MinimalWithDeps;
 import accord.local.RedundantBefore;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -66,13 +68,13 @@ public interface RangeIndex
         {
             if (loadKeysFor != RECOVERY)
             {
-                Command.Minimal cmd = commandStore().loadMinimal(txnId);
+                MinimalCommand cmd = commandStore().loadMinimal(txnId);
                 if (cmd != null)
                     return ifRelevant(cmd);
             }
             else
             {
-                Command.MinimalWithDeps cmd = commandStore().loadMinimalWithDeps(txnId);
+                MinimalWithDeps cmd = commandStore().loadMinimalWithDeps(txnId);
                 if (cmd != null)
                     return ifRelevant(cmd);
             }

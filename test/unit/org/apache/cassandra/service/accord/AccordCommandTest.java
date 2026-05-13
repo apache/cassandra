@@ -57,7 +57,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static accord.api.ProtocolModifiers.Toggles.filterDuplicateDependenciesFromAcceptReply;
+import static accord.api.ProtocolModifiers.filterDuplicateDependenciesFromAcceptReply;
 import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.messages.Accept.Kind.SLOW;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -108,7 +108,7 @@ public class AccordCommandTest
         Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, 1, partialTxn, null, false, fullRoute);
-        preAccept.unsafeSetNode(emptyNode);
+        preAccept.unsafeSetNode(emptyNode());
 
         // Check preaccept
         getBlocking(commandStore.execute(preAccept, safeStore -> {
@@ -201,11 +201,11 @@ public class AccordCommandTest
         Route<?> route = fullRoute.overlapping(fullRange(txn));
         PartialTxn partialTxn = txn.intersecting(route, true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, 1, partialTxn, null, false, fullRoute);
-        preAccept1.unsafeSetNode(emptyNode);
+        preAccept1.unsafeSetNode(emptyNode());
 
         getBlocking(commandStore.execute(preAccept1, safeStore -> {
             persistDiff(commandStore, safeStore, txnId1, route, () -> {
-                preAccept1.unsafeSetNode(emptyNode);
+                preAccept1.unsafeSetNode(emptyNode());
                 preAccept1.apply(safeStore);
             });
         }));
@@ -213,7 +213,7 @@ public class AccordCommandTest
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, 1, partialTxn, null, false, fullRoute);
-        preAccept2.unsafeSetNode(emptyNode);
+        preAccept2.unsafeSetNode(emptyNode());
         getBlocking(commandStore.execute(preAccept2, safeStore -> {
             persistDiff(commandStore, safeStore, txnId2, route, () -> {
                 PreAccept.PreAcceptReply reply = preAccept2.apply(safeStore);

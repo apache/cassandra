@@ -67,6 +67,7 @@ import org.apache.cassandra.metrics.ShardedHitRate;
 import org.apache.cassandra.service.accord.AccordCache.Adapter.Shrink;
 import org.apache.cassandra.service.accord.AccordCacheEntry.LoadExecutor;
 import org.apache.cassandra.service.accord.AccordCacheEntry.Status;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForKey.CommandsForKeyCacheEntry;
 import org.apache.cassandra.service.accord.events.CacheEvents;
 import org.apache.cassandra.service.accord.journal.CommandChangeWriter;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
@@ -1193,7 +1194,7 @@ public class AccordCache implements CacheSize
                 return null;
 
             TxnId last = value.size() == 0 ? null : value.get(value.size() - 1);
-            TxnId minUndecided = value.minUndecided();
+            TxnId minUndecided = value.minUndecidedManaged();
             int lastSize = (int) CommandSerializers.txnId.serializedSize(last);
             int minUndecidedSize = (int) CommandSerializers.txnId.serializedSize(minUndecided);
             ByteBuffer result = Serialize.toBytesWithoutKey(lastSize + minUndecidedSize, value.maximalPrune());
@@ -1249,11 +1250,19 @@ public class AccordCache implements CacheSize
         {
             return RoutingKey::compareAsRoutingKey;
         }
+
+        @Override
+        public AccordCacheEntry<RoutingKey, CommandsForKey> newEntry(RoutingKey key, Type<RoutingKey, CommandsForKey, ?>.Instance owner)
+        {
+            CommandsForKeyCacheEntry entry = new CommandsForKeyCacheEntry(key, owner);
+            entry.readyToLoad();
+            return entry;
+        }
     }
 
     public static class CommandAdapter implements Adapter<TxnId, Command, AccordSafeCommand>
     {
-        private static int SHRINK_WITHOUT_LOCK = -1;
+        private static final int SHRINK_WITHOUT_LOCK = -1;
 
         public static final CommandAdapter COMMAND_ADAPTER = new CommandAdapter();
 

@@ -222,7 +222,7 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
         // multiple tables, we won't send partition key bind indexes.
         return (affectsMultipleTables || statements.isEmpty())
              ? null
-             : bindVariables.getPartitionKeyBindVariableIndexes(statements.get(0).metadata());
+             : bindVariables.getPartitionKeyBindVariableIndexes(statements.get(0).metadata(), statements.get(0).attrs);
     }
 
     @Override
