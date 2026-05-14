@@ -240,36 +240,28 @@ public class ReadResponseTest
     @Test
     public void inMemoryResponseWithOverflowMatchesLocalDataResponse()
     {
-        // 5 rows, only 2 fit in memory — 3 overflow into the serialized buffer
-        testMultipleRows(2, 5);
+        inMemoryAssertion()
+            .maxRows(2).rows(5)
+            .expectInMemoryUnfilteredCount(2)
+            .verify();
     }
 
     @Test
     public void inMemoryResponseAllRowsInMemoryWhenUnderLimit()
     {
-        // 3 rows, limit is 10 — all fit in memory with no overflow
-        testMultipleRows(10, 3);
+        inMemoryAssertion()
+            .maxRows(10).rows(3)
+            .expectInMemoryUnfilteredCount(3)
+            .verify();
     }
 
     @Test
     public void inMemoryResponseWithZeroMaxRowsUsesOnlyOverflow()
     {
-        // all rows go directly into the overflow buffer
-        testMultipleRows(0, 3);
-    }
-
-    private void testMultipleRows(int maxRows, int rows)
-    {
-        int key = key();
-        ReadCommand command = command(key, metadataWithClustering);
-        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
-
-        PartitionUpdate update = buildMultiRowUpdate(metadataWithClustering, key, rows);
-
-        ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
-        ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update), command, rdi, maxRows);
-
-        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+        inMemoryAssertion()
+            .maxRows(0).rows(3)
+            .expectInMemoryUnfilteredCount(0)
+            .verify();
     }
 
     @Test
@@ -295,48 +287,156 @@ public class ReadResponseTest
     @Test
     public void inMemoryResponseWithRangeTombstoneOnlyAllInMemory()
     {
-        // Partition contains only a range tombstone (no rows); limit is large enough that nothing overflows
-        testWithTombstones(10, 0, 0, 5);
+        inMemoryAssertion()
+            .maxRows(10).rows(0)
+            .withTombstone(rangeTombstone(0, 5))
+            .expectInMemoryUnfilteredCount(2)
+            .verify();
     }
 
     @Test
     public void inMemoryResponseWithRangeTombstoneOnlyOverflow()
     {
-        // 5 rows at clusterings 0-4 plus a range tombstone covering [6, 9];
         // rows 0-1 go in-memory, rows 2-4 and the RT go to overflow
-        testWithTombstones(2, 5, 6, 9);
+        inMemoryAssertion()
+            .maxRows(2).rows(5)
+            .withTombstone(rangeTombstone(6, 9))
+            .expectInMemoryUnfilteredCount(2)
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseWithTombstonesOnlyOverflow()
+    {
+        // Each RT produces an open+close marker pair (2 unfiltered objects).
+        // maxRows=2 fits exactly the first RT; the second overflows.
+        inMemoryAssertion()
+            .maxRows(2).rows(0)
+            .withTombstone(rangeTombstone(0, 3))
+            .withTombstone(rangeTombstone(5, 8))
+            .expectInMemoryUnfilteredCount(2)
+            .verify();
     }
 
     @Test
     public void inMemoryResponseWithRangeTombstoneBetweenInMemoryAndOverflow()
     {
-        // RT at [1, 2] sits between the in-memory rows (0) and the overflow rows (3-4)
-        testWithTombstones(1, 5, 1, 2);
+        // RT at [1, 2) sits between the in-memory rows (0) and the overflow rows (3-4)
+        inMemoryAssertion()
+            .maxRows(2).rows(5)
+            .withTombstone(rangeTombstone(1, 2))
+            .expectInMemoryUnfilteredCount(3)
+            .verify();
     }
 
-    private void testWithTombstones(int maxRows, int rows, int rtStart, int rtEnd)
+    @Test
+    public void inMemoryResponseWithRangeTombstoneBetweenInMemoryAndOverflowReversed()
     {
-        int key = key();
-        ReadCommand command = command(key, metadataWithClustering);
-        StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
-
-        PartitionUpdate update = buildUpdateWithRowsAndRangeTombstone(metadataWithClustering, key, rows, rtStart, rtEnd);
-
-        ReadResponse localResponse = command.createResponse(singlePartitionIterator(update), rdi);
-        ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update), command, rdi, maxRows);
-
-        assertIteratorsEqual(command, localResponse, inMemoryResponse);
+        // RT at [2, 3) sits between the in-memory rows (4) and the overflow rows (0-1)
+        inMemoryAssertion()
+            .maxRows(2).rows(5).reversed()
+            .withTombstone(rangeTombstone(2, 3))
+            .expectInMemoryUnfilteredCount(3)
+            .verify();
     }
 
-
-    private PartitionUpdate buildUpdateWithRowsAndRangeTombstone(TableMetadata metadata, int partitionKey,
-                                                                  int rowCount, int rtStart, int rtEnd)
+    @Test
+    public void inMemoryResponseWithOverlappingRangeTombstonesAtDifferentTimestamps()
     {
-        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadata, ByteBufferUtil.bytes(partitionKey)).timestamp(0);
-        for (int i = 0; i < rowCount; i++)
-            builder.row(i).add("v", i);
-        builder.addRangeTombstone().start(rtStart).end(rtEnd);
-        return builder.build();
+        // Three overlapping RTs: [0,3) ts=100, [1,4) ts=200, [2,5) ts=50
+        // which are transformed into: bound, boundary, boundary, bound markers
+        inMemoryAssertion()
+            .maxRows(2).rows(5)
+            .withTombstone(rangeTombstone(0, 3).timestamp(100))
+            .withTombstone(rangeTombstone(1, 4).timestamp(200))
+            .withTombstone(rangeTombstone(2, 5).timestamp(50))
+            .expectInMemoryUnfilteredCount(4)
+            .verify();
+    }
+
+    @Test
+    public void inMemoryResponseWithOverlappingRangeTombstonesAtDifferentTimestampsReversed()
+    {
+        // Same tombstones as above with reversed read order
+        inMemoryAssertion()
+            .maxRows(2).rows(5).reversed()
+            .withTombstone(rangeTombstone(0, 3).timestamp(100))
+            .withTombstone(rangeTombstone(1, 4).timestamp(200))
+            .withTombstone(rangeTombstone(2, 5).timestamp(50))
+            .expectInMemoryUnfilteredCount(4)
+            .verify();
+    }
+
+    private InMemoryAssertionBuilder inMemoryAssertion()
+    {
+        return new InMemoryAssertionBuilder();
+    }
+
+    private class InMemoryAssertionBuilder
+    {
+        private int maxRows = Integer.MAX_VALUE;
+        private int rows = 0;
+        private boolean reversed = false;
+        private final List<RangeTombstoneSpec> tombstones = new ArrayList<>();
+        private Integer expectInMemoryUnfilteredCount = null;
+
+        InMemoryAssertionBuilder maxRows(int maxRows) { this.maxRows = maxRows; return this; }
+        InMemoryAssertionBuilder rows(int rows) { this.rows = rows; return this; }
+        InMemoryAssertionBuilder reversed() { this.reversed = true; return this; }
+        InMemoryAssertionBuilder withTombstone(RangeTombstoneSpec rt) { tombstones.add(rt); return this; }
+        InMemoryAssertionBuilder expectInMemoryUnfilteredCount(int count) { this.expectInMemoryUnfilteredCount = count; return this; }
+
+        void verify()
+        {
+            int partitionKey = key();
+            ReadCommand command = command(partitionKey, metadataWithClustering, reversed);
+            StubRepairedDataInfo rdi = new StubRepairedDataInfo(ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+
+            PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(metadataWithClustering, ByteBufferUtil.bytes(partitionKey)).timestamp(0);
+            for (int i = 0; i < rows; i++)
+                builder.row(i).add("v", i);
+            for (RangeTombstoneSpec rt : tombstones)
+            {
+                Slice slice = Slice.make(Clustering.make(ByteBufferUtil.bytes(rt.start)),
+                                         Clustering.make(ByteBufferUtil.bytes(rt.end)));
+                builder.addRangeTombstone(new RangeTombstone(slice,
+                                                             DeletionTime.build(rt.markedForDeleteAt, FBUtilities.nowInSeconds())
+                                          )
+                );
+            }
+            PartitionUpdate update = builder.build();
+
+            ReadResponse localResponse = command.createResponse(singlePartitionIterator(update, reversed), rdi);
+            ReadResponse inMemoryResponse = ReadResponse.createInMemoryDataResponse(singlePartitionIterator(update, reversed), command, rdi, maxRows);
+
+            assertIteratorsEqual(command, localResponse, inMemoryResponse);
+            if (expectInMemoryUnfilteredCount != null)
+                assertEquals("Unxpected inMemoryUnfilteredCount", (int) expectInMemoryUnfilteredCount, inMemoryResponse.inMemoryUnfilteredCount());
+        }
+    }
+
+    private static RangeTombstoneSpec rangeTombstone(int start, int end)
+    {
+        return new RangeTombstoneSpec(start, end);
+    }
+
+    private static class RangeTombstoneSpec
+    {
+        final int start;
+        final int end;
+        long markedForDeleteAt;
+
+        RangeTombstoneSpec(int start, int end)
+        {
+            this.start = start;
+            this.end = end;
+        }
+
+        RangeTombstoneSpec timestamp(long ts)
+        {
+            this.markedForDeleteAt = ts;
+            return this;
+        }
     }
 
     private void assertIteratorsEqual(ReadCommand command, ReadResponse expected, ReadResponse actual)
@@ -380,7 +480,11 @@ public class ReadResponseTest
 
     private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update)
     {
-        UnfilteredRowIterator rowIter = update.unfilteredIterator();
+        return singlePartitionIterator(update, false);
+    }
+    private UnfilteredPartitionIterator singlePartitionIterator(PartitionUpdate update, boolean reversed)
+    {
+        UnfilteredRowIterator rowIter = update.unfilteredIterator(ColumnFilter.SelectionColumnFilter.all(update.columns()), Slices.ALL, reversed);
         return new AbstractUnfilteredPartitionIterator()
         {
             private boolean returned = false;
@@ -439,17 +543,18 @@ public class ReadResponseTest
 
     private ReadCommand digestCommand(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, true);
+        return new StubReadCommand(key, metadata, true, false);
     }
 
     private ReadCommand command(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, false);
+        return command(key, metadata, false);
     }
 
-    private ReadCommand command(int key)
+    private ReadCommand command(int key, TableMetadata metadata, boolean reversed)
     {
-        return command(key, metadata);
+        return new StubReadCommand(key, metadata, false, reversed);
+
     }
 
     private static class StubRepairedDataInfo extends RepairedDataInfo
@@ -554,7 +659,7 @@ public class ReadResponseTest
 
     private static class StubReadCommand extends SinglePartitionReadCommand
     {
-        StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
+        StubReadCommand(int key, TableMetadata metadata, boolean isDigest, boolean reversed)
         {
             super(metadata.epoch,
                   isDigest,
@@ -567,7 +672,7 @@ public class ReadResponseTest
                   RowFilter.none(),
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
-                  new ClusteringIndexSliceFilter(Slices.ALL, false),
+                  new ClusteringIndexSliceFilter(Slices.ALL, reversed),
                   null,
                   false,
                   null);
