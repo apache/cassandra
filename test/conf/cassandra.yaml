@@ -126,4 +126,5 @@ memtable:
             class_name: TrieMemtable
 # Note: keep the memtable configuration at the end of the file, so that the default mapping can be changed without
 # duplicating the whole section above.
-# ===== DO NOT PUT ANYTHING AFTER MEMTABLE CONFIG =====
+# ===== DO NOT PUT ANYTHING AFTER MEMTABLE CONFIG AND PRESERVE A NEWLINE AT THE END (other parts of test yamls are appended there) =====
+
