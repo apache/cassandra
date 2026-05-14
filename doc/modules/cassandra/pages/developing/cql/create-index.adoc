@@ -90,7 +90,7 @@ To index map keys, use the `KEYS` keyword and map name in nested parentheses:
 include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=keysidx]
 ----
 
-To query the table, you can use xref:cassandra:reference/cql-commands/select.adoc#filtering-on-collections[CONTAINS KEY] in `WHERE` clauses.
+To query the table, you can use xref:cassandra:developing/cql/dml.adoc#allow-filtering[CONTAINS KEY] in `WHERE` clauses.
 
 [source,language-cql]
 ----

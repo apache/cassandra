@@ -55,7 +55,7 @@ SAI allows only alphanumeric characters and underscores in names.
 SAI returns `InvalidRequestException` if you try to define an index on a column name that contains other characters, and does not create the index.
 
 map_name::
-Used with xref:cassandra:developing/collections/collection-create.adoc[collections], identifier of the `map_name` specified in `CREATE TABLE` ...
+Used with xref:cassandra:developing/cql/collections/collection-create.adoc[collections], identifier of the `map_name` specified in `CREATE TABLE` ...
 `map(<map_name>)`.
 The regular column syntax applies for collection types `list` and `set`.
 

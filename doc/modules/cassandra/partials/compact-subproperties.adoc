@@ -108,7 +108,7 @@ Default: `32`
 The compaction class `SizeTieredCompactionStrategy` (STCS) triggers a minor compaction when table meets the `min_threshold`.
 Minor compactions do not involve all the tables in a keyspace.
 See
-xref:operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)].
+xref:cassandra:managing/operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)].
 
 [NOTE]
 ====
@@ -151,7 +151,7 @@ Default: `50` (MB)
 [NOTE]
 ====
 The `cold_reads_to_omit` property for
-xref:operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)] is no longer supported.
+xref:cassandra:managing/operating/compaction/stcs.adoc#stcs_options[SizeTieredCompactionStrategy (STCS)] is no longer supported.
 ====
 
 [[TWCS]]
