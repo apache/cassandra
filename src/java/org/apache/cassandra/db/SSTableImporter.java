@@ -386,7 +386,7 @@ public class SSTableImporter
         logger.debug("Removing copied SSTables which were left in data directories after failed SSTable import.");
         for (MovedSSTable movedSSTable : movedSSTables)
         {
-            // no logging here as for moveSSTablesBack case above as logging is done in delete method
+            logger.info("Deleting sstable: {}, operation type: SSTable import cleanup", movedSSTable.newDescriptor);
             movedSSTable.newDescriptor.getFormat().delete(movedSSTable.newDescriptor);
         }
     }
