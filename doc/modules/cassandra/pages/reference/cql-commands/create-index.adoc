@@ -250,7 +250,7 @@ Assume a cyclist table contains this map data where `nation` is the map key and 
 ----
 
 To index map keys, use the `KEYS` keyword and map name in nested parentheses in the CREATE INDEX statement.
-To run a `SELECT` query on the table, use xref:cassandra:reference/cql-commands/select.adoc#filtering-on-collections[CONTAINS KEY] in `WHERE` clauses.
+To run a `SELECT` query on the table, use xref:cassandra:developing/cql/dml.adoc#allow-filtering[CONTAINS KEY] in `WHERE` clauses.
 This query returns cyclist teams that have an entry for the year 2015.
 
 [tabs]
