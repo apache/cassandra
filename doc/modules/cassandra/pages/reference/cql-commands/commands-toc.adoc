@@ -4,123 +4,111 @@
 This section describes the Cassandra Query Language (CQL) commands supported by the {product} database.
 
 '''
-xref:reference/cql-commands/alter-keyspace.adoc[ALTER KEYSPACE] ::
+xref:cassandra:developing/cql/ddl.adoc#alter-keyspace-statement[ALTER KEYSPACE] ::
 Changes keyspace replication strategy and enables or disables commit log.
 
-xref:reference/cql-commands/alter-materialized-view.adoc[ALTER MATERIALIZED VIEW] ::
+xref:cassandra:developing/cql/mvs.adoc#alter-materialized-view-statement[ALTER MATERIALIZED VIEW] ::
 Changes the table properties of a materialized view.
 
-xref:reference/cql-commands/alter-role.adoc[ALTER ROLE] ::
+xref:cassandra:developing/cql/security.adoc#alter-role-statement[ALTER ROLE] ::
 Changes password and sets superuser or login options.
 
-xref:reference/cql-commands/alter-table.adoc[ALTER TABLE] ::
+xref:cassandra:reference/cql-commands/alter-table.adoc[ALTER TABLE] ::
 Modifies the columns and properties of a table, or modify
 
-xref:reference/cql-commands/alter-type.adoc[ALTER TYPE] ::
+xref:cassandra:developing/cql/types.adoc#udts[ALTER TYPE] ::
 Modifies an existing user-defined type (UDT).
 
-xref:reference/cql-commands/alter-user.adoc[ALTER USER (Deprecated)] ::
+xref:cassandra:developing/cql/security.adoc#alter-user-statement[ALTER USER (Deprecated)] ::
 Deprecated. Alter existing user options.
 
-xref:reference/cql-commands/batch.adoc[BATCH] ::
+xref:cassandra:developing/cql/dml.adoc#batch_statement[BATCH] ::
 Applies multiple data modification language (DML) statements with atomicity and/or in isolation.
 
-xref:reference/cql-commands/create-aggregate.adoc[CREATE AGGREGATE] ::
+xref:cassandra:developing/cql/functions.adoc#create-aggregate-statement[CREATE AGGREGATE] ::
 Defines a user-defined aggregate.
-xref:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] ::
+xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] ::
 Creates a storage-attached index.
 
-xref:reference/cql-commands/create-function.adoc[CREATE FUNCTION] ::
+xref:cassandra:developing/cql/functions.adoc#create-function-statement[CREATE FUNCTION] ::
 Creates custom function to execute user provided code.
 
-xref:reference/cql-commands/create-index.adoc[CREATE INDEX] ::
+xref:cassandra:reference/cql-commands/create-index.adoc[CREATE INDEX] ::
 Defines a new index for a single column of a table.
 
-xref:reference/cql-commands/create-keyspace.adoc[CREATE KEYSPACE] ::
+xref:cassandra:developing/cql/ddl.adoc#create-keyspace-statement[CREATE KEYSPACE] ::
 
-xref:reference/cql-commands/create-materialized-view.adoc[CREATE MATERIALIZED VIEW] ::
+xref:cassandra:developing/cql/mvs.adoc#create-materialized-view-statement[CREATE MATERIALIZED VIEW] ::
 Optimizes read requests and eliminates the need for multiple write requests by duplicating data from a base table.
 
-xref:reference/cql-commands/create-role.adoc[CREATE ROLE] ::
+xref:cassandra:developing/cql/security.adoc#create-role-statement[CREATE ROLE] ::
 Creates a cluster wide database object used for access control.
 
-xref:reference/cql-commands/create-table.adoc[CREATE TABLE] ::
+xref:cassandra:reference/cql-commands/create-table.adoc[CREATE TABLE] ::
 Creates a new table.
 
-xref:reference/cql-commands/create-type.adoc[CREATE TYPE] ::
+xref:cassandra:developing/cql/types.adoc#udts[CREATE TYPE] ::
 Creates a custom data type in the keyspace that contains one or more fields of related information.
 
-xref:reference/cql-commands/create-user.adoc[CREATE USER (Deprecated)] ::
+xref:cassandra:developing/cql/security.adoc#create-user-statement[CREATE USER (Deprecated)] ::
 Deprecated. Creates a new user.
 
-xref:reference/cql-commands/delete.adoc[DELETE] ::
+xref:cassandra:developing/cql/dml.adoc#delete_statement[DELETE] ::
 Removes data from one or more columns or removes the entire row
 
-xref:reference/cql-commands/drop-aggregate.adoc[DROP AGGREGATE] ::
+xref:cassandra:developing/cql/functions.adoc#drop-aggregate-statement[DROP AGGREGATE] ::
 Deletes a user-defined aggregate from a keyspace.
 
-xref:reference/cql-commands/drop-function.adoc[DROP FUNCTION] ::
+xref:cassandra:developing/cql/functions.adoc#drop-function-statement[DROP FUNCTION] ::
 Deletes a user-defined function (UDF) from a keyspace.
 
-xref:reference/cql-commands/drop-index.adoc[DROP INDEX] ::
+xref:cassandra:reference/cql-commands/drop-index.adoc[DROP INDEX] ::
 Removes an index from a table.
 
-xref:reference/cql-commands/drop-keyspace.adoc[DROP KEYSPACE] ::
+xref:cassandra:developing/cql/ddl.adoc#drop-keyspace-statement[DROP KEYSPACE] ::
 Removes the keyspace.
 
-xref:reference/cql-commands/drop-materialized-view.adoc[DROP MATERIALIZED VIEW] ::
+xref:cassandra:developing/cql/mvs.adoc#drop-materialized-view-statement[DROP MATERIALIZED VIEW] ::
 Removes the named materialized view.
 
-xref:reference/cql-commands/drop-role.adoc[DROP ROLE] ::
+xref:cassandra:developing/cql/security.adoc#drop-role-statement[DROP ROLE] ::
 Removes a role.
 
-xref:reference/cql-commands/drop-table.adoc[DROP TABLE] ::
+xref:cassandra:reference/cql-commands/drop-table.adoc[DROP TABLE] ::
 Removes the table.
 
-xref:reference/cql-commands/drop-type.adoc[DROP TYPE] ::
+xref:cassandra:developing/cql/types.adoc#udts[DROP TYPE] ::
 Drop a user-defined type.
 
-xref:reference/cql-commands/drop-user.adoc[DROP USER (Deprecated)] ::
+xref:cassandra:developing/cql/security.adoc#drop-user-statement[DROP USER (Deprecated)] ::
 Removes a user.
 
-xref:reference/cql-commands/grant.adoc[GRANT] ::
+xref:cassandra:developing/cql/security.adoc#grant-permission-statement[GRANT] ::
 Allow access to database resources.
 
-xref:reference/cql-commands/insert.adoc[INSERT] ::
+xref:cassandra:developing/cql/dml.adoc#insert-statement[INSERT] ::
 Inserts an entire row or upserts data into existing rows.
 
-xref:reference/cql-commands/list-permissions.adoc[LIST PERMISSIONS] ::
+xref:cassandra:developing/cql/security.adoc#list-permissions-statement[LIST PERMISSIONS] ::
 Lists permissions on resources.
 
-xref:reference/cql-commands/list-roles.adoc[LIST ROLES] ::
+xref:cassandra:developing/cql/security.adoc#list-roles-statement[LIST ROLES] ::
 Lists roles and shows superuser and login status.
 
-xref:reference/cql-commands/list-users.adoc[LIST USERS (Deprecated)] ::
+xref:cassandra:developing/cql/security.adoc#list-users-statement[LIST USERS (Deprecated)] ::
 Lists existing internal authentication users and their superuser status.
 
-xref:reference/cql-commands/restrict.adoc[RESTRICT] ::
-Denies the permission on a resource, even if the role is directly granted or inherits permissions.
-
-xref:reference/cql-commands/restrict-rows.adoc[RESTRICT ROWS] ::
-Configures the column used for row-level access control.
-
-xref:reference/cql-commands/revoke.adoc[REVOKE] ::
+xref:cassandra:developing/cql/security.adoc#revoke-permission-statement[REVOKE] ::
 Removes privileges on database objects from roles.
 
-xref:reference/cql-commands/select.adoc[SELECT] ::
+xref:cassandra:developing/cql/dml.adoc#select-statement[SELECT] ::
 Returns data from a table.
 
-xref:reference/cql-commands/truncate.adoc[TRUNCATE] ::
+xref:cassandra:developing/cql/ddl.adoc#truncate-statement[TRUNCATE] ::
 Removes all data from a table.
 
-xref:reference/cql-commands/unrestrict.adoc[UNRESTRICT] ::
-Removes a restriction from a role. 
-
-xref:reference/cql-commands/unrestrict-rows.adoc[UNRESTRICT ROWS] ::
-Removes the column definition for row-level access control. 
-
-xref:reference/cql-commands/update.adoc[UPDATE] ::
+xref:cassandra:developing/cql/dml.adoc#update-statement[UPDATE] ::
 Modifies one or more column values to a row in a table.
 
-xref:reference/cql-commands/use.adoc[USE] ::
+xref:cassandra:developing/cql/ddl.adoc#use-statement[USE] ::
 Selects the keyspace for the current client session.
