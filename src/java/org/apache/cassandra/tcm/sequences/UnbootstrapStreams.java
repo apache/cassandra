@@ -30,9 +30,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -50,6 +52,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 public class UnbootstrapStreams implements LeaveStreams
 {
@@ -125,9 +128,20 @@ public class UnbootstrapStreams implements LeaveStreams
         logger.debug("waiting for batch log processing.");
         batchlogReplay.get();
 
-        logger.info("streaming hints to other nodes");
+        Future<?> hintsSuccess = ImmediateFuture.success(null);
 
-        Future<?> hintsSuccess = StorageService.instance.streamHints();
+        if (DatabaseDescriptor.getTransferHintsOnDecommission())
+        {
+            logger.info("streaming hints to other nodes");
+            hintsSuccess = StorageService.instance.streamHints();
+        }
+        else
+        {
+            logger.info("pausing dispatch and deleting hints");
+            DatabaseDescriptor.setHintedHandoffEnabled(false);
+            HintsService.instance.pauseDispatch();
+            HintsService.instance.deleteAllHints();
+        }
 
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream acks.");
