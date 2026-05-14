@@ -51,10 +51,6 @@ Name of the column.
 
 include::cassandra:partial$table-column-definitions.adoc[]
 
-// Primary Key
-
-include::cassandra:partial$primary-key-column.adoc[]
-
 // Table Options
 
 include::cassandra:partial$table-properties.adoc[]
