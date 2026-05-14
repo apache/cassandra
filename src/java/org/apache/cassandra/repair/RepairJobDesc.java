@@ -152,7 +152,7 @@ public class RepairJobDesc
 
         public long serializedSize(RepairJobDesc desc, int version)
         {
-            int size = TypeSizes.sizeof(desc.parentSessionId != null);
+            long size = TypeSizes.sizeof(desc.parentSessionId != null);
             if (desc.parentSessionId != null)
                 size += TimeUUID.sizeInBytes();
             size += TimeUUID.sizeInBytes();

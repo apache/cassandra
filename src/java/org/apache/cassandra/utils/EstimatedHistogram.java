@@ -429,7 +429,7 @@ public class EstimatedHistogram implements DoubleToLongFunction
 
         public long serializedSize(EstimatedHistogram eh)
         {
-            int size = 0;
+            long size = 0;
 
             long[] offsets = eh.getBucketOffsets();
             long[] buckets = eh.getBuckets(false);

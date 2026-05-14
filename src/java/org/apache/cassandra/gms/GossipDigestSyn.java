@@ -70,9 +70,9 @@ class GossipDigestSerializationHelper
         return gDigests;
     }
 
-    static int serializedSize(List<GossipDigest> digests, int version)
+    static long serializedSize(List<GossipDigest> digests, int version)
     {
-        int size = TypeSizes.sizeof(digests.size());
+        long size = TypeSizes.sizeof(digests.size());
         for (GossipDigest digest : digests)
             size += GossipDigest.serializer.serializedSize(digest, version);
         return size;

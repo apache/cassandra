@@ -231,9 +231,9 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
         public long serializedSize(AbstractBounds<T> ab, int version)
         {
             // !WARNING! See serialize method above for why we still need to have that condition.
-            int size = version < MessagingService.VERSION_30
-                     ? TypeSizes.sizeof(kindInt(ab))
-                     : 1;
+            long size = version < MessagingService.VERSION_30
+                      ? TypeSizes.sizeof(kindInt(ab))
+                      : 1;
             size += serializer.serializedSize(ab.left, version);
             size += serializer.serializedSize(ab.right, version);
             return size;

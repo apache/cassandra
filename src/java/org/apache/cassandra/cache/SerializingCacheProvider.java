@@ -58,7 +58,7 @@ public class SerializingCacheProvider implements CacheProvider<RowCacheKey, IRow
 
         public long serializedSize(IRowCacheEntry entry)
         {
-            int size = TypeSizes.sizeof(true);
+            long size = TypeSizes.sizeof(true);
             if (entry instanceof RowCacheSentinel)
                 size += TypeSizes.sizeof(((RowCacheSentinel) entry).sentinelId);
             else
