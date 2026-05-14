@@ -314,7 +314,7 @@ the post filtering on `col2` is carried out on the replicas themselves.
 Another case were post-filtering comes into play is when constructing a query that involves more than two SAI indexes.
 Refer to this xref:#saiAndQueriesFaq[related FAQ] about `AND` queries.
 
-== Can I create an SAI index based on a xref:reference:static.adoc[static column]?
+== Can I create an SAI index based on a xref:cassandra:developing/cql/ddl.adoc#static-column[static column]?
 
 Yes.
 For example, consider a `transaction_by_customer` table where you have a primary key `customer_id`, plus static columns to contain each customer's `address`, `phone_number`, and `date_of_birth`.

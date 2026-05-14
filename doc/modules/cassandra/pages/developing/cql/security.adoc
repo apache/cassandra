@@ -167,11 +167,11 @@ used and the role does not exist the statement is a no-op.
 DROP ROLE intentionally does not terminate any open user sessions.
 Currently connected sessions will remain connected and will retain the
 ability to perform any database actions which do not require
-xref:cassandra:managing/operating/authorization/security.adoc#authorization[authorization].
+xref:cassandra:managing/operating/security.adoc#authorization[authorization].
 However, if authorization is enabled, xref:cassandra:developing/cql/security.adoc#cql-permissions[permissions] of the dropped role are also revoked,
-subject to the xref:cassandra:managing/operating/security.adoc#auth-caching[caching options] configured in xref:cassandra:developing/cql/configuring.adoc#cassandra.yaml[cassandra-yaml] file.
-Should a dropped role be subsequently recreated and have new xref:security.adoc#grant-permission-statement[permissions] or
-xref:security.adoc#grant-role-statement[roles] granted to it, any client sessions still
+subject to the xref:cassandra:managing/operating/security.adoc#auth-caching[caching options] configured in xref:cassandra:managing/configuration/cass_yaml_file.adoc[cassandra-yaml] file.
+Should a dropped role be subsequently recreated and have new xref:cassandra:developing/cql/security.adoc#grant-permission-statement[permissions] or
+xref:cassandra:developing/cql/security.adoc#grant-role-statement[roles] granted to it, any client sessions still
 connected will acquire the newly granted permissions and roles.
 ====
 
@@ -344,7 +344,7 @@ Existing users can be listed using the `LIST USERS` statement:
 include::cassandra:example$BNF/list_users_statement.bnf[]
 ----
 
-Note that this statement is equivalent to xref:security.adoc#list-roles-statement[LIST ROLES], but only roles with the `LOGIN` privilege are included in the output.
+Note that this statement is equivalent to xref:cassandra:developing/cql/security.adoc#list-roles-statement[LIST ROLES], but only roles with the `LOGIN` privilege are included in the output.
 
 [[databaseIdentity]]
 === Database Identities

@@ -96,8 +96,8 @@ However, if you lower the `gc_grace_seconds` value, consider its interaction wit
 
 * *hint replays*: When a node goes down and then comes back up, other nodes replay the write operations (called xref:managing/operating/hints.adoc[hints]) that are queued for that node while it was unresponsive.
 The database does not replay hints older than gc_grace_seconds after creation.
-The xref:managing/configuration/configuration/cass_yaml_file.adoc#max_hint_window[max_hint_window] setting in the
-xref:managing/configuration/configuration/cass_yaml_file.adoc[cassandra.yaml] file sets the time limit (3 hours by default) for collecting hints for the unresponsive node.
+The xref:cassandra:managing/configuration/cass_yaml_file.adoc#max_hint_window[max_hint_window] setting in the
+xref:cassandra:managing/configuration/cass_yaml_file.adoc[cassandra.yaml] file sets the time limit (3 hours by default) for collecting hints for the unresponsive node.
 
 * *batch replays*: Like hint queues, xref:developing/cql/ddl.adoc#batch_statement[batch operations] store database mutations that are replayed in sequence.
 As with hints, the database does not replay a batched mutation older than gc_grace_seconds after creation.

@@ -46,9 +46,9 @@ Create the `race_winners` table that has a frozen user-defined type (UDT):
 include::cassandra:example$CQL/race_winners-table.cql[tag=usetype]
 ----
 
-See xref:developing/user-defined-type-create.adoc[Create a user-defined type] for information on Create UDTs.
+See xref:cassandra:developing/cql/types.adoc#udts[Create a user-defined type] for information on Create UDTs.
 UDTs can be created unfrozen if only non-collection fields are used in the user-defined type creation.
-If the table is created with an unfrozen UDT, then xref:developing/inserting/insert-user-defined-type.adoc[individual field values can be updated and deleted].
+If the table is created with an unfrozen UDT, then xref:cassandra:developing/cql/dml.adoc#update-statement[individual field values can be updated and deleted].
 
 == Create a table with a CDC log
 
@@ -70,7 +70,7 @@ See https://docs.datastax.com/en/dse/6.8/dse-admin/datastax_enterprise/config/co
 
 == Create a table with a trie memtable
 
-To create a table with a trie memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:architecture/storage-engine/memtable.adoc[Memtable] for more information.
+To create a table with a trie memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:cassandra:architecture/storage-engine.adoc#memtables[Memtable] for more information.
 
 To create a table with a trie memtable:
 
@@ -81,7 +81,7 @@ include::cassandra:example$CQL/cyclist_id-table.cql[tag=trie-memtable]
 
 == Create a table with a skiplist memtable
 
-To create a table with a skiplist memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:architecture/storage-engine/memtable.adoc[Memtable] for more information.
+To create a table with a skiplist memtable, a memtable configuration must be enabled in `cassandra.yaml`. See xref:cassandra:architecture/storage-engine.adoc#memtables[Memtable] for more information.
 
 To create a table with a skiplist memtable:
 
