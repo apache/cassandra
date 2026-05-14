@@ -204,7 +204,7 @@ Enclose a text property value in single quotation marks.
 [[alter-compression]]
 === Modifying compression and compaction
 
-Use a property map to alter the xref:cassandra:comments-table.adoc[comments] table's compression or compaction setting:
+Use a property map to alter the comments table's compression or compaction setting:
 
 [source,language-cql]
 ----
@@ -223,7 +223,7 @@ For strategies to minimize this disruption, see http://blog.alteroot.org/article
 
 === Changing caching
 
-Set the number of rows per partition to store in the row cache for the xref:cassandra:comments-table.adoc[comments] table to 10 rows:
+Set the number of rows per partition to store in the row cache for the comments table to 10 rows:
 
 [source,language-cql]
 ----

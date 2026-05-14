@@ -281,7 +281,7 @@ xref:cassandra:developing/cql/security.adoc#operation-roles[`CassandraRoleManage
 See also: `setting-credentials-for-internal-authentication`,
 xref:cassandra:developing/cql/security.adoc#create-role[`CREATE ROLE`],
 xref:cassandra:developing/cql/security.adoc#alter-role[`ALTER ROLE`],
-xref:xref:cassandra:developing/cql/security.adoc#alter-keyspace[`ALTER KEYSPACE`] and
+xref:cassandra:developing/cql/ddl.adoc#alter-keyspace-statement[`ALTER KEYSPACE`] and
 xref:cassandra:developing/cql/security.adoc#grant-permission[`GRANT PERMISSION`].
 
 == Authorization

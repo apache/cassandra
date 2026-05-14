@@ -27,7 +27,7 @@ SAI calculates an estimate of the incremental heap consumption of the new entry.
 This estimate counts against the heap usage of the underlying Memtable.
 This feature also means that as more columns are indexed on a table, the Memtable flush rate will increase, and the size of flushed SSTables will decrease.
 The number of total writes and the estimated heap usage of all live Memtable indexes are exposed as metrics.
-See xref:cassandra:developing/cql/indexing/sai/monitoring.adoc#saiMonitorMetrics[SAI metrics].
+See xref:cassandra:developing/cql/indexing/sai/operations/monitoring.adoc#saiMonitorMetrics[SAI metrics].
 
 === Memtable flush
  
@@ -94,7 +94,7 @@ image::sai/saiOnDiskStructureWithOffsets.png[alt=SAI on-disk layout as described
 The actual segment flushing process is very similar to a Memtable flush.
 However, buffered terms are sorted before they can be written with their postings to their respective type-specific on-disk structures.
 At the end of compaction for a given index, a special empty marker file is flagged to indicate success, and the number of segments is recorded in SAI metrics.
-See xref:developing:indexing/sai/monitoring.adoc#saiGlobalIndexingMetrics[Global indexing metrics].
+See xref:cassandra:developing/cql/indexing/sai/operations/monitoring.adoc#saiGlobalIndexingMetrics[Global indexing metrics].
 
 When the entire compaction task finishes, SAI receives an SSTable List Changed Notification that contains the SSTables added and removed during the transaction.
 SSTable Context Manager and Index View Manager are responsible for replacing old SSTable indexes with new ones atomically.
