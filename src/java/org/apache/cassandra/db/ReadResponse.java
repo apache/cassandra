@@ -33,6 +33,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -60,6 +61,12 @@ public abstract class ReadResponse
 
     protected ReadResponse()
     {
+    }
+
+    @VisibleForTesting
+    int inMemoryUnfilteredCount()
+    {
+        return 0;
     }
 
     public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
@@ -443,14 +450,29 @@ public abstract class ReadResponse
             this.overflow = overflow;
         }
 
+        @Override
+        @VisibleForTesting
+        int inMemoryUnfilteredCount()
+        {
+            if (partition == null)
+                return 0;
+            int count = 0;
+            try (UnfilteredRowIterator iter = partition.unfilteredIterator())
+            {
+                while (iter.hasNext()) { iter.next(); count++; }
+            }
+            return count;
+        }
+
         // Decorating iterator that stops after maxRows Unfiltered objects and records whether overflow occurred.
         // Does NOT close the wrapped iterator on close() so the caller can continue reading overflow rows.
         private static class LimitedUnfilteredRowIterator extends AbstractUnfilteredRowIterator
         {
             private final UnfilteredRowIterator wrapped;
             private final int maxRows;
-            private int rowCount = 0;
+            private int unfilteredCount = 0;
             private boolean hasOverflow = false;
+            private boolean insideOpenMarker = false;
 
             private LimitedUnfilteredRowIterator(UnfilteredRowIterator wrapped, int maxRows)
             {
@@ -473,15 +495,23 @@ public abstract class ReadResponse
             @Override
             protected Unfiltered computeNext()
             {
-                if (rowCount >= maxRows)
-                {
-                    hasOverflow = wrapped.hasNext();
-                    return endOfData();
-                }
                 if (!wrapped.hasNext())
                     return endOfData();
-                rowCount++;
-                return wrapped.next();
+
+                if (unfilteredCount >= maxRows && !insideOpenMarker)
+                {
+                    hasOverflow = true;
+                    return endOfData();
+                }
+
+                Unfiltered next = wrapped.next();
+                if (next.isRangeTombstoneMarker())
+                {
+                    RangeTombstoneMarker marker = (RangeTombstoneMarker) next;
+                    insideOpenMarker = marker.isOpen(isReverseOrder);
+                }
+                unfilteredCount++;
+                return next;
             }
         }
 
