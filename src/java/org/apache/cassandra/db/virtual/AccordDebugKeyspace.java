@@ -1263,7 +1263,6 @@ public class AccordDebugKeyspace extends VirtualKeyspace
         @Override
         public void collect(PartitionsCollector collector)
         {
-            int nodeId = AccordService.unsafeInstance().nodeId().id;
             tracing().forEach(id -> true, (txnId, events) -> {
                 events.forEach(e -> {
                     if (e.messages().isEmpty())
