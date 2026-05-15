@@ -16,8 +16,8 @@
 # under the License.
 
 notifications:
-  commits:      commits@cassandra.apache.org
-  issues:       commits@cassandra.apache.org
+  commits: commits@cassandra.apache.org
+  issues: commits@cassandra.apache.org
   pullrequests: pr@cassandra.apache.org
   jira_options: link worklog
 
@@ -34,3 +34,16 @@ github:
     projects: false
   autolink_jira:
     - CASSANDRA
+  rulesets:
+    - name: "Default Branch Protection"
+      type: branch
+      branches:
+        includes:
+          - "~DEFAULT_BRANCH"
+          - "release/*"
+          - "rel/*"
+        excludes: []
+      bypass_teams:
+        - root
+      restrict_deletion: true
+      restrict_force_push: true
