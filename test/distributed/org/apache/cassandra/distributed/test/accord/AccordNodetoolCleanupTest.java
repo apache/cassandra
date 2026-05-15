@@ -39,6 +39,8 @@ import static org.apache.cassandra.service.accord.AccordService.getBlocking;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -50,6 +52,8 @@ import accord.primitives.Ranges;
 public class AccordNodetoolCleanupTest extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordNodetoolCleanupTest.class);
+
+    protected String originalToken;
 
     @Override
     protected Logger logger()
@@ -63,10 +67,25 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
         AccordTestBase.setupCluster(builder -> builder
                                                .withoutVNodes()
                                                .appendConfig(config -> config
-                                                                       .set("accord.shard_durability_cycle", "20s")
+                                                                       .set("accord.shard_durability_cycle", "1s")
                                                                        .with(Feature.GOSSIP, Feature.NETWORK)), 2);
         SHARED_CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';');
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+    }
+
+    @Before
+    public void getOriginalToken()
+    {
+         originalToken = SHARED_CLUSTER.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
+    }
+
+    @After
+    public void reset()
+    {
+        String token = originalToken;
+        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+            StorageService.instance.move(token);
+        });
     }
 
     @Test
@@ -81,8 +100,6 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             cluster.get(1).flush(withKeyspace("%s"));
 
-            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
             long token = (Long) result.toObjectArrays()[0][0];
 
             assertTrue(token < Long.parseLong(originalToken));
@@ -91,6 +108,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             // Cluster 1 no longer owns token
             cluster.get(1).runOnInstance(() -> {
+                AccordService.instance().node().durability().shards().start();
                 StorageService.instance.move(Long.toString(token - 1000));
             });
 
@@ -111,16 +129,13 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
                 });
             });
 
-            cluster.get(1).nodetool("cleanup", KEYSPACE, tableName);
+            NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
+            assertEquals(0, nodetoolResult.getRc());
             assertEquals(0, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             // Ensure data is cleaned up
             assertEquals(0, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1").length);
-
-            cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(originalToken);
-            });
         });
     }
 
@@ -139,8 +154,6 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             cluster.get(1).flush(withKeyspace("%s"));
 
-            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
             long token1 = (Long) result1.toObjectArrays()[0][0];
             long token2 = (Long) result2.toObjectArrays()[0][0];
 
@@ -150,24 +163,19 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             // Cluster 1 now only owns token2, but Accord still requires token1
             cluster.get(1).runOnInstance(() -> {
-                Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).disableAutoCompaction();
+                AccordService.instance().node().durability().shards().stop();
                 StorageService.instance.move(Long.toString(token1 - 1000));
             });
 
-            NodeToolResult result = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
+            NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
-            assertTrue(result.getStdout().contains("Partially cleaned up SSTables for ranges that are no longer owned in keyspace " + KEYSPACE));
-
-            assertEquals(2, result.getRc());
+            assertTrue(nodetoolResult.getStdout().contains("Some SSTables in keyspace " + KEYSPACE + " are still being used by Accord and were not cleaned up, check server logs for more information."));
+            assertEquals(2, nodetoolResult.getRc());
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             // Ensure data is still there
             assertEquals(1, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1").length);
             assertEquals(1, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 2 LIMIT 1").length);
-
-            cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(originalToken);
-            });
         });
 
     }
@@ -185,27 +193,25 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             cluster.get(1).flush(withKeyspace("%s"));
 
-            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
             long token = (Long) result.toObjectArrays()[0][0];
 
             assertTrue(token < Long.parseLong(originalToken));
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
-            cluster.get(1).runOnInstance(() -> StorageService.instance.move(Long.toString(token - 1000)));
+            cluster.get(1).runOnInstance(() -> {
+                AccordService.instance().node().durability().shards().stop();
+                StorageService.instance.move(Long.toString(token - 1000));
+            });
 
-            cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
+            NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
-            // Cluster 1 no longer owns token, however Accord still needs it so it is not cleaned up
+            assertTrue(nodetoolResult.getStdout().contains("Some SSTables in keyspace " + KEYSPACE + " are still being used by Accord and were not cleaned up, check server logs for more information."));
+            assertEquals(2, nodetoolResult.getRc());
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             // Ensure data is still there
             assertEquals(1, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1").length);
-
-            cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(originalToken);
-            });
         });
     }
 
@@ -222,8 +228,6 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             cluster.get(1).flush(withKeyspace("%s"));
 
-            String originalToken = cluster.get(1).callOnInstance(() -> getOnlyElement(StorageService.instance.getTokens()));
-
             long token = (Long) result.toObjectArrays()[0][0];
 
             assertTrue(token < Long.parseLong(originalToken));
@@ -231,19 +235,17 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             cluster.get(1).runOnInstance(() -> {
+                AccordService.instance().node().durability().shards().stop();
                 StorageService.instance.move(Long.toString(token - 1000));
             });
 
-            cluster.get(1).nodetool("cleanup", KEYSPACE, tableName);
+            NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
+            assertEquals(0, nodetoolResult.getRc());
             assertEquals(0, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             // Ensure data is cleaned up
             assertEquals(0, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1").length);
-
-            cluster.get(1).runOnInstance(() -> {
-                StorageService.instance.move(originalToken);
-            });
         });
     }
 }

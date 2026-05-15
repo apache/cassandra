@@ -584,6 +584,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
                 if (Iterables.isEmpty(sstables))
                 {
+                    if (operation.incompleteOperation())
+                    {
+                        logger.info("Operation incomplete for {}.{}", keyspace, table);
+                        return AllSSTableOpStatus.INCOMPLETE;
+                    }
                     logger.info("No sstables to {} for {}.{}", operationName, keyspace, table);
                     return AllSSTableOpStatus.SUCCESSFUL;
                 }
@@ -814,7 +819,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
         return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
-            boolean incompleteOperation = false;
+            volatile boolean incompleteOperation = false;
 
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
@@ -822,7 +827,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                 List<SSTableReader> sortedSSTables = Lists.newArrayList(transaction.originals());
                 Iterator<SSTableReader> sstableIter = sortedSSTables.iterator();
                 int totalSSTables = 0;
-                int skippedSStables = 0;
+                int containedInRangeSkippedSStables = 0;
+                int inUseByAccordSkippedSStables = 0;
                 while (sstableIter.hasNext())
                 {
                     SSTableReader sstable = sstableIter.next();
@@ -844,19 +850,20 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
                                     sstable.isRepaired());
                         sstableIter.remove();
                         transaction.cancel(sstable);
-                        skippedSStables++;
+                        containedInRangeSkippedSStables++;
                     }
                     else if (!needsCleanupAccord)
                     {
                         sstableIter.remove();
                         transaction.cancel(sstable);
-                        skippedSStables++;
+                        inUseByAccordSkippedSStables++;
                         this.incompleteOperation = true;
                     }
                 }
 
-                logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
-                            skippedSStables, totalSSTables, cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, transientRanges);
+                logger.info("Skipping cleanup for {}/{} sstables since they are fully contained in owned ranges and skipping cleanup for {}/{} since they are in use by Accord " +
+                            "for {}.{} (full ranges: {}, transient ranges: {})", containedInRangeSkippedSStables, totalSSTables, inUseByAccordSkippedSStables, totalSSTables,
+                            cfStore.getKeyspaceName(), cfStore.getTableName(), fullRanges, transientRanges);
                 sortedSSTables.sort(SSTableReader.sizeComparator);
                 return sortedSSTables;
             }
@@ -865,7 +872,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
             public void execute(LifecycleTransaction txn) throws IOException
             {
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfStore, allRanges, transientRanges, txn.onlyOne().isRepaired(), FBUtilities.nowInSeconds());
-                this.incompleteOperation |= (doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, this.incompleteOperation, noLongerOwnedRangesInUseByAccord));
+                if (doCleanupOne(cfStore, txn, cleanupStrategy, allRanges, hasIndexes, this.incompleteOperation, noLongerOwnedRangesInUseByAccord))
+                    this.incompleteOperation = true;
             }
 
             @Override
@@ -893,7 +901,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         List<Range<Token>> noLongerOwnedRangesInUseByAccord = new ArrayList<>();
         TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
 
-        if (metadata != null && metadata.isAccordEnabled())
+        if (metadata != null && metadata.requiresAccordSupport())
         {
             checkState(localWrites.onlyTransient().ranges().isEmpty(), "Transient Replication is not supported with Accord");
             Map<TableId, Set<Range<Token>>> inUseRanges = AccordService.instance().getInUseRanges();
