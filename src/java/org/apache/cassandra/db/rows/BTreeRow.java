@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
@@ -196,6 +197,20 @@ public class BTreeRow extends AbstractRow
     private static long minDeletionTime(ColumnData cd)
     {
         return cd.column().isSimple() ? minDeletionTime((Cell<?>) cd) : minDeletionTime((ComplexColumnData)cd);
+    }
+
+    @Override
+    public boolean hasLiveData(long nowInSec, boolean enforceStrictLiveness)
+    {
+        if (primaryKeyLivenessInfo().isLive(nowInSec))
+            return true;
+        else if (enforceStrictLiveness)
+            return false;
+        // Fast path to avoid cell iteration
+        // if there are no deleted cells then we can just check if we have at least one cell
+        if (!hasDeletion(nowInSec))
+            return !BTree.isEmpty(btree);
+        return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
     }
 
     public void apply(Consumer<ColumnData> function)
