@@ -1066,8 +1066,26 @@ public class LeveledCompactionStrategyTest
     public void testLevelScannerIntersection()
     {
         Collection<SSTableReader> sstable = Collections.singleton(MockSchema.sstableWithLevel(1, 10, 20, 1, cfs));
-        Range<Token> range = new Range<>(readerBounds(1).getToken(), readerBounds(10).getToken());
+
+        // SSTable range - [10, 20]
+        // range - (1, 9]
+        Range<Token> range = new Range<>(readerBounds(1).getToken(), readerBounds(9).getToken());
+        assertEquals(0, LeveledCompactionStrategy.LeveledScanner.intersecting(sstable, Collections.singleton(range)).size());
+
+        // SSTable range - [10, 20]
+        // range - (1, 10]
+        range = new Range<>(readerBounds(1).getToken(), readerBounds(10).getToken());
         assertEquals(1, LeveledCompactionStrategy.LeveledScanner.intersecting(sstable, Collections.singleton(range)).size());
+
+        // SSTable range - [10, 20]
+        // range - (1, 15]
+        range = new Range<>(readerBounds(1).getToken(), readerBounds(15).getToken());
+        assertEquals(1, LeveledCompactionStrategy.LeveledScanner.intersecting(sstable, Collections.singleton(range)).size());
+
+        // SSTable range - [10, 20]
+        // range - (20, 25]
+        range = new Range<>(readerBounds(20).getToken(), readerBounds(25).getToken());
+        assertEquals(0, LeveledCompactionStrategy.LeveledScanner.intersecting(sstable, Collections.singleton(range)).size());
     }
 
     private Pair<Set<SSTableReader>, Set<SSTableReader>> groupByLevel(Iterable<SSTableReader> sstables)

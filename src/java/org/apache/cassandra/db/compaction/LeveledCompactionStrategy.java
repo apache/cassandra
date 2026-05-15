@@ -48,7 +48,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -466,8 +465,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 for (SSTableReader sstable : sstables)
                 {
-                    Bounds<Token> sstableRange = new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken());
-                    if (range == null || range.intersects(sstableRange))
+                    if (range == null || range.intersects(sstable.getBounds()))
                         filtered.add(sstable);
                 }
             }
