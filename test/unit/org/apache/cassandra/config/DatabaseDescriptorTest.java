@@ -1074,4 +1074,33 @@ public class DatabaseDescriptorTest
         Config config = DatabaseDescriptor.loadConfig();
         Assert.assertEquals(config.max_value_size.toMebibytes() * 1024 * 1024, DatabaseDescriptor.getMaxValueSize());
     }
+
+    @Test
+    public void testInitializeBackgroundWriteDiskAccessModeRejectsZeroBufferSize()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedMode = conf.background_write_disk_access_mode;
+        DataStorageSpec.IntKibibytesBound savedBufferSize = conf.direct_write_buffer_size;
+        try
+        {
+            conf.background_write_disk_access_mode = Config.DiskAccessMode.direct;
+            conf.direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound("0KiB");
+
+            try
+            {
+                DatabaseDescriptor.initializeBackgroundWriteDiskAccessMode();
+                fail("expected ConfigurationException for direct_write_buffer_size == 0");
+            }
+            catch (ConfigurationException expected)
+            {
+                Assert.assertTrue("expected message to mention direct_write_buffer_size, got: " + expected.getMessage(),
+                                  expected.getMessage().contains("direct_write_buffer_size"));
+            }
+        }
+        finally
+        {
+            conf.background_write_disk_access_mode = savedMode;
+            conf.direct_write_buffer_size = savedBufferSize;
+        }
+    }
 }

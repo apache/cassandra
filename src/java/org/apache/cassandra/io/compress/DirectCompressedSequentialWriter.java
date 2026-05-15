@@ -20,6 +20,7 @@ package org.apache.cassandra.io.compress;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.CRC32;
 
 import javax.annotation.Nullable;
@@ -28,6 +29,8 @@ import com.sun.nio.file.ExtendedOpenOption;
 
 import org.agrona.BitUtil;
 import org.agrona.BufferUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
@@ -41,6 +44,7 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import sun.nio.ch.DirectBuffer;
@@ -56,13 +60,18 @@ import static org.apache.cassandra.utils.Throwables.merge;
  */
 public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 {
+    private static final Logger logger = LoggerFactory.getLogger(DirectCompressedSequentialWriter.class);
+
+    // Fires the "configured buffer below minimum required, was coerced" warning at most once
+    // per JVM so a misconfiguration is operator-visible without per-SSTable spam.
+    private static final AtomicBoolean undersizedBufferWarned = new AtomicBoolean(false);
 
     private ByteBuffer writeBuffer;
     private int writeBufferPosition = 0;
     private long actualDataSize = 0;
 
     private final int blockSize;
-    // ChecksumWriter writes CRCs directly to the channel, bypassing our aligned buffer. Track checksums ourselves.
+    // ChecksumWriter writes CRCs directly to the channel, bypassing writeBuffer; track checksums ourselves.
     private final CRC32 fullFileChecksum = new CRC32();
     private final CRC32 chunkChecksum = new CRC32();
     private final ByteBuffer crcBuffer = ByteBuffer.allocate(4);
@@ -77,19 +86,45 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     {
         super(file, offsetsFile, digestFile, option, parameters, sstableMetadataCollector, compressionDictionaryManager, ExtendedOpenOption.DIRECT);
 
-        this.blockSize = FileUtils.getBlockSize(file.parent());
-        if (blockSize <= 0)
-            throw new IllegalStateException("Unable to determine filesystem block size for Direct IO. " +
-                                            "Block size: " + blockSize);
+        // super() opened the O_DIRECT FileChannel and allocated parent buffers; if anything below throws
+        // the caller never gets a reference to clean them up, so abort the txn proxy ourselves.
+        try
+        {
+            this.blockSize = FileUtils.getBlockSize(file.parent());
+            if (blockSize <= 0)
+                throw new IllegalStateException("Unable to determine filesystem block size for Direct IO. " +
+                                                "Block size: " + blockSize);
 
-        int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
-        int maxChunkWrite = parameters.getSstableCompressor().initialCompressedBufferLength(parameters.chunkLength());
-        int minRequiredSize = maxChunkWrite + 4 + blockSize;
-        int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
+            if ((blockSize & (blockSize - 1)) != 0)
+                throw new IllegalStateException("Filesystem block size must be a power of two for Direct IO. " +
+                                                "Block size: " + blockSize);
 
-        this.writeBuffer = BufferUtil.allocateDirectAligned(bufferSize, blockSize);
+            int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
+            int maxChunkWrite = parameters.getSstableCompressor().initialCompressedBufferLength(parameters.chunkLength());
+            int minRequiredSize = maxChunkWrite + 4 + blockSize;
+            if (configuredSize < minRequiredSize && undersizedBufferWarned.compareAndSet(false, true))
+                logger.warn("direct_write_buffer_size ({} bytes) is below the minimum required for this table " +
+                            "(worst-case chunk {} + CRC 4 + blockSize {} = {} bytes); using the minimum. " +
+                            "Increase direct_write_buffer_size in cassandra.yaml to silence this warning.",
+                            configuredSize, maxChunkWrite, blockSize, minRequiredSize);
+            int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
+
+            this.writeBuffer = BufferUtil.allocateDirectAligned(bufferSize, blockSize);
+        }
+        catch (Throwable t)
+        {
+            Throwable merged = t;
+            try { merged = abort(t); }
+            catch (Throwable t2) { t.addSuppressed(t2); }
+            Throwables.maybeFail(merged);
+            // Unreachable: maybeFail(non-null) always throws. Present for definite-assignment of `blockSize`.
+            throw new AssertionError("Throwables.maybeFail should have thrown", merged);
+        }
     }
 
+    // Parent reads fchannel.position(), which lags by writeBuffer contents under O_DIRECT.
+    // getEstimatedOnDiskBytesWritten is intentionally NOT overridden: parent returns chunkOffset,
+    // which already represents the eventual on-disk size — correct under DIO.
     @Override
     public long getOnDiskFilePointer()
     {
@@ -99,7 +134,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     @Override
     protected void seekToChunkStart()
     {
-        // Not needed: writes go to the aligned buffer, not directly to the channel
+        // No-op: writes go to writeBuffer, not directly to the channel.
     }
 
     @Override
@@ -126,7 +161,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     {
         int dataLength = data.remaining();
 
-        // Buffer is sized to hold the worst-case chunk write + CRC + blockSize, so after flush there's always room
+        // Buffer is sized for worst-case chunk + CRC + blockSize, so a flush always frees enough room.
         if (writeBufferPosition + dataLength > writeBuffer.capacity())
             flushCompleteBlocks();
 
@@ -137,7 +172,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
     private void writeCrcToAlignedBuffer(int crcValue)
     {
-        // After flush, leftover is < blockSize, so there's always room for the 4-byte CRC
+        // After flush, leftover < blockSize, so there's always room for the 4-byte CRC.
         if (writeBufferPosition + 4 > writeBuffer.capacity())
             flushCompleteBlocks();
 
@@ -195,7 +230,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
             writeBuffer.limit(flushLimit);
             fchannel.write(writeBuffer);
 
-            // O_DIRECT required padding; truncate back to actual data size
+            // O_DIRECT required padding; truncate back to actual data size.
             fchannel.truncate(actualDataSize);
         }
         catch (IOException e)
@@ -208,7 +243,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     {
         fullFileChecksum.update(data);
 
-        // Include CRC in full checksum (matches ChecksumWriter.appendDirect with checksumIncrementalResult=true)
+        // Include CRC bytes in the full-file checksum to match ChecksumWriter.appendDirect(..., true).
         crcBuffer.clear();
         crcBuffer.putInt(crcValue);
         crcBuffer.flip();
@@ -232,21 +267,17 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         });
     }
 
+    // Gated out for SCRUB in DataComponent.buildWriter; these throws are a canary if the gate is bypassed.
     @Override
     public DataPosition mark()
     {
-        throw new UnsupportedOperationException(
-            "mark() is not supported with Direct IO. The aligned write buffer may contain " +
-            "unflushed data, making chunkOffset stale relative to actual channel position.");
+        throw new UnsupportedOperationException("mark() not supported under O_DIRECT");
     }
 
     @Override
     public synchronized void resetAndTruncate(DataPosition mark)
     {
-        throw new UnsupportedOperationException(
-            "resetAndTruncate() is not supported with Direct IO. O_DIRECT requires " +
-            "block-aligned read buffers and the aligned write buffer may contain data " +
-            "not yet flushed to disk.");
+        throw new UnsupportedOperationException("resetAndTruncate() not supported under O_DIRECT");
     }
 
     protected class DirectTransactionalProxy extends CompressedSequentialWriter.TransactionalProxy
@@ -254,12 +285,9 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         @Override
         protected void doPrepare()
         {
-            // Flush compressed chunks into writeBuffer; complete blocks reach fchannel,
-            // but a partial-block tail may remain buffered.
             doFlush(0);
-            // Pad and write the remaining tail to fchannel, then truncate to actual size.
+            // doFlush leaves a partial-block tail in writeBuffer; pad to a block, write, then truncate.
             flushFinalWithPadding();
-            // Single fsync to make all data durable before writing the digest.
             syncDataOnlyInternal();
             writeDigestFile();
             sstableMetadataCollector.addCompressionRatio(compressedSize, uncompressedSize);
@@ -273,7 +301,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
             {
                 try
                 {
-                    // Agrona's allocateDirectAligned returns a slice; clean the backing buffer (attachment)
+                    // allocateDirectAligned returns a slice; clean the backing buffer via the attachment.
                     DirectBuffer db = (DirectBuffer) writeBuffer;
                     ByteBuffer attachment = (ByteBuffer) db.attachment();
                     MemoryUtil.clean(attachment != null ? attachment : writeBuffer);

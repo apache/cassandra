@@ -3453,6 +3453,13 @@ public class DatabaseDescriptor
         // Validate Direct IO is supported on ALL data directories if requested
         if (providedMode == DiskAccessMode.direct)
         {
+            // DataStorageSpec already rejects negatives at parse time; zero is the remaining
+            // nonsense value. The writer's Math.max would silently coerce it to minRequiredSize,
+            // which masks a likely operator mistake — fail fast instead.
+            if (conf.direct_write_buffer_size.toBytes() <= 0)
+                throw new ConfigurationException("direct_write_buffer_size must be > 0 when background_write_disk_access_mode is 'direct'. " +
+                                                 "Got: " + conf.direct_write_buffer_size, false);
+
             // Only check Direct IO support if not running as a tool
             if (!toolInitialized)
             {

@@ -19,6 +19,11 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.util.EnumMap;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.FlushCompression;
@@ -44,8 +49,11 @@ import static org.apache.cassandra.io.DirectIoSupport.UNSUPPORTED_POLICY;
 
 public class DataComponent
 {
+    private static final Logger logger = LoggerFactory.getLogger(DataComponent.class);
 
     private static final EnumMap<OperationType, DirectIoSupport> DIRECT_WRITE_SUPPORT = buildDirectWriteSupport();
+
+    private static final Set<OperationType> directWriteLogged = ConcurrentHashMap.newKeySet();
 
     private static EnumMap<OperationType, DirectIoSupport> buildDirectWriteSupport()
     {
@@ -89,6 +97,8 @@ public class DataComponent
             if (DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == DiskAccessMode.direct
                 && isDirectWriteSupported(operationType))
             {
+                if (directWriteLogged.add(operationType))
+                    logger.info("Direct I/O writer activated for {}", operationType);
                 return new DirectCompressedSequentialWriter(descriptor.fileFor(Components.DATA),
                                                             descriptor.fileFor(Components.COMPRESSION_INFO),
                                                             descriptor.fileFor(Components.DIGEST),
