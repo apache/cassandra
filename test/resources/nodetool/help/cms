@@ -44,6 +44,15 @@ SYNOPSIS
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
                 [(-pw <password> | --password <password>)]
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] cms dump
+                [(-e <epoch> | --epoch <epoch>)]
+                [(-sv <serialization_version> | --serialization-version
+                <serialization_version>)]
+                [(-te <transform_epoch> | --transform-epoch <transform_epoch>)]
+
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] cms dumpdirectory [--tokens]
 
         nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
@@ -102,6 +111,14 @@ COMMANDS
 
             With --initiator option, The address of the node where `cms initialize` was
             run.
+        dump
+            Dumps cluster metadata into a file
+
+            With --epoch option, Epoch at which cluster metadata should be dumped
+
+            With --transform-epoch option, Force metadata to given X epoch while dumping
+
+            With --serialization-version option, Serialization Version
         dumpdirectory
             Dump the directory from the current ClusterMetadata
 
