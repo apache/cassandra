@@ -309,6 +309,7 @@ public class AccordService implements IAccordService, Shutdownable
     //  tests can specify a DelegatingService if they want to override
     private static IAccordService instance;
     private static IAccordService unsafeInstance;
+    private static volatile Node.Id nodeId;
     private static volatile IAccordService requestInstance;
     private static volatile IAccordService replyInstance;
 
@@ -378,6 +379,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
         else
         {
+            nodeId = new Node.Id(tcmId.id());
             AccordService as = new AccordService(tcmIdToAccord(tcmId));
             unsafeInstance = replyInstance = as;
             as.localStartup();
@@ -436,6 +438,11 @@ public class AccordService implements IAccordService, Shutdownable
         IAccordService i = unsafeInstance;
         Invariants.require(i != null, "AccordService was not started");
         return i;
+    }
+
+    public static Node.Id nodeId()
+    {
+        return nodeId;
     }
 
     public static boolean started()
@@ -513,7 +520,7 @@ public class AccordService implements IAccordService, Shutdownable
         if (config.send_stable != null)
             ProtocolModifiers.Configure.setSendStableMessages(config.send_stable);
         if (config.send_minimal != null)
-            ProtocolModifiers.Configure.setSendMinimalCommits(config.send_minimal);
+            ProtocolModifiers.Configure.setSendMinimal(config.send_minimal);
     }
 
     @Override
@@ -1304,11 +1311,6 @@ public class AccordService implements IAccordService, Shutdownable
     public AccordScheduler scheduler()
     {
         return scheduler;
-    }
-
-    public Id nodeId()
-    {
-        return node.id();
     }
 
     @Override

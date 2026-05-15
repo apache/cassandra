@@ -49,6 +49,7 @@ import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers.ApplySerializer;
 import org.apache.cassandra.service.accord.serializers.IVersionedSerializer;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
@@ -71,7 +72,7 @@ public class AccordInteropApply extends Apply implements LocalListeners.ComplexL
         @Override
         public Apply create(Kind kind, Id to, Topologies participates, TxnId txnId, Ballot ballot, Route<?> route, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, FullRoute<?> fullRoute, ExecuteFlags flags)
         {
-            checkArgument(kind != Kind.Maximal, "Shouldn't need to send a maximal commit with interop support");
+            checkArgument(kind != Kind.Maximal || to.equals(AccordService.nodeId()), "Shouldn't need to send a maximal commit with interop support");
             ConsistencyLevel commitCL = txn.update() instanceof AccordUpdate ? ((AccordUpdate) txn.update()).cassandraCommitCL() : null;
             // Any asynchronous apply option should use the regular Apply that doesn't wait for writes to complete
             if (commitCL == null || commitCL == ConsistencyLevel.ANY)
