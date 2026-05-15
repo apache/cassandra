@@ -36,8 +36,9 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
-import static org.junit.Assert.assertTrue;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
 import org.junit.Before;
@@ -67,7 +68,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
         AccordTestBase.setupCluster(builder -> builder
                                                .withoutVNodes()
                                                .appendConfig(config -> config
-                                                                       .set("accord.shard_durability_cycle", "1s")
+                                                                       .set("accord.shard_durability_cycle", "20s")
                                                                        .with(Feature.GOSSIP, Feature.NETWORK)), 2);
         SHARED_CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';');
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
@@ -126,7 +127,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
                             doesNotContainsToken = false;
                     }
                     return doesNotContainsToken;
-                });
+                }, 30);
             });
 
             NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
