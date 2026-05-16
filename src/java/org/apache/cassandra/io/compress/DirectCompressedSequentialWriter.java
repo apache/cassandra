@@ -66,6 +66,14 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     // per JVM so a misconfiguration is operator-visible without per-SSTable spam.
     private static final AtomicBoolean undersizedBufferWarned = new AtomicBoolean(false);
 
+    // Per-chunk CRC32 trailer width in bytes (CRC32.getValue() stored via putInt).
+    private static final int CRC_LENGTH = Integer.BYTES;
+
+    // Sized to hold at least one full chunk + CRC + post-flush leftover:
+    //   capacity >= maxChunkWrite + CRC_LENGTH + blockSize
+    // writeToAlignedBuffer puts a chunk in a single ByteBuffer.put, so the chunk must
+    // fit contiguously. flushCompleteBlocks aligns down to blockSize, leaving up to
+    // (blockSize - 1) bytes carried over via compact(); the floor accounts for that.
     private ByteBuffer writeBuffer;
     private int writeBufferPosition = 0;
     private long actualDataSize = 0;
@@ -74,7 +82,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     // ChecksumWriter writes CRCs directly to the channel, bypassing writeBuffer; track checksums ourselves.
     private final CRC32 fullFileChecksum = new CRC32();
     private final CRC32 chunkChecksum = new CRC32();
-    private final ByteBuffer crcBuffer = ByteBuffer.allocate(4);
+    private final ByteBuffer crcBuffer = ByteBuffer.allocate(CRC_LENGTH);
 
     public DirectCompressedSequentialWriter(File file,
                                             File offsetsFile,
@@ -101,12 +109,12 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
             int configuredSize = DatabaseDescriptor.getDirectWriteBufferSize().toBytes();
             int maxChunkWrite = parameters.getSstableCompressor().initialCompressedBufferLength(parameters.chunkLength());
-            int minRequiredSize = maxChunkWrite + 4 + blockSize;
+            int minRequiredSize = maxChunkWrite + CRC_LENGTH + blockSize;
             if (configuredSize < minRequiredSize && undersizedBufferWarned.compareAndSet(false, true))
-                logger.warn("direct_write_buffer_size ({} bytes) is below the minimum required for this table " +
+                logger.warn("direct_write_buffer_size ({} bytes) is below the minimum required for SSTable {} " +
                             "(worst-case chunk {} + CRC 4 + blockSize {} = {} bytes); using the minimum. " +
                             "Increase direct_write_buffer_size in cassandra.yaml to silence this warning.",
-                            configuredSize, maxChunkWrite, blockSize, minRequiredSize);
+                            configuredSize, file, maxChunkWrite, blockSize, minRequiredSize);
             int bufferSize = BitUtil.align(Math.max(configuredSize, minRequiredSize), blockSize);
 
             this.writeBuffer = BufferUtil.allocateDirectAligned(bufferSize, blockSize);
@@ -134,7 +142,8 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     @Override
     protected void seekToChunkStart()
     {
-        // No-op: writes go to writeBuffer, not directly to the channel.
+        // No-op: bytes staged in writeBuffer would be skipped by a seek, leaving a hole.
+        // resetAndTruncate (the parent's reason for this seek) is unsupported under DIO.
     }
 
     @Override
@@ -154,7 +163,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
         toWrite.rewind();
         updateFullChecksum(toWrite, crcValue);
 
-        actualDataSize = chunkOffset + chunkLength + 4;
+        actualDataSize = chunkOffset + chunkLength + CRC_LENGTH;
     }
 
     private void writeToAlignedBuffer(ByteBuffer data)
@@ -172,8 +181,8 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
 
     private void writeCrcToAlignedBuffer(int crcValue)
     {
-        // After flush, leftover < blockSize, so there's always room for the 4-byte CRC.
-        if (writeBufferPosition + 4 > writeBuffer.capacity())
+        // After flush, leftover < blockSize, so there's always room for the CRC trailer.
+        if (writeBufferPosition + CRC_LENGTH > writeBuffer.capacity())
             flushCompleteBlocks();
 
         writeBuffer.position(writeBufferPosition);
@@ -302,9 +311,7 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
                 try
                 {
                     // allocateDirectAligned returns a slice; clean the backing buffer via the attachment.
-                    DirectBuffer db = (DirectBuffer) writeBuffer;
-                    ByteBuffer attachment = (ByteBuffer) db.attachment();
-                    MemoryUtil.clean(attachment != null ? attachment : writeBuffer);
+                    MemoryUtil.clean((ByteBuffer) ((DirectBuffer) writeBuffer).attachment());
                 }
                 catch (Throwable t)
                 {

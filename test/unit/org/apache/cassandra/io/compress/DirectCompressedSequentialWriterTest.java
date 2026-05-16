@@ -18,6 +18,8 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
+import java.lang.management.BufferPoolMXBean;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -26,10 +28,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -50,6 +48,11 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import static org.apache.cassandra.schema.CompressionParams.DEFAULT_CHUNK_LENGTH;
 import static org.junit.Assert.assertArrayEquals;
@@ -368,6 +371,54 @@ public class DirectCompressedSequentialWriterTest
             dataFile.tryDelete();
             metadataFile.tryDelete();
         }
+    }
+
+    @Test
+    public void testDirectMemoryIsCleanedOnClose() throws IOException
+    {
+        // Sized to dominate baseline allocator noise; matches DirectThreadLocalReadAheadBufferTest.
+        int bufferSize = 64 * 1024 * 1024;
+        Config conf = DatabaseDescriptor.getRawConfig();
+        DataStorageSpec.IntKibibytesBound savedBufferSize = conf.direct_write_buffer_size;
+
+        File dataFile = FileUtils.createTempFile("direct_mem_clean", ".db");
+        File metadataFile = new File(dataFile.absolutePath() + ".metadata");
+        try
+        {
+            conf.direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound(bufferSize / 1024 + "KiB");
+
+            BufferPoolMXBean directPool = getDirectBufferPool();
+            MetadataCollector collector = new MetadataCollector(new ClusteringComparator(Collections.singletonList(BytesType.instance)));
+            SequentialWriterOption abortOnClose = SequentialWriterOption.newBuilder().finishOnClose(false).build();
+
+            long memoryUsedBefore;
+            try (DirectCompressedSequentialWriter writer = new DirectCompressedSequentialWriter(
+                 dataFile, metadataFile, null, abortOnClose, CompressionParams.lz4(), collector, null))
+            {
+                writer.write(new byte[1024]);
+                memoryUsedBefore = directPool.getMemoryUsed();
+            }
+            long memoryUsedAfter = directPool.getMemoryUsed();
+            long actualDecrease = memoryUsedBefore - memoryUsedAfter;
+
+            Assert.assertTrue("Direct memory should drop by ~bufferSize on close. before=" + memoryUsedBefore
+                              + ", after=" + memoryUsedAfter + ", decrease=" + actualDecrease + ", expected~=" + bufferSize,
+                              actualDecrease >= bufferSize * 0.9); // 10% tolerance for alignment overhead
+        }
+        finally
+        {
+            conf.direct_write_buffer_size = savedBufferSize;
+            dataFile.tryDelete();
+            metadataFile.tryDelete();
+        }
+    }
+
+    private static BufferPoolMXBean getDirectBufferPool()
+    {
+        for (BufferPoolMXBean pool : ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class))
+            if (pool.getName().equals("direct"))
+                return pool;
+        throw new IllegalStateException("Direct buffer pool not found");
     }
 
     @Test

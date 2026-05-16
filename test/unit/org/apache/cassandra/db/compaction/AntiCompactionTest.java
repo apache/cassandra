@@ -18,12 +18,16 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -55,12 +59,16 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.sstable.format.DataComponent;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DirectIoTestUtils;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.Schema;
@@ -78,6 +86,7 @@ import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -89,6 +98,7 @@ public class AntiCompactionTest
 {
     private static final String KEYSPACE1 = "AntiCompactionTest";
     private static final String CF = "AntiCompactionTest";
+    private static final String CF_COMPRESSED = "AntiCompactionCompressed";
     private static final Collection<Range<Token>> NO_RANGES = Collections.emptyList();
 
     private static TableMetadata metadata;
@@ -101,7 +111,10 @@ public class AntiCompactionTest
     {
         SchemaLoader.prepareServer();
         metadata = SchemaLoader.standardCFMD(KEYSPACE1, CF).build();
-        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), metadata);
+        TableMetadata compressedMetadata = SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED)
+                                                       .compression(CompressionParams.lz4())
+                                                       .build();
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), metadata, compressedMetadata);
         cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
         local = InetAddressAndPort.getByName("127.0.0.1");
     }
@@ -231,6 +244,79 @@ public class AntiCompactionTest
         assertEquals(stats.transKeys, 4);
         assertEquals(stats.unrepairedKeys, 2);
         assertOnDiskState(store, 3);
+    }
+
+    @Test
+    public void testAntiCompactionWithCompressedTableAndDirectWrites() throws Throwable
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_COMPRESSED);
+        try
+        {
+            store.disableAutoCompaction();
+            assertTrue("CF must be compressed for DIO to engage",
+                       store.metadata().params.compression.isEnabled());
+
+            long ts = 1L;
+            populateDeterministic(store, ts);
+            SSTableStats baselineStats = antiCompactRanges(store, atEndpoint(range(0, 4), NO_RANGES));
+            assertEquals(2, baselineStats.numLiveSSTables);
+            assertEquals(4, baselineStats.pendingKeys);
+            assertEquals(6, baselineStats.unrepairedKeys);
+            Map<Boolean, byte[]> baselineBytes = captureDataBytesByPendingRepair(store);
+            store.truncateBlocking();
+
+            populateDeterministic(store, ts);
+            SSTableStats directStats = DirectIoTestUtils.withDirectWrites(() ->
+                antiCompactRanges(store, atEndpoint(range(0, 4), NO_RANGES)));
+            assertEquals(2, directStats.numLiveSSTables);
+            assertEquals(4, directStats.pendingKeys);
+            assertEquals(6, directStats.unrepairedKeys);
+            Map<Boolean, byte[]> directBytes = captureDataBytesByPendingRepair(store);
+
+            assertArrayEquals("pending-repair data file must match standard-writer output",
+                              baselineBytes.get(true), directBytes.get(true));
+            assertArrayEquals("unrepaired data file must match standard-writer output",
+                              baselineBytes.get(false), directBytes.get(false));
+
+            Field f = DataComponent.class.getDeclaredField("directWriteLogged");
+            f.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Set<OperationType> activated = (Set<OperationType>) f.get(null);
+            assertTrue("DirectCompressedSequentialWriter must have engaged for ANTICOMPACTION; activated=" + activated,
+                       activated.contains(OperationType.ANTICOMPACTION));
+        }
+        finally
+        {
+            store.truncateBlocking();
+        }
+    }
+
+    private void populateDeterministic(ColumnFamilyStore store, long ts)
+    {
+        TableMetadata md = store.metadata();
+        for (int i = 0; i < 10; i++)
+        {
+            new RowUpdateBuilder(md, ts, Integer.toString(i))
+                .clustering("c")
+                .add("val", "val")
+                .build()
+                .applyUnsafe();
+        }
+        Util.flush(store);
+    }
+
+    private Map<Boolean, byte[]> captureDataBytesByPendingRepair(ColumnFamilyStore store) throws IOException
+    {
+        Map<Boolean, byte[]> bytes = new HashMap<>();
+        for (SSTableReader sstable : store.getLiveSSTables())
+        {
+            byte[] prev = bytes.put(sstable.isPendingRepair(),
+                                    Files.readAllBytes(sstable.descriptor.fileFor(Components.DATA).toPath()));
+            assertTrue("expected one sstable per pending-repair status; duplicate at " + sstable.isPendingRepair(),
+                       prev == null);
+        }
+        return bytes;
     }
 
     @Test

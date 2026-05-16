@@ -190,7 +190,9 @@ public class CompressedSequentialWriter extends SequentialWriter
     @Override
     protected void flushData()
     {
-        seekToChunkStart(); // why is this necessary? seems like it should always be at chunk start in normal operation
+        // resetAndTruncate leaves fchannel.position() past EOF after its verification reads + truncate;
+        // re-seek so the next chunk lands at chunkOffset. No-op under linear writes.
+        seekToChunkStart();
 
         try
         {
