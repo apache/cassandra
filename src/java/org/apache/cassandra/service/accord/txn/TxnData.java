@@ -116,7 +116,7 @@ public class TxnData extends Int2ObjectHashMap<TxnDataValue> implements TxnResul
 
     private TxnData(int size)
     {
-        super(size, 0.65f);
+        super(size, 0.65f, false);
     }
 
     public static TxnData of(int key, TxnDataValue value)
