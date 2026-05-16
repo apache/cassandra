@@ -3495,12 +3495,6 @@ public class DatabaseDescriptor
             }
         }
 
-        // Only 'standard' and 'direct' are valid for background writes
-        if (providedMode != DiskAccessMode.standard && providedMode != DiskAccessMode.direct)
-        {
-            throw new ConfigurationException("background_write_disk_access_mode must be 'standard', 'direct', or 'auto'. Got: " + providedMode, false);
-        }
-
         backgroundWriteDiskAccessMode = providedMode;
     }
 
