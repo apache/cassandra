@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord.txn;
 
 import accord.api.Result;
 
+import static org.apache.cassandra.service.accord.serializers.ResultSerializers.APPLIED;
+
 public interface TxnResult extends Result
 {
     enum Kind
@@ -40,4 +42,10 @@ public interface TxnResult extends Result
     Kind kind();
 
     long estimatedSizeOnHeap();
+
+    default PersistableResult toPersistable()
+    {
+        // TODO (required): should we persist the Kind?
+        return APPLIED;
+    }
 }

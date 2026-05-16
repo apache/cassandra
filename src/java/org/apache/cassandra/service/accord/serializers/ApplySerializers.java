@@ -20,7 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.coordinate.ExecuteFlag.ExecuteFlags;
 import accord.messages.Apply;
 import accord.messages.Apply.ApplyReply;
@@ -64,7 +64,7 @@ public class ApplySerializers
         }
 
         protected abstract A deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
-                                              Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result, ExecuteFlags flags);
+                                              Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, PersistableResult result, ExecuteFlags flags);
 
         @Override
         public A deserializeBody(DataInputPlus in, Version version, TxnId txnId, Route<?> scope, long waitForEpoch) throws IOException
@@ -104,7 +104,7 @@ public class ApplySerializers
     {
         @Override
         protected Apply deserializeApply(TxnId txnId, Ballot ballot, Route<?> scope, long minEpoch, long waitForEpoch, long maxEpoch, Apply.Kind kind,
-                                         Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, Result result, ExecuteFlags flags)
+                                         Timestamp executeAt, PartialDeps deps, PartialTxn txn, FullRoute<?> fullRoute, Writes writes, PersistableResult result, ExecuteFlags flags)
         {
             return Apply.SerializationSupport.create(txnId, ballot, scope, minEpoch, waitForEpoch, maxEpoch, kind, executeAt, deps, txn, fullRoute, writes, result, flags);
         }

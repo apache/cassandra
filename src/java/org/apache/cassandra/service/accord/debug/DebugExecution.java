@@ -29,7 +29,9 @@ import accord.local.Command;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.metrics.LogLinearHistogram;
-import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.AccordExecutor.Task;
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.WithResources;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -38,9 +40,10 @@ public class DebugExecution
 {
     private static final Logger logger = LoggerFactory.getLogger(DebugExecution.class);
     public static final boolean DEBUG_EXECUTION = CassandraRelevantProperties.ACCORD_DEBUG_EXECUTION.getBoolean(false);
-    private static final long REPORT_MIN_LATENCY_MICROS = 10_000;
+    private static final long REPORT_MIN_LATENCY_MICROS = 20_000;
     private static final long REPORT_CPU_RATIO = 2;
     private static final long REPORT_MAX_LATENCY_MICROS = 50_000;
+    private static final long REPORT_CPU_MICROS = 10_000;
 
     // TODO (expected): use sharded histogram so we can report global stats
     public static class DebugExecutor
@@ -54,8 +57,8 @@ public class DebugExecution
         final LogLinearHistogram sequentialExecutorWaitingToRunLatency = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
         final LogLinearHistogram sequentialExecutorSetHeadToRunLatency = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
         final LogLinearHistogram pollToRun = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
-        final LogLinearHistogram applying = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
         final LogLinearHistogram running = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
+        final LogLinearHistogram runToCleanup = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
         final LogLinearHistogram cleanup = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
         final LogLinearHistogram taskTotal = new LogLinearHistogram(REPORT_MAX_LATENCY_MICROS);
 
@@ -84,6 +87,7 @@ public class DebugExecution
 
         public void onExitLock()
         {
+            // TODO (expected): specialise this for despatch loop, which can reasonably handle longer lock hold periods
             unlockedAt = nanoTime();
             unlockedAtCpu = nowCpu();
             long lockedForMicros = (unlockedAt - lockedAt)/1000;
@@ -138,7 +142,7 @@ public class DebugExecution
         final int commandStoreId;
 
         long setTaskAt, waitingAt;
-        AccordExecutor.Task prev;
+        Task prev;
 
         public DebugSequentialExecutor(DebugExecutor owner, int commandStoreId)
         {
@@ -146,13 +150,13 @@ public class DebugExecution
             this.commandStoreId = commandStoreId;
         }
 
-        public void onSetTask(AccordExecutor.Task next)
+        public void onSetTask(Task next)
         {
             if (next == null) setTaskAt = 0;
             else setTaskAt = nanoTime();
         }
 
-        public void onComplete(AccordExecutor.Task completed)
+        public void onComplete(Task completed)
         {
             long readyAt = setTaskAt;
             if (waitingAt > setTaskAt)
@@ -178,54 +182,101 @@ public class DebugExecution
         }
     }
 
-    public static class DebugTask
+    public static final class DebugTask implements WithResources
     {
         public static final boolean SANITY_CHECK = DTEST_ACCORD_JOURNAL_SANITY_CHECK_ENABLED.getBoolean();
         private static final boolean DEBUG = DEBUG_EXECUTION || SANITY_CHECK;
-        public static DebugTask maybeDebug() { return DEBUG ? new DebugTask() : null; }
+
+        public static WithResources maybeDebug(WithResources resources, Task task) { return DEBUG ? new DebugTask(resources, task) : resources; }
+        public static DebugTask get(Task task) { return (DebugTask)task.unwrap().resources; }
+
+        final WithResources resources;
+        final Task task;
+        public DebugTask(WithResources resources, Task task)
+        {
+            this.resources = resources;
+            this.task = task;
+        }
 
         public List<Command> sanityCheck; // for AccordTask only
-        long polledAt, appliedAt, completedAt;
-        long polledAtCpu, completedAtCpu;
+        long polledAt, preRunAt, runCompleteAt, completedAt;
+        long releasedRangeScannerAt, releasedCommandsAt, releasedCommandsForKeyAt;
+        long runningAtCpu, runCompleteAtCpu;
+        Thread thread;
 
         public void onPolled()
         {
             polledAt = nanoTime();
-            polledAtCpu = ManagementFactory.getThreadMXBean().getCurrentThreadCpuTime();
+        }
+
+        public void onPreRun()
+        {
+            preRunAt = nanoTime();
+        }
+
+        public void onRunning()
+        {
+            thread = Thread.currentThread();
+            runningAtCpu = nowCpu();
         }
 
         public void onRunComplete()
         {
-            appliedAt = nanoTime();
+            runCompleteAtCpu = nowCpu();
+            runCompleteAt = nanoTime();
         }
 
-        public void onCompleted(AccordExecutor.Task task, DebugExecutor owner)
+        public void onReleasedRangeScanner()
+        {
+            releasedRangeScannerAt = nanoTime();
+        }
+
+        public void onReleasedCommands()
+        {
+            releasedCommandsAt = nanoTime();
+        }
+
+        public void onReleasedCommandsForKeys()
+        {
+            releasedCommandsForKeyAt = nanoTime();
+        }
+
+        public void onCompleted(DebugExecutor owner)
         {
             completedAt = nanoTime();
-            completedAtCpu = ManagementFactory.getThreadMXBean().getCurrentThreadCpuTime();
             if (task.runningAt > 0 && polledAt > 0)
             {
                 long pollToRunMicros = (task.runningAt - polledAt)/1000;
                 owner.pollToRun.increment(pollToRunMicros);
-                long applyingMicros = -1;
-                if (appliedAt > 0)
+                long runningMicros = -1;
+                if (runCompleteAt > 0)
                 {
-                    applyingMicros = (appliedAt - task.runningAt)/1000;
-                    owner.applying.increment(applyingMicros);
+                    runningMicros = (runCompleteAt - task.runningAt) / 1000;
+                    owner.running.increment(runningMicros);
                 }
-                long runningMicros = (task.cleanupAt - task.runningAt)/1000;
-                owner.running.increment(runningMicros);
+                long runToCleanMicros = (task.cleanupAt - runCompleteAt)/1000;
+                owner.runToCleanup.increment(runToCleanMicros);
                 long cleanupMicros = (completedAt - task.cleanupAt)/1000;
                 owner.cleanup.increment(cleanupMicros);
                 long totalMicros = (completedAt - polledAt)/1000;
                 owner.taskTotal.increment(totalMicros);
-                long totalCpu = (completedAtCpu - polledAtCpu)/1000;
-                if (totalMicros > REPORT_MAX_LATENCY_MICROS || (totalMicros > REPORT_MIN_LATENCY_MICROS && (totalMicros/totalCpu) >= REPORT_CPU_RATIO))
+                long totalCpu = (runCompleteAtCpu - runningAtCpu)/1000;
+                if (totalMicros > REPORT_MAX_LATENCY_MICROS || totalCpu > REPORT_CPU_MICROS || (totalMicros > REPORT_MIN_LATENCY_MICROS && (totalCpu == 0 || totalMicros/totalCpu >= REPORT_CPU_RATIO)))
                 {
-                    report("{}: total {}us {}cpu, running {}us{}, cleanup {}us, pollToRun {}us", task, totalMicros, totalCpu,
-                           runningMicros, (applyingMicros >= 0 ? ", applying " + applyingMicros + "us" : ""), cleanupMicros, pollToRunMicros);
+                    String reason = "";
+                    if (totalMicros > REPORT_MAX_LATENCY_MICROS) reason += "LONG TIME ";
+                    if (totalCpu > REPORT_CPU_MICROS) reason += "HIGH CPU ";
+                    if ((totalMicros > REPORT_MIN_LATENCY_MICROS && (totalMicros/totalCpu) >= REPORT_CPU_RATIO)) reason += "LOW RATIO ";
+                    report("{}{}: total {}us cpu:{}us ({}), pollToRun {}us, running {}us, runToClean {}us, cleanup {}us",
+                           reason, task, totalMicros, totalCpu, thread, pollToRunMicros, runningMicros, runToCleanMicros, cleanupMicros);
                 }
             }
+        }
+
+        @Override
+        public Closeable get()
+        {
+            return resources.get();
         }
     }
 
