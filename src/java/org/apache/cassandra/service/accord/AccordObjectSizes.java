@@ -22,10 +22,9 @@ import java.util.UUID;
 import java.util.function.ToLongFunction;
 
 import accord.api.Key;
-import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.ICommand;
+import accord.local.CommandBuilder;
 import accord.local.Node;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
@@ -39,11 +38,10 @@ import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRangeRoute;
 import accord.primitives.KeyDeps;
 import accord.primitives.Keys;
-import accord.primitives.PartialDeps;
+import accord.primitives.Known;
 import accord.primitives.PartialKeyRoute;
 import accord.primitives.PartialRangeRoute;
 import accord.primitives.PartialTxn;
-import accord.primitives.Participants;
 import accord.primitives.Range;
 import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
@@ -52,6 +50,7 @@ import accord.primitives.RoutingKeys;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
+import accord.primitives.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
@@ -61,6 +60,7 @@ import accord.utils.ImmutableBitSet;
 import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -68,23 +68,19 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.ResultSerializers;
 import org.apache.cassandra.service.accord.serializers.TableMetadatasAndKeys;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static accord.local.Command.Accepted.accepted;
-import static accord.local.Command.Committed.committed;
-import static accord.local.Command.Executed.executed;
-import static accord.local.Command.NotAcceptedWithoutDefinition.notAccepted;
-import static accord.local.Command.NotDefined.notDefined;
-import static accord.local.Command.PreAccepted.preaccepted;
 import static accord.local.Command.Truncated.WaitingOn;
-import static accord.local.Command.Truncated.invalidated;
-import static accord.local.Command.Truncated.vestigial;
 import static accord.local.cfk.CommandsForKey.InternalStatus.ACCEPTED;
+import static accord.primitives.SaveStatus.Invalidated;
+import static accord.primitives.SaveStatus.NotDefined;
+import static accord.primitives.SaveStatus.PreAccepted;
+import static accord.primitives.SaveStatus.Stable;
+import static accord.primitives.SaveStatus.TruncatedUnapplied;
 import static accord.primitives.Status.Durability.NotDurable;
 import static accord.primitives.TxnId.NO_TXNIDS;
 import static org.apache.cassandra.utils.ObjectSizes.measure;
@@ -297,51 +293,47 @@ public class AccordObjectSizes
         return size;
     }
 
-    public static long results(Result result)
-    {
-        if (result == ResultSerializers.APPLIED)
-            return 0;
-        return ((TxnResult) result).estimatedSizeOnHeap();
-    }
-
     private static class CommandEmptySizes
     {
-        private final static TokenKey EMPTY_KEY = new TokenKey(EMPTY_ID, null);
+        private final static PartitionKey EMPTY_KEY = new PartitionKey(EMPTY_ID, new BufferDecoratedKey(new Murmur3Partitioner.LongToken(1), ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        private final static TokenKey EMPTY_TOKEN_KEY = new TokenKey(EMPTY_ID, new Murmur3Partitioner.LongToken(1));
         private final static TxnId EMPTY_TXNID = new TxnId(42, 42, 0, Kind.Read, Domain.Key, new Node.Id(42));
 
-        private static ICommand attrs(boolean hasDeps, boolean hasTxn, boolean executes)
+        private static Command build(SaveStatus saveStatus, boolean executes)
         {
-            FullKeyRoute route = new FullKeyRoute(EMPTY_KEY, new RoutingKey[]{ EMPTY_KEY });
-            Participants<?> empty = route.slice(0, 0);
-            ICommand.Builder builder = new ICommand.Builder(EMPTY_TXNID)
-                                       .setParticipants(StoreParticipants.create(route, empty, executes ? empty : null, executes ? empty : null, empty, route))
+            Keys keys = Keys.of(EMPTY_KEY);
+            FullKeyRoute route = new FullKeyRoute(EMPTY_TOKEN_KEY, new RoutingKey[]{ EMPTY_TOKEN_KEY });
+            CommandBuilder builder = new CommandBuilder(EMPTY_TXNID)
+                                       .participants(StoreParticipants.create(route, route, executes ? route : null, executes ? route : null, route, route))
                                        .durability(NotDurable)
                                        .executeAt(EMPTY_TXNID)
                                        .promised(Ballot.ZERO);
-            if (hasDeps)
-                builder.partialDeps(PartialDeps.NONE);
+            if (saveStatus.known.hasAnyDeps())
+                builder.partialDeps(new Deps(KeyDeps.none(route.toParticipants()), RangeDeps.NONE).intersecting(route));
 
-            if (hasTxn)
-                builder.partialTxn(new PartialTxn.InMemory(Kind.Read, null, null, null, null, TableMetadatasAndKeys.none(Domain.Key)));
+            if (saveStatus.known.isDefinitionKnown())
+                builder.partialTxn(new PartialTxn.InMemory(Kind.Read, keys, TxnRead.empty(Domain.Key), null, null, TableMetadatasAndKeys.none(Domain.Key)));
 
-            if (executes)
-            {
+            if (saveStatus.compareTo(Stable) >= 0 && !saveStatus.hasBeen(Status.Truncated))
                 builder.waitingOn(WaitingOn.empty(Domain.Key));
-                builder.result(new TxnData());
-            }
 
-            return builder;
+            if (saveStatus.known.is(Known.Outcome.Apply))
+                builder.result(ResultSerializers.APPLIED);
+
+            return builder.build(saveStatus);
         }
 
-        final static long NOT_DEFINED = measure(notDefined(attrs(false, false, false)));
-        final static long PREACCEPTED = measure(preaccepted(attrs(false, true, false), SaveStatus.PreAccepted));
-        final static long NOTACCEPTED = measure(notAccepted(attrs(false, false, false), SaveStatus.AcceptedInvalidate));
-        final static long ACCEPTED = measure(accepted(attrs(true, false, false), SaveStatus.AcceptedMedium));
-        final static long COMMITTED = measure(committed(attrs(true, true, false), SaveStatus.Committed));
-        final static long EXECUTED = measure(executed(attrs(true, true, true), SaveStatus.Applied));
+        final static long NOT_DEFINED = measure(build(NotDefined, false));
+        final static long PREACCEPTED = measure(build(PreAccepted, false));
+        final static long NOTACCEPTED = measure(build(SaveStatus.AcceptedInvalidate, false));
+        final static long ACCEPTED = measure(build(SaveStatus.AcceptedMedium, false));
+        final static long COMMITTED = measure(build(SaveStatus.Committed, false));
+        final static long EXECUTED = measure(build(SaveStatus.Applied, true));
         // TODO (expected): TruncatedAwaitsOnlyDeps
-        final static long TRUNCATED = measure(vestigial(EMPTY_TXNID, attrs(false, false, false).participants()));
-        final static long INVALIDATED = measure(invalidated(EMPTY_TXNID, attrs(false, false, false).participants()));
+        final static long TRUNCATED = measure(build(TruncatedUnapplied, false).participants());
+        final static long INVALIDATED = measure(build(Invalidated, false).participants());
+
+        private static void touch() {}
 
         private static long emptySize(Command command)
         {
@@ -408,7 +400,6 @@ public class AccordObjectSizes
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);
         size += sizeNullable(command.acceptedOrCommitted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
-        size += sizeNullable(command.result(), AccordObjectSizes::results);
         size += sizeNullable(command.waitingOn(), AccordObjectSizes::waitingOn);
         return size;
     }

@@ -310,6 +310,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
                                       whereClause,
                                       VariableSpecifications.empty(),
                                       Collections.emptyList(),
+                                      null,
                                       false,
                                       false,
                                       true,

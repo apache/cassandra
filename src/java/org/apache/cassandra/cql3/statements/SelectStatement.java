@@ -241,7 +241,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     @Override
     public short[] getPartitionKeyBindVariableIndexes()
     {
-        return bindVariables.getPartitionKeyBindVariableIndexes(table);
+        return bindVariables.getPartitionKeyBindVariableIndexes(table, table);
     }
 
     @Override
@@ -1468,7 +1468,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         private List<Ordering> getOrderings(TableMetadata table)
         {
             return parameters.orderings.stream()
-                                       .map(o -> o.bind(table, bindVariables))
+                                       .map(o -> o.bind(table, bindVariables, table))
                                        .collect(Collectors.toList());
         }
 
@@ -1498,6 +1498,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                              whereClause,
                                              boundNames,
                                              orderings,
+                                             metadata,
                                              selectsOnlyStaticColumns,
                                              parameters.allowFiltering || !requiresAllowFilteringIfNotSpecified(metadata, true),
                                              forView);
@@ -1511,7 +1512,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                 return null;
 
             Term prepLimit = limit.prepare(keyspace, limitReceiver);
-            prepLimit.collectMarkerSpecification(boundNames);
+            prepLimit.collectMarkerSpecification(boundNames, null);
             return prepLimit;
         }
 

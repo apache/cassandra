@@ -91,7 +91,7 @@ public class SimulatedTime
         @Override
         public MonotonicClockTranslation translate()
         {
-            return new AlmostSameTime(System.currentTimeMillis(), System.nanoTime(), 0L);
+            return new AlmostSameTime(System.currentTimeMillis(), MILLISECONDS, System.nanoTime(), 0L);
         }
 
         @Override
@@ -312,9 +312,9 @@ public class SimulatedTime
             return new MonotonicClockTranslation()
             {
                 @Override
-                public long fromMillisSinceEpoch(long currentTimeMillis)
+                public long fromMillisSinceEpoch(long millisSinceEpoch)
                 {
-                    return MILLISECONDS.toNanos(currentTimeMillis - millisEpoch);
+                    return MILLISECONDS.toNanos(millisSinceEpoch - millisEpoch);
                 }
 
                 @Override

@@ -33,22 +33,9 @@ abstract class AccordExecutorAbstractSemiSyncSubmit extends AccordExecutorAbstra
 
     abstract void awaitExclusive() throws InterruptedException;
 
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
-        if (!tryLock())
-        {
-            submitted.push(async.apply(p1a, p2, p3, p4));
+        if (push(async.apply(p1a, p2, p3, p4)) == null && !isInLoop())
             notifyWork();
-            return;
-        }
-
-        try
-        {
-            submitExternalExclusive(sync, async, p1s, p1a, p2, p3, p4);
-        }
-        finally
-        {
-            unlock();
-        }
     }
 }

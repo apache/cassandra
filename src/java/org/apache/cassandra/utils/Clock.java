@@ -17,9 +17,12 @@
  */
 package org.apache.cassandra.utils;
 
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
+
+import accord.utils.Invariants;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -109,6 +112,15 @@ public interface Clock
         }
 
         /**
+         * Semantically equivalent to {@link System#currentTimeMillis()},
+         * but yields a time with microseconds granularity
+         */
+        public static long currentTimeMicros()
+        {
+            return instance.currentTimeMicros();
+        }
+
+        /**
          * Semantically equivalent to {@link FBUtilities#nowInSeconds()}
          */
         public static long nowInSeconds()
@@ -134,6 +146,19 @@ public interface Clock
         {
             return System.currentTimeMillis(); // checkstyle: permit system clock
         }
+
+        @Override
+        public long currentTimeMicros()
+        {
+            Instant now = Instant.now(); // checkstyle: permit this invocation
+            long seconds = now.getEpochSecond();
+            long nanos = now.getNano();
+            Invariants.require(seconds >= 0);
+            long micros = Math.multiplyExact(seconds, 1000_000);
+            micros = Math.addExact(micros, nanos/1000);
+            return micros;
+
+        }
     }
 
     /**
@@ -145,6 +170,11 @@ public interface Clock
      * Semantically equivalent to {@link System#currentTimeMillis()}
      */
     public long currentTimeMillis();
+
+    public default long currentTimeMicros()
+    {
+        return currentTimeMillis() * 1000L;
+    }
 
     public default long nowInSeconds()
     {

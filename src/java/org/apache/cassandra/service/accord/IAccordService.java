@@ -181,8 +181,6 @@ public interface IAccordService
 
     Agent agent();
 
-    Id nodeId();
-
     long minEpoch();
 
     void awaitDone(TableId id, long epoch);
@@ -336,12 +334,6 @@ public interface IAccordService
         public Agent agent()
         {
             return null;
-        }
-
-        @Override
-        public Id nodeId()
-        {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -546,12 +538,6 @@ public interface IAccordService
         public Agent agent()
         {
             return delegate.agent();
-        }
-
-        @Override
-        public Id nodeId()
-        {
-            return delegate.nodeId();
         }
 
         @Override

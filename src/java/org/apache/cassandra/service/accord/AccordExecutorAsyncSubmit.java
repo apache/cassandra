@@ -26,7 +26,7 @@ import accord.api.Agent;
 import org.apache.cassandra.utils.concurrent.LockWithAsyncSignal;
 
 // WARNING: experimental - needs more testing
-class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
+public class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
 {
     private final AccordExecutorLoops loops;
     private final LockWithAsyncSignal lock;
@@ -47,7 +47,7 @@ class AccordExecutorAsyncSubmit extends AccordExecutorAbstractSemiSyncSubmit
     void awaitExclusive() throws InterruptedException
     {
         lock.clearSignal();
-        if (submitted.isEmpty())
+        if (!hasUnqueued())
             lock.await();
     }
 

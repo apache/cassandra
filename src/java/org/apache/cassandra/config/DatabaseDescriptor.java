@@ -126,6 +126,7 @@ import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -576,7 +577,7 @@ public class DatabaseDescriptor
 
         applyGuardrails();
 
-        applyAccordProgressLog();
+        applyAccord();
 
         applyStartupChecks();
     }
@@ -700,9 +701,6 @@ public class DatabaseDescriptor
 
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
-
-        if (conf.concurrent_accord_operations < 1)
-            throw new ConfigurationException("concurrent_accord_operations must be at least 1, but was " + conf.concurrent_accord_operations, false);
 
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
@@ -1376,7 +1374,7 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void applyAccordProgressLog()
+    private static void applyAccord()
     {
         try
         {
@@ -1388,6 +1386,7 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Invalid accord progress log configuration: " + e.getMessage(), e);
         }
+        AccordService.applyProtocolModifiers(getAccord());
     }
 
     public static StartupChecksConfiguration getStartupChecksConfiguration()
@@ -1668,12 +1667,6 @@ public class DatabaseDescriptor
         {
             logInfo("truncate_request_timeout", conf.truncate_request_timeout, LOWEST_ACCEPTED_TIMEOUT);
             conf.truncate_request_timeout = LOWEST_ACCEPTED_TIMEOUT;
-        }
-
-        if (conf.accord_preaccept_timeout.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
-        {
-            logInfo("accord_preaccept_timeout", conf.accord_preaccept_timeout, LOWEST_ACCEPTED_TIMEOUT);
-            conf.accord_preaccept_timeout = LOWEST_ACCEPTED_TIMEOUT;
         }
     }
 
@@ -2910,7 +2903,7 @@ public class DatabaseDescriptor
 
     public static int getAccordConcurrentOps()
     {
-        return conf.concurrent_accord_operations;
+        return conf.accord.queue_thread_count.or(2 * FBUtilities.getAvailableProcessors());
     }
 
     public static void setConcurrentAccordOps(int concurrent_operations)
@@ -2919,7 +2912,7 @@ public class DatabaseDescriptor
         {
             throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
         }
-        conf.concurrent_accord_operations = concurrent_operations;
+        conf.accord.queue_thread_count = new OptionaldPositiveInt(concurrent_operations);
     }
 
     public static int getFlushWriters()
@@ -5719,18 +5712,18 @@ public class DatabaseDescriptor
         }
     }
 
-
-    public static AccordSpec getAccord()
+    public static AccordConfig getAccord()
     {
         return conf.accord;
     }
 
-    public static AccordSpec.TransactionalRangeMigration getTransactionalRangeMigration()
+    // TODO (expected): move all getAccordX into AccordConfig
+    public static AccordConfig.TransactionalRangeMigration getTransactionalRangeMigration()
     {
         return conf.accord.range_migration;
     }
 
-    public static void setTransactionalRangeMigration(AccordSpec.TransactionalRangeMigration val)
+    public static void setTransactionalRangeMigration(AccordConfig.TransactionalRangeMigration val)
     {
         conf.accord.range_migration = Preconditions.checkNotNull(val);
     }
@@ -5753,44 +5746,6 @@ public class DatabaseDescriptor
     public static void setAccordTransactionsEnabled(boolean b)
     {
         conf.accord.enabled = b;
-    }
-
-    public static AccordSpec.QueueShardModel getAccordQueueShardModel()
-    {
-        return conf.accord.queue_shard_model;
-    }
-
-    public static AccordSpec.QueueSubmissionModel getAccordQueueSubmissionModel()
-    {
-        return conf.accord.queue_submission_model;
-    }
-
-    public static int getAccordQueueShardCount()
-    {
-        switch (getAccordQueueShardModel())
-        {
-            default: throw new AssertionError("Unhandled queue_shard_model: " + conf.accord.queue_shard_model);
-            case THREAD_PER_SHARD:
-            case THREAD_PER_SHARD_SYNC_QUEUE:
-                return conf.accord.queue_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
-            case THREAD_POOL_PER_SHARD:
-                return conf.accord.queue_shard_count.or(DatabaseDescriptor.getAvailableProcessors()/4);
-        }
-    }
-
-    public static int getAccordCommandStoreShardCount()
-    {
-        return conf.accord.command_store_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
-    }
-
-    public static int getAccordMaxQueuedLoadCount()
-    {
-        return conf.accord.max_queued_loads.or(getAccordConcurrentOps());
-    }
-
-    public static int getAccordMaxQueuedRangeLoadCount()
-    {
-        return conf.accord.max_queued_range_loads.or(Math.max(4, getAccordConcurrentOps() / 4));
     }
 
     public static DefaultProgressLog.Config getAccordProgressLogConfig()
@@ -6363,7 +6318,7 @@ public class DatabaseDescriptor
 
     public static boolean getAccordEphemeralReadEnabledEnabled()
     {
-        return conf.accord.ephemeralReadEnabled;
+        return conf.accord.ephemeral_reads;
     }
 
     public static AutoRepairConfig getAutoRepairConfig()

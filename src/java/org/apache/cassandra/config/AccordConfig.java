@@ -22,23 +22,28 @@ import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import accord.api.ProtocolModifiers.CleanCfkBefore;
+import accord.api.ProtocolModifiers.CoordinatorBacklogExecution;
+import accord.api.ProtocolModifiers.FastExecution;
+import accord.api.ProtocolModifiers.ReplicaExecution;
+import accord.api.ProtocolModifiers.SendStableMessages;
+import accord.primitives.TxnId;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static org.apache.cassandra.config.AccordSpec.CatchupMode.NORMAL;
-import static org.apache.cassandra.config.AccordSpec.QueueShardModel.THREAD_POOL_PER_SHARD;
-import static org.apache.cassandra.config.AccordSpec.QueueSubmissionModel.SYNC;
-import static org.apache.cassandra.config.AccordSpec.RangeIndexMode.in_memory;
+import static org.apache.cassandra.config.AccordConfig.CatchupMode.NORMAL;
+import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.HLC_FIFO;
+import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_POOL_PER_SHARD;
+import static org.apache.cassandra.config.AccordConfig.QueueSubmissionModel.SYNC;
+import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.in_memory;
 
-// TODO (expected): rename to AccordConf?
-public class AccordSpec
+public class AccordConfig
 {
     public volatile boolean enabled = false;
 
-    // TODO (expected): move to JournalSpec
     public volatile String journal_directory;
 
     /**
@@ -61,11 +66,15 @@ public class AccordSpec
         /**
          * Same number of threads as queue shards, but the shard lock is held only while managing the queue,
          * so that submitting threads may queue load/save work.
+         *
+         * This is incompatible with QueueSubmissionModel.SIGNAL
          */
         THREAD_PER_SHARD,
 
         /**
          * Same number of threads as shards, and the shard lock is held for the duration of serving requests.
+         *
+         * This is incompatible with QueueSubmissionModel.SIGNAL
          */
         THREAD_PER_SHARD_SYNC_QUEUE,
 
@@ -99,12 +108,51 @@ public class AccordSpec
         ASYNC,
 
         /**
+         * Queue workers try to avoid competing for the lock, with the lock owner distributing work to any waiting threads
+         * and signalling them without them taking the lock
+         *
+         * NOTE: EXPERIMENTAL
+         */
+        SIGNAL,
+
+        /**
          * The queue is backed by submission to a single-threaded plain executor.
          * This implementation does not honor the sharding model option.
          *
          * Note: this isn't intended to be used by real clusters.
          */
         EXEC_ST
+    }
+
+    public enum QueuePriorityModel
+    {
+        /**
+         * All work is queued on a first-come first-serve basis.
+         * Overload can lead to more rapid degradation, as later phases of the state machine are delayed
+         * by the arrival of new work.
+         */
+        FIFO,
+
+        /**
+         * If the work has an associated TxnId, prioritise by its HLC (and FIFO otherwise)
+         */
+        HLC_FIFO,
+
+        /**
+         * Prioritise Apply, Stable, Commit, Accept, and PreAccept messages in that order.
+         * Within a given message type, prioritise by HLC.
+         * Other messages will be mixed with PreAccept messages, but using the next counter rather than the HLC of the TxnId.
+         * Note: this can have some performance edge cases for contended keys, as we may process Stable messages for later commands before
+         *       we process earlier Accept/Commit, which may delay execution
+         */
+        PHASE_HLC_FIFO,
+
+        /**
+         * Prioritise Apply, Stable, Commit, Accept, and PreAccept messages from the original coordinator only, in that order.
+         * Within a given message type, prioritise by HLC.
+         * Other messages will be mixed with PreAccept messages, but using the next counter rather than the HLC of the TxnId.
+         */
+        ORIG_PHASE_HLC_FIFO
     }
 
     public QueueShardModel queue_shard_model = THREAD_POOL_PER_SHARD;
@@ -115,6 +163,37 @@ public class AccordSpec
      */
     public volatile OptionaldPositiveInt queue_shard_count = OptionaldPositiveInt.UNDEFINED;
 
+    /**
+     * The total number of threads to share between queue shards
+     */
+    public volatile OptionaldPositiveInt queue_thread_count = OptionaldPositiveInt.UNDEFINED;
+
+    public QueuePriorityModel queue_priority_model = HLC_FIFO;
+
+    /**
+     * If set, the signal loop does not match park/unpark pairs, but instead consumers perform timed-park spin waits
+     */
+    public DurationSpec.LongMicrosecondsBound queue_spin_interval;
+
+    /**
+     * If set, the signal loop reduces the number of threads it is using when the time spent parked exceeds real-time
+     * by this interval.
+     */
+    public DurationSpec.LongMicrosecondsBound queue_stop_check_interval;
+
+    /**
+     * If set, the signal loop reduces the number of threads it is using when the time spent parked exceeds real-time
+     * by this interval.
+     */
+    public DurationSpec.LongMicrosecondsBound queue_signal_stop_check_interval_credit;
+
+    // yield to other executor threads after executing this many tasks in a row, if there are waiting threads and tasks
+    public int queue_yield_interval = 100;
+
+    /**
+     * If the HLC is older than this, queue by FIFO instead
+     */
+    public DurationSpec.IntMillisecondsBound queue_priority_age_to_fifo = new DurationSpec.IntMillisecondsBound(500);
     /**
      * The target number of command stores to create per topology shard.
      * This determines the amount of execution parallelism possible for a given table/shard on the host.
@@ -165,6 +244,10 @@ public class AccordSpec
     public volatile DurationSpec.IntSecondsBound shard_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
     public volatile DurationSpec.IntSecondsBound global_durability_cycle = new DurationSpec.IntSecondsBound(5, TimeUnit.MINUTES);
 
+    public volatile DurationSpec.IntSecondsBound topology_watermark_interval = new DurationSpec.IntSecondsBound(60);
+    public volatile boolean topology_sync_propagator_enabled_pre_start = false;
+    public volatile boolean topology_sync_propagator_enabled_post_startup = false;
+
     public enum TransactionalRangeMigration
     {
         auto, explicit
@@ -178,11 +261,6 @@ public class AccordSpec
      */
     public volatile TransactionalRangeMigration range_migration = TransactionalRangeMigration.auto;
 
-    public enum RebootstrapMode
-    {
-        full_repair, truncate_and_stream
-    }
-
     public enum CatchupMode
     {
         DISABLED,
@@ -195,14 +273,43 @@ public class AccordSpec
      * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
-    public boolean ephemeralReadEnabled = true;
+
+    // ******** PROTOCOL MODIFIERS ***********
+
+    public CoordinatorBacklogExecution coordinator_backlog_execution;
+    public Boolean permit_local_delivery;
+    public Boolean permit_coordinator_local_execution; // if disabled, the privileged coordinator optimisation will be counter-productive and should also be disabled
+    public TxnId.FastPath permit_fast_path;
+    public Boolean permit_track_stable_medium_path;
+    public Boolean permit_fast_quorum_medium_path;
+    public Boolean always_inform_durable_single_key;
+    public ReplicaExecution replica_execution;
+    public Float replica_execution_distributed_persist_chance;
+    public FastExecution fast_write_execution;
+    public FastExecution fast_read_execution;
+    public CleanCfkBefore clean_cfk_before;
+    public SendStableMessages send_stable;
+    /**
+     * include the least information expected to be necessary in messages -
+     * this is more efficient but may lead to some additional traffic and latency when earlier messages had not arrived
+     */
+    public Boolean send_minimal;
+    // note: simulator incompatible (for now)
+    public Boolean precise_micros;
+
+    public boolean ephemeral_reads = true;
     public boolean state_cache_listener_jfr_enabled = false;
 
     public float hard_reject_ratio = 0.5f;
-    public int min_soft_reject_count = 10;
-    public int max_soft_reject_count = 100;
+    public int min_soft_reject_count = 100;
+    public int max_soft_reject_count = 1000;
     public DurationSpec.LongMicrosecondsBound soft_reject_age = new DurationSpec.LongMicrosecondsBound("10s");
     public DurationSpec.LongMicrosecondsBound soft_reject_cumulative_age = new DurationSpec.LongMicrosecondsBound("60s");
+
+
+    public DurationSpec.IntSecondsBound commands_for_key_prune_delta = new DurationSpec.IntSecondsBound(1);
+    public int commands_for_key_prune_interval = 64;
+    public DurationSpec.IntSecondsBound max_conflicts_prune_delta = new DurationSpec.IntSecondsBound(1);
 
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
@@ -215,7 +322,7 @@ public class AccordSpec
     public enum RangeIndexMode { in_memory, journal_sai }
     public RangeIndexMode range_index_mode = in_memory;
 
-    public final JournalSpec journal = new JournalSpec();
+    public final JournalConfig journal = new JournalConfig();
 
     public enum MixedTimeSourceHandling
     {
@@ -224,7 +331,7 @@ public class AccordSpec
 
     public volatile MixedTimeSourceHandling mixedTimeSourceHandling = MixedTimeSourceHandling.reject;
 
-    public static class JournalSpec implements Params
+    public static class JournalConfig implements Params
     {
         public enum ReplayMode
         {
@@ -265,10 +372,16 @@ public class AccordSpec
             EXIT,
 
             /**
+             * @deprecated since alpha release, replaced by ALLOW_UNSAFE_STARTUP for consistency with FailurePolicy.ALLOW_UNSAFE_STARTUP
+             */
+            @Deprecated(since="6.0")
+            UNSAFE_STARTUP,
+
+            /**
              * If the start marker exceeds the stop marker startup, assuming the consensus log has been determined complete externally.
              * Note this is VERY UNSAFE if you care about isolation guarantees.
              */
-            UNSAFE_STARTUP,
+            ALLOW_UNSAFE_STARTUP,
 
             REBOOTSTRAP
         }
@@ -289,7 +402,7 @@ public class AccordSpec
         public Version version = Version.DOWNGRADE_SAFE_VERSION;
         public boolean enable_compaction = true;
 
-        public JournalSpec setFlushPeriod(DurationSpec newFlushPeriod)
+        public JournalConfig setFlushPeriod(DurationSpec newFlushPeriod)
         {
             flushPeriod = newFlushPeriod;
             flushCombinedBlockPeriod = Long.MIN_VALUE;
@@ -376,5 +489,10 @@ public class AccordSpec
         {
             return version.version;
         }
+    }
+
+    public int commandStoreShardCount()
+    {
+        return command_store_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
     }
 }

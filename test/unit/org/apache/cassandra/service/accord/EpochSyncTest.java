@@ -74,6 +74,7 @@ import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import accord.utils.async.Cancellable;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.concurrent.Stage;
@@ -120,7 +121,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
-import static org.apache.cassandra.config.DatabaseDescriptor.getAccordCommandStoreShardCount;
+import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public class EpochSyncTest
@@ -133,6 +134,7 @@ public class EpochSyncTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         ClusterMetadataService.setInstance(StubClusterMetadataService.forTesting());
+        AccordService.touch();
     }
 
     @Test
@@ -669,11 +671,11 @@ public class EpochSyncTest
                 this.token = token;
                 this.epoch = epoch;
                 MockCluster.Clock clock = new MockCluster.Clock(0);
-                Node node = Utils.createNode(id, ignore -> AsyncResults.settable(), new MessageSink.NoOpSink(), clock, new TestAgent(clock), new TokenKey.KeyspaceSplitter(new ShardDistributor.EvenSplit<>(getAccordCommandStoreShardCount(), getPartitioner().accordSplitter())));
+                Node node = Utils.createNode(id, ignore -> AsyncResults.settable(), new MessageSink.NoOpSink(), clock, new TestAgent(clock), new TokenKey.KeyspaceSplitter(new ShardDistributor.EvenSplit<>(getAccord().commandStoreShardCount(), getPartitioner().accordSplitter())));
                 // TODO (review): Should there be a real scheduler here? Is it possible to adapt the Scheduler interface to scheduler used in this test?
                 TimeService time = TimeService.ofNonMonotonic(globalExecutor::currentTimeMillis, TimeUnit.MILLISECONDS);
                 this.topologyService = new AccordTopologyService(id, mapper, messagingService, scheduler);
-                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time))
+                this.topology = new TopologyManager(SizeOfIntersectionSorter.SUPPLIER, node, topologyService, time, new DefaultTimeouts(time, ImmediateExecutor.INSTANCE))
                 {
                     @Override
                     protected EpochReady bootstrap(Supplier<EpochReady> bootstrap)

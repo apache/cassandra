@@ -27,7 +27,7 @@ import accord.api.Agent;
 import accord.utils.QuadFunction;
 import accord.utils.QuintConsumer;
 
-class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
+public class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
 {
     private final AccordExecutorLoops loops;
     private final ReentrantLock lock;
@@ -79,14 +79,8 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
     void notifyWork()
     {
         lock.lock();
-        try
-        {
-            hasWork.signal();
-        }
-        finally
-        {
-            lock.unlock();
-        }
+        try { hasWork.signal(); }
+        finally { lock.unlock(); }
     }
 
     @Override
@@ -95,16 +89,16 @@ class AccordExecutorSyncSubmit extends AccordExecutorAbstractLockLoop
         hasWork.signal();
     }
 
-    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submitExternal(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
-        lock.lock();
+        lock();
         try
         {
-            submitExternalExclusive(sync, async, p1s, p1a, p2, p3, p4);
+            submitExternalExclusive(sync, p1s, p2, p3, p4);
         }
         finally
         {
-            lock.unlock();
+            unlock();
         }
     }
 

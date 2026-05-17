@@ -45,7 +45,12 @@ public enum ConsistencyLevel
     SERIAL      (8),
     LOCAL_SERIAL(9, true),
     LOCAL_ONE   (10, true),
-    NODE_LOCAL  (11, true);
+    NODE_LOCAL  (11, true),
+    UNSAFE_DELAY_QUORUM(99, false),
+    UNSAFE_DELAY_SERIAL(100, false),
+    UNSAFE_DELAY_LOCAL_QUORUM(101, true),
+    UNSAFE_DELAY_LOCAL_SERIAL(102, true);
+
 
     // Used by the binary protocol
     public final int code;
@@ -143,12 +148,16 @@ public enum ConsistencyLevel
                 return 2;
             case THREE:
                 return 3;
+            case UNSAFE_DELAY_QUORUM:
             case QUORUM:
+            case UNSAFE_DELAY_SERIAL:
             case SERIAL:
                 return quorumFor(replicationStrategy);
             case ALL:
                 return replicationStrategy.getReplicationFactor().allReplicas;
+            case UNSAFE_DELAY_LOCAL_QUORUM:
             case LOCAL_QUORUM:
+            case UNSAFE_DELAY_LOCAL_SERIAL:
             case LOCAL_SERIAL:
                 return localQuorumForOurDc(replicationStrategy);
             case EACH_QUORUM:
@@ -178,13 +187,16 @@ public enum ConsistencyLevel
         {
             case ANY:
                 break;
-            case LOCAL_ONE: case LOCAL_QUORUM: case LOCAL_SERIAL:
+            case LOCAL_ONE:
+            case UNSAFE_DELAY_LOCAL_QUORUM: case LOCAL_QUORUM:
+            case UNSAFE_DELAY_LOCAL_SERIAL: case LOCAL_SERIAL:
                 // we will only count local replicas towards our response count, as these queries only care about local guarantees
                 blockFor += pending.count(InOurDc.replicas());
                 break;
             case ONE: case TWO: case THREE:
-            case QUORUM: case EACH_QUORUM:
-            case SERIAL:
+            case UNSAFE_DELAY_QUORUM: case QUORUM:
+            case UNSAFE_DELAY_SERIAL: case SERIAL:
+            case EACH_QUORUM:
             case ALL:
                 blockFor += pending.size();
         }
@@ -219,7 +231,9 @@ public enum ConsistencyLevel
         switch (this)
         {
             case SERIAL:
+            case UNSAFE_DELAY_SERIAL:
             case LOCAL_SERIAL:
+            case UNSAFE_DELAY_LOCAL_SERIAL:
                 throw new InvalidRequestException("You must use conditional updates for serializable writes");
         }
     }
@@ -233,7 +247,9 @@ public enum ConsistencyLevel
                 requireNetworkTopologyStrategy(replicationStrategy);
                 break;
             case SERIAL:
+            case UNSAFE_DELAY_SERIAL:
             case LOCAL_SERIAL:
+            case UNSAFE_DELAY_LOCAL_SERIAL:
                 throw new InvalidRequestException(this + " is not supported as conditional update commit consistency. Use ANY if you mean \"make sure it is accepted but I don't care how many replicas commit it for non-SERIAL reads\"");
         }
     }
@@ -246,7 +262,16 @@ public enum ConsistencyLevel
 
     public boolean isSerialConsistency()
     {
-        return this == SERIAL || this == LOCAL_SERIAL;
+        switch (this)
+        {
+            case SERIAL:
+            case UNSAFE_DELAY_SERIAL:
+            case LOCAL_SERIAL:
+            case UNSAFE_DELAY_LOCAL_SERIAL:
+                return true;
+            default:
+                return false;
+        }
     }
 
     public void validateCounterForWrite(TableMetadata metadata) throws InvalidRequestException

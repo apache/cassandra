@@ -245,6 +245,8 @@ public class AccordInteropRead extends ReadData
         @Override
         ReadResponse convertResponse(ReadOk ok)
         {
+            LocalReadData data = (LocalReadData) ok.data;
+            data.ensureRemoteResponse();
             return ((LocalReadData)ok.data).remoteResponse;
         }
     }

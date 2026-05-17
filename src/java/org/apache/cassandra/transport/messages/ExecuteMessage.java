@@ -30,6 +30,7 @@ import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
+import org.apache.cassandra.net.ArtificialLatency;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
@@ -156,6 +157,9 @@ public class ExecuteMessage extends Message.Request
 
             if (traceRequest)
                 traceQuery(state, prepared);
+
+            if (options.isEligibleForArtificialLatency())
+                ArtificialLatency.setEligibleForArtificialLatency(true);
 
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.

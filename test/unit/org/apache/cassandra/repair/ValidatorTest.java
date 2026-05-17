@@ -375,7 +375,7 @@ public class ValidatorTest
     private CompletableFuture<Message> registerOutgoingMessageSink()
     {
         final CompletableFuture<Message> future = new CompletableFuture<>();
-        MessagingService.instance().outboundSink.add((message, to) -> future.complete(message));
+        MessagingService.instance().outboundSink.add((message, to, type) -> future.complete(message));
         return future;
     }
 }

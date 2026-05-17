@@ -60,7 +60,7 @@ public class SecondaryIndexCompactionTest extends TestBaseImpl
                 // emulate ongoing index compaction:
                 CompactionInfo.Holder h = new MockHolder(i.getIndexCfs().metadata(), idxSSTables);
                 CompactionManager.instance.active.beginCompaction(h);
-                CompactionManager.instance.active.estimatedRemainingWriteBytes();
+                CompactionManager.instance.active.estimatedRemainingWriteToDiskBytes();
                 CompactionManager.instance.active.finishCompaction(h);
             });
         }
@@ -79,7 +79,7 @@ public class SecondaryIndexCompactionTest extends TestBaseImpl
         @Override
         public CompactionInfo getCompactionInfo()
         {
-            return new CompactionInfo(metadata, OperationType.COMPACTION, 0, 1000, nextTimeUUID(), sstables);
+            return new CompactionInfo(metadata, OperationType.COMPACTION, 0, 1000, 300, nextTimeUUID(), sstables);
         }
 
         @Override

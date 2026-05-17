@@ -205,13 +205,13 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
         if (range.left.getPartitioner().splitter().isPresent())
         {
             long progress = prevToken == null ? 0 : Math.round(prevToken.getPartitioner().splitter().get().positionInRange(prevToken, range) * 1000);
-            return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, Unit.RANGES, compactionId);
+            return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, 1000, Unit.RANGES, compactionId);
         }
 
         // When there is no splitter, estimate based on number of total keys but
         // take the max with keysBuilt + 1 to avoid having more completed than total
         long keysTotal = Math.max(keysBuilt + 1, baseCfs.estimatedKeysForRange(range));
-        return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, keysBuilt, keysTotal, Unit.KEYS, compactionId);
+        return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, keysBuilt, keysTotal, keysTotal, Unit.KEYS, compactionId);
     }
 
     @Override

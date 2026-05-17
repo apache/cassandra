@@ -887,6 +887,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
                                    .set("commitlog_sync", "batch")
                                    .set("accord.journal.flush_mode", "BATCH")
+                                   .set("accord.precise_micros", "false")
                                    .set("accord.command_store_shard_count", "4");
 
                              if (memtableType.equals("TrieMemtable"))

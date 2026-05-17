@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,9 +29,11 @@ import java.util.Map;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.layout.CassandraUsage;
 
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -53,6 +56,7 @@ import static org.apache.cassandra.tcm.CMSOperations.SERVICE_STATE;
                          CMSAdmin.Snapshot.class,
                          CMSAdmin.Unregister.class,
                          CMSAdmin.AbortInitialization.class,
+                         CMSAdmin.DumpClusterMetadata.class,
                          CMSAdmin.DumpDirectory.class,
                          CMSAdmin.DumpLog.class,
                          CMSAdmin.ResumeDropAccordTable.class })
@@ -164,7 +168,7 @@ public class CMSAdmin extends AbstractCommand
                 if (!rf.contains(":"))
                 {
                     if (args.size() > 1)
-                        throw new IllegalArgumentException("Simple placement can only specify a single replication factor accross all data centers");
+                        throw new IllegalArgumentException("Simple placement can only specify a single replication factor across all data centers");
                     int parsedRf;
                     try
                     {
@@ -293,6 +297,57 @@ public class CMSAdmin extends AbstractCommand
         public void execute(NodeProbe probe)
         {
             probe.getCMSOperationsProxy().resumeDropAccordTable(tableId);
+        }
+    }
+
+    @Command(name = "dump", description = "Dumps cluster metadata into a file")
+    public static class DumpClusterMetadata extends AbstractCommand
+    {
+        @ArgGroup(exclusive = false, multiplicity = "0..1")
+        DumpOptions dumpOptions;
+
+        static class DumpOptions
+        {
+            @Option(names = { "-e", "--epoch" }, paramLabel = "epoch",
+            description = "Epoch at which cluster metadata should be dumped", required = true)
+            Long epoch;
+
+            @Option(names = { "-te", "--transform-epoch" }, paramLabel = "transform_epoch",
+            description = "Force metadata to given X epoch while dumping", required = true)
+            Long transformEpoch;
+
+            @Option(names = { "-sv", "--serialization-version" }, paramLabel = "serialization_version",
+            description = "Serialization Version", required = true)
+            Version version;
+        }
+
+        @Override
+        protected void execute(NodeProbe probe)
+        {
+            try
+            {
+                if (dumpOptions == null)
+                {
+                    String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata();
+                    printCMSDumpLocation(probe, fileLocation);
+                }
+                else
+                {
+                    String fileLocation = probe.getCMSOperationsProxy().dumpClusterMetadata(dumpOptions.epoch,
+                                                                                            dumpOptions.transformEpoch,
+                                                                                            dumpOptions.version.name());
+                    printCMSDumpLocation(probe, fileLocation);
+                }
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void printCMSDumpLocation(NodeProbe probe, String fileLocation)
+        {
+            probe.output().out.println("Cluster Metadata dump available at " + fileLocation);
         }
     }
 }

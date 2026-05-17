@@ -35,7 +35,6 @@ class AccordExecutorSimple extends AccordExecutor
 {
     final ExecutorPlus executor;
     final ReentrantLock lock;
-    private Task active;
 
     public AccordExecutorSimple(int executorId, String name, Agent agent)
     {
@@ -63,13 +62,19 @@ class AccordExecutorSimple extends AccordExecutor
     }
 
     @Override
+    boolean isInLoop()
+    {
+        return executor.inExecutor();
+    }
+
+    @Override
     public boolean hasTasks()
     {
         return tasks + executor.getActiveTaskCount() + executor.getPendingTaskCount() > 0;
     }
 
     @Override
-    void beforeUnlock()
+    void beforeUnlockExternal()
     {
         if (hasWaitingToRun())
             executor.execute(this::run);
@@ -77,17 +82,15 @@ class AccordExecutorSimple extends AccordExecutor
 
     protected void run()
     {
+        Thread self = Thread.currentThread();
         lock.lock();
         try
         {
-            runningThreads = 1;
             while (true)
             {
                 Task task = pollWaitingToRunExclusive();
-                active = task;
                 if (task == null)
                 {
-                    runningThreads = 0;
                     notifyQuiescentExclusive();
                     return;
                 }
@@ -97,13 +100,11 @@ class AccordExecutorSimple extends AccordExecutor
                 finally
                 {
                     completeTaskExclusive(task);
-                    active = null;
                 }
             }
         }
         finally
         {
-            runningThreads = 0;
             if (hasWaitingToRun())
                 executor.execute(this::run);
             lock.unlock();
@@ -111,7 +112,7 @@ class AccordExecutorSimple extends AccordExecutor
     }
 
     @Override
-    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Submittable> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
+    <P1s, P1a, P2, P3, P4> void submit(QuintConsumer<AccordExecutor, P1s, P2, P3, P4> sync, QuadFunction<P1a, P2, P3, P4, Task> async, P1s p1s, P1a p1a, P2 p2, P3 p3, P4 p4)
     {
         lock.lock();
         try

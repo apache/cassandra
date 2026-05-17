@@ -153,9 +153,9 @@ public class Attributes
     public void collectMarkerSpecification(VariableSpecifications boundNames)
     {
         if (timestamp != null)
-            timestamp.collectMarkerSpecification(boundNames);
+            timestamp.collectMarkerSpecification(boundNames, this);
         if (timeToLive != null)
-            timeToLive.collectMarkerSpecification(boundNames);
+            timeToLive.collectMarkerSpecification(boundNames, this);
     }
 
     public static class Raw

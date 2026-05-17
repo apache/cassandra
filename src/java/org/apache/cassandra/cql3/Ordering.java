@@ -134,14 +134,14 @@ public class Ordering
          * Resolves column identifiers against the table schema.
          * Binds markers (?) to columns.
          */
-        public Ordering bind(TableMetadata table, VariableSpecifications boundNames)
+        public Ordering bind(TableMetadata table, VariableSpecifications boundNames, Object owner)
         {
-            return new Ordering(expression.bind(table, boundNames), direction);
+            return new Ordering(expression.bind(table, boundNames, owner), direction);
         }
 
         public interface Expression
         {
-            Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames);
+            Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames, Object owner);
         }
 
         public static class SingleColumn implements Expression
@@ -154,7 +154,7 @@ public class Ordering
             }
 
             @Override
-            public Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames)
+            public Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames, Object owner)
             {
                 return new Ordering.SingleColumn(table.getExistingColumn(column), table);
             }
@@ -172,11 +172,11 @@ public class Ordering
             }
 
             @Override
-            public Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames)
+            public Ordering.Expression bind(TableMetadata table, VariableSpecifications boundNames, Object owner)
             {
                 ColumnMetadata column = table.getExistingColumn(columnId);
                 Term value = vectorValue.prepare(table.keyspace, column);
-                value.collectMarkerSpecification(boundNames);
+                value.collectMarkerSpecification(boundNames, owner);
                 return new Ordering.Ann(column, table, value);
             }
         }

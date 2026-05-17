@@ -282,7 +282,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @Override
     public short[] getPartitionKeyBindVariableIndexes()
     {
-        return bindVariables.getPartitionKeyBindVariableIndexes(metadata);
+        return bindVariables.getPartitionKeyBindVariableIndexes(metadata, attrs);
     }
 
     @Override
@@ -1328,7 +1328,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             for (ColumnCondition.Raw rawCondition : conditions)
             {
                 ColumnCondition condition = rawCondition.prepare(metadata);
-                condition.collectMarkerSpecification(bindVariables);
+                condition.collectMarkerSpecification(bindVariables, attrs);
 
                 builder.add(condition);
             }
@@ -1356,13 +1356,14 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                         VariableSpecifications boundNames,
                                                         Operations operations,
                                                         WhereClause where,
-                                                        Conditions conditions)
+                                                        Conditions conditions,
+                                                        Object owner)
         {
             if (where.containsCustomExpressions())
                 throw new InvalidRequestException(CUSTOM_EXPRESSIONS_NOT_ALLOWED);
 
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions);
-            return new StatementRestrictions(state, type, metadata, IndexHints.NONE, where, boundNames, Collections.emptyList(), applyOnlyToStaticColumns, false, false);
+            return new StatementRestrictions(state, type, metadata, IndexHints.NONE, where, boundNames, Collections.emptyList(), owner, applyOnlyToStaticColumns, false, false);
         }
 
         public List<ColumnCondition.Raw> getConditions()

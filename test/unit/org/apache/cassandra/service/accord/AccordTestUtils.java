@@ -41,8 +41,10 @@ import accord.api.Journal;
 import accord.api.ProgressLog.NoOpProgressLog;
 import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
+import accord.api.Result.PersistableResult;
 import accord.api.RoutingKey;
 import accord.api.Timeouts;
+import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink.NoOpNotifySink;
 import accord.local.Command;
@@ -66,6 +68,7 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
+import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
@@ -84,7 +87,7 @@ import accord.utils.async.Cancellable;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ManualExecutor;
-import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -238,15 +241,15 @@ public class AccordTestUtils
         return Ballot.fromValues(epoch, hlc, new Node.Id(node));
     }
 
-    public static AsyncChain<Pair<Writes, Result>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
+    public static AsyncChain<Pair<Writes, PersistableResult>> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
-        AtomicReference<AsyncChain<Pair<Writes, Result>>> result = new AtomicReference<>();
+        AtomicReference<AsyncChain<Pair<Writes, PersistableResult>>> result = new AtomicReference<>();
         getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test",
                                          safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
 
-    public static AsyncChain<Pair<Writes, Result>> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
+    public static AsyncChain<Pair<Writes, PersistableResult>> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
     {
         TxnRead read = (TxnRead) txn.read();
         return AsyncChains.allOf(read.keys().stream().map(key -> read.read(safeStore, key, executeAt))
@@ -254,7 +257,7 @@ public class AccordTestUtils
                                                .map(list -> {
                                                    Data data = list.stream().reduce(Data::merge).orElse(new TxnData());
                                                    return Pair.create(txnId.is(Write) ? txn.execute(txnId, executeAt, data) : null,
-                                                                      txn.query().compute(txnId, executeAt, txn.keys(), data, txn.read(), txn.update()));
+                                                                      txn.query().compute(txnId, executeAt, txn.keys(), data, txn.read(), txn.update()).toPersistable());
                                                });
     }
 
@@ -350,7 +353,9 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         Node.Id node, LongSupplier now, Topology topology)
     {
-        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', new AccordAgent());
+        AccordAgent agent = new AccordAgent();
+        agent.setup(Id.NONE);
+        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', agent);
         return createAccordCommandStore(node, now, topology, executor);
     }
 
@@ -383,15 +388,18 @@ public class AccordTestUtils
             @Override public long uniqueNow(long atLeast) { return now.getAsLong(); }
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
+            @Override public Coordinations coordinations() { return new Coordinations(); }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() {++stamp;}
             @Override public boolean isReplaying() { return false; }
+            @Override public void reportLocalExecution(TxnId txnId, Route<?> route, Ballot ballot, Timestamp applyAt, Writes writes, Result result) {}
         };
 
         AccordAgent agent = new AccordAgent();
+        agent.setup(Id.NONE);
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
-        AccordSpec.JournalSpec spec = new AccordSpec.JournalSpec();
+        AccordConfig.JournalConfig spec = new AccordConfig.JournalConfig();
         spec.flushPeriod = new DurationSpec.IntSecondsBound(1);
         AccordJournal journal = new AccordJournal(spec);
         journal.start(null);

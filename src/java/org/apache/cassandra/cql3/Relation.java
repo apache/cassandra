@@ -191,7 +191,7 @@ public final class Relation
      * @return the <code>Restriction</code> corresponding to this <code>Relation</code>
      * @throws InvalidRequestException if this <code>Relation</code> is not valid
      */
-    public SingleRestriction toRestriction(TableMetadata table, VariableSpecifications boundNames, boolean allowFiltering)
+    public SingleRestriction toRestriction(TableMetadata table, VariableSpecifications boundNames, Object owner, boolean allowFiltering)
     {
         ColumnsExpression columnsExpression = rawExpressions.prepare(table);
 
@@ -210,7 +210,7 @@ public final class Relation
             if (column.isClusteringColumn() && baseType.isCollection() && !column.type.isMultiCell())
                 throw invalidRequest(FROZEN_MAP_ENTRY_PREDICATES_NOT_SUPPORTED, column.name);
 
-            columnsExpression.collectMarkerSpecification(boundNames);
+            columnsExpression.collectMarkerSpecification(boundNames, owner);
         }
 
         operator.validateFor(columnsExpression);
@@ -220,7 +220,7 @@ public final class Relation
             receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
 
         Terms terms = rawTerms.prepare(table.keyspace, receiver);
-        terms.collectMarkerSpecification(boundNames);
+        terms.collectMarkerSpecification(boundNames, owner);
 
         // An IN restriction with only one element is the same as an EQ restriction
         if (operator.isIN() && terms.containsSingleTerm())

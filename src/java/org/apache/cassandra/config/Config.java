@@ -165,8 +165,6 @@ public class Config
     @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
 
-    public volatile DurationSpec.LongMillisecondsBound accord_preaccept_timeout = new DurationSpec.LongMillisecondsBound("1s");
-
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
@@ -205,7 +203,6 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
-    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
     public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(CASSANDRA_AVAILABLE_PROCESSORS.getInt(OptionaldPositiveInt.UNDEFINED_VALUE));
@@ -1249,7 +1246,7 @@ public class Config
      */
     public ParameterizedClass default_compaction = null;
 
-    public final AccordSpec accord = new AccordSpec();
+    public final AccordConfig accord = new AccordConfig();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
