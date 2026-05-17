@@ -25,6 +25,7 @@ import java.util.zip.CRC32;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
 import com.sun.nio.file.ExtendedOpenOption;
 
 import org.agrona.BitUtil;
@@ -149,13 +150,16 @@ public class DirectCompressedSequentialWriter extends CompressedSequentialWriter
     @Override
     protected void writeChunk(ByteBuffer toWrite)
     {
+        Preconditions.checkArgument(toWrite.position() == 0,
+                                    "writeChunk requires a flipped buffer (position == 0), got position=%s",
+                                    toWrite.position());
+
         int chunkLength = toWrite.remaining();
 
-        toWrite.mark();
         chunkChecksum.reset();
         chunkChecksum.update(toWrite);
         int crcValue = (int) chunkChecksum.getValue();
-        toWrite.reset();
+        toWrite.rewind();
 
         writeToAlignedBuffer(toWrite);
         writeCrcToAlignedBuffer(crcValue);
