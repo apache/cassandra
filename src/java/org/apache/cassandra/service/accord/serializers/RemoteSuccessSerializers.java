@@ -25,7 +25,7 @@ import accord.primitives.TxnId;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 
 public class RemoteSuccessSerializers
 {
@@ -35,14 +35,14 @@ public class RemoteSuccessSerializers
         public void serialize(RemoteSuccess msg, DataOutputPlus out, Version version) throws IOException
         {
             CommandSerializers.txnId.serialize(msg.txnId, out);
-            TxnData.serializer.serialize((TxnData) msg.result, out, version);
+            TxnDataResult.serializer.serialize((TxnDataResult) msg.result, out, version);
         }
 
         @Override
         public RemoteSuccess deserialize(DataInputPlus in, Version version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in);
-            TxnData data = TxnData.serializer.deserialize(in, version);
+            TxnDataResult data = TxnDataResult.serializer.deserialize(in, version);
             return new RemoteSuccess(txnId, data);
         }
 
@@ -50,7 +50,7 @@ public class RemoteSuccessSerializers
         public long serializedSize(RemoteSuccess msg, Version version)
         {
             return CommandSerializers.txnId.serializedSize(msg.txnId)
-                   + TxnData.serializer.serializedSize((TxnData) msg.result, version);
+                   + TxnDataResult.serializer.serializedSize((TxnDataResult) msg.result, version);
         }
     };
 }

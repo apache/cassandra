@@ -1087,7 +1087,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                               ClientState state) throws InvalidRequestException
     {
         GroupMaker groupMaker = aggregationSpec == null ? null : aggregationSpec.newGroupMaker();
-        ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), selectors, unmask, groupMaker);
+        ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), options, selectors, unmask, groupMaker);
 
         while (partitions.hasNext())
         {

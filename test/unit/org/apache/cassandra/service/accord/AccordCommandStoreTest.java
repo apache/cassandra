@@ -65,7 +65,7 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
-import org.apache.cassandra.service.accord.serializers.ResultSerializers;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Pair;
@@ -138,7 +138,7 @@ public class AccordCommandStoreTest
 
         Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, AllQuorums, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,
-                                                     waitingOn, result.left, ResultSerializers.APPLIED);
+                                                     waitingOn, result.left, TxnDataResult.PERSISTABLE);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(expected);
         // In practice we should never need to save it with the condition boolean set

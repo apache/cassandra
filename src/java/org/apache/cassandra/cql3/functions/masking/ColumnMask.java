@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -135,20 +136,28 @@ public class ColumnMask
      * @param version the used version of the transport protocol
      * @return a masker instance that caches the terminal masking function arguments
      */
-    public Masker masker(ProtocolVersion version)
+    public Masker masker(ProtocolVersion version, FunctionContext context)
     {
-        return new Masker(version, function, partialArgumentValues);
+        return new Masker(version, context, function, partialArgumentValues);
     }
 
     public static class Masker
     {
+        public static final Masker NOT_A_MASKER = new Masker();
+
         private final ScalarFunction function;
         private final Arguments arguments;
 
-        private Masker(ProtocolVersion version, ScalarFunction function, ByteBuffer[] partialArgumentValues)
+        private Masker()
+        {
+            function = null;
+            arguments = null;
+        }
+
+        private Masker(ProtocolVersion version, FunctionContext context, ScalarFunction function, ByteBuffer[] partialArgumentValues)
         {
             this.function = function;
-            arguments = function.newArguments(version);
+            arguments = function.newArguments(context);
             for (int i = 0; i < partialArgumentValues.length; i++)
                 arguments.set(i + 1, partialArgumentValues[i]);
         }

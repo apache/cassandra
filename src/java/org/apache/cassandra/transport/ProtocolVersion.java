@@ -26,6 +26,8 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import org.apache.cassandra.cql3.FunctionContext;
+
 /**
  * The native (CQL binary) protocol version.
  *
@@ -35,7 +37,7 @@ import org.apache.commons.lang3.ArrayUtils;
  * by the specs.
  *
  */
-public enum ProtocolVersion implements Comparable<ProtocolVersion>
+public enum ProtocolVersion implements Comparable<ProtocolVersion>, FunctionContext.NoTimeOrQueryFunctionContext
 {
     // The order is important as it defines the chronological history of versions, which is used
     // to determine if a feature is supported or some serdes formats
@@ -172,5 +174,11 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     public final boolean isSmallerOrEqualTo(ProtocolVersion other)
     {
         return num <= other.num;
+    }
+
+    @Override
+    public ProtocolVersion getProtocolVersion()
+    {
+        return this;
     }
 }

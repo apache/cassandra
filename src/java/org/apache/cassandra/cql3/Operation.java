@@ -116,9 +116,9 @@ public abstract class Operation
      * Execute the operation.
      *
      * @param partitionKey partition key for the update.
-     * @param params parameters of the update.
+     * @param builder      parameters of the update.
      */
-    public abstract void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException;
+    public abstract void execute(DecoratedKey partitionKey, RowUpdateBuilder builder) throws InvalidRequestException;
 
     /**
      * A parsed raw UPDATE operation.

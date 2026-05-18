@@ -26,6 +26,7 @@ import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -72,6 +73,14 @@ public class VectorSelector extends Selector
                                     elements.size());
         this.type = type;
         this.elements = elements;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        for (Selector selector : elements)
+            selector.prepare(context);
     }
 
     public static Factory newFactory(final AbstractType<?> type, final SelectorFactories factories)

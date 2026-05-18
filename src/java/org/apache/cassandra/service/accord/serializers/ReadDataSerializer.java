@@ -51,6 +51,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
@@ -216,7 +217,7 @@ public class ReadDataSerializer implements IVersionedSerializer<ReadData>
                 PartialDeps deps = DepsSerializers.partialDeps.deserialize(in);
                 FullRoute<?> route = KeySerializers.fullRoute.deserialize(in);
                 Writes writes = hasWrites ? CommandSerializers.writes.deserialize(in, version) : null;
-                return ApplyThenWaitUntilApplied.SerializerSupport.create(txnId, scope, minEpoch, executeAt, route, txn, deps, writes, ResultSerializers.APPLIED);
+                return ApplyThenWaitUntilApplied.SerializerSupport.create(txnId, scope, minEpoch, executeAt, route, txn, deps, writes, TxnDataResult.PERSISTABLE);
             }
         }
     }

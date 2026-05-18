@@ -961,6 +961,9 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                                      ColumnFamilyStore cfs,
                                                                      ReadExecutionController controller)
     {
+        if (nowInSec() == 0)
+            return iterator;
+
         class WithoutPurgeableTombstones extends PurgeFunction
         {
             public WithoutPurgeableTombstones()

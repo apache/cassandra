@@ -130,7 +130,6 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         if (rt != null && rt.deletionTime().supersedes(activeDeletion))
             activeDeletion = rt.deletionTime();
 
-
         if (row == null)
         {
             // this means our partition level deletion supersedes all other deletions and we don't have to keep the row deletions

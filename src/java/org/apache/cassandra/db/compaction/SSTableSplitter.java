@@ -56,7 +56,7 @@ public class SSTableSplitter
         }
 
         @Override
-        protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
+        protected CompactionController getCompactionController(Set<SSTableReader> toCompact, long gcBefore)
         {
             return new SplitController(cfs);
         }

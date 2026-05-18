@@ -22,6 +22,7 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.terms.Term;
@@ -110,9 +111,10 @@ public class TimeType extends TemporalType<Long>
     }
 
     @Override
-    public ByteBuffer now()
+    public ByteBuffer now(FunctionContext context)
     {
-        return decompose(LocalTime.now(ZoneOffset.UTC).toNanoOfDay());
+        long nanoOfDay = LocalTime.ofInstant(context.now(), ZoneOffset.UTC).toNanoOfDay();
+        return decompose(nanoOfDay);
     }
 
     @Override

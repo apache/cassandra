@@ -22,10 +22,9 @@ import java.nio.ByteBuffer;
 import org.apache.commons.lang3.mutable.MutableLong;
 
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.transport.ProtocolVersion;
-
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Base type for temporal types (timestamp, date ...).
@@ -42,9 +41,9 @@ public abstract class TemporalType<T> extends AbstractType<T>
      * Returns the current temporal value.
      * @return the current temporal value.
      */
-    public ByteBuffer now()
+    public ByteBuffer now(FunctionContext context)
     {
-        return fromTimeInMillis(currentTimeMillis());
+        return fromTimeInMillis(context.nowMillis());
     }
 
     /**

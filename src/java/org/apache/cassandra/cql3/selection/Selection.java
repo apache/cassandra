@@ -32,6 +32,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
@@ -393,6 +394,8 @@ public abstract class Selection
          */
         default boolean collectWritetimes() { return false; }
 
+        default void prepare(FunctionContext context) {}
+
         /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
          *
@@ -599,6 +602,13 @@ public abstract class Selection
                         outputRow.add(selector.getOutput(options.getProtocolVersion()));
 
                     return isJson ? rowToJson(outputRow, options.getProtocolVersion(), metadata, orderingColumns) : outputRow;
+                }
+
+                @Override
+                public void prepare(FunctionContext context)
+                {
+                    for (Selector selector : selectors)
+                        selector.prepare(context);
                 }
 
                 public void addInputRow(InputRow input)

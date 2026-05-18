@@ -261,6 +261,11 @@ public final class TokenKey extends AccordRoutableKey implements RoutingKey, Ran
         return new TokenKey(table, BEFORE_TOKEN_SENTINEL, token);
     }
 
+    public static TokenKey after(TableId table, Token token)
+    {
+        return new TokenKey(table, AFTER_TOKEN_SENTINEL, token);
+    }
+
     public static final NoTableSerializer noTableSerializer = new NoTableSerializer();
 
 

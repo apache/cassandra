@@ -27,6 +27,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.NativeFunctions;
@@ -36,7 +37,6 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
@@ -337,9 +337,9 @@ public class CQLVectorTest extends CQLTester.InMemory
             }
 
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(context, 1);
             }
         });
 
@@ -371,9 +371,9 @@ public class CQLVectorTest extends CQLTester.InMemory
             }
 
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return new FunctionArguments(version,
+                return new FunctionArguments(context,
                                              (v, b) -> type.composeAsFloat(b),
                                              (v, b) -> type.composeAsFloat(b));
             }

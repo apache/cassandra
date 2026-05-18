@@ -38,6 +38,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers.ExecuteAtSerializer;
+import org.apache.cassandra.service.accord.txn.TxnDataResult;
 
 import static accord.primitives.Txn.Kind.Write;
 
@@ -79,7 +80,7 @@ public class ApplySerializers
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                     KeySerializers.nullableFullRoute.deserialize(in),
                                     (txnId.is(Write) ? CommandSerializers.writes.deserialize(in, version) : null),
-                                    ResultSerializers.APPLIED,
+                                    TxnDataResult.PERSISTABLE,
                                     ExecuteFlags.get(in.readUnsignedVInt32()));
         }
 

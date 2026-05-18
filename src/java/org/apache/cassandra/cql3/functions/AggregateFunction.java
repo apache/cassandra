@@ -19,8 +19,8 @@ package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Performs a calculation on a set of values and return a single value.
@@ -49,10 +49,10 @@ public interface AggregateFunction extends Function
         /**
          * Computes and returns the aggregate current value.
          *
-         * @param protocolVersion native protocol version
+         * @param context
          * @return the aggregate current value.
          */
-        public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException;
+        public ByteBuffer compute(FunctionContext context) throws InvalidRequestException;
 
         /**
          * Reset this aggregate.

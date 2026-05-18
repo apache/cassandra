@@ -24,6 +24,7 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.terms.Tuples;
 import org.apache.cassandra.db.TypeSizes;
@@ -138,6 +139,14 @@ final class TupleSelector extends Selector
         super(Kind.TUPLE_SELECTOR);
         this.type = (TupleType) type;
         this.elements = elements;
+    }
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        super.prepare(context);
+        for (Selector selector : elements)
+            selector.prepare(context);
     }
 
     @Override

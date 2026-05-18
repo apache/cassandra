@@ -23,6 +23,7 @@ import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -35,7 +36,6 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Factory methods for aggregate functions.
@@ -119,7 +119,7 @@ public abstract class AggregateFcts
                     count = 0;
                 }
 
-                public ByteBuffer compute(ProtocolVersion protocolVersion)
+                public ByteBuffer compute(FunctionContext context)
                 {
                     return LongType.instance.decompose(count);
                 }
@@ -163,7 +163,7 @@ public abstract class AggregateFcts
                             sum = BigDecimal.ZERO;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return ((DecimalType) returnType()).decompose(sum);
                         }
@@ -204,7 +204,7 @@ public abstract class AggregateFcts
                             avg = BigDecimal.ZERO;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return DecimalType.instance.decompose(avg);
                         }
@@ -244,7 +244,7 @@ public abstract class AggregateFcts
                             sum = BigInteger.ZERO;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return ((IntegerType) returnType()).decompose(sum);
                         }
@@ -286,7 +286,7 @@ public abstract class AggregateFcts
                             sum = BigInteger.ZERO;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             if (count == 0)
                                 return IntegerType.instance.decompose(BigInteger.ZERO);
@@ -329,7 +329,7 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return ((ByteType) returnType()).decompose(sum);
                         }
@@ -361,7 +361,7 @@ public abstract class AggregateFcts
                 {
                     return new AvgAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+                        public ByteBuffer compute(FunctionContext context) throws InvalidRequestException
                         {
                             return ByteType.instance.decompose((byte) computeInternal());
                         }
@@ -389,7 +389,7 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return ((ShortType) returnType()).decompose(sum);
                         }
@@ -421,7 +421,7 @@ public abstract class AggregateFcts
                 {
                     return new AvgAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return ShortType.instance.decompose((short) computeInternal());
                         }
@@ -449,7 +449,7 @@ public abstract class AggregateFcts
                             sum = 0;
                         }
 
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return ((Int32Type) returnType()).decompose(sum);
                         }
@@ -481,7 +481,7 @@ public abstract class AggregateFcts
                 {
                     return new AvgAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return Int32Type.instance.decompose((int) computeInternal());
                         }
@@ -517,7 +517,7 @@ public abstract class AggregateFcts
                 {
                     return new AvgAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
+                        public ByteBuffer compute(FunctionContext context)
                         {
                             return LongType.instance.decompose(computeInternal());
                         }
@@ -538,7 +538,7 @@ public abstract class AggregateFcts
                 {
                     return new FloatSumAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+                        public ByteBuffer compute(FunctionContext context) throws InvalidRequestException
                         {
                             return FloatType.instance.decompose((float) computeInternal());
                         }
@@ -558,7 +558,7 @@ public abstract class AggregateFcts
                 {
                     return new FloatAvgAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+                        public ByteBuffer compute(FunctionContext context) throws InvalidRequestException
                         {
                             return FloatType.instance.decompose((float) computeInternal());
                         }
@@ -579,7 +579,7 @@ public abstract class AggregateFcts
                 {
                     return new FloatSumAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+                        public ByteBuffer compute(FunctionContext context) throws InvalidRequestException
                         {
                             return DoubleType.instance.decompose(computeInternal());
                         }
@@ -730,7 +730,7 @@ public abstract class AggregateFcts
                 {
                     return new FloatAvgAggregate()
                     {
-                        public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+                        public ByteBuffer compute(FunctionContext context) throws InvalidRequestException
                         {
                             return DoubleType.instance.decompose(computeInternal());
                         }
@@ -760,7 +760,7 @@ public abstract class AggregateFcts
         {
             return new AvgAggregate()
             {
-                public ByteBuffer compute(ProtocolVersion protocolVersion) throws InvalidRequestException
+                public ByteBuffer compute(FunctionContext context) throws InvalidRequestException
                 {
                     return CounterColumnType.instance.decompose(computeInternal());
                 }
@@ -785,7 +785,7 @@ public abstract class AggregateFcts
                     min = null;
                 }
 
-                public ByteBuffer compute(ProtocolVersion protocolVersion)
+                public ByteBuffer compute(FunctionContext context)
                 {
                     return min != null ? LongType.instance.decompose(min) : null;
                 }
@@ -824,7 +824,7 @@ public abstract class AggregateFcts
                     max = null;
                 }
 
-                public ByteBuffer compute(ProtocolVersion protocolVersion)
+                public ByteBuffer compute(FunctionContext context)
                 {
                     return max != null ? LongType.instance.decompose(max) : null;
                 }
@@ -857,9 +857,9 @@ public abstract class AggregateFcts
         return new NativeAggregateFunction("max", inputType, inputType)
         {
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(context, 1);
             }
 
             @Override
@@ -874,7 +874,7 @@ public abstract class AggregateFcts
                         max = null;
                     }
 
-                    public ByteBuffer compute(ProtocolVersion protocolVersion)
+                    public ByteBuffer compute(FunctionContext context)
                     {
                         return max;
                     }
@@ -906,9 +906,9 @@ public abstract class AggregateFcts
         return new NativeAggregateFunction("min", inputType, inputType)
         {
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(context, 1);
             }
 
             @Override
@@ -923,7 +923,7 @@ public abstract class AggregateFcts
                         min = null;
                     }
 
-                    public ByteBuffer compute(ProtocolVersion protocolVersion)
+                    public ByteBuffer compute(FunctionContext context)
                     {
                         return min;
                     }
@@ -955,9 +955,9 @@ public abstract class AggregateFcts
         return new NativeAggregateFunction("count", LongType.instance, inputType)
         {
             @Override
-            public Arguments newArguments(ProtocolVersion version)
+            public Arguments newArguments(FunctionContext context)
             {
-                return FunctionArguments.newNoopInstance(version, 1);
+                return FunctionArguments.newNoopInstance(context, 1);
             }
 
             @Override
@@ -972,7 +972,7 @@ public abstract class AggregateFcts
                         count = 0;
                     }
 
-                    public ByteBuffer compute(ProtocolVersion protocolVersion)
+                    public ByteBuffer compute(FunctionContext context)
                     {
                         return ((LongType) returnType()).decompose(count);
                     }
@@ -999,7 +999,7 @@ public abstract class AggregateFcts
             sum = 0;
         }
 
-        public ByteBuffer compute(ProtocolVersion protocolVersion)
+        public ByteBuffer compute(FunctionContext context)
         {
             return LongType.instance.decompose(sum);
         }

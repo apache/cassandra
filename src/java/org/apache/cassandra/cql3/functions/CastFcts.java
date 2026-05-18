@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
@@ -44,7 +45,6 @@ import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.apache.cassandra.cql3.functions.TimeFcts.toDate;
 import static org.apache.cassandra.cql3.functions.TimeFcts.toTimestamp;
@@ -388,9 +388,9 @@ public final class CastFcts
         }
 
         @Override
-        public Arguments newArguments(ProtocolVersion version)
+        public Arguments newArguments(FunctionContext context)
         {
-            return new FunctionArguments(version, (protocolVersion, buffer) -> {
+            return new FunctionArguments(context, (protocolVersion, buffer) -> {
                 AbstractType<?> argType = argTypes.get(0);
                 if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))
                     return null;

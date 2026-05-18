@@ -22,10 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
@@ -55,9 +55,9 @@ public class ToJsonFct extends NativeScalarFunction
     }
 
     @Override
-    public Arguments newArguments(ProtocolVersion version)
+    public Arguments newArguments(FunctionContext context)
     {
-        return new FunctionArguments(version, (protocolVersion, buffer) -> {
+        return new FunctionArguments(context, (protocolVersion, buffer) -> {
             AbstractType<?> argType = argTypes.get(0);
 
             if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))

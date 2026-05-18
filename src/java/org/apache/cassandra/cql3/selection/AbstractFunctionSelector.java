@@ -28,6 +28,7 @@ import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.text.StrBuilder;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FunctionContext;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.Function;
@@ -133,8 +134,16 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
      * The list used to pass the function arguments is recycled to avoid the cost of instantiating a new list
      * with each function call.
      */
-    private final Arguments args;
+    private Arguments args;
     protected final List<Selector> argSelectors;
+
+    @Override
+    public void prepare(FunctionContext context)
+    {
+        args = fun.newArguments(context);
+        for (Selector selector : argSelectors)
+            selector.prepare(context);
+    }
 
     public static Factory newFactory(final Function fun, final SelectorFactories factories) throws InvalidRequestException
     {
@@ -179,7 +188,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
             public Selector newInstance(QueryOptions options) throws InvalidRequestException
             {
-                return fun.isAggregate() ? new AggregateFunctionSelector(options.getProtocolVersion(), fun, factories.newInstances(options))
+                return fun.isAggregate() ? new AggregateFunctionSelector(fun, factories.newInstances(options))
                                          : createScalarSelector(options, (ScalarFunction) fun, factories.newInstances(options));
             }
 
@@ -204,7 +213,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 }
 
                 if (terminalCount == 0)
-                    return new ScalarFunctionSelector(version, fun, argSelectors);
+                    return new ScalarFunctionSelector(fun, argSelectors);
 
                 // We have some terminal arguments, do a partial application
                 ScalarFunction partialFunction = function.partialApplication(version, terminalArgs);
@@ -212,6 +221,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 // If all the arguments are terminal and the function is pure we can reduce to a simple value.
                 if (terminalCount == argSelectors.size() && fun.isPure())
                 {
+                    // pure functions need no context
                     Arguments arguments = partialFunction.newArguments(version);
                     return new TermSelector(partialFunction.execute(arguments), partialFunction.returnType());
                 }
@@ -222,7 +232,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                     if (!selector.isTerminal())
                         remainingSelectors.add(selector);
                 }
-                return new ScalarFunctionSelector(version, partialFunction, remainingSelectors);
+                return new ScalarFunctionSelector(partialFunction, remainingSelectors);
             }
 
             public boolean isWritetimeSelectorFactory()
@@ -255,12 +265,11 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         };
     }
 
-    protected AbstractFunctionSelector(Kind kind, ProtocolVersion version, T fun, List<Selector> argSelectors)
+    protected AbstractFunctionSelector(Kind kind, T fun, List<Selector> argSelectors)
     {
         super(kind);
         this.fun = fun;
         this.argSelectors = argSelectors;
-        this.args = fun.newArguments(version);
     }
 
     @Override

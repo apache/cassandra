@@ -31,6 +31,7 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.FunctionContext.RealTimeFunctionContext;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -53,7 +54,7 @@ import static org.apache.cassandra.utils.ByteArrayUtil.convertToByteBufferValue;
 /**
  * Options for a query.
  */
-public abstract class QueryOptions
+public abstract class QueryOptions implements RealTimeFunctionContext
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
                                                                        Collections.emptyList(),
@@ -376,6 +377,12 @@ public abstract class QueryOptions
         {
             return abortThresholdBytes;
         }
+    }
+
+    @Override
+    public QueryOptions options()
+    {
+        return this;
     }
 
     static class DefaultQueryOptions extends QueryOptions

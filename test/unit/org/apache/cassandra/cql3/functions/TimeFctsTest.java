@@ -27,11 +27,11 @@ import java.util.Date;
 
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TimestampType;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -188,7 +188,7 @@ public class TimeFctsTest
 
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
-        Arguments arguments = function.newArguments(ProtocolVersion.CURRENT);
+        Arguments arguments = function.newArguments(QueryOptions.DEFAULT);
         arguments.set(0, input);
         return ((ScalarFunction) function).execute(arguments);
     }

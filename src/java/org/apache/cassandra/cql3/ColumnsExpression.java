@@ -356,9 +356,9 @@ public final class ColumnsExpression
      * Returns the key, index or fieldname specifying the selected element.
      * @return the key, index or fieldname specifying the selected element.
      */
-    public ByteBuffer element(QueryOptions options)
+    public ByteBuffer element(FunctionContext context)
     {
-        return element.bindAndGet(options);
+        return element.bindAndGet(context);
     }
 
     /**
