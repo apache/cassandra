@@ -25,6 +25,7 @@ sstableupgrade <options> <keyspace> <table> [snapshot_name]
 |===
 |--debug |display stack traces
 |-h,--help |display this help message
+|-a,--include-all-sstables |include all sstables, even those already on the current version
 |-k,--keep-source |do not delete the source sstables
 |===
 

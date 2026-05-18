@@ -53,6 +53,7 @@ public class StandaloneUpgrader
     private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
     private static final String KEEP_SOURCE = "keep-source";
+    private static final String INCLUDE_ALL = "include-all-sstables";
 
     public static void main(String args[])
     {
@@ -91,7 +92,7 @@ public class StandaloneUpgrader
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
-                    if (sstable.descriptor.version.equals(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion()))
+                    if (!options.includeAll && sstable.descriptor.version.equals(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion()))
                     {
                         sstable.selfRef().release();
                         continue;
@@ -151,6 +152,7 @@ public class StandaloneUpgrader
 
         public boolean debug;
         public boolean keepSource;
+        public boolean includeAll;
 
         private Options(String keyspace, String cf, String snapshot)
         {
@@ -191,6 +193,7 @@ public class StandaloneUpgrader
 
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.keepSource = cmd.hasOption(KEEP_SOURCE);
+                opts.includeAll = cmd.hasOption(INCLUDE_ALL);
 
                 return opts;
             }
@@ -214,6 +217,7 @@ public class StandaloneUpgrader
             options.addOption(null, DEBUG_OPTION,          "display stack traces");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             options.addOption("k",  KEEP_SOURCE,           "do not delete the source sstables");
+            options.addOption("a",  "include-all-sstables", "include all sstables, even those already on the current version");
             return options;
         }
 

@@ -48,6 +48,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -71,8 +72,11 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.ScrubTest;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
@@ -837,6 +841,52 @@ public class ColumnFamilyStoreTest
             schemaAndManifestFileSizes += manifestFile.length();
 
         return schemaAndManifestFileSizes;
+    }
+
+   @Test
+    public void testNewSSTableDescriptorCollision() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
+        Version version = DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion();
+
+        Descriptor probe = cfs.newSSTableDescriptor(dir, version);
+
+        int currentId;
+        try {
+            currentId = Integer.parseInt(probe.id.toString());
+        } catch (NumberFormatException e) {
+            return;
+        }
+
+        SSTableId blockedId1 = SSTableIdFactory.instance.fromString(String.valueOf(currentId + 1));
+        SSTableId blockedId2 = SSTableIdFactory.instance.fromString(String.valueOf(currentId + 2));
+
+        Descriptor blockedDesc1 = new Descriptor(version, dir, cfs.getKeyspaceName(), cfs.name, blockedId1);
+        Descriptor blockedDesc2 = new Descriptor(version, dir, cfs.getKeyspaceName(), cfs.name, blockedId2);
+
+        File blockedDataFile1 = blockedDesc1.fileFor(Components.DATA);
+        File blockedDataFile2 = blockedDesc2.fileFor(Components.DATA);
+
+        try
+        {
+            blockedDataFile1.createFileIfNotExists();
+            blockedDataFile2.createFileIfNotExists();
+
+            Descriptor nextDesc = cfs.newSSTableDescriptor(dir, version);
+
+            Assert.assertNotEquals("The loop should have skipped the first blocked ID",
+                                   blockedDesc1.id, nextDesc.id);
+            Assert.assertNotEquals("The loop should have skipped the second blocked ID",
+                                   blockedDesc2.id, nextDesc.id);
+            Assert.assertFalse("The returned descriptor must not already exist on disk",
+                               nextDesc.fileFor(Components.DATA).exists());
+        }
+        finally
+        {
+            blockedDataFile1.deleteIfExists();
+            blockedDataFile2.deleteIfExists();
+        }
     }
 
     private Memtable fakeMemTableWithMinTS(ColumnFamilyStore cfs, long minTS)

@@ -48,9 +48,11 @@ public class StandaloneUpgraderTest extends OfflineToolUtils
                        "hard links to live sstables.\n" + 
                        "--\n" + 
                        "Options are:\n" + 
-                       "    --debug         display stack traces\n" + 
-                       " -h,--help          display this help message\n" + 
-                       " -k,--keep-source   do not delete the source sstables\n";
+                       " -a,--include-all-sstables   include all sstables, even those already on the\n" +
+                       "                             current version\n" +
+                       "    --debug                  display stack traces\n" +
+                       " -h,--help                   display this help message\n" +
+                       " -k,--keep-source            do not delete the source sstables\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 
@@ -82,6 +84,16 @@ public class StandaloneUpgraderTest extends OfflineToolUtils
                                                        "system_schema",
                                                        "tables");
             Assertions.assertThat(tool.getStdout()).as("Arg: [%s]", arg).isEqualTo("Found 0 sstables that need upgrading.\n");
+            Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
+            assertEquals(0, tool.getExitCode());
+            assertCorrectEnvPostTest();
+        });
+
+        Arrays.asList("-a", "--include-all-sstables").forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeClass(StandaloneUpgrader.class,
+                                                       arg,
+                                                       "system_schema",
+                                                       "tables");
             Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
             assertEquals(0, tool.getExitCode());
             assertCorrectEnvPostTest();

@@ -1025,12 +1025,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Descriptor newSSTableDescriptor(File directory, Version version)
     {
-        Descriptor newDescriptor = new Descriptor(version,
-                                                  directory,
-                                                  getKeyspaceName(),
-                                                  name,
-                                                  sstableIdGenerator.get());
-        assert !newDescriptor.fileFor(Components.DATA).exists();
+        Descriptor newDescriptor;
+        while (true)
+        {
+            newDescriptor = new Descriptor(version,
+                                           directory,
+                                           getKeyspaceName(),
+                                           name,
+                                           sstableIdGenerator.get());
+
+            if (!newDescriptor.fileFor(Components.DATA).exists())
+                break;
+
+            logger.warn("Generated SSTable id {} collides with existing file; advancing.", newDescriptor.id);
+        }
+
         return newDescriptor;
     }
 
