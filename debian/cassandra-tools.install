@@ -6,5 +6,5 @@ tools/bin/sstablemetadata usr/bin
 tools/bin/sstableofflinerelevel usr/bin
 tools/bin/sstablerepairedset usr/bin
 tools/bin/sstablesplit usr/bin
-tools/bin/addtocmstool usr/bin
+tools/bin/cmsofflinetool usr/bin
 tools/bin/offlineclustermetadatadump usr/bin
