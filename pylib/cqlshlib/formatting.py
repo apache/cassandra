@@ -61,7 +61,8 @@ empty_colormap = defaultdict(lambda: '')
 
 def format_by_type(val, cqltype, encoding, colormap=None, addcolor=False,
                    nullval=None, date_time_format=None, float_precision=None,
-                   decimal_sep=None, thousands_sep=None, boolean_styles=None):
+                   decimal_sep=None, thousands_sep=None, boolean_styles=None,
+                   escape_control_chars=True):
     if nullval is None:
         nullval = default_null_placeholder
     if val is None:
@@ -77,7 +78,7 @@ def format_by_type(val, cqltype, encoding, colormap=None, addcolor=False,
     return format_value(val, cqltype=cqltype, encoding=encoding, colormap=colormap,
                         date_time_format=date_time_format, float_precision=float_precision,
                         nullval=nullval, decimal_sep=decimal_sep, thousands_sep=thousands_sep,
-                        boolean_styles=boolean_styles)
+                        boolean_styles=boolean_styles, escape_control_chars=escape_control_chars)
 
 
 def color_text(bval, colormap, displaywidth=None):
@@ -477,11 +478,12 @@ def decode_zig_zag_64(n):
 
 
 @formatter_for('str')
-def format_value_text(val, encoding, colormap, quote=False, **_):
+def format_value_text(val, encoding, colormap, quote=False, escape_control_chars=True, **_):
     escapedval = val.replace('\\', '\\\\')
     if quote:
         escapedval = escapedval.replace("'", "''")
-    escapedval = UNICODE_CONTROLCHARS_RE.sub(_show_control_chars, escapedval)
+    if escape_control_chars:
+        escapedval = UNICODE_CONTROLCHARS_RE.sub(_show_control_chars, escapedval)
     bval = escapedval
     if quote:
         bval = "'{}'".format(bval)
@@ -496,11 +498,13 @@ formatter_for('ascii')(format_value_text)
 
 def format_simple_collection(val, cqltype, lbracket, rbracket, encoding,
                              colormap, date_time_format, float_precision, nullval,
-                             decimal_sep, thousands_sep, boolean_styles):
+                             decimal_sep, thousands_sep, boolean_styles,
+                             escape_control_chars=True):
     subs = [format_value(sval, cqltype=stype, encoding=encoding, colormap=colormap,
                          date_time_format=date_time_format, float_precision=float_precision,
                          nullval=nullval, quote=True, decimal_sep=decimal_sep,
-                         thousands_sep=thousands_sep, boolean_styles=boolean_styles)
+                         thousands_sep=thousands_sep, boolean_styles=boolean_styles,
+                         escape_control_chars=escape_control_chars)
             for sval, stype in zip(val, cqltype.get_n_sub_types(len(val)))]
     bval = lbracket + ', '.join(get_str(sval) for sval in subs) + rbracket
     if colormap is NO_COLOR_MAP:
@@ -515,26 +519,29 @@ def format_simple_collection(val, cqltype, lbracket, rbracket, encoding,
 
 @formatter_for('list')
 def format_value_list(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
-                      decimal_sep, thousands_sep, boolean_styles, **_):
+                      decimal_sep, thousands_sep, boolean_styles, escape_control_chars=True, **_):
     return format_simple_collection(val, cqltype, '[', ']', encoding, colormap,
                                     date_time_format, float_precision, nullval,
-                                    decimal_sep, thousands_sep, boolean_styles)
+                                    decimal_sep, thousands_sep, boolean_styles,
+                                    escape_control_chars=escape_control_chars)
 
 
 @formatter_for('tuple')
 def format_value_tuple(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
-                       decimal_sep, thousands_sep, boolean_styles, **_):
+                       decimal_sep, thousands_sep, boolean_styles, escape_control_chars=True, **_):
     return format_simple_collection(val, cqltype, '(', ')', encoding, colormap,
                                     date_time_format, float_precision, nullval,
-                                    decimal_sep, thousands_sep, boolean_styles)
+                                    decimal_sep, thousands_sep, boolean_styles,
+                                    escape_control_chars=escape_control_chars)
 
 
 @formatter_for('set')
 def format_value_set(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
-                     decimal_sep, thousands_sep, boolean_styles, **_):
+                     decimal_sep, thousands_sep, boolean_styles, escape_control_chars=True, **_):
     return format_simple_collection(val, cqltype, '{', '}', encoding, colormap,
                                     date_time_format, float_precision, nullval,
-                                    decimal_sep, thousands_sep, boolean_styles)
+                                    decimal_sep, thousands_sep, boolean_styles,
+                                    escape_control_chars=escape_control_chars)
 
 
 formatter_for('frozenset')(format_value_set)
@@ -544,12 +551,13 @@ formatter_for('SortedSet')(format_value_set)
 
 @formatter_for('dict')
 def format_value_map(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
-                     decimal_sep, thousands_sep, boolean_styles, **_):
+                     decimal_sep, thousands_sep, boolean_styles, escape_control_chars=True, **_):
     def subformat(v, t):
         return format_value(v, cqltype=t, encoding=encoding, colormap=colormap,
                             date_time_format=date_time_format, float_precision=float_precision,
                             nullval=nullval, quote=True, decimal_sep=decimal_sep,
-                            thousands_sep=thousands_sep, boolean_styles=boolean_styles)
+                            thousands_sep=thousands_sep, boolean_styles=boolean_styles,
+                            escape_control_chars=escape_control_chars)
 
     subs = [(subformat(k, cqltype.sub_types[0]), subformat(v, cqltype.sub_types[1])) for (k, v) in sorted(val.items())]
     bval = '{' + ', '.join(get_str(k) + ': ' + get_str(v) for (k, v) in subs) + '}'
@@ -572,14 +580,15 @@ formatter_for('map')(format_value_map)
 
 
 def format_value_utype(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
-                       decimal_sep, thousands_sep, boolean_styles, **_):
+                       decimal_sep, thousands_sep, boolean_styles, escape_control_chars=True, **_):
     def format_field_value(v, t):
         if v is None:
             return colorme(nullval, colormap, 'error')
         return format_value(v, cqltype=t, encoding=encoding, colormap=colormap,
                             date_time_format=date_time_format, float_precision=float_precision,
                             nullval=nullval, quote=True, decimal_sep=decimal_sep,
-                            thousands_sep=thousands_sep, boolean_styles=boolean_styles)
+                            thousands_sep=thousands_sep, boolean_styles=boolean_styles,
+                            escape_control_chars=escape_control_chars)
 
     def format_field_name(name):
         return format_value_text(name, encoding=encoding, colormap=colormap, quote=False)
