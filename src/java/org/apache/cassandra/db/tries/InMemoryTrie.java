@@ -128,7 +128,7 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
 
     final void putShortVolatile(int pos, short value)
     {
-        getChunk(pos).putShort(inChunkPointer(pos), value);
+        getChunk(pos).putShortVolatile(inChunkPointer(pos), value);
     }
 
     final void putByte(int pos, byte value)
