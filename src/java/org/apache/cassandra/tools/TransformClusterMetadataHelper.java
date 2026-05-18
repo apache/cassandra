@@ -42,10 +42,7 @@ public class TransformClusterMetadataHelper
     public static void main(String ... args) throws IOException
     {
         if (args.length < 2)
-        {
-            System.err.println("Usage: addtocmstool <path to dumped metadata> <ip of host to make CMS> [<serialization version>]");
             System.exit(1);
-        }
         String sourceFile = args[0];
         Version serializationVersion = NodeVersion.CURRENT.serializationVersion();
         if (args.length > 2)
