@@ -70,7 +70,7 @@ public final class CompressorRegistry
 
     /**
      * Enum representing in-built supported compressor types and their abbreviations.
-     *
+     * </p>
      * The compressor class is stored as a FQN string rather than a {@code Class<?>} literal so that
      * iterating the enum (e.g. during {@link #registerProviders}) does not force classloading of
      * every built-in compressor — important because {@link SnappyCompressor} and the {@code Zstd*}
@@ -118,8 +118,7 @@ public final class CompressorRegistry
      */
     public AbstractCompressionProvider getProvider(Class<?> compressorClass)
     {
-        AbstractCompressionProvider provider = compressionProviders.get(compressorClass.getName());
-        return provider == null ? DEFAULT_COMPRESSION_PROVIDER : provider;
+        return compressionProviders.getOrDefault(compressorClass.getName(), DEFAULT_COMPRESSION_PROVIDER);
     }
 
     /**
@@ -142,6 +141,7 @@ public final class CompressorRegistry
             validKeys.add(type.simpleName);
             validKeys.add(type.abbreviation);
         }
+
         for (String key : providerOptions.keySet())
         {
             if (!validKeys.contains(key))

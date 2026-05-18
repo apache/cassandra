@@ -208,7 +208,6 @@ public final class CompressionParams
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
     }
 
-
     static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
     {
         return (int) Math.ceil(Math.min(chunkLength / minCompressRatio, Integer.MAX_VALUE));
