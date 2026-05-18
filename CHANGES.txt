@@ -1,4 +1,5 @@
 5.0.9
+ * putShortVolatile is not volatile in InMemoryTrie (CASSANDRA-21353)
  * Fix RequestFailureReason serializer and nits in a few others (CASSANDRA-21437)
  * Remove golang dependency in gen-doc and replace with python implementation (CASSANDRA-21432)
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)

@@ -72,7 +72,16 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         super(source, root);
         limit = null;
         collector = collecting ? new TransitionBytesCollector() : null;
-        initializeNoLeftBound(root, 256);
+
+        try
+        {
+            initializeNoLeftBound(root, 256);
+        }
+        catch (Throwable t)
+        {
+            super.close();
+            throw t;
+        }
     }
 
     protected ValueIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end, boolean admitPrefix)
@@ -97,10 +106,18 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         limit = end != null ? end.asComparableBytes(BYTE_COMPARABLE_VERSION) : null;
         collector = collecting ? new TransitionBytesCollector() : null;
 
-        if (start != null)
-            initializeWithLeftBound(root, start.asComparableBytes(BYTE_COMPARABLE_VERSION), admitPrefix, limit != null);
-        else
-            initializeNoLeftBound(root, limit != null ? limit.next() : 256);
+        try
+        {
+            if (start != null)
+                initializeWithLeftBound(root, start.asComparableBytes(BYTE_COMPARABLE_VERSION), admitPrefix, limit != null);
+            else
+                initializeNoLeftBound(root, limit != null ? limit.next() : 256);
+        }
+        catch (Throwable t)
+        {
+            super.close();
+            throw t;
+        }
     }
 
     private void initializeWithLeftBound(long root, ByteSource startStream, boolean admitPrefix, boolean atLimit)
@@ -110,76 +127,60 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         int limitByte;
         long payloadedNode = -1;
 
-        try
+        // Follow start position while we still have a prefix, stacking path and saving prefixes.
+        go(root);
+        while (true)
         {
-            // Follow start position while we still have a prefix, stacking path and saving prefixes.
-            go(root);
-            while (true)
+            int s = startStream.next();
+            childIndex = search(s);
+
+            // For a separator trie the latest payload met along the prefix is a potential match for start
+            if (admitPrefix)
             {
-                int s = startStream.next();
-                childIndex = search(s);
-
-                // For a separator trie the latest payload met along the prefix is a potential match for start
-                if (admitPrefix)
+                if (childIndex == 0 || childIndex == -1)
                 {
-                    if (childIndex == 0 || childIndex == -1)
-                    {
-                        if (hasPayload())
-                            payloadedNode = position;
-                    }
-                    else
-                    {
-                        payloadedNode = -1;
-                    }
+                    if (hasPayload())
+                        payloadedNode = position;
                 }
-
-                limitByte = 256;
-                if (atLimit)
+                else
                 {
-                    limitByte = limit.next();
-                    if (s < limitByte)
-                        atLimit = false;
+                    payloadedNode = -1;
                 }
-                if (childIndex < 0)
-                    break;
-
-                prev = new IterationPosition(position, childIndex, limitByte, prev);
-                go(transition(childIndex)); // child index is positive, transition must exist
             }
 
-            childIndex = -1 - childIndex - 1;
-            stack = new IterationPosition(position, childIndex, limitByte, prev);
+            limitByte = 256;
+            if (atLimit)
+            {
+                limitByte = limit.next();
+                if (s < limitByte)
+                    atLimit = false;
+            }
+            if (childIndex < 0)
+                break;
 
-            // Advancing now gives us first match if we didn't find one already.
-            if (payloadedNode != -1)
-                next = payloadedNode;
-            else
-                next = advanceNode();
+            prev = new IterationPosition(position, childIndex, limitByte, prev);
+            go(transition(childIndex)); // child index is positive, transition must exist
         }
-        catch (Throwable t)
-        {
-            super.close();
-            throw t;
-        }
+
+        childIndex = -1 - childIndex - 1;
+        stack = new IterationPosition(position, childIndex, limitByte, prev);
+
+        // Advancing now gives us first match if we didn't find one already.
+        if (payloadedNode != -1)
+            next = payloadedNode;
+        else
+            next = advanceNode();
     }
 
     private void initializeNoLeftBound(long root, int limitByte)
     {
         stack = new IterationPosition(root, -1, limitByte, null);
 
-        try
-        {
-            go(root);
-            if (hasPayload())
-                next = root;
-            else
-                next = advanceNode();
-        }
-        catch (Throwable t)
-        {
-            super.close();
-            throw t;
-        }
+        go(root);
+        if (hasPayload())
+            next = root;
+        else
+            next = advanceNode();
     }
 
     /**
