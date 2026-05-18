@@ -1179,10 +1179,10 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
+    public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRangesAndMarkRetiredRangesUnsafeToRead()
     {
         Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> tableToRangeMap = new HashMap<>();
-        List<Ranges> globalRanges = getBlocking(node.commandStores().getInUseRanges());
+        List<Ranges> globalRanges = getBlocking(node.commandStores().getInUseRangesAndMarkRetiredRangesUnsafeToRead());
 
         for (Ranges ranges : globalRanges)
         {

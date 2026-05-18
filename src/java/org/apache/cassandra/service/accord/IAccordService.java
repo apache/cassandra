@@ -188,7 +188,7 @@ public interface IAccordService
 
     void awaitDone(TableId id, long epoch);
 
-    Map<TableId, Set<Range<Token>>> getInUseRanges();
+    Map<TableId, Set<Range<Token>>> getInUseRangesAndMarkRetiredRangesUnsafeToRead();
 
     AccordEndpointMapper endpointMapper();
 
@@ -360,7 +360,7 @@ public interface IAccordService
         }
 
         @Override
-        public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
+        public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRangesAndMarkRetiredRangesUnsafeToRead()
         {
             return Collections.emptyMap();
         }
@@ -576,9 +576,9 @@ public interface IAccordService
         }
 
         @Override
-        public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRanges()
+        public Map<TableId, Set<org.apache.cassandra.dht.Range<Token>>> getInUseRangesAndMarkRetiredRangesUnsafeToRead()
         {
-            return delegate.getInUseRanges();
+            return delegate.getInUseRangesAndMarkRetiredRangesUnsafeToRead();
         }
 
         @Override

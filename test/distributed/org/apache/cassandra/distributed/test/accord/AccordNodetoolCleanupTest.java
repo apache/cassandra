@@ -119,7 +119,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
                 Util.spinUntilTrue(() -> {
                     boolean doesNotContainsToken = true;
-                    List<Ranges> inUseRanges = getBlocking(AccordService.instance().node().commandStores().getInUseRanges());
+                    List<Ranges> inUseRanges = getBlocking(AccordService.instance().node().commandStores().getInUseRangesAndMarkRetiredRangesUnsafeToRead());
                     for (Ranges ranges : inUseRanges)
                     {
                         if (ranges.intersects(key))

@@ -904,7 +904,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         if (metadata != null && metadata.requiresAccordSupport())
         {
             checkState(localWrites.onlyTransient().ranges().isEmpty(), "Transient Replication is not supported with Accord");
-            Map<TableId, Set<Range<Token>>> inUseRanges = AccordService.instance().getInUseRanges();
+            Map<TableId, Set<Range<Token>>> inUseRanges = AccordService.instance().getInUseRangesAndMarkRetiredRangesUnsafeToRead();
             if (inUseRanges.containsKey(tableId))
             {
                 Set<Range<Token>> accordOwnedTableRanges = inUseRanges.get(tableId);
