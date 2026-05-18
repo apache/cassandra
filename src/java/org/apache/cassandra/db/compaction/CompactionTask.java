@@ -35,8 +35,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.CommandStores;
 import accord.local.CommandStores.StoreFinder;
+import accord.local.CommandStores.StoreSelector;
 import accord.local.Node;
 import accord.primitives.Ranges;
 import accord.utils.Invariants;
@@ -574,8 +574,8 @@ public class CompactionTask extends AbstractCompactionTask
             // TODO (expected): we shouldn't need to limit to universalBefore, but this is a safety margin esp. against bugs with repairing tombstones or incomplete information in CommandStore;
             //  we should impose stronger guarantees on incoming streams (that they don't contain tombstones), and validate our CommandStore-derived bounds
             gcBeforeSeconds = node.durableBefore().foldlWithDefault(ranges, (e, v) -> e == null ? NO_GC : Math.min(e.universal.hlc(), v), null, Long.MAX_VALUE);
-            CommandStores.StoreSelector selector = StoreFinder.selector(ranges, Long.MIN_VALUE, Long.MAX_VALUE);
-            gcBeforeSeconds = node.commandStores().mapReduceUnsafe(selector, commandStore -> commandStore.unsafeGetRedundantBefore().foldl(ranges, (bs, v) -> bs.maxBound(LOCALLY_APPLIED).hlc(), Long.MAX_VALUE), Math::min, gcBeforeSeconds);
+            StoreSelector selector = StoreFinder.selector(ranges, Long.MIN_VALUE, Long.MAX_VALUE);
+            gcBeforeSeconds = node.commandStores().mapReduceUnsafe(selector, (ignore, commandStore) -> commandStore.unsafeGetRedundantBefore().foldl(ranges, (bs, v) -> bs.maxBound(LOCALLY_APPLIED).hlc(), Long.MAX_VALUE), Math::min, gcBeforeSeconds);
             if (gcBeforeSeconds == Long.MAX_VALUE)
                 gcBeforeSeconds = NO_GC;
             else
