@@ -21,6 +21,16 @@ package org.apache.cassandra.distributed.test.accord;
 import java.io.IOException;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import accord.api.RoutingKey;
+import accord.primitives.Ranges;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -36,19 +46,8 @@ import org.apache.cassandra.service.accord.api.TokenKey;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import accord.api.RoutingKey;
-import accord.primitives.Ranges;
 
 public class AccordNodetoolCleanupTest extends AccordTestBase
 {
