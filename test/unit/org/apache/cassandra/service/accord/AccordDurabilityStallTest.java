@@ -109,8 +109,8 @@ public class AccordDurabilityStallTest
 
                 AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(failing);
                 assertNotNull("the key was never loaded, so this test proves nothing", entry);
-                AccordExecutionTestUtils.setInconsistent(entry);
-                assertTrue("the entry must report itself inconsistent", entry.isInconsistent());
+                AccordExecutionTestUtils.setUnsafeToRead(entry);
+                assertTrue("the entry must report itself inconsistent", entry.isUnsafeToRead());
 
                 // a report over any range containing the key must be refused, as must a report over everything
                 assertEquals("a report covering a key with an outstanding update must be refused",
@@ -123,8 +123,8 @@ public class AccordDurabilityStallTest
                            anyInconsistentIntersecting(store, Ranges.of(rangeAround(tableId, partitioner, other))));
 
                 // and once the update has been applied, reporting resumes
-                AccordExecutionTestUtils.unsetInconsistent(entry);
-                assertTrue("the mark must be cleared from the entry", !entry.isInconsistent());
+                AccordExecutionTestUtils.unsetUnsafeToRead(entry);
+                assertTrue("the mark must be cleared from the entry", !entry.isUnsafeToRead());
                 assertNull("the refusal must lift once the outstanding update has been applied",
                            anyInconsistentIntersecting(store, Ranges.of(fullRange)));
             });

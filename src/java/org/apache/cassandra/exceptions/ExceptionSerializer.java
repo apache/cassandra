@@ -44,6 +44,9 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
  */
 public class ExceptionSerializer
 {
+    // allow plenty of room for UTF8 encoding
+    private static final int MAX_MESSAGE_CHAR_LENGTH = Short.MAX_VALUE / 4;
+
     public static class RemoteException extends RuntimeException
     {
         public final String originalClass;
@@ -72,10 +75,16 @@ public class ExceptionSerializer
 
     static String getMessageWithOriginatingHost(Throwable t, boolean isFirstException)
     {
-        if (isFirstException)
-            return "Remote exception from host " + FBUtilities.getBroadcastAddressAndPort().toString() + (t.getLocalizedMessage() != null ? " - " + t.getLocalizedMessage() : "");
-        else
-            return t.getLocalizedMessage();
+        String message;
+        if (isFirstException) message = "Remote exception from host " + FBUtilities.getBroadcastAddressAndPort().toString() + (t.getLocalizedMessage() != null ? " - " + t.getLocalizedMessage() : "");
+        else message = t.getLocalizedMessage();
+
+        if (message == null)
+            return message;
+
+        if (message.length() > MAX_MESSAGE_CHAR_LENGTH)
+            message = message.substring(0, MAX_MESSAGE_CHAR_LENGTH);
+        return message;
     }
 
     private static final IVersionedSerializer<StackTraceElement> stackTraceElementSerializer = new IVersionedSerializer<StackTraceElement>()
