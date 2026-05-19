@@ -80,6 +80,8 @@ public class IndexStatusManager
      */
     public final Map<InetAddressAndPort, Map<String, Index.Status>> peerIndexStatus = new HashMap<>();
 
+    private IndexStatusManager() {}
+
     public Index.Status getUnqueryableStatus(String keyspace, InetAddressAndPort endpoint, Index.QueryPlan indexQueryPlan)
     {
         Index.Status result = null;
