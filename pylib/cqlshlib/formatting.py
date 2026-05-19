@@ -591,7 +591,8 @@ def format_value_utype(val, cqltype, encoding, colormap, date_time_format, float
                             escape_control_chars=escape_control_chars)
 
     def format_field_name(name):
-        return format_value_text(name, encoding=encoding, colormap=colormap, quote=False)
+        return format_value_text(name, encoding=encoding, colormap=colormap, quote=False,
+                                 escape_control_chars=escape_control_chars)
 
     subs = [(format_field_name(k), format_field_value(v, t)) for ((k, v), t) in zip(list(val._asdict().items()),
                                                                                     cqltype.sub_types)]
