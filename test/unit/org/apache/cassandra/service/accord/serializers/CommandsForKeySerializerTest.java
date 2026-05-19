@@ -56,6 +56,7 @@ import accord.api.OwnershipEventListener;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
 import accord.impl.AbstractReplayer;
@@ -711,6 +712,7 @@ public class CommandsForKeySerializerTest
             @Override public long now() { return 0; }
             @Override public long elapsed(TimeUnit unit) { return 0; }
             @Override public Coordinations coordinations() { return new Coordinations(); }
+            @Override public Scheduler scheduler() { return null; }
         }; }
         @Override public boolean visit(Unseekables<?> keysOrRanges, TxnId testTxnId, Kind.Kinds testKind, SupersedingCommandVisitor visit) { return false; }
         @Override public <P1, P2> void visit(Unseekables<?> keysOrRanges, Timestamp startedBefore, Kind.Kinds testKind, ActiveCommandVisitor<P1, P2> visit, P1 p1, P2 p2) { }

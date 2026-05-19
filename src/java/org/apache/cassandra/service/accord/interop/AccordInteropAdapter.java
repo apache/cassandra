@@ -47,6 +47,7 @@ import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
 import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 
+import static accord.api.ProtocolModifiers.sendMinimal;
 import static accord.messages.Apply.Kind.Maximal;
 import static accord.messages.Apply.Kind.Minimal;
 
@@ -55,12 +56,13 @@ public class AccordInteropAdapter extends TxnAdapter
     private static final Logger logger = LoggerFactory.getLogger(AccordInteropAdapter.class);
     public static final class AccordInteropFactory extends DefaultFactory
     {
-        final AccordInteropAdapter standard, recovery;
+        final AccordInteropAdapter minimal, maximal, recovery;
 
         public AccordInteropFactory(AccordEndpointMapper endpointMapper)
         {
-            standard = new AccordInteropAdapter(endpointMapper, Minimal);
-            recovery = new AccordInteropAdapter(endpointMapper, Maximal);
+            minimal = new AccordInteropAdapter(endpointMapper, Minimal, true);
+            maximal = new AccordInteropAdapter(endpointMapper, Maximal, true);
+            recovery = new AccordInteropAdapter(endpointMapper, Maximal, false);
         }
 
         @Override
@@ -68,18 +70,18 @@ public class AccordInteropAdapter extends TxnAdapter
         {
             if (txnId.isSyncPoint())
                 return super.get(txnId, step);
-            return (CoordinationAdapter<R>) (step == Kind.Recovery ? recovery : standard);
+            return (CoordinationAdapter<R>) (step == Kind.Recovery ? recovery : sendMinimal() ? minimal : maximal);
         }
     };
 
     private final AccordEndpointMapper endpointMapper;
-    private final Apply.Kind applyKind;
+    private final boolean isUserFacing;
 
-    private AccordInteropAdapter(AccordEndpointMapper endpointMapper, Apply.Kind applyKind)
+    private AccordInteropAdapter(AccordEndpointMapper endpointMapper, Apply.Kind applyKind, boolean isUserFacing)
     {
-        super(Minimal);
+        super(applyKind);
         this.endpointMapper = endpointMapper;
-        this.applyKind = applyKind;
+        this.isUserFacing = isUserFacing;
     }
 
     @Override
@@ -92,7 +94,7 @@ public class AccordInteropAdapter extends TxnAdapter
     @Override
     public void persist(Node node, ExclusiveAsyncExecutor executor, Topologies any, Route<?> require, Route<?> sendTo, FullRoute<?> route, Ballot ballot, CoordinationFlags flags, TxnId txnId, Txn txn, Timestamp executeAt, Deps deps, Writes writes, Result result, boolean informDurableOnDone, BiConsumer<? super Result, Throwable> callback)
     {
-        if (applyKind == Minimal && doInteropPersist(node, executor, any, require, sendTo, ballot, txnId, txn, executeAt, deps, writes, result, route, informDurableOnDone, callback))
+        if (isUserFacing && doInteropPersist(node, executor, any, require, sendTo, ballot, txnId, txn, executeAt, deps, writes, result, route, informDurableOnDone, callback))
             return;
 
         super.persist(node, executor, any, require, sendTo, route, ballot, flags, txnId, txn, executeAt, deps, writes, result, informDurableOnDone, callback);

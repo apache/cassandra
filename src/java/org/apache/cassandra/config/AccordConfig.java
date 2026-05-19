@@ -34,7 +34,7 @@ import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.service.accord.serializers.Version;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
-import static org.apache.cassandra.config.AccordConfig.CatchupMode.NORMAL;
+import static org.apache.cassandra.config.AccordConfig.QueuePriorityModel.HLC_FIFO;
 import static org.apache.cassandra.config.AccordConfig.QueueShardModel.THREAD_POOL_PER_SHARD;
 import static org.apache.cassandra.config.AccordConfig.QueueSubmissionModel.SYNC;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.in_memory;
@@ -214,6 +214,10 @@ public class AccordConfig
      * once this number of tasks are blocked behind it, regardless of batch_size.
      */
     public Integer queue_nonsync_blocked_limit;
+    /**
+     * The number of threads that may be used to execute distributed requests for migration tasks
+     */
+    public volatile OptionaldPositiveInt migration_concurrency = OptionaldPositiveInt.UNDEFINED;
 
     /**
      * If set, the signal loop does not match park/unpark pairs, but instead consumers perform timed-park spin waits
@@ -258,6 +262,7 @@ public class AccordConfig
     public String expire_epoch_wait = "10s";
     // we don't want to wait ages for durability as it blocks other durability progress; even this might be too long, as we can always retry
     public String expire_durability = "10s*attempts <= 30s";
+    public String slow_durability = "10s";
     public String slow_syncpoint_preaccept = "10s";
     public String slow_txn_preaccept = "30ms <= p50*2 <= 1000ms";
     public String slow_read = "30ms <= p50*2 <= 1000ms";
@@ -294,12 +299,12 @@ public class AccordConfig
      */
     public volatile TransactionalRangeMigration range_migration = TransactionalRangeMigration.auto;
 
-    public enum CatchupMode
+    public enum CatchupFallbackMode
     {
-        DISABLED,
-        NORMAL,
-        FALLBACK_TO_HARD,
-        HARD
+        IGNORE,
+        EXIT,
+        REBOOTSTRAP,
+        REBOOTSTRAP_AND_CATCHUP
     }
 
     /**
@@ -344,16 +349,19 @@ public class AccordConfig
     public int commands_for_key_prune_interval = 64;
     public DurationSpec.IntSecondsBound max_conflicts_prune_delta = new DurationSpec.IntSecondsBound(1);
 
+    public int catchup_on_start_max_attempts = 5;
+    public boolean catchup_on_start = true;
     public DurationSpec.IntSecondsBound catchup_on_start_success_latency = new DurationSpec.IntSecondsBound(60);
     public DurationSpec.IntSecondsBound catchup_on_start_fail_latency = new DurationSpec.IntSecondsBound(900);
-    public int catchup_on_start_max_attempts = 5;
-    // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
-    public boolean catchup_on_start_exit_on_failure = false;
-    public CatchupMode catchup_on_start = NORMAL;
+    // TODO (required): default this to EXIT or REBOOTSTRAP
+    public CatchupFallbackMode catchup_on_start_on_timeout = CatchupFallbackMode.IGNORE;
+    public CatchupFallbackMode catchup_on_start_on_error = CatchupFallbackMode.IGNORE;
+    public CatchupFallbackMode catchup_on_start_on_rebootstrap_fallback = CatchupFallbackMode.IGNORE;
+    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
+
     public boolean execute_waiting_on_start = true;
     public DurationSpec.IntSecondsBound execute_waiting_on_start_timeout = new DurationSpec.IntSecondsBound(0);
     public boolean execute_waiting_on_start_fail_on_timeout = false;
-    public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
 
     public enum RangeIndexMode { in_memory, journal_sai }
     public RangeIndexMode range_index_mode = in_memory;
@@ -391,7 +399,17 @@ public class AccordConfig
              * Replay journal entries for commands that are not durable to the data or command stores.
              * THIS MODE IS NOT YET SAFE TO RUN
              */
-            NON_DURABLE
+            NON_DURABLE,
+
+            /**
+             * Don't replay, simply rebootstrap, marking our log as incomplete.
+             */
+            REBOOTSTRAP_INCOMPLETE,
+
+            /**
+             * Don't replay, simply rebootstrap, marking our log as corrupted/unavailable.
+             */
+            REBOOTSTRAP_RESET
         }
 
         public enum ReplaySavePoint

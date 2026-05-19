@@ -254,6 +254,14 @@ public class AccordMessageSink implements MessageSink
                     slowAtNanos = nowNanos + slow.computeWait(attempt, NANOSECONDS);
                 break;
             }
+
+            case ACCORD_WAIT_UNTIL_APPLIED_REQ:
+            {
+                TimeoutStrategy slow = slowPreaccept(txnId);
+                if (slow != null)
+                    slowAtNanos = nowNanos + slow.computeWait(attempt, NANOSECONDS);
+                break;
+            }
         }
 
         Message<Request> message = Message.out(verb, request, expiresAtNanos);

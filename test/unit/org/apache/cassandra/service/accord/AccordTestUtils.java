@@ -44,6 +44,7 @@ import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
 import accord.api.Result.PersistableResult;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
@@ -324,21 +325,11 @@ public class AccordTestUtils
     {
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
-            @Override
-            public AsyncExecutor someExecutor()
-            {
-                return null;
-            }
-
-            @Override
-            public ExclusiveAsyncExecutor someExclusiveExecutor()
-            {
-                return null;
-            }
-
             private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
             private long stamp = 0;
 
+            @Override public AsyncExecutor someExecutor() { return null; }
+            @Override public ExclusiveAsyncExecutor someExclusiveExecutor() { return null; }
             @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
             @Override public DurabilityService durability() { return null; }
@@ -349,6 +340,7 @@ public class AccordTestUtils
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
             @Override public Coordinations coordinations() { return new Coordinations(); }
+            @Override public Scheduler scheduler() { return null; }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() {++stamp;}
             @Override public boolean isReplaying() { return false; }

@@ -170,7 +170,12 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         SHARED_CLUSTER.filters().reset();
         for (IInvokableInstance instance : SHARED_CLUSTER)
-            instance.runOnInstance(() -> AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start()));
+        {
+            instance.runOnInstance(() -> {
+                if (AccordService.isStarted())
+                    AccordService.instance().node().commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+            });
+        }
 
         truncateSystemTables();
 
