@@ -56,14 +56,20 @@ import accord.impl.RequestCallbacks;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.DefaultProgressLogs;
+import accord.local.BootstrapReason;
 import accord.local.Catchup;
-import accord.local.CatchupHard;
+import accord.local.Catchup.Unsuccessful;
 import accord.local.CommandStores;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.ShardDistributor.EvenSplit;
+import accord.local.TimeService;
+import accord.local.UniqueTimeService;
+import accord.local.UniqueTimeService.AtomicUniqueTime;
 import accord.local.UniqueTimeService.AtomicUniqueTimeWithStaleReservation;
-import accord.local.durability.DurabilityService;
+import accord.local.durability.DurabilityService.SyncLocal;
+import accord.local.durability.DurabilityService.SyncReadable;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.local.durability.ShardDurability;
 import accord.messages.Reply;
 import accord.messages.Request;
@@ -92,8 +98,9 @@ import accord.utils.async.AsyncResults;
 
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.AccordConfig;
-import org.apache.cassandra.config.AccordConfig.CatchupMode;
+import org.apache.cassandra.config.AccordConfig.CatchupFallbackMode;
 import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplaySavePoint;
+import org.apache.cassandra.config.AccordConfig.UniqueTimestampReservations;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -166,21 +173,29 @@ import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.FastExecution.MAY_BYPASS_SAFESTORE;
 import static accord.coordinate.Coordination.CoordinationKind.Client;
 import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
+import static accord.local.BootstrapReason.CATCHUP;
+import static accord.local.BootstrapReason.LOG_CORRUPTED;
+import static accord.local.BootstrapReason.LOG_INCOMPLETE;
 import static accord.local.durability.DurabilityService.SyncLocal.NoLocal;
+import static accord.local.durability.DurabilityService.SyncReadable.UnknownReadable;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static accord.primitives.Txn.Kind.Write;
 import static accord.primitives.TxnId.MediumPath.NoMediumPath;
 import static accord.primitives.TxnId.MediumPath.TrackStable;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorThreadTag.JOB;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SystemThreadTag.DAEMON;
-import static org.apache.cassandra.config.AccordConfig.CatchupMode.FALLBACK_TO_HARD;
-import static org.apache.cassandra.config.AccordConfig.CatchupMode.HARD;
+import static org.apache.cassandra.config.AccordConfig.CatchupFallbackMode.EXIT;
+import static org.apache.cassandra.config.AccordConfig.CatchupFallbackMode.REBOOTSTRAP;
+import static org.apache.cassandra.config.AccordConfig.CatchupFallbackMode.REBOOTSTRAP_AND_CATCHUP;
+import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.REBOOTSTRAP_INCOMPLETE;
+import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.REBOOTSTRAP_RESET;
 import static org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode.RESET;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordGlobalDurabilityCycle;
@@ -476,7 +491,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.node = new Node(localId,
                              messageSink,
                              topologyService,
-                             time, new AtomicUniqueTimeWithStaleReservation(time),
+                             time, uniqueTimeService(time),
                              () -> dataStore,
                              new KeyspaceSplitter(new EvenSplit<>(getAccord().commandStoreShardCount(), getPartitioner().accordSplitter())),
                              agent,
@@ -528,6 +543,8 @@ public class AccordService implements IAccordService, Shutdownable
             ProtocolModifiers.Configure.setSendStableMessages(config.send_stable);
         if (config.send_minimal != null)
             ProtocolModifiers.Configure.setSendMinimal(config.send_minimal);
+        if (config.unique_timestamp_on_conflict != null)
+            ProtocolModifiers.Configure.setUniqueTimestampOnConflict(config.unique_timestamp_on_conflict);
     }
 
     @Override
@@ -536,7 +553,16 @@ public class AccordService implements IAccordService, Shutdownable
         if (state != State.INIT)
             return;
 
-        boolean rebootstrap = false;
+        BootstrapReason rebootstrap = null;
+        if (getAccord().journal.replay == REBOOTSTRAP_RESET)
+        {
+            rebootstrap = LOG_CORRUPTED;
+        }
+        else if (getAccord().journal.replay == REBOOTSTRAP_INCOMPLETE)
+        {
+            rebootstrap = LOG_INCOMPLETE;
+        }
+        else
         {
             long startMarker = ReplayMarkers.readStartMarker();
             long stopMarker = ReplayMarkers.readStopMarker();
@@ -555,7 +581,7 @@ public class AccordService implements IAccordService, Shutdownable
 
                     case REBOOTSTRAP:
                         logger.info("Stop marker is older than start marker ({}<{}). Rebootstrapping.", stopMarker, startMarker);
-                        rebootstrap = true;
+                        rebootstrap = LOG_INCOMPLETE;
                 }
             }
         }
@@ -599,7 +625,7 @@ public class AccordService implements IAccordService, Shutdownable
 
             // restore save points before starting the journal so we can validate consistency between journal and save point state (where possible)
             Long2LongHashMap minSegments;
-            if (rebootstrap) minSegments = null;
+            if (rebootstrap != null) minSegments = null;
             else
             {
                 switch (getAccord().journal.replaySavePoint)
@@ -621,11 +647,11 @@ public class AccordService implements IAccordService, Shutdownable
             }
 
             node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
-            if (rebootstrap)
+            if (rebootstrap != null)
             {
                 // rebootstrap expects the durability service to process visibility sync points for command stores
                 node.durability().start();
-                getBlocking(node.commandStores().rebootstrap(node));
+                getBlocking(node.commandStores().rebootstrap(node, rebootstrap));
             }
             else
             {
@@ -711,82 +737,99 @@ public class AccordService implements IAccordService, Shutdownable
 
     void catchup()
     {
-        AccordConfig spec = DatabaseDescriptor.getAccord();
-        if (spec.catchup_on_start == CatchupMode.DISABLED)
+        AccordConfig config = DatabaseDescriptor.getAccord();
+        if (!config.catchup_on_start)
         {
             logger.info("Catchup disabled; continuing to startup");
             return;
         }
 
-        CatchupMode mode = spec.catchup_on_start;
         BootstrapState bootstrapState = SystemKeyspace.getBootstrapState();
         if (bootstrapState == COMPLETED)
         {
             node.commandStores().forAllUnsafe(commandStore -> ((DefaultProgressLog)commandStore.unsafeProgressLog()).setMode(CATCH_UP));
             try
             {
-                long maxLatencyNanos = spec.catchup_on_start_fail_latency.toNanoseconds();
+                CatchupFallbackMode onError = config.catchup_on_start_on_error;
+                CatchupFallbackMode onTimeout = config.catchup_on_start_on_timeout;
+
+                long maxLatencyNanos = config.catchup_on_start_fail_latency.toNanoseconds();
                 int attempts = 1;
                 while (true)
                 {
-                    logger.info("Catchup ({}) with quorum...", mode);
+                    logger.info("Catchup with quorum...");
                     long start = nanoTime();
                     long failAt = start + maxLatencyNanos;
-                    Future<Void> f;
+                    Future<Unsuccessful> f = toFuture(Catchup.catchup(node, failAt, NANOSECONDS));
+
+                    Unsuccessful result = null;
+                    if (f.awaitUntilThrowUncheckedOnInterrupt(failAt))
                     {
-                        AsyncChain<Void> submit;
-                        if (mode == HARD)
+                        Throwable failed = f.cause();
+                        result = f.getNow();
+
+                        if (failed != null)
                         {
-                            if (!node.durability().isStarted())
-                                node.durability().start();
-                            submit = CatchupHard.catchup(node);
+                            switch (onError)
+                            {
+                                default: throw new UnhandledEnum(onError);
+                                case EXIT:
+                                    logger.error("Could not catchup with peers; exiting", failed);
+                                    throw new RuntimeException("Could not catchup with peers", failed);
+                                case IGNORE:
+                                    logger.error("Could not catchup with peers; continuing to startup", failed);
+                                    return;
+                                case REBOOTSTRAP:
+                                case REBOOTSTRAP_AND_CATCHUP:
+                                    logger.error("Could not catchup with peers; rebootstrapping", failed);
+                                    getBlocking(node.commandStores().rebootstrap(node, CATCHUP));
+                                    if (onError == REBOOTSTRAP)
+                                        return;
+                                    ++attempts;
+                                    onError = onTimeout = rebootstrapFallbackMode(config);
+                                    continue;
+                            }
                         }
-                        else submit = Catchup.catchup(node);
-                        f = toFuture(submit);
-                    }
-                    if (!f.awaitUntilThrowUncheckedOnInterrupt(failAt))
-                    {
-                        if (spec.catchup_on_start_exit_on_failure)
+
+                        long end = nanoTime();
+                        double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
+                        if (result == null)
                         {
-                            logger.error("Catchup exceeded maximum latency of {}ns; shutting down", maxLatencyNanos);
+                            logger.info("Finished catchup with all quorums. {}s elapsed.", String.format("%.2f", seconds));
+                            if (seconds <= config.catchup_on_start_success_latency.toSeconds())
+                                return;
+
+                            if (attempts < config.catchup_on_start_max_slow_attempts)
+                            {
+                                logger.info("Catchup was slow, so we may behind again; retrying");
+                                ++attempts;
+                                continue;
+                            }
+                        }
+                    }
+
+                    switch (onTimeout)
+                    {
+                        default: throw new UnhandledEnum(onTimeout);
+                        case EXIT:
+                            if (result == null) logger.error("Catchup was slow; aborting after {} attempts and shutting down", attempts);
+                            else logger.error("Catchup was incomplete for {}; aborting after {} attempts and shutting down", result.ranges, attempts);
                             throw new RuntimeException("Could not catchup with peers");
-                        }
-                        logger.error("Catchup exceeded maximum latency of {}ns; continuing to startup", maxLatencyNanos);
-                        break;
+                        case IGNORE:
+                            if (result == null) logger.info("Catchup was slow, continuing to startup after {} attempts", attempts);
+                            else logger.info("Catchup was incomplete for {}, continuing to startup after {} attempts", result.ranges, attempts);
+                            return;
+                        case REBOOTSTRAP:
+                        case REBOOTSTRAP_AND_CATCHUP:
+                            if (result == null) logger.info("Catchup was slow, rebootstrapping after {} attempts", attempts);
+                            else logger.info("Catchup was incomplete for {}, rebootstrapping after {} attempts", result.ranges, attempts);
+                            getBlocking(node.commandStores().rebootstrap(node, result == null ? null : result.ranges, CATCHUP));
+                            if (onTimeout == REBOOTSTRAP)
+                                return;
+                            ++attempts;
+                            onError = onTimeout = rebootstrapFallbackMode(config);
+                            continue;
                     }
-
-                    Throwable failed = f.cause();
-                    if (failed != null)
-                    {
-                        if (spec.catchup_on_start_exit_on_failure)
-                            throw new RuntimeException("Could not catchup with peers", failed);
-
-                        logger.error("Could not catchup with peers; continuing to startup");
-                        break;
-                    }
-
-                    long end = nanoTime();
-                    double seconds = NANOSECONDS.toMillis(end - start)/1000.0;
-                    logger.info("Finished catchup with all quorums. {}s elapsed.", String.format("%.2f", seconds));
-
-                    if (seconds <= spec.catchup_on_start_success_latency.toSeconds())
-                        break;
-
-                    if (++attempts > spec.catchup_on_start_max_attempts)
-                    {
-                        if (spec.catchup_on_start_exit_on_failure)
-                        {
-                            logger.error("Catchup was slow, aborting after {} attempts and shutting down", attempts);
-                            throw new RuntimeException("Could not catchup with peers");
-                        }
-
-                        logger.info("Catchup was slow; continuing to startup after {} attempts.", attempts - 1);
-                        break;
-                    }
-
-                    logger.info("Catchup was slow, so we may behind again; retrying");
-                    if (mode == FALLBACK_TO_HARD)
-                        mode = HARD;
                 }
             }
             finally
@@ -798,6 +841,18 @@ public class AccordService implements IAccordService, Shutdownable
         {
             logger.info("No catchup, as bootstrap state is {}", bootstrapState);
         }
+    }
+
+    private static CatchupFallbackMode rebootstrapFallbackMode(AccordConfig config)
+    {
+        CatchupFallbackMode mode = config.catchup_on_start_on_rebootstrap_fallback;
+        if (mode == REBOOTSTRAP_AND_CATCHUP)
+        {
+            CatchupFallbackMode newMode = EXIT;
+            logger.warn("Converting {} to {} after first failed rebootstrap, to avoid infinite loop", mode, newMode);
+            mode = newMode;
+        }
+        return mode;
     }
 
     /**
@@ -959,27 +1014,27 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public AsyncResult<Void> sync(Object requestedBy, TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+    public AsyncResult<?> sync(Object requestedBy, TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, Collection<Id> ineligible, SyncLocal syncLocal, SyncRemote syncRemote, SyncReadable readable, long timeout, TimeUnit timeoutUnits)
     {
-        return node.durability().sync(requestedBy, ExclusiveSyncPoint, minBound, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
+        return node.durability().sync(requestedBy, ExclusiveSyncPoint, minBound, ranges, include, ineligible, syncLocal, syncRemote, readable, timeout, timeoutUnits);
     }
 
     @Override
-    public AsyncChain<Void> sync(TxnId minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    public AsyncChain<Void> syncKeysForMigration(TxnId minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
     {
         if (keys.size() != 1)
-            return syncInternal(minBound, keys, syncLocal, syncRemote);
+            return syncInternal(minBound, keys);
 
         return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote).chain()
                           .flatMap(found -> KeyBarriers.await(node, node.someExclusiveExecutor(), found, syncLocal, syncRemote))
                           .flatMap(success -> {
                               if (success)
                                   return null;
-                              return syncInternal(minBound, keys, syncLocal, syncRemote);
+                              return syncInternal(minBound, keys);
                           });
     }
 
-    private AsyncChain<Void> syncInternal(Timestamp minBound, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+    private AsyncChain<Void> syncInternal(Timestamp minBound, Keys keys)
     {
         TxnId txnId = node.nextTxnId(minBound, keys, Write);
         return node.withEpochAtLeast(txnId.epoch(), null, () -> {
@@ -1440,11 +1495,27 @@ public class AccordService implements IAccordService, Shutdownable
         long startedAt = nanoTime();
         long deadline = startedAt + timeout;
         // TODO (required): relax this requirement - too expensive
-        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', ExclusiveSyncPoint, TxnId.minForEpoch(epoch), ranges, NoLocal, All, DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), NANOSECONDS), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
+        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', ExclusiveSyncPoint, TxnId.minForEpoch(epoch), ranges, NoLocal, All, UnknownReadable, DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), NANOSECONDS), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
     }
 
     public Params journalConfiguration()
     {
         return journal.configuration();
+    }
+
+    private static UniqueTimeService uniqueTimeService(TimeService time)
+    {
+        AccordConfig config = getAccord();
+        UniqueTimestampReservations reservations = Invariants.nonNull(config.unique_timestamp_reservations);
+
+        switch (reservations)
+        {
+            default: throw UnhandledEnum.unknown(reservations);
+            case NONE: return new AtomicUniqueTime(time);
+            case SMALL_SHARED: return new AtomicUniqueTimeWithStaleReservation(time);
+            case HISTOGRAM:
+                long millis = Invariants.nonNull(config.unique_timestamp_reservation_range).toMilliseconds();
+                return new UniqueTimeService.AtomicUniqueAutoStaleTimes(time, millis, MILLISECONDS);
+        }
     }
 }

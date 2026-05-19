@@ -195,7 +195,7 @@ public final class ExclusiveExecutor extends TaskQueueMulti<Task> implements Exc
             return true;
 
         ExecutionContext context = ((SafeTask<?>) task).executionContext();
-        return !(isTerminated ? (context instanceof Unterminatable) : (context instanceof Unstoppable));
+        return !(isTerminated ? (context instanceof Unterminatable) : context.isUnstoppable());
     }
 
     void completeTask()

@@ -36,7 +36,6 @@ import accord.messages.ReadTxnData;
 import accord.messages.Reply;
 import accord.messages.Request;
 import accord.primitives.Keys;
-import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
@@ -84,7 +83,7 @@ public class AccordMessageSinkTest
         TxnId id = nextTxnId(epoch, txn);
         Ranges ranges = Ranges.of(IntKey.range(40, 50));
         PartialTxn partialTxn = txn.slice(ranges, true);
-        Request request = new AccordFetchRequest(epoch, id, ranges, PartialDeps.NONE, partialTxn);
+        Request request = new AccordFetchRequest(epoch, id, ranges, partialTxn);
 
         checkRequestReplies(request,
                             new AbstractFetchCoordinator.FetchResponse(null, null, id),

@@ -2941,11 +2941,6 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
-    public static int getAccordConcurrentMigrationOps()
-    {
-        return conf.accord.migration_concurrency.or(2 * FBUtilities.getAvailableProcessors());
-    }
-
     public static int getAccordConcurrentOps()
     {
         return conf.accord.queue_thread_count.or(2 * FBUtilities.getAvailableProcessors());
@@ -2958,6 +2953,11 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
         }
         conf.accord.queue_thread_count = new OptionaldPositiveInt(concurrent_operations);
+    }
+
+    public static int getAccordConcurrentMigrationOps()
+    {
+        return conf.accord.migration_concurrency.or(2 * FBUtilities.getAvailableProcessors());
     }
 
     public static void setConcurrentAccordMigrationOps(int concurrent_operations)
