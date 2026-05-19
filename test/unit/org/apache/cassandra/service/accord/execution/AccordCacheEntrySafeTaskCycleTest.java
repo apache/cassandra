@@ -59,7 +59,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * The cycle enumeration of {@link AccordCacheEntryCycleTest}, driven through <em>real</em> {@link SafeTask}s, so that
  * none of the placement, reposition or notification logic is reimplemented by the harness (and so a regression in it

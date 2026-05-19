@@ -27,7 +27,7 @@ import org.junit.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * Unit tests for the await/signal contract of {@link SignalLock}, i.e. the states in which
  * {@link SignalLock#awaitAsyncOrLock} must return rather than park:

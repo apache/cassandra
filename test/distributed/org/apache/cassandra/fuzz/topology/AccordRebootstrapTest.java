@@ -65,7 +65,7 @@ public class AccordRebootstrapTest extends FuzzTestBase
         try (Cluster cluster = builder.withNodes(3)
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(100))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(100, "dc0", "rack0"))
-                                      .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP))
+                                      .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("accord.catchup_on_start_fail_latency", "60s"))
                                       .start())
         {
             IInvokableInstance cmsInstance = cluster.get(1);

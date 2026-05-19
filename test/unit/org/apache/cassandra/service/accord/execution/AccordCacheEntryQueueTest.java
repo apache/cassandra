@@ -52,7 +52,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * Direct test of {@link AccordCacheEntryQueue}'s structure, independent of the executor: an entry's claims form a
  * sequence whose runnable prefix is the fifo head if any, else the first sorted member if any, else the whole bag.
@@ -485,7 +485,7 @@ public class AccordCacheEntryQueueTest
      * {@code Invariants}, which exposes no accessor; the value is latched at its class initialisation, so this is the
      * same answer as long as nobody rewrites the property mid-run.
      */
-    private static final boolean EXPECT_FAILS = Invariants.THROW_ON_EXPECTS;
+    private static final boolean EXPECT_FAILS = Invariants.isTesting();
 
     /**
      * O8: the fifo region is ordered by {@code fifoAt}, and the lock holder is pinned at its head - everything behind it

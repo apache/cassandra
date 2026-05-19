@@ -469,7 +469,7 @@ public class AccordCacheTest
     }
 
     /**
-     * This test has been authored entirely by Claude.
+     * This test has been authored entirely by LLM.
      *
      * A save the adapter refuses (CommandsForKeyAdapter refuses while the value isLoadingPruned) parks the entry in
      * WAITING_TO_SAVE. tryEvict must then unlink it without evicting it - it holds an unsaved modification - so the

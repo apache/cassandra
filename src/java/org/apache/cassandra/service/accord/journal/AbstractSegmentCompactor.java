@@ -22,6 +22,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.PriorityQueue;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,6 +95,7 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
     // Only valid in the scope of a single `compact` call
     private JournalKey prevKey;
     private DecoratedKey prevDecoratedKey;
+    private volatile boolean stopped;
 
     @Override
     public Collection<StaticSegment<JournalKey, V>> compact(Collection<StaticSegment<JournalKey, V>> segments)
@@ -124,11 +127,14 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
         MergeSerializer serializer = null;
         long firstDescriptor = -1, lastDescriptor = -1;
         int firstOffset = -1, lastOffset = -1;
+        KeyOrderReader<JournalKey> reader = null;
         try
         {
-            KeyOrderReader<JournalKey> reader;
             while ((reader = readers.poll()) != null)
             {
+                if (stopped)
+                    throw new Stopped();
+
                 if (key == null || !reader.key().equals(key))
                 {
                     maybeWritePartition(key, merger, serializer, firstDescriptor, firstOffset);
@@ -189,14 +195,17 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
             maybeWritePartition(key, merger, serializer, firstDescriptor, firstOffset);
             switchPartitions();
         }
+        catch (Stopped s)
+        {
+            throw closeOnFailure(reader, readers, s);
+        }
         catch (UnknownTableException e)
         {
             unknownTable.info(e.id, key);
         }
         catch (Throwable t)
         {
-            t = cleanupWriter(t);
-            throw new RuntimeException(String.format("Caught exception while serializing. Last seen key: %s", key), t);
+            throw closeOnFailure(reader, readers, new RuntimeException(String.format("Caught exception while serializing. Last seen key: %s", key), t));
         }
         finally
         {
@@ -206,6 +215,24 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
 
         finishAndAddWriter();
         return Collections.emptyList();
+    }
+
+    private <T extends Throwable> T closeOnFailure(@Nullable  KeyOrderReader<JournalKey> currentReader, PriorityQueue<KeyOrderReader<JournalKey>> readers, T failure)
+    {
+        if (currentReader != null)
+        {
+            try { currentReader.close(); }
+            catch (Throwable t) { failure.addSuppressed(t); }
+        }
+
+        for (KeyOrderReader<JournalKey> reader : readers)
+        {
+            try { reader.close(); }
+            catch (Throwable t) { failure.addSuppressed(t); }
+        }
+        //noinspection ThrowableNotThrown
+        cleanupWriter(failure);
+        return failure;
     }
 
     private void maybeWritePartition(JournalKey key, Merger merger, MergeSerializer<Object, ? super Merger, Merger> serializer, long descriptor, int offset) throws IOException
@@ -230,6 +257,12 @@ public abstract class AbstractSegmentCompactor<V> implements SegmentCompactor<Jo
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(AccordKeyspace.Journal, decoratedKey, row);
             writer().append(update.unfilteredIterator());
         }
+    }
+
+    @Override
+    public void stop()
+    {
+        stopped = true;
     }
 
     private static int normalize(int cmp)

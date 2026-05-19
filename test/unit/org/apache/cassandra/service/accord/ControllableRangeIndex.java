@@ -46,7 +46,7 @@ import accord.primitives.Unseekables;
 import org.apache.cassandra.service.accord.api.TokenKey;
 
 /**
- * This class was authored by Claude
+ * This class was authored by LLM
  *
  * A {@link RangeIndex} whose scans a test controls, used to drive the {@code RangeTxnScanner} lifecycle without a
  * populated range index behind it. It supplies a real {@link RangeIndex.Loader}, so the scanner runs its ordinary path

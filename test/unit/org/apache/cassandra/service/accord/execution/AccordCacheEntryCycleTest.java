@@ -47,7 +47,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * Exhaustive test of deadlock freedom in the cache-entry queues, over real {@link AccordCacheEntry}s and real
  * {@link AccordCacheEntryQueue}s. A task waits for another for exactly two reasons - a lock edge (the entry is held

@@ -47,7 +47,7 @@ import static org.junit.Assert.fail;
 public class ClearSnapshotTest extends TestBaseImpl
 {
     /**
-     * This test has been authored entirely by Claude.
+     * This test has been authored entirely by LLM.
      *
      * Clearing the snapshots taken by a repair must not be done while holding the {@link ActiveRepairService} monitor.
      * That monitor is taken by every {@code synchronized} method of {@link ActiveRepairService}, including the

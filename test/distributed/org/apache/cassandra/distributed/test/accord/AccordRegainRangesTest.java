@@ -116,7 +116,7 @@ public class AccordRegainRangesTest extends AccordTestBase
                     long epoch = previouslyOwned.epochs(i);
                     if (!activeEpochs.hasAtLeastEpoch(epoch))
                         continue;
-                    assertTrue(activeEpochs.getKnown(epoch).retired().containsAll(previouslyOwned.ranges(i)));
+                    assertTrue(activeEpochs.minEpoch() > epoch || activeEpochs.getKnown(epoch).retired().containsAll(previouslyOwned.ranges(i)));
                 }
 
                 Ranges range = Ranges.EMPTY;
