@@ -88,7 +88,7 @@ public class TakeSnapshotTask extends AbstractSnapshotTask<List<TableSnapshot>>
         else
             creationTime = options.creationTime;
 
-        snapshotName = options.getSnapshotName(creationTime);
+        snapshotName = SnapshotOptions.getSnapshotName(options.type, options.tag, creationTime);
 
         Set<ColumnFamilyStore> entitiesForSnapshot = options.cfs == null ? parseEntitiesForSnapshot(options.entities) : Set.of(options.cfs);
 

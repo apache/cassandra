@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import com.google.common.util.concurrent.RateLimiter;
 
@@ -33,13 +34,22 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
 
 public class SnapshotOptions
 {
     public static final String SKIP_FLUSH = "skipFlush";
     public static final String TTL = "ttl";
+
+    // Follows AWS S3 "Safe characters" for object keys:
+    //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
+    // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines
+    // Hyphen is placed last in the character class, so it stays literal and never becomes a range operator.
+    private static final Pattern SAFE_SNAPSHOT_NAME = Pattern.compile("[a-zA-Z0-9!_.*'()-]+");
     public final SnapshotType type;
     public final String tag;
     public final DurationSpec.IntSecondsBound ttl;
@@ -88,7 +98,7 @@ public class SnapshotOptions
         return builder.build();
     }
 
-    public String getSnapshotName(Instant creationTime)
+    public static String getSnapshotName(SnapshotType type, String tag, Instant creationTime)
     {
         // Diagnostic snapshots have very specific naming convention hence we are keeping it.
         // Repair snapshots rely on snapshots having name of their repair session ids
@@ -190,9 +200,62 @@ public class SnapshotOptions
 
         public SnapshotOptions build()
         {
-            if (tag == null || tag.isEmpty())
-                throw new RuntimeException("You must supply a snapshot name.");
+            validateTag(tag);
+            validateTTL(ephemeral, ttl);
 
+            if (rateLimiter == null)
+                rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+
+            return new SnapshotOptions(this);
+        }
+
+        private void validateTag(String tag)
+        {
+            if (tag == null || tag.isEmpty())
+                throw new IllegalArgumentException("You must supply a snapshot name.");
+
+            if (tag.contains(File.pathSeparator()))
+            {
+                throw new IllegalArgumentException("Snapshot name cannot contain " + File.pathSeparator());
+            }
+
+            if (tag.equals(".") || tag.equals(".."))
+            {
+                throw new IllegalArgumentException("Snapshot name '" + tag + "' is reserved");
+            }
+
+            if (!CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION.getBoolean())
+                return;
+
+            // Pre-generate snapshot name for the sake of the validation.
+            // getSnapshotName logic does not return raw "tag" as snapshot name every time,
+            // it e.g. prepends timestamp and type for system snapshots, and we need to validate it as a whole.
+            // If, for example, tag would be less than max allowed FILENAME_LENGTH,
+            // we might in fact produce a snapshot name longer than FILENAME_LENGTH if we prepended a timestamp to it.
+            String resolvedSnapshotname = SnapshotOptions.getSnapshotName(type, tag, Instant.now());
+
+            // the length of valid snapshot name has to be less than or equal to FILENAME_LEGTH - that is 255 -
+            // we are following the max length as it is in SchemaConstants for table name.
+            if (resolvedSnapshotname.length() > SchemaConstants.FILENAME_LENGTH)
+            {
+                throw new IllegalArgumentException(format("Snapshot name must not be more than %d characters long for " +
+                                                          "resolved snapshot name (got %d characters for \"%s\")",
+                                                          FILENAME_LENGTH, resolvedSnapshotname.length(), resolvedSnapshotname));
+            }
+
+            // Allowed characters follow the AWS S3 "Safe characters" set documented at
+            // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines :
+            //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
+            // The path separator '/' is intentionally excluded,
+            // which is what blocks traversal attempts such as "../../mysnapshot"
+            if (!SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotname).matches())
+            {
+                throw new IllegalArgumentException("Snapshot name contains illegal characters: " + resolvedSnapshotname);
+            }
+        }
+
+        private void validateTTL(boolean ephemeral, DurationSpec.IntSecondsBound ttl)
+        {
             if (ttl != null)
             {
                 int minAllowedTtlSecs = CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS.getInt();
@@ -202,11 +265,6 @@ public class SnapshotOptions
 
             if (ephemeral && ttl != null)
                 throw new IllegalStateException(format("can not take ephemeral snapshot (%s) while ttl is specified too", tag));
-
-            if (rateLimiter == null)
-                rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
-
-            return new SnapshotOptions(this);
         }
     }
 

@@ -26,15 +26,111 @@ import com.google.common.util.concurrent.RateLimiter;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.io.util.File;
+
 import static java.lang.String.format;
+import static org.apache.cassandra.service.snapshot.SnapshotType.USER;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
 public class SnapshotOptionsTest
 {
     @Test
+    public void testSnapshotNameValidation()
+    {
+        String sep = File.pathSeparator();
+
+        try (WithProperties p = new WithProperties().set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, true))
+        {
+            // Previously-allowed alphanumerics, '-' and '_' must still be accepted.
+            validate("atag", USER);
+            validate("a-tag", USER);
+            validate("a_tag", USER);
+            validate("a_tag" + Instant.now().toEpochMilli(), USER);
+            validate("a_tag_1and_something2-more", USER);
+            validate("a".repeat(255), USER);
+
+            // AWS S3 "Safe characters" newly accepted by the relaxed allowlist:
+            //   !  .  *  '  (  )
+            // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines
+            validate("snap.2026-05-20", USER);
+            validate("important!", USER);
+            validate("backup*", USER);
+            validate("o'snap", USER);
+            validate("snap(1)", USER);
+            validate("!._-*'()", USER);
+            // Dots embedded in a name are not traversal: with '/' excluded, "a..tag" is just a literal directory.
+            validate("a..tag", USER);
+
+            assertThatThrownBy(() -> validate("a".repeat(256), USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name must not be more than 255 characters long for " +
+                        "resolved snapshot name (got 256 characters for \"" + "a".repeat(256) + "\")");
+
+            // this would append timestamp + type which would violate < 255 when tag is 250 chars long only
+            assertThatThrownBy(() -> validate("a".repeat(250), SnapshotType.UPGRADE))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Snapshot name must not be more than 255 characters long");
+
+            // '/' is not in the S3-safe set; this is what kills traversal attempts like "../../mysnapshot".
+            assertThatThrownBy(() -> validate('a' + sep + "tag", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name cannot contain " + sep);
+
+            // Other characters outside the S3-safe set must still be rejected.
+            assertThatThrownBy(() -> validate("a tag", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: a tag");
+            assertThatThrownBy(() -> validate("a:tag", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: a:tag");
+
+            // "." and ".." pass the charset check but resolve to the snapshots/ dir itself
+            // and its parent (the live table dir) respectively, so they must be rejected as reserved.
+            assertThatThrownBy(() -> validate(".", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name '.' is reserved");
+
+            assertThatThrownBy(() -> validate("..", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name '..' is reserved");
+        }
+
+        try (WithProperties p = new WithProperties().set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, false))
+        {
+            // Previously-rejected characters are now accepted: space, ':', and other non-S3-safe chars.
+            assertThatCode(() -> validate("a tag", USER)).doesNotThrowAnyException();
+            assertThatCode(() -> validate("a:tag", USER)).doesNotThrowAnyException();
+
+            assertThatCode(() -> validate("a".repeat(256), USER)).doesNotThrowAnyException();
+            assertThatCode(() -> validate("a".repeat(250), SnapshotType.UPGRADE)).doesNotThrowAnyException();
+
+            // Path separator and "." / ".." rejections are unconditional — they guard against
+            // traversal regardless of the toggle.
+            assertThatThrownBy(() -> validate('a' + sep + "tag", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name cannot contain " + sep);
+            assertThatThrownBy(() -> validate(".", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name '.' is reserved");
+            assertThatThrownBy(() -> validate("..", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name '..' is reserved");
+        }
+    }
+
+    private void validate(String tag, SnapshotType type)
+    {
+        new SnapshotOptions.Builder(tag, type, s -> true, "ks.tb").rateLimiter(RateLimiter.create(1)).build();
+    }
+
+    @Test
     public void testSnapshotName()
     {
-        List<SnapshotType> sameNameTypes = List.of(SnapshotType.DIAGNOSTICS, SnapshotType.REPAIR, SnapshotType.USER);
+        List<SnapshotType> sameNameTypes = List.of(SnapshotType.DIAGNOSTICS, SnapshotType.REPAIR, USER);
 
         for (SnapshotType type : sameNameTypes)
         {
@@ -42,7 +138,7 @@ public class SnapshotOptionsTest
                                                      .rateLimiter(RateLimiter.create(5))
                                                      .build();
 
-            String snapshotName = options.getSnapshotName(Instant.now());
+            String snapshotName = SnapshotOptions.getSnapshotName(type, options.tag, Instant.now());
             assertEquals("a_name", snapshotName);
         }
 
@@ -57,7 +153,7 @@ public class SnapshotOptionsTest
 
             Instant now = Instant.now();
 
-            String snapshotName = options.getSnapshotName(now);
+            String snapshotName = SnapshotOptions.getSnapshotName(options.type, options.tag, now);
 
             assertEquals(format("%d-%s-%s", now.toEpochMilli(), type.label, "a_name"), snapshotName);
         }
