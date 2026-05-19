@@ -27,7 +27,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.durability.DurabilityService;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;
 import accord.utils.Property;
@@ -43,6 +43,8 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.consensus.TransactionalMode;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncReadable.UnknownReadable;
 import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
@@ -120,7 +122,7 @@ public class StatefulJournalRestartTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 1L, TimeUnit.MINUTES));
+                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, null, Self, SyncRemote.Quorum, UnknownReadable, 1L, TimeUnit.MINUTES));
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();
             }

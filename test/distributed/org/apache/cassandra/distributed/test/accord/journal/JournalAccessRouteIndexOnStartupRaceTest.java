@@ -31,7 +31,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.local.durability.DurabilityService;
+import accord.local.durability.DurabilityService.SyncRemote;
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;
 
@@ -50,6 +50,8 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
+import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncReadable.UnknownReadable;
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.service.accord.AccordKeyspace.JOURNAL;
@@ -66,7 +68,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
     public void test() throws IOException
     {
         try (Cluster cluster = Cluster.build(1)
-                                      .withConfig(config -> config.set("accord.catchup_on_start", "DISABLED"))
+                                      .withConfig(config -> config.set("accord.catchup_on_start", "false"))
                                       .withInstanceInitializer(BBHelper::install).start())
         {
             IInvokableInstance node = cluster.get(1);
@@ -93,7 +95,7 @@ public class JournalAccessRouteIndexOnStartupRaceTest extends TestBaseImpl
             Ranges ranges = Ranges.single(TokenRange.fullRange(metadata.id, metadata.partitioner));
             for (int i = 0; i < 10; i++)
             {
-                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, DurabilityService.SyncLocal.Self, DurabilityService.SyncRemote.Quorum, 1L, TimeUnit.MINUTES));
+                getBlocking(accord.sync(null, TxnId.NONE, ranges, null, null, Self, SyncRemote.Quorum, UnknownReadable, 1L, TimeUnit.MINUTES));
 
                 accord.journal().closeCurrentSegmentForTestingIfNonEmpty();
                 accord.journal().runCompactorForTesting();

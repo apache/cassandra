@@ -78,7 +78,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static accord.api.Journal.Load.MINIMAL;
 import static accord.api.Journal.Load.MINIMAL_WITH_DEPS;
-import static accord.local.Cleanup.Input.FULL;
+import static accord.local.Cleanup.Input.FULL_UNSAFE;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccord;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAccordJournalDirectory;
@@ -214,7 +214,7 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     public Command loadCommand(int commandStoreId, TxnId txnId, RedundantBefore redundantBefore, DurableBefore durableBefore)
     {
         CommandChanges builder = load(commandStoreId, txnId);
-        builder.maybeCleanup(true, FULL, redundantBefore, durableBefore);
+        builder.maybeCleanup(true, FULL_UNSAFE, redundantBefore, durableBefore);
         return builder.construct(redundantBefore);
     }
 

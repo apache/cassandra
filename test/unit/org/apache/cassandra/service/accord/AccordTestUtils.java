@@ -39,11 +39,13 @@ import accord.api.AsyncExecutor;
 import accord.api.Data;
 import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
+import accord.api.ProgressLog;
 import accord.api.ProgressLog.NoOpProgressLog;
 import accord.api.RemoteListeners.NoOpRemoteListeners;
 import accord.api.Result;
 import accord.api.Result.PersistableResult;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.api.Timeouts;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
@@ -327,23 +329,20 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         Node.Id node, LongSupplier now, Topology topology, AccordExecutor executor)
     {
+        return createAccordCommandStore(node, now, topology, executor, null, null);
+    }
+
+    public static AccordCommandStore createAccordCommandStore(
+        Node.Id node, LongSupplier now, Topology topology, AccordExecutor executor,
+        AccordAgent agent, ProgressLog.Factory progressLogFactory)
+    {
         NodeCommandStoreService time = new NodeCommandStoreService()
         {
-            @Override
-            public AsyncExecutor someExecutor()
-            {
-                return null;
-            }
-
-            @Override
-            public ExclusiveAsyncExecutor someExclusiveExecutor()
-            {
-                return null;
-            }
-
             private ToLongFunction<TimeUnit> elapsed = TimeService.elapsedWrapperFromNonMonotonicSource(TimeUnit.MICROSECONDS, this::now);
             private long stamp = 0;
 
+            @Override public AsyncExecutor someExecutor() { return null; }
+            @Override public ExclusiveAsyncExecutor someExclusiveExecutor() { return null; }
             @Override public Timeouts timeouts() { return null; }
             @Override public DurableBefore durableBefore() { return DurableBefore.EMPTY; }
             @Override public DurabilityService durability() { return null; }
@@ -354,14 +353,20 @@ public class AccordTestUtils
             @Override public long elapsed(TimeUnit timeUnit) { return elapsed.applyAsLong(timeUnit); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
             @Override public Coordinations coordinations() { return new Coordinations(); }
+            @Override public Scheduler scheduler() { return null; }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() {++stamp;}
             @Override public boolean isReplaying() { return false; }
             @Override public void reportLocalExecution(TxnId txnId, Route<?> route, Ballot ballot, Timestamp applyAt, Writes writes, Result result) {}
         };
 
-        AccordAgent agent = new AccordAgent();
-        agent.setup(Id.NONE);
+        if (agent == null)
+        {
+            agent = new AccordAgent();
+            agent.setup(Id.NONE);
+        }
+        if (progressLogFactory == null)
+            progressLogFactory = ignore -> new NoOpProgressLog();
         if (new File(DatabaseDescriptor.getAccordJournalDirectory()).exists())
             ServerTestUtils.cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
         AccordConfig.JournalConfig spec = new AccordConfig.JournalConfig();
@@ -371,7 +376,7 @@ public class AccordTestUtils
 
         Ranges ranges = topology.rangesForNode(node);
         return new AccordCommandStore(0, time, agent, null,
-                                                           cs -> new NoOpProgressLog(),
+                                                           progressLogFactory,
                                                            cs -> new DefaultLocalListeners(null, new NoOpRemoteListeners(), new NoOpNotifySink()),
                                       new RangesForEpoch(1, ranges), journal, executor);
     }
@@ -379,11 +384,25 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(
         LongSupplier now, String keyspace, String table)
     {
+        return createAccordCommandStore(now, keyspace, table, null, null);
+    }
+
+    /** @see #createAccordCommandStore(Node.Id, LongSupplier, Topology, AccordExecutor, AccordAgent, ProgressLog.Factory) */
+    public static AccordCommandStore createAccordCommandStore(
+        LongSupplier now, String keyspace, String table, AccordAgent agent, ProgressLog.Factory progressLogFactory)
+    {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
         TokenRange range = TokenRange.fullRange(metadata.id, metadata.partitioner);
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, Shard.create(range, new SortedArrayList<>(new Id[] { node }), Sets.newHashSet(node)));
-        AccordCommandStore store = createAccordCommandStore(node, now, topology);
+        AccordAgent executorAgent = agent;
+        if (executorAgent == null)
+        {
+            executorAgent = new AccordAgent();
+            executorAgent.setup(Id.NONE);
+        }
+        AccordExecutor executor = new AccordExecutorSyncSubmit(0, RUN_WITH_LOCK, CommandStore.class.getSimpleName() + '[' + 0 + ']', executorAgent);
+        AccordCommandStore store = createAccordCommandStore(node, now, topology, executor, executorAgent, progressLogFactory);
         store.execute((ExecutionContext.Empty)()->"Test", safeStore -> ((AccordCommandStore)safeStore.commandStore()).executor().setCapacity(1 << 20));
         return store;
     }
