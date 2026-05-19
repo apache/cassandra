@@ -72,10 +72,13 @@ public class ExceptionSerializer
 
     static String getMessageWithOriginatingHost(Throwable t, boolean isFirstException)
     {
-        if (isFirstException)
-            return "Remote exception from host " + FBUtilities.getBroadcastAddressAndPort().toString() + (t.getLocalizedMessage() != null ? " - " + t.getLocalizedMessage() : "");
-        else
-            return t.getLocalizedMessage();
+        String message;
+        if (isFirstException) message = "Remote exception from host " + FBUtilities.getBroadcastAddressAndPort().toString() + (t.getLocalizedMessage() != null ? " - " + t.getLocalizedMessage() : "");
+        else message = t.getLocalizedMessage();
+
+        if (message.length() > Short.MAX_VALUE)
+            message = message.substring(0, Short.MAX_VALUE);
+        return message;
     }
 
     private static final IVersionedSerializer<StackTraceElement> stackTraceElementSerializer = new IVersionedSerializer<StackTraceElement>()

@@ -2951,6 +2951,20 @@ public class DatabaseDescriptor
         conf.accord.queue_thread_count = new OptionaldPositiveInt(concurrent_operations);
     }
 
+    public static int getAccordConcurrentMigrationOps()
+    {
+        return conf.accord.migration_concurrency.or(2 * FBUtilities.getAvailableProcessors());
+    }
+
+    public static void setConcurrentAccordMigrationOps(int concurrent_operations)
+    {
+        if (concurrent_operations < 0)
+        {
+            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
+        }
+        conf.accord.migration_concurrency = new OptionaldPositiveInt(concurrent_operations);
+    }
+
     public static int getFlushWriters()
     {
         return conf.memtable_flush_writers;

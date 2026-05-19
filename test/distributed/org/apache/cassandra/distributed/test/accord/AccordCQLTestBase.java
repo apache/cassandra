@@ -83,6 +83,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.distributed.shared.FutureUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -96,6 +97,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Pair;
 
@@ -149,7 +151,9 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
-                                                                                    .set("paxos_variant", PaxosVariant.v2.name())), 2);
+                                                                                    .set("paxos_variant", PaxosVariant.v2.name())
+                                                                                    .set("accord.migration_concurrency", "" + (1 + CAS_SIMULATOR_LITE_CONCURRENCY))
+        ), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
@@ -3350,16 +3354,18 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
-                 ExecutorService es = Executors.newCachedThreadPool();
-                 List<Future<Object[][]>> futures = new ArrayList<>();
-                 for (int ii = 0; ii < 10; ii++)
+                 Future<Object[][]>[] futures = new Future[maxConcurrency];
+                 long[] starts = new long[maxConcurrency];
+                 for (int id = 0; id < maxConcurrency; id++)
                  {
-                     int id = ii;
-                     futures.add(es.submit(() -> coordinator.execute("UPDATE " + qualifiedAccordTableName + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1)));
+                     starts[id] = Clock.Global.nanoTime();
+                     futures[id] = FutureUtils.map(coordinator.asyncExecuteWithResult("UPDATE " + qualifiedAccordTableName + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1), SimpleQueryResult::toObjectArrays);
                  }
-
-                 for (Future f : futures)
-                     f.get();
+                 for (int id = 0; id < maxConcurrency; id++)
+                 {
+                     futures[id].get();
+                     System.out.println(String.format("Completed in %.3fs", (Clock.Global.nanoTime() - starts[id]) * 0.000000001));
+                 }
 
                  Object[][] result = coordinator.execute("SELECT pk, count, seq1, seq2 FROM  " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.SERIAL);
 

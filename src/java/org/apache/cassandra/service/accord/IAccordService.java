@@ -88,8 +88,8 @@ public interface IAccordService
     IVerbHandler<? extends Request> requestHandler();
     IVerbHandler<? extends Reply> responseHandler();
 
-    AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
-    AsyncChain<Void> sync(@Nullable TxnId minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
+    AsyncResult<?> sync(Object requestedBy, @Nullable TxnId minBound, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits);
+    AsyncChain<?> sync(@Nullable TxnId minBound, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote);
     AsyncChain<Timestamp> maxConflict(Ranges ranges);
 
     @Nonnull
@@ -402,13 +402,13 @@ public interface IAccordService
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<?> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Id> include, SyncLocal syncLocal, SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, timeout, timeoutUnits);
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
+        public AsyncChain<?> sync(@Nullable TxnId onOrAfter, Keys keys, SyncLocal syncLocal, SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote);
         }

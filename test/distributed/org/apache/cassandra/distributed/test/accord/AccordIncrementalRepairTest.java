@@ -89,7 +89,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncResult<Void> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
+        public AsyncResult<?> sync(Object requestedBy, @Nullable TxnId onOrAfter, Ranges ranges, @Nullable Collection<Node.Id> include, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote, long timeout, TimeUnit timeoutUnits)
         {
             return delegate.sync(requestedBy, onOrAfter, ranges, include, syncLocal, syncRemote, 10L, TimeUnit.MINUTES).map(v -> {
                 executedBarriers = true;
@@ -98,7 +98,7 @@ public class AccordIncrementalRepairTest extends TestBaseImpl
         }
 
         @Override
-        public AsyncChain<Void> sync(@Nullable TxnId onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
+        public AsyncChain<?> sync(@Nullable TxnId onOrAfter, Keys keys, DurabilityService.SyncLocal syncLocal, DurabilityService.SyncRemote syncRemote)
         {
             return delegate.sync(onOrAfter, keys, syncLocal, syncRemote).map(v -> {
                 executedBarriers = true;

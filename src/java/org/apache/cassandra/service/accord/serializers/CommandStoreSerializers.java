@@ -39,6 +39,7 @@ import accord.local.DurableBefore;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
 import accord.local.RedundantBefore;
+import accord.local.RedundantStatus;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.SaveStatus;
@@ -274,7 +275,9 @@ public class CommandStoreSerializers
 
         private short cast(long v)
         {
-            if ((v & ~0xFFFF) != 0)
+            if (v < 0 || v >= (1 << RedundantStatus.Property.WAS_OWNED.ordinal()))
+                throw new IllegalStateException("Should not be serializing WAS_OWNED or NOT_OWNED statuses");
+            if ((v & ~0xFFFF) != 0) // retain this
                 throw new IllegalStateException("Cannot serialize RedundantStatus larger than 0xFFFF. Requires serialization changes.");
             return (short)v;
         }
