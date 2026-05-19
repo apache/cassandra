@@ -1,0 +1,594 @@
+= Apache Cassandra Security Model
+
+== Overview
+
+This document outlines the security model for Apache Cassandra, identifying potential security threats,
+trust boundaries, and the security controls that protect against them. *This threat model assumes
+that Apache Cassandra has been configured correctly from a security point of view, with its strongest
+security settings applied*, including authentication (password-based or mutual TLS-based),
+authorization (`CassandraAuthorizer`), TLS encryption for all communication channels
+(client-to-node and node-to-node), and JMX bound to the local interface only with Cassandra integrated
+authentication. Threats are evaluated against this hardened baseline -- not against Cassandra's
+out-of-the-box defaults. Vulnerability reports that do not adhere to the assumptions outlined in this
+document may not be accepted.
+
+This threat model is informed by
+https://cassandra.apache.org/doc/latest/cassandra/operating/security.html[Cassandra's own security documentation].
+
+== System Architecture
+
+Apache Cassandra is a distributed NoSQL database system with the following key components:
+
+* *Client Applications*: Applications that connect to Cassandra via the CQL binary protocol to
+  read/write data
+* *Client Drivers*: Official Apache Cassandra drivers (e.g., Java driver, Python driver) that
+  implement the CQL binary protocol on behalf of client applications
+* *Cassandra Nodes*: Individual database servers forming a peer-to-peer cluster
+* *Inter-node Communication*: Gossip protocol and data replication channels between Cassandra nodes
+* *Storage Layer*: On-disk SSTables, commit logs, and hints
+* *JMX Interface*: Java Management Extensions interface for monitoring and administration
+* *System Keyspaces*: Internal keyspaces (e.g., `system_auth`, `system_schema`) that store cluster
+  metadata, authentication, and authorization data
+
+== Root of Trust
+
+The root of trust for a Cassandra deployment converges to:
+
+* *The infrastructure operator*: The party responsible for provisioning and maintaining the underlying
+  hardware, operating system, JVM, and network infrastructure on which Cassandra runs
+* *The Cassandra distribution*: The integrity of the Apache Cassandra software itself, verified through
+  official Apache release signatures and checksums (signed with keys from the
+  https://downloads.apache.org/cassandra/KEYS[Apache Cassandra PMC KEYS file])
+* *The JVM*: Cassandra runs on the Java Virtual Machine; the security properties of the JVM (including
+  its TLS implementation, cryptographic providers, and sandboxing) are assumed to be correct
+
+Before deploying Cassandra in a security-sensitive environment, operators should verify the authenticity
+of the distribution and ensure the underlying infrastructure meets their trust requirements.
+
+== User Types
+
+Apache Cassandra distinguishes the following user types with different trust levels:
+
+=== Trusted Users
+
+* *Infrastructure Operators / Administrators*: Users with OS-level access to nodes running Cassandra.
+  They have access to configuration files (`cassandra.yaml`, `cassandra-env.sh`), data directories, JMX
+  interfaces, and can start/stop nodes. These users are fully trusted. It is the responsibility of the
+  organization to restrict who holds this role guided by the principle of least privilege.
+* *Database Administrators (Superusers)*: Users with Cassandra superuser roles. They can
+  create/alter/drop roles, keyspaces, and tables, and grant/revoke permissions. They are trusted within
+  the CQL authorization model but should not require OS-level access.
+* *Application Developers*: Users who write applications that connect to Cassandra. They are trusted
+  to use the CQL API correctly, construct safe queries, and manage credentials securely within their
+  applications.
+
+=== Untrusted Users
+
+* *Database Users (Non-superuser Roles)*: Authenticated users with limited, explicitly granted
+  permissions. They are not trusted beyond the permissions assigned to their role. The authorization
+  subsystem (`CassandraAuthorizer`) enforces their access boundaries.
+* *Unauthenticated Network Actors*: Any party with network access to Cassandra's client or
+  inter-node ports who has not authenticated. Under this threat model's assumed configuration, all
+  communication channels require authentication and TLS, and JMX is bound to localhost only, so
+  unauthenticated connection attempts are rejected. These actors remain a threat only if they can
+  exploit vulnerabilities in the TLS handshake, authentication protocol, or network stack itself.
+* *External Clients and End Users*: Users of applications that interact with Cassandra indirectly.
+  Their input should never be trusted by the application layer and must be validated before being
+  passed to CQL queries.
+
+== Data Sources
+
+=== Trusted Sources
+
+Cassandra trusts the following data sources. It is the responsibility of the deployer to protect them:
+
+* *Configuration files* (`cassandra.yaml`, `cassandra-env.sh`, `cassandra-rackdc.properties`,
+  `jmxremote.password`): These control all security-critical behavior including encryption,
+  authentication, and authorization settings. Deployers must ensure that untrusted parties do not
+  have write access to these files and that they are transmitted only over confidential channels.
+* *System keyspaces* (`system_auth`, `system_schema`, `system`): These internal tables store
+  authentication credentials, role definitions, permissions, and schema metadata. Cassandra trusts their
+  contents. Deployers must ensure the `system_auth` keyspace has adequate replication (recommended: RF
+  3-5 per datacenter) and that direct manipulation via tools like `sstableloader` is restricted to
+  trusted operators.
+* *JMX interface*: Operations performed through JMX are trusted to be legitimate administrative actions.
+  JMX is bound to the local interface only, secured with Cassandra integrated authentication and
+  authorization, and configured with fine-grained MBean permissions. Deployers must maintain these
+  controls and audit JMX access.
+* *Environment variables and JVM system properties*: These configure security-critical behaviors such
+  as SSL keystore paths, JMX settings, and JAAS configuration. Deployers must protect the execution
+  environment.
+* *SSL/TLS key material*: Keystores, truststores, and PEM files used for client-to-node, node-to-node,
+  and JMX encryption. Deployers must protect these files with appropriate filesystem permissions and
+  manage certificate lifecycle (Cassandra supports hot reloading of SSL certificates).
+
+=== Untrusted Sources
+
+Cassandra does *not* trust the following, and its security controls are designed to mediate access from
+them:
+
+* *CQL queries from client connections*: All client requests are subject to authentication and
+  authorization checks. Either `PasswordAuthenticator`, `MutualTlsWithPasswordFallbackAuthenticator`, or
+  `MutualTlsAuthenticator` is active alongside `CassandraAuthorizer`, and all connections require TLS.
+  Applications should use parameterized queries and never interpolate untrusted input directly into CQL
+  strings.
+* *Data content written by clients*: Cassandra does not validate or sanitize the content of data written
+  to user tables. It is the application's responsibility to validate data before writing.
+* *Inter-node messages from unauthorized sources*: With inter-node encryption
+  (`internode_encryption: all`) and mutual TLS active, unauthorized nodes cannot join the cluster or inject
+  traffic. The residual threat is exploitation of vulnerabilities in the TLS implementation or certificate
+  validation logic.
+
+== Client Driver Trust Model
+
+Apache Cassandra client drivers (Java driver, Python driver, and other official drivers) operate under
+a trust model that mirrors the server-side assumptions in this document. Drivers assume they are
+connecting to a properly configured, non-compromised Apache Cassandra server. The trust relationship
+between a driver and a server is bidirectional:
+
+* The server authenticates and authorizes the client based on credentials or mutual TLS certificates
+  presented by the driver.
+* The driver, in turn, trusts that the server it is connected to is legitimate. With mutual TLS and
+  certificate validation against a configured truststore, the driver verifies the server's identity
+  at the TLS layer before exchanging any CQL traffic.
+
+Once the TLS handshake succeeds and the driver is connected to an authenticated server, the driver
+treats CQL protocol responses (result rows, schema metadata, server events) as well-formed and within
+protocol bounds. Drivers do not, in general, perform exhaustive validation that every length field,
+type code, or value in a server response conforms to the declared schema -- doing so would duplicate
+the server's own correctness guarantees and impose significant overhead on the protocol fast path
+(including native/Cython-accelerated parsing paths).
+
+Consequently, scenarios that require a *malicious or compromised Cassandra-compatible server*
+returning crafted protocol responses to attack a connected driver are outside the trust boundary of
+this threat model. If an attacker controls the server endpoint the driver is connected to, the
+attacker already has full access to every read and write the application performs through that
+connection; a client-side process crash, memory corruption, or resource exhaustion triggered by
+crafted response bytes is strictly less severe than the server compromise itself.
+
+Bugs of this nature (for example, insufficient bounds checking when parsing server responses,
+mishandling of malformed protocol frames, or driver crashes on out-of-spec server replies) remain
+legitimate correctness and robustness issues and should be reported through the project's normal bug
+tracker. They are not, however, treated as security vulnerabilities under this threat model.
+
+== Threats
+
+=== 1. Unauthorized Data Access (CWE-284: Improper Access Control)
+
+*Threat*: Attackers gain unauthorized access to data stored in Cassandra despite authentication and
+authorization being active.
+
+*Attack Vectors*:
+
+* Compromised or weak credentials allowing an attacker to authenticate as a legitimate user
+* Exploiting overly permissive role grants that expose data beyond intended scope
+* Direct access to SSTable files on disk, bypassing CQL-level access controls
+* Exploiting vulnerabilities in the authentication or authorization subsystem to bypass access checks
+* Compromised JMX credentials exposing data through MBean operations
+
+*Active Controls*:
+
+* *Authentication*: `PasswordAuthenticator`, `MutualTlsWithPasswordFallbackAuthenticator`, or
+  `MutualTlsAuthenticator` is active; the default `cassandra` superuser account has been disabled and
+   replaced with a dedicated superuser. All client connections must authenticate via credentials or
+   mutual TLS client certificates.
+* *Authorization*: `CassandraAuthorizer` enforces role-based access control with keyspace and
+  table-level permissions via `GRANT`/`REVOKE`. Permissions follow an allowlist model (no access
+  unless explicitly granted).
+* *File System Permissions*: OS-level access to data directories, commit logs, and saved caches is
+  restricted to the Cassandra process user. Where the Apache Cassandra Sidecar (control plane) is
+  deployed alongside a node, it shares filesystem access with the Cassandra process for operations
+  such as bulk import/export (data directories), CDC consumption (commit log directory), and live
+  data migration. The Sidecar process is treated as a co-located trusted component subject to the
+  same operator-level protections as the Cassandra process itself.
+* *JMX Authentication*: JMX is bound to the local interface only (`LOCAL_JMX=yes`), eliminating
+  remote JMX attack surface. Cassandra integrated auth (`CassandraLogin` JAAS config) provides
+  authentication even for local access.
+* *Inter-node Encryption*: `server_encryption_options` with `internode_encryption: all` and mutual
+   TLS prevents unauthorized cluster participants.
+
+*Residual Risks*:
+
+* Credential theft or brute-force attacks against authenticated accounts
+* Privilege creep through accumulated role grants over time
+* Compromise of an infrastructure operator who has OS-level access to data files
+
+=== 2. Data in Transit Interception (CWE-319: Cleartext Transmission of Sensitive Information)
+
+*Threat*: Attackers intercept data transmitted between clients and nodes, or between nodes, despite
+TLS being active on all channels.
+
+*Attack Vectors*:
+
+* Exploiting vulnerabilities in the TLS implementation or cipher suite negotiation
+* Compromised or weak certificates enabling man-in-the-middle attacks
+* Exploiting certificate validation flaws during SSL hot reloading
+* Attacks against the certificate authority or key material
+
+*Active Controls*:
+
+* *Client-to-Node Encryption*: `client_encryption_options` is configured with `enabled: true` and
+  `optional: false`, requiring TLS for all client connections.
+* *Node-to-Node Encryption*: `server_encryption_options` is configured with `internode_encryption: all`
+  and mutual TLS certificate validation.
+* *JMX Localhost Binding*: JMX is bound to the local interface only (`LOCAL_JMX=yes`), so JMX traffic
+  does not traverse the network. This eliminates the risk of JMX data-in-transit interception without
+  requiring JMX SSL.
+* *Certificate Management*: CA-signed certificates are used with properly configured truststores for
+  mutual authentication. Cassandra's SSL certificate hot reloading (polling every 10 minutes, or
+  triggered via `nodetool reloadssl`) supports certificate rotation without downtime.
+* *FIPS Compliance*: Where required, FIPS-compliant settings are configured at the JVM level.
+
+*Residual Risks*:
+
+* Compromise of private key material or certificate authority
+* Vulnerabilities in JVM TLS implementation (e.g., protocol downgrade attacks)
+* Brief window during certificate rotation where old/new certificates coexist
+
+=== 3. Data Tampering and Integrity (CWE-345: Insufficient Verification of Data Authenticity)
+
+*Threat*: Attackers modify data without authorization or corrupt data integrity despite active
+access controls.
+
+*Attack Vectors*:
+
+* Authenticated users exploiting overly broad `MODIFY` permissions to alter data outside their
+  intended scope
+* Direct manipulation of SSTable files on disk by a compromised OS-level account
+* Use of offline tools (`sstableloader`, `sstablescrub`) by a compromised operator to overwrite
+  system or user tables
+* Exploiting vulnerabilities in the authorization subsystem to bypass write restrictions
+
+*Active Controls*:
+
+* *Fine-grained Authorization*: `MODIFY` permissions are granted only to roles that require write
+  access, scoped to specific keyspaces and tables.
+* *Audit Logging*: Audit logging is enabled for security-relevant categories that strike a balance
+  between compliance and scalability on large systems. The recommended categories to include are
+  AUTH, DCL, DDL, ERROR, OTHER, which captures authentication events, data control
+  language (`GRANT`/`REVOKE`), data definition language (schema changes), errors, and other
+  administrative operations. Capturing every `DML` (data modification) statement is generally not
+  tenable at scale; deployers may opt in to `DML` auditing for specific keyspaces or roles where
+  regulatory requirements demand it.
+* *File System Permissions*: SSTable files, commit logs, and hints are protected with restrictive
+  OS-level permissions. Access to `sstableloader` and other offline tools is restricted to trusted
+  operators or the control plane process (i.e. Cassandra Sidecar).
+* *Inter-node Authentication*: Mutual TLS on inter-node channels prevents unauthorized nodes from
+  joining the cluster and injecting data.
+
+*Residual Risks*:
+
+* A compromised infrastructure operator can bypass all CQL-level access controls via direct file
+  manipulation
+* Application-level logic errors that allow authenticated users to write unintended data within
+  their granted permissions
+* *Application-level Integrity* _(developer responsibility)_: Implement checksums or application-level
+  signatures where data integrity guarantees beyond Cassandra's internal mechanisms are required
+
+=== 4. Denial of Service (CWE-400: Uncontrolled Resource Consumption)
+
+*Threat*: Attackers disrupt Cassandra availability despite authentication requirements.
+
+*Attack Vectors*:
+
+* Authenticated users executing resource-exhaustive queries (full table scans, unbounded reads,
+  excessive tombstone reads)
+* Authenticated users opening excessive connections to exhaust connection pools
+* Compromised JMX credentials used to trigger disruptive operations (e.g., compaction, repair on
+  overloaded nodes) -- requires local access to the node since JMX is localhost-bound
+* TLS handshake abuse to exhaust CPU resources on client or inter-node ports
+* Network-level flooding against gossip or native transport ports (infrastructure-layer attack)
+
+*Active Controls*:
+
+* *Authentication Barrier*: All client connections must authenticate, preventing anonymous abuse.
+  TLS is required, raising the cost of connection flooding.
+* *Rate Limiting*: Client connection limits and native transport request throttling are configured.
+* *Resource Limits*: Read/write request timeouts, query result size limits, and tombstone thresholds
+  are set in `cassandra.yaml`.
+* *JMX Security*: JMX is bound to the local interface only, eliminating remote JMX attack surface.
+  Local JMX access is secured with Cassandra integrated auth.
+* *Network Security*: Firewalls and network segmentation are in place. All non-essential ports are
+  closed.
+* *Monitoring and Alerting*: Unusual traffic patterns, query latency spikes, and resource exhaustion
+  conditions are monitored.
+
+*Residual Risks*:
+
+* Authenticated users with legitimate credentials can still craft expensive queries within their
+  permissions
+* TLS handshake cost amplification from unauthenticated network actors
+* *Query Best Practices* _(developer responsibility)_: Use prepared statements, avoid `ALLOW FILTERING`
+  in production, set appropriate page sizes, and ensure queries are partition-aware
+
+=== 5. Privilege Escalation (CWE-269: Improper Privilege Management)
+
+*Threat*: Attackers elevate privileges beyond their authorized level despite active RBAC and JMX
+authorization.
+
+*Attack Vectors*:
+
+* Exploiting overly permissive role grants that accumulate over time (privilege creep)
+* Credential theft targeting superuser or DBA accounts
+* Exploiting vulnerabilities in the `CassandraAuthorizer`, `PasswordAuthenticator`,
+  `MutualTlsWithPasswordFallbackAuthenticator` or `MutualTlsAuthenticator` to bypass access checks
+* Exploiting inconsistencies between CQL authorization and JMX authorization scopes
+* Exploiting role hierarchy (`GRANT role TO role`) to gain unintended transitive permissions
+
+*Active Controls*:
+
+* *Default Superuser Disabled*: The default `cassandra` role has been removed or disabled (`ALTER
+  ROLE cassandra WITH SUPERUSER = false AND LOGIN = false`) and replaced with a dedicated superuser
+  with a strong password.
+* *Principle of Least Privilege*: Permissions are granted at the minimum necessary scope using `GRANT`
+  statements scoped to specific keyspaces, tables, or MBeans.
+* *Role Separation*: Administrative (superuser), operational (JMX), and application roles are separated.
+  Cassandra's role hierarchy (`GRANT role TO role`) is used to manage permissions cleanly.
+* *Unified JMX Authorization*: Cassandra integrated JMX auth (`CassandraLogin` JAAS config +
+  `AuthorizationProxy`) unifies CQL and JMX access control with fine-grained MBean permissions.
+* *Inter-node Encryption*: Mutual TLS prevents unauthorized manipulation of `system_auth` tables via
+  crafted inter-node messages.
+
+*Residual Risks*:
+
+* Privilege creep if role grants are not periodically audited (`LIST ALL PERMISSIONS`)
+* Compromise of a superuser account grants full cluster control
+* Complex role hierarchies may create unintended transitive permission paths
+
+=== 6. Information Disclosure (CWE-200: Exposure of Sensitive Information)
+
+*Threat*: Attackers gain access to sensitive system information, metadata, or credentials despite active
+access controls.
+
+*Attack Vectors*:
+
+* Authenticated users with overly broad permissions reading `system_auth` tables (role definitions,
+  hashed credentials, permission grants) or other deployment-restricted resources
+* Compromised JMX credentials exposing configuration details, memory state, and operational metrics
+  beyond intended scope -- requires local access to the node since JMX is localhost-bound
+* Log files containing sensitive information (credentials, query data, stack traces) accessible to unauthorized parties
+* CQL error messages revealing internal system details to authenticated non-superuser clients
+* Timing or error-based information leakage through CQL query responses
+
+*Active Controls*:
+
+* *System Table Permissions*: Access to `system_auth` (which stores role definitions, hashed
+  credentials, and permission grants) is restricted -- non-superusers must be explicitly granted
+  `SELECT` to read it. DDL against local and replicated system keyspaces is blocked by the
+  authorization layer regardless of grants (only replication parameters of replicated system
+  keyspaces may be altered by sufficiently privileged users).
+* *Schema and Topology Metadata (intentionally exposed)*: `system_schema` (schema metadata) and the
+  topology-bearing tables in the `system` keyspace (`local`, `peers_v2`, size/table estimates) are
+  readable by every authenticated user by design. Drivers and CQL tooling depend on this -- for
+  example, `DESCRIBE schema;` and routine driver bootstrap require it. Schema and cluster topology
+  are therefore not treated as confidential under this model; the deployment relies on the trust
+  placed in authenticated clients (see the Client Driver Trust Model above).
+* *JMX Access Control*: JMX is bound to the local interface only, restricting access to users with
+  local access to the node. Fine-grained MBean permissions limit what authenticated JMX users can
+  observe. Monitoring roles are granted only `SELECT` and `DESCRIBE`.
+* *Log Management*: Access to log files is restricted at the OS level. Production log levels are
+  configured to avoid logging sensitive data.
+
+*Residual Risks*:
+
+* Schema, keyspace/table/column names, and cluster topology are readable by every authenticated user
+  by design; deployers must not encode sensitive information into schema identifiers and should
+  treat that metadata as non-confidential
+* Authenticated users may infer data distribution through permitted query patterns
+* Log files may inadvertently contain sensitive data if log levels are changed during debugging
+* *Log Hygiene* _(developer responsibility)_: Do not log credentials, authentication tokens, or
+  sensitive user data. Document which log levels may contain sensitive information.
+* *Error Handling* _(framework responsibility)_: Cassandra should avoid exposing internal stack
+  traces or system details in CQL error responses to non-superuser clients.
+
+=== 7. Supply Chain and Dependency Attacks (CWE-1357: Reliance on Insufficiently Trustworthy Component)
+
+*Threat*: Attackers compromise Cassandra through malicious or vulnerable dependencies or tampered
+distribution packages.
+
+*Attack Vectors*:
+
+* Compromised third-party libraries included in the Cassandra distribution
+* Tampered distribution packages obtained from unofficial sources
+* Vulnerable dependencies with known CVEs
+* Compromised build infrastructure or release process
+
+*Active Controls*:
+
+* *Verified Distribution*: Cassandra is obtained from official Apache distribution channels with
+  release signatures verified against the
+  https://downloads.apache.org/cassandra/KEYS[Apache Cassandra PMC KEYS file]. Artifacts without
+  valid signatures are not used.
+* *Dependency Management* _(framework)_: The Apache Cassandra project checks the quality of its
+  dependencies and monitors for known vulnerabilities.
+* *Security Patches*: Security updates are applied promptly. The
+  mailto:security@cassandra.apache.org[Cassandra security mailing list] is monitored for vulnerability
+  announcements.
+* *JVM Updates*: The underlying JVM is kept up-to-date with security patches, as Cassandra inherits the
+  JVM's cryptographic and network security properties.
+
+*Residual Risks*:
+
+* Zero-day vulnerabilities in dependencies that have not yet been disclosed or patched
+* Compromise of the Apache release infrastructure itself
+
+=== 8. Log Injection (CWE-117: Improper Output Neutralization for Logs)
+
+*Threat*: Attackers inject malicious content into log files through crafted input, hiding malicious
+activity or corrupting log analysis. This threat applies even with all security features enabled,
+as authenticated users can submit crafted data through legitimate CQL operations.
+
+*Attack Vectors*:
+
+* Crafted CQL query strings or data values that inject log control characters
+* Manipulated client connection metadata (e.g., role names) appearing in log output
+* Exploitation of structured log format parsing through specially crafted values
+
+*Active Controls*:
+
+* *Authentication Barrier*: Only authenticated users can submit queries, limiting the attack surface
+to known identities and providing an audit trail.
+
+*Residual Risks*:
+
+* Authenticated users can still inject log content through legitimate CQL operations
+* *Structured Logging* _(framework responsibility)_: Where possible, use structured log formats (JSON,
+  etc.) that properly escape special characters.
+* *Log Validation* _(deployer responsibility)_: Use log aggregation systems that are resilient to
+  injection attacks.
+* *Input Awareness* _(developer responsibility)_: Be aware that client-supplied values may appear in
+  Cassandra logs. Do not rely on unstructured log output for security-critical decisions.
+
+=== 9. Improper Neutralization of Special Elements in CQL (CWE-138)
+
+*Threat*: Attackers exploit improperly constructed CQL queries to execute unauthorized operations.
+This is an application-layer threat that persists regardless of Cassandra's security configuration,
+as it targets how client applications construct queries.
+
+*Attack Vectors*:
+
+* CQL injection through string concatenation of untrusted input into queries within client applications
+* Exploitation of application-level query construction flaws to escalate operations within the
+  permissions of the application's database role
+
+*Active Controls*:
+
+* *Authorization Boundary*: Even if CQL injection succeeds, the injected operations are limited to
+  the permissions of the authenticated application role. Fine-grained authorization limits the blast
+  radius.
+* *Audit Logging*: Injected queries that fall within audited categories (e.g., authentication, DCL,
+  DDL, errors) are captured in audit logs, supporting detection and forensic analysis. Detection of
+  injection within DML statements requires opting in to DML auditing for the targeted scope.
+
+*Residual Risks*:
+
+* Within the application role's permissions, an attacker can read, modify, or delete any data the role
+  has access to
+* *Parameterized Queries* _(developer responsibility)_: Always use prepared statements with bound
+  parameters.
+  Never concatenate untrusted input into CQL query strings.
+* *Input Validation* _(developer responsibility)_: Validate and sanitize all user input at the
+  application boundary before constructing CQL queries.
+
+== Responsibility Matrix
+
+[cols="4,^1,^1,^1",options="header"]
+|===
+| Responsibility | Deployer | Developer | Framework
+| Maintain authentication configuration and credential strength | X | |
+| Maintain authorization and role-based access control | X | |
+| Maintain TLS encryption on all channels | X | |
+| Protect configuration files, key material, and certificates | X | |
+| Manage firewall rules and network segmentation | X | |
+| Maintain appropriate replication for `system_auth` | X | |
+| Rotate credentials and certificates periodically | X | |
+| Audit role grants and permissions regularly | X | |
+| Maintain JMX security and access restrictions | X | |
+| Monitor and respond to security events | X | |
+| Use parameterized CQL queries | | X |
+| Validate user input before passing to CQL | | X |
+| Manage application credentials securely | | X |
+| Avoid logging sensitive data | | X |
+| Prevent log injection in structured log layouts | | | X
+| Verify integrity of dependencies | | | X
+| Provide secure defaults and security documentation | | | X
+|===
+
+== Security Configuration Baseline
+
+This threat model assumes the following security configuration is active. All threats and residual
+risks are evaluated against this hardened baseline:
+
+. *Authentication*: `PasswordAuthenticator`, `MutualTlsWithPasswordFallbackAuthenticator` or
+  `MutualTlsAuthenticator` is configured (not `AllowAllAuthenticator`). The default `cassandra`
+  superuser account is removed or disabled. A dedicated superuser is in use. When using
+  `PasswordAuthenticator`, strong passwords are enforced. When using `MutualTlsAuthenticator`,
+  client certificate validation is enforced through the TLS truststore.
+. *Authorization*: `CassandraAuthorizer` is configured (not `AllowAllAuthorizer`). Permissions
+  follow an allowlist model -- no access is granted unless explicitly assigned via `GRANT`.
+. *Client-to-Node Encryption*: `client_encryption_options` is enabled with `optional: false`,
+  requiring TLS for all client connections.
+. *Node-to-Node Encryption*: `server_encryption_options` is configured with
+  `internode_encryption: all` and mutual TLS with certificate validation.
+. *JMX Security*: JMX is bound to the local interface only (`LOCAL_JMX=yes` in `cassandra-env.sh`),
+  restricting access to the localhost. JMX uses Cassandra integrated authentication and authorization
+  (`CassandraLogin` JAAS config + `AuthorizationProxy`). If remote JMX access is operationally required,
+  it must be enabled with SSL and Cassandra integrated auth; however, localhost-only binding is the
+  recommended and assumed configuration.
+. *`system_auth` Replication*: The `system_auth` keyspace is configured with `NetworkTopologyStrategy`
+  and a replication factor of 3-5 per datacenter.
+. *Audit Logging*: Audit logging is enabled with the `AUTH,DCL,DDL,ERROR,OTHER` categories to
+  capture authentication, authorization changes, schema changes, errors, and administrative operations.
+  This baseline balances compliance and scalability; auditing `DML` is opt-in and should be scoped to
+  specific keyspaces or roles where required.
+. *Network Security*: Firewalls and network segmentation are in place. All non-essential ports are closed.
+
+== Security Assumptions
+
+This threat model further assumes:
+
+. *Cassandra has been configured correctly from a security point of view*, with all security features
+  enabled and properly configured as described in the Security Configuration Baseline above
+. Cassandra is deployed on trusted infrastructure with proper OS-level security hardening
+. Network infrastructure is secured with appropriate firewalls and segmentation
+. Infrastructure operators and administrators are trusted and follow security best practices
+. The underlying JVM is kept up-to-date with security patches
+. Physical security of servers is maintained
+. The Cassandra distribution has been obtained from official Apache channels and verified with release signatures
+. SSL/TLS key material is properly generated, stored, and rotated
+. Credentials are strong, unique, and managed through a secure credential management process
+
+== Vulnerability Reporting Scope
+
+Vulnerability reports against Apache Cassandra should adhere to the assumptions and trust boundaries
+defined in this threat model. This model assumes a correctly configured, fully hardened Cassandra
+deployment. Specifically:
+
+* Reports that assume a trusted user (administrator, infrastructure operator) is the attacker are
+  *out of scope*, as these users are inherently trusted with full system access.
+* Reports that require OS-level or physical access to Cassandra nodes are *out of scope*, as
+  infrastructure security is a prerequisite assumption.
+* Reports that require security features to be disabled or misconfigured (e.g., using
+  `AllowAllAuthenticator` or unencrypted connections) are *out of scope*, as this threat model
+  assumes correct security configuration.
+* Reports demonstrating bypass of enabled authentication, authorization, or encryption controls
+  are *in scope* and will be treated with appropriate severity.
+* Reports demonstrating vulnerabilities that persist despite correct security configuration
+  (e.g., flaws in the `PasswordAuthenticator`, `MutualTlsWithPasswordFallbackAuthenticator`,
+  `MutualTlsAuthenticator`, `CassandraAuthorizer`, or TLS implementation) are *in scope*.
+* Reports against Apache Cassandra client drivers (Java, Python, etc.) that require a malicious
+  or compromised Cassandra server returning crafted CQL protocol responses are *out of scope*.
+  Drivers assume they are connected to a trusted, properly configured Apache Cassandra server,
+  with TLS verifying server trust where applicable. Such reports should be filed as correctness
+  or robustness bugs through the project's normal bug tracker.
+
+To report a vulnerability, follow the https://www.apache.org/security/[Apache Security Team process].
+
+== Out of Scope
+
+The following are considered out of scope for this threat model:
+
+* Vulnerabilities in the underlying operating system, JVM, or hardware
+* Physical attacks on servers
+* Social engineering attacks targeting administrators
+* Application-level vulnerabilities in client code
+* Backup and disaster recovery security (covered separately)
+* Side-channel attacks: While we acknowledge that timing or resource-usage-based side channels may exist,
+  they are out of scope for the current threat model. Where practical, we will adopt software hardening to
+  mitigate known side-channel vectors.
+* Log masking: It is the developer's responsibility to ensure sensitive data is properly masked before
+  passing it to CQL or logging. Third-party frameworks should be used for this purpose.
+* Denial of service at the network/infrastructure layer (e.g., volumetric DDoS) -- this is an infrastructure
+  concern, not a Cassandra application concern.
+* Driver-side bugs triggered by responses from a malicious or compromised Cassandra-compatible server
+  (e.g., crashes, buffer overflows, or resource exhaustion in driver protocol parsers when fed crafted server
+  replies). Drivers operate under the assumption that they are connected to a trusted, properly configured
+  Apache Cassandra server; an attacker who controls the server endpoint is already past the trust boundary
+  that drivers protect. These should be filed as correctness bugs rather than security vulnerabilities.
+
+== References
+
+* https://cassandra.apache.org/doc/latest/cassandra/operating/security.html[Apache Cassandra Security Documentation]
+* https://cassandra.apache.org/doc/latest/cassandra/configuration/[Apache Cassandra Configuration Reference]
+* https://cve.mitre.org/[CVE Database]
+* https://www.apache.org/security/[Apache Security Team]
