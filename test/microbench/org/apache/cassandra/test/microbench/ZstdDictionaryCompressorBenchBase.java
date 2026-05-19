@@ -39,7 +39,7 @@ import org.apache.cassandra.db.compression.CompressionDictionary.Kind;
 import org.apache.cassandra.db.compression.ZstdCompressionDictionary;
 import org.apache.cassandra.io.compress.ZstdDictionaryCompressor;
 
-// The bench takes over 20 minutes to finish
+// The full bench takes over 20 minutes to finish
 @State(Scope.Benchmark)
 public abstract class ZstdDictionaryCompressorBenchBase
 {
@@ -52,7 +52,8 @@ public abstract class ZstdDictionaryCompressorBenchBase
     @Param({"0", "65536"})
     protected int dictionarySize;
 
-    @Param({"3", "5", "7"})
+    // @Param({"3", "5", "7"})
+    @Param({"3"})
     protected int compressionLevel;
 
     protected byte[] inputData;

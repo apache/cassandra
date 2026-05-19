@@ -77,10 +77,12 @@ public class ComparisonReadBench
     @Param({"ON_HEAP"})
     BufferType bufferType = BufferType.OFF_HEAP;
 
-    @Param({"1000", "100000", "10000000"})
+    // @Param({"1000", "100000", "10000000"})
+    @Param({"1000", "100000"})
     int count = 1000;
 
-    @Param({"TREE_MAP", "CSLM", "TRIE"})
+    // @Param({"TREE_MAP", "CSLM", "TRIE"})
+    @Param({"CSLM", "TRIE"})
     MapOption map = MapOption.TRIE;
 
     @Param({"LONG"})
