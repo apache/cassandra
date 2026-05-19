@@ -60,7 +60,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * A failed round with <em>more than one key in its batch</em>. Everything else in {@link AccordFailedKeyTest} runs with
  * a batch of one, so its rounds mark, retain and convert exactly one claim; the loop that does so, and the interaction
@@ -181,7 +181,7 @@ public class AccordFailedKeyBatchTest
                         AccordCacheEntry<?, ?, ?> entry = store.cachesUnsafe().commandsForKeys().getUnsafe(k);
                         if (entry == null)
                             continue;
-                        if (entry.isInconsistent())
+                        if (entry.isUnsafeToRead())
                             inconsistent.add(k);
                         if (!entry.hasNoTasks())
                             claimed.add(k);
@@ -286,7 +286,7 @@ public class AccordFailedKeyBatchTest
                             continue;
                         if (!entry.hasNoTasks())
                             claimed.add(k);
-                        if (entry.isInconsistent())
+                        if (entry.isUnsafeToRead())
                             inconsistent.add(k);
                     }
                 });

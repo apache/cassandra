@@ -256,8 +256,8 @@ public final class TableParams
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
 
-        if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getBoolean())
-            fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_ALLOW_TEST_MODES.getKey() + " is not set");
+        if (transactionalMode.isTestMode() && !CassandraRelevantProperties.ACCORD_TEST_ALLOW_MODES.getBoolean())
+            fail("Transactional mode " + transactionalMode + " can't be used if " + CassandraRelevantProperties.ACCORD_TEST_ALLOW_MODES.getKey() + " is not set");
 
         autoRepair.validate();
     }

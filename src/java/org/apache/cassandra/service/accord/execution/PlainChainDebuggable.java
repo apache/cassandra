@@ -31,9 +31,9 @@ class PlainChainDebuggable<V> extends PlainChain<V> implements DebuggableTask
 {
     final Object describe;
 
-    PlainChainDebuggable(AccordExecutor executor, Callable<? extends V> call, BiConsumer<? super V, Throwable> callback, @Nullable ExclusiveExecutor exclusiveExecutor, Object describe)
+    PlainChainDebuggable(AccordExecutor executor, Callable<? extends V> call, BiConsumer<? super V, Throwable> callback, GlobalGroup group, @Nullable ExclusiveExecutor exclusiveExecutor, Object describe)
     {
-        super(executor, call, callback, exclusiveExecutor, ExclusiveGroup.OTHER);
+        super(executor, call, callback, exclusiveExecutor, group, ExclusiveGroup.OTHER);
         this.describe = Invariants.nonNull(describe);
     }
 

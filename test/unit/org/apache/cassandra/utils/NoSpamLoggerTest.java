@@ -579,7 +579,7 @@ public class NoSpamLoggerTest
         }
     }
 
-    // BELOW TESTS WERE AUTHORED BY CLAUDE
+    // BELOW TESTS WERE AUTHORED BY LLM
     // ---------------------------------------------------------------------------------------------------------------
     // NoDuplicateSpamLogStatement: per-identity rate limiting. The state it keeps to recognise a duplicate must be
     // bounded (it is fed by error storms), and recognising a duplicate must be cheap (it is on the storm path).

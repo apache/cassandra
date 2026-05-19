@@ -38,9 +38,9 @@ class PlainRunnable extends Plain implements Cancellable
         this.exclusiveExecutor = null;
     }
 
-    PlainRunnable(AccordExecutor executor, AsyncPromise<Void> result, Runnable run, ExclusiveExecutor exclusiveExecutor, ExclusiveGroup group)
+    PlainRunnable(AccordExecutor executor, AsyncPromise<Void> result, Runnable run, @Nullable ExclusiveExecutor exclusiveExecutor, GlobalGroup global, ExclusiveGroup group)
     {
-        super(executor, group);
+        super(executor, global, group);
         this.result = result;
         this.run = run;
         this.exclusiveExecutor = exclusiveExecutor;
@@ -72,7 +72,7 @@ class PlainRunnable extends Plain implements Cancellable
     }
 
     @Override
-    void reportFailureMayThrow(Throwable t)
+    void reportFailureMayThrow(Throwable t, boolean isExclusive)
     {
         if (result != null)
             result.tryFailure(t);

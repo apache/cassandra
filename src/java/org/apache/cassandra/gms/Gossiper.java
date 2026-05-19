@@ -465,7 +465,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         return isShutdown(epState);
     }
 
-    private static boolean isShutdown(EndpointState epState)
+    public static boolean isShutdown(EndpointState epState)
     {
         VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)

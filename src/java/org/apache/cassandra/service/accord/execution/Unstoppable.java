@@ -23,4 +23,5 @@ import accord.local.ExecutionContext;
 // run the task even on a stopped commandStore
 public interface Unstoppable extends ExecutionContext.Empty
 {
+    @Override default boolean isUnstoppable() { return true; }
 }

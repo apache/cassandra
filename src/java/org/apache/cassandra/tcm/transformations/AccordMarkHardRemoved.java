@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.CollectionSerializers;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+import static org.apache.cassandra.service.accord.topology.AccordNodeInfos.supportsExtendedNodeInfo;
 
 public class AccordMarkHardRemoved implements Transformation
 {
@@ -62,6 +63,12 @@ public class AccordMarkHardRemoved implements Transformation
     public Kind kind()
     {
         return Kind.ACCORD_MARK_HARD_REMOVED;
+    }
+
+    @Override
+    public boolean eligibleToCommit(ClusterMetadata metadata)
+    {
+        return Transformation.super.eligibleToCommit(metadata) && supportsExtendedNodeInfo(metadata.directory);
     }
 
     @Override
@@ -96,7 +103,7 @@ public class AccordMarkHardRemoved implements Transformation
         SortedArrayList<Node.Id> hardRemoveIds = SortedArrayList.ofUnsorted(ids.stream().map(AccordTopology::tcmIdToAccord).toArray(Node.Id[]::new));
 
         for (Node.Id id : hardRemoveIds)
-            if (prev.accordStaleReplicas.hardRemoved().contains(id))
+            if (prev.accordNodeInfos.hardRemoved().contains(id))
                 return new Rejected(INVALID, String.format("Cannot mark node %s hard removed as it already is.", id));
 
         logger.info("Marking " + ids + " hard removed. These nodes should be permanently offline and unable to respond to any messages at any future point.");

@@ -77,7 +77,7 @@ import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.p
  * "this txnId has been erased" into the same answer as "we have never heard of this
  * txnId" once RedundantBefore / DurableBefore say it is past the GC boundary.</p>
  *
- * @author Claude and Benedict
+ * @author LLM and Benedict
  */
 public class AccordExpungeTest
 {

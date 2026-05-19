@@ -34,11 +34,11 @@ public class HarryOnAccordTopologyMixupTest extends HarryTopologyMixupTest
 {
     static
     {
-        CassandraRelevantProperties.ACCORD_AGENT_CLASS.setString(AccordTopologyMixupTest.InterceptAgent.class.getName());
+        CassandraRelevantProperties.ACCORD_TEST_AGENT_CLASS.setString(AccordTopologyMixupTest.InterceptAgent.class.getName());
         // enable most expensive debugging checks
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
-        CassandraRelevantProperties.ACCORD_KEY_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_CPU.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_MEMORY.setString(Invariants.Paranoia.QUADRATIC.name());
+        CassandraRelevantProperties.ACCORD_PARANOIA_COSTFACTOR.setString(Invariants.ParanoiaCostFactor.HIGH.name());
     }
 
     @Override

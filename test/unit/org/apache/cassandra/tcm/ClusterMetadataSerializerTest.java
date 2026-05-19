@@ -26,8 +26,7 @@ import accord.utils.Gen;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.service.accord.topology.AccordFastPath;
-import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
+import org.apache.cassandra.service.accord.topology.AccordNodeInfos;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializers;
@@ -60,9 +59,7 @@ public class ClusterMetadataSerializerTest
         Gen<ClusterMetadata> gen = Generators.toGen(new ClusterMetadataBuilder().build()).filter(cm -> {
             if (!cm.consensusMigrationState.equals(ConsensusMigrationState.EMPTY))
                 return true;
-            if (!cm.accordStaleReplicas.equals(AccordStaleReplicas.EMPTY))
-                return true;
-            if (!cm.accordFastPath.equals(AccordFastPath.EMPTY))
+            if (!cm.accordNodeInfos.equals(AccordNodeInfos.EMPTY))
                 return true;
             return false;
         });
@@ -77,8 +74,7 @@ public class ClusterMetadataSerializerTest
             Assertions.assertThat(read).isNotEqualTo(cm);
 
             Assertions.assertThat(read.consensusMigrationState).isEqualTo(ConsensusMigrationState.EMPTY);
-            Assertions.assertThat(read.accordStaleReplicas).isEqualTo(AccordStaleReplicas.EMPTY);
-            Assertions.assertThat(read.accordFastPath).isEqualTo(AccordFastPath.EMPTY);
+            Assertions.assertThat(read.accordNodeInfos).isEqualTo(AccordNodeInfos.EMPTY);
         });
     }
 }

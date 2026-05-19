@@ -59,8 +59,7 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
     long dispatches;   // number of recently processed tasks; on overflow, both dispatches and arrivals are decayed (by shift right)
     long arrivals;     // number of recently arrived tasks (saturating count)
 
-    // deficit-round-robin state
-    int creditFlow, creditAge;
+    int blendedCount, fairBalance;
 
     TaskQueueMulti(ExecutorQueue kind, GroupKind groups, long limits)
     {
@@ -177,49 +176,24 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
 
     private int pollGroupByPhaseFair()
     {
-        return minCounterIndex(recentFlowImbalances());
+        int group = minCounterIndex(recentFlowImbalances(), fairBalance);
+        if (group >= 0) fairBalance = group + 1;
+        return group;
     }
 
     /**
-     * BLENDED_PRIORITY_PHASE_FAIR: a deficit round-robin blend of two strategies, chosen per poll:
+     * BLENDED_PRIORITY_PHASE_FAIR: a fixed blend of two strategies, chosen per poll:
      * <ul>
-     *   <li>flow -> {@code minCounterIndex(dispatches - arrivals)}, i.e. the least fairly serviced group;</li>
-     *   <li>age -> {@link #pollGroupByPriority}, i.e. the earliest-queued work.</li>
+     *   <li>fairness -> {@link #pollGroupByPhaseFair}, i.e. the least fairly serviced group, with round-robin tie break;</li>
+     *   <li>priority -> {@link #pollGroupByPriority}, i.e. the earliest position.</li>
      * </ul>
      */
     private int pollGroupByBlended()
     {
-        return pollGroupByBlended(saturatedOrWithoutWork());
-    }
-
-    private int pollGroupByBlended(long disabled)
-    {
-        long withoutWork = hasWork ^ COUNTER_OVERFLOWS;
-        long counters = recentFlowImbalances();
-        long minMax = minMaxCounterValue(counters, withoutWork);
-        long min = minMax & 0x7f;
-        long max = minMax >>> 8;
-        int flowImbalance = (int) (max - min);
-
-        int flowWeight = flowWeight(flowImbalance);
-        int priorityWeight = AccordExecutor.BLEND_TOTAL - flowWeight;
-
-        creditFlow += flowWeight;
-        creditAge += priorityWeight;
-
-        if (creditFlow >= creditAge)
-        {
-            creditFlow -= AccordExecutor.BLEND_TOTAL;
-            if (disabled != withoutWork)
-                min = minCounterValue(counters, disabled);
-
-            return minCounterIndex(counters, min, disabled);
-        }
+        if ((blendedCount++ & 1) == 0)
+            return pollGroupByPriority();
         else
-        {
-            creditAge -= AccordExecutor.BLEND_TOTAL;
-            return pollGroupByPriority(disabled ^ COUNTER_OVERFLOWS);
-        }
+            return pollGroupByPhaseFair();
     }
 
     private long saturated()
@@ -303,12 +277,6 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return v - (v >>> 7);
     }
 
-    private static int flowWeight(int flowImbalance)
-    {
-        if (flowImbalance <= AccordExecutor.FLOW_ONSET) return 0;
-        return Math.min(AccordExecutor.BLEND_TOTAL, ((flowImbalance - AccordExecutor.FLOW_ONSET) << AccordExecutor.BLEND_SHIFT) >>> AccordExecutor.FLOW_WIDTH_SHIFT);
-    }
-
     // per-lane max(0, a - b), carry-free: zero both a and b in lanes where a <= b, then subtract
     private static long clampedSubtract(long a, long b)
     {
@@ -316,17 +284,17 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         return (a & keep) - (b & keep);
     }
 
-    private int minCounterIndex(long counters)
+    private int minCounterIndex(long counters, int tieBreak)
     {
-        return minCounterIndex(counters, saturatedOrWithoutWork());
+        return minCounterIndex(counters, tieBreak, saturatedOrWithoutWork());
     }
 
-    private int minCounterIndex(long counters, long disabled)
+    private int minCounterIndex(long counters, int tieBreak, long disabled)
     {
-        return minCounterIndex(counters, minCounterValue(counters, disabled), disabled);
+        return minCounterIndex(counters, tieBreak, minCounterValue(counters, disabled), disabled);
     }
 
-    private int minCounterIndex(long counters, long minCounterValue, long disabled)
+    private int minCounterIndex(long counters, int tieBreakCounter, long minCounterValue, long disabled)
     {
         long mins = minCounterValue * COUNTER_LOWBITS;
         long select = ((mins | COUNTER_OVERFLOWS) - counters) & COUNTER_OVERFLOWS;
@@ -334,7 +302,10 @@ abstract class TaskQueueMulti<T extends Task> extends TaskQueue<T>
         select &= ~disabled;
         if (select == 0)
             return -1;
-        return (Long.numberOfTrailingZeros(select) - 7) / 8;
+
+        tieBreakCounter <<= 3;
+        select = Long.rotateRight(select, tieBreakCounter);
+        return ((Long.numberOfTrailingZeros(select) + tieBreakCounter - 7) & 63) / 8;
     }
 
     final T pollMulti()

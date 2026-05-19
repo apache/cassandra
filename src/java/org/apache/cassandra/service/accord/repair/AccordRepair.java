@@ -44,7 +44,7 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.RequestBookkeeping;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.topology.AccordEndpointMapper;
+import org.apache.cassandra.service.accord.topology.AccordEndpointMap;
 import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static accord.local.durability.DurabilityService.SyncLocal.NoLocal;
+import static accord.local.durability.DurabilityService.SyncReadable.UnknownReadable;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.primitives.Timestamp.mergeMax;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -90,7 +91,7 @@ public class AccordRepair
         if (syncRemote != All && endpoints != null)
         {
             including = new ArrayList<>(endpoints.size());
-            AccordEndpointMapper mapper = AccordService.instance().endpointMapper();
+            AccordEndpointMap mapper = AccordService.instance().endpointMapper();
             for (InetAddressAndPort ep : endpoints)
             {
                 Node.Id id = mapper.mappedIdOrNull(ep);
@@ -184,7 +185,7 @@ public class AccordRepair
             long timeoutNanos = getAccordRepairTimeoutNanos();
             long maxHlc = AccordService.getBlocking(service.maxConflict(ranges).flatMap(conflict -> {
                 TxnId conflictMax = mergeMax(TxnId.atLeast(conflict), TxnId.minForEpoch(this.minEpoch.getEpoch()), TxnId::fromValues);
-                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), including, NoLocal, syncRemote, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc()).chain();
+                return service.sync("[repairId #" + repairId + ']', conflictMax, Ranges.of(range), including, null, NoLocal, syncRemote, UnknownReadable, timeoutNanos, NANOSECONDS).map(ignored -> conflictMax.hlc()).chain();
             }), ranges, bookkeeping, start, start + timeoutNanos);
             waiting = null;
 

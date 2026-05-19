@@ -38,6 +38,7 @@ import accord.api.ExclusiveAsyncExecutor;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.Scheduler;
 import accord.coordinate.Coordinations;
 import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink;
@@ -81,7 +82,7 @@ import static org.apache.cassandra.service.accord.execution.AccordExecutor.Mode.
 import static org.junit.Assert.fail;
 
 /**
- * This test has been authored entirely by Claude.
+ * This test has been authored entirely by LLM.
  *
  * An {@code INCR} task with batches left re-enqueues itself on its command store's {@link ExclusiveExecutor} from
  * {@code completeExclusiveMayThrow}, i.e. from <em>within</em> {@link ExclusiveExecutor#completeTask}: at that point its
@@ -296,6 +297,7 @@ public class AccordExecutorIncrRequeueRevocationTest
             @Override public long elapsed(TimeUnit units) { return elapsed.applyAsLong(units); }
             @Override public TopologyManager topology() { throw new UnsupportedOperationException(); }
             @Override public Coordinations coordinations() { return new Coordinations(); }
+            @Override public Scheduler scheduler() { return null; }
             @Override public long currentStamp() { return stamp; }
             @Override public void updateStamp() { ++stamp; }
             @Override public boolean isReplaying() { return false; }
