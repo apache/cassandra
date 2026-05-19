@@ -262,8 +262,10 @@ public class AccordCommandStore extends CommandStore
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         maybeLoadSafeToRead(journal.loadSafeToRead(id()));
-
-        tableId = (TableId)rangesForEpoch.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
+        maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
+        RangesForEpoch ranges = this.rangesForEpoch;
+        Invariants.require(ranges != null && !ranges.all().isEmpty(), "CommandStore %d created with no ranges", id);
+        tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
             Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
@@ -808,12 +810,12 @@ public class AccordCommandStore extends CommandStore
                 return AsyncChains.success(null);
 
             return commandStore.chain(ExecutionContext.unsequenced(txnId, "Replay"), safeStore -> {
-                Replay replay = shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants());
+                Replay replay = shouldReplay(txnId, safeStore.unsafeTryGet(txnId).current().participants());
                 if (replay == Replay.NONE)
                     return null;
 
                 replay(safeStore, txnId, replay);
-                return safeStore.unsafeGet(txnId).current().route();
+                return safeStore.unsafeTryGet(txnId).current().route();
             });
         }
     }
@@ -961,7 +963,7 @@ public class AccordCommandStore extends CommandStore
                 {
                     File rjbf = new File(savePoint, "reject_before");
                     if (rjbf.exists())
-                        mxc = mxc.with(readOne(rjbf, rejectBefore));
+                        mxc = mxc.update(readOne(rjbf, rejectBefore));
                 }
                 dll = readList(new File(savePoint, "listeners"), txnListener);
                 dpl = readList(new File(savePoint, "progress_log"), progressLogState);

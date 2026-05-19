@@ -416,7 +416,7 @@ public abstract class Task extends IntrusiveHeapNode implements Cancellable, Deb
     /** Return true if COMPLETED successfully. false indicates more work is being done. Should not throw any exceptions related to reporting success. */
     abstract boolean runMayThrow();
     abstract void completeExclusiveMayThrow();
-    abstract void tryCancelExclusive();
+    abstract void tryCancelExclusive(CancellationException cancelled);
     abstract void reportFailureMayThrow(Throwable fail);
 
     abstract AccordExecutor executor();
