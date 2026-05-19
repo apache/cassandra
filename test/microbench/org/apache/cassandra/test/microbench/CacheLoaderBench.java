@@ -46,18 +46,17 @@ import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.TestHelper;
 
 @SuppressWarnings("unused")
 @BenchmarkMode(Mode.SampleTime)
@@ -151,11 +150,9 @@ public class CacheLoaderBench
     }
 
     @TearDown(Level.Trial)
-    public void teardown()
+    public void teardown() throws Exception
     {
-        CQLTester.tearDownClass();
-        CommitLog.instance.stopUnsafe(true);
-        CQLTester.cleanup();
+        TestHelper.teardown();
     }
 
     @Benchmark

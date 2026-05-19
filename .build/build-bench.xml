@@ -49,9 +49,11 @@
         <!-- Only used to test jmh classes run without error.  Not to be used for actual performance tests -->
         <jmh>
             <extra-args>
-                <arg value="-f"/><arg value="1"/>
-                <arg value="-wi"/><arg value="0"/>
-                <arg value="-i"/><arg value="1"/>
+                <arg value="-f"/><arg value="1"/>    <!-- forks -->
+                <arg value="-wi"/><arg value="0"/>   <!-- warmup iterations -->
+                <arg value="-i"/><arg value="1"/>    <!-- fork -->
+                <arg value="-r"/><arg value="1"/>    <!-- measurement iteration time -->
+                <arg value="-t"/><arg value="1"/>    <!-- threads -->
             </extra-args>
         </jmh>
     </target>

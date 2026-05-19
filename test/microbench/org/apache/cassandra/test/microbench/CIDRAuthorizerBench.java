@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.openjdk.jmh.annotations.Benchmark;
@@ -50,6 +49,7 @@ import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.cql3.CIDR;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.utils.TestHelper;
 
 /**
  * Benchmark CIDR authorizer (enforce mode)
@@ -99,9 +99,9 @@ public class CIDRAuthorizerBench extends CQLTester
     }
 
     @TearDown(Level.Trial)
-    public void teardown() throws IOException, ExecutionException, InterruptedException
+    public void teardown() throws Exception
     {
-        CQLTester.cleanup();
+        TestHelper.teardown();
     }
 
     @State(Scope.Thread)
