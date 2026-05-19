@@ -529,8 +529,9 @@ public abstract class AbstractReplicationStrategy
      * Create coordination plan for replaying a mutation from the batchlog.
      *
      * When recovering failed batches, mutations are replayed to remote replicas only
-     * (local replica is handled separately). This method creates a coordination plan
-     * targeting live remote replicas with CL.ONE.
+     * (local replica is handled separately). This method creates a replica plan
+     * targeting live remote replicas with CL.ONE, and a response tracker that waits on
+     * all contacts
      */
     public CoordinationPlan.ForWriteWithIdeal planForReplayMutation(ClusterMetadata metadata,
                                                                     Keyspace keyspace,
@@ -539,7 +540,10 @@ public abstract class AbstractReplicationStrategy
         Preconditions.checkState(!replicationType.isTracked(), "Batch replay not supported with tracked keyspaces");
 
         ReplicaPlan.ForWrite plan = ReplicaPlans.forReplayMutation(metadata, keyspace, token);
-        ResponseTracker tracker = createTrackerForWrite(plan.consistencyLevel(), plan, plan.pending, metadata);
+
+        // wait until all contacts respond
+        int blockFor = plan.contacts().size();
+        ResponseTracker tracker = new SimpleResponseTracker(blockFor, blockFor);
 
         return new CoordinationPlan.ForWriteWithIdeal(metadata, plan, tracker, null);
     }

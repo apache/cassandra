@@ -661,12 +661,6 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
 
             @Override
-            protected int blockFor()
-            {
-                return this.replicaPlan().contacts().size();
-            }
-
-            @Override
             public void onResponse(Message<T> m)
             {
                 boolean removed = undelivered.remove(m == null ? FBUtilities.getBroadcastAddressAndPort() : m.from());
