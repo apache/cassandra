@@ -1026,6 +1026,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public Descriptor newSSTableDescriptor(File directory, Version version)
     {
         Descriptor newDescriptor;
+
+        /*
+         * Note that thread safety is managed by the underlying sstableIdGenerator (e.g., via AtomicInteger),
+         * guaranteeing unique IDs for concurrent callers within the process.
+         * * This loop acts as a collision-resolution mechanism for offline vs. online operations.
+         * Offline tools (such as bin/sstableupgrade) may generate new SSTables on disk, bypassing
+         * the in-memory ID generator. If the live process encounters a collision due to such
+         * out-of-band generation, this loop ensures the process advances the generator until a
+         * free ID is found.
+         */
         while (true)
         {
             newDescriptor = new Descriptor(version,
@@ -1037,7 +1047,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             if (!newDescriptor.fileFor(Components.DATA).exists())
                 break;
 
-            logger.warn("Generated SSTable id {} collides with existing file; advancing.", newDescriptor.id);
+            logger.debug("Generated SSTable id {} collides with existing file; advancing.", newDescriptor.id);
         }
 
         return newDescriptor;

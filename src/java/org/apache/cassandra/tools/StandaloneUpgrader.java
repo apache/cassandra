@@ -217,7 +217,7 @@ public class StandaloneUpgrader
             options.addOption(null, DEBUG_OPTION,          "display stack traces");
             options.addOption("h",  HELP_OPTION,           "display this help message");
             options.addOption("k",  KEEP_SOURCE,           "do not delete the source sstables");
-            options.addOption("a",  "include-all-sstables", "include all sstables, even those already on the current version");
+            options.addOption("a",  INCLUDE_ALL, "include all sstables, even those already on the current version");
             return options;
         }
 
