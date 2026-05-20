@@ -565,7 +565,7 @@ public class CommandStoreSerializers
                     size += KeySerializers.routingKey.serializedSizeWithoutPrefixOrLength(e.start());
                 }
                 if (fixedLength < 0)
-                    size +=  VIntCoding.sizeOfUnsignedVInt(KeySerializers.routingKey.serializedSizeWithoutPrefixOrLength(e.start()));
+                    size +=  VIntCoding.sizeOfUnsignedVInt(KeySerializers.routingKey.serializedSizeWithoutPrefixOrLength(e.end()));
                 size += KeySerializers.routingKey.serializedSizeWithoutPrefixOrLength(e.end());
                 size += serializedSizeWithoutRange(e);
                 prev = e;
@@ -806,6 +806,7 @@ public class CommandStoreSerializers
         public long serializedSize(IdEntry t)
         {
             return 1 + CommandSerializers.txnId.serializedSize(t)
+                   + VIntCoding.sizeOfUnsignedVInt(t.encoded())
                    + (t.getClass() == IdSingleEntry.class ? KeySerializers.range.serializedSize(((IdSingleEntry)t).range)
                                                           : KeySerializers.ranges.serializedSize(((IdMultiEntry)t).ranges));
         }

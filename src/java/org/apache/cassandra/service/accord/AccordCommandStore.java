@@ -604,7 +604,6 @@ public class AccordCommandStore extends CommandStore
     @Override
     public AccordCommandStoreReplayer replayer(Mode mode)
     {
-        ReplayMode replayMode = getAccord().journal.replay;
         return new AccordCommandStoreReplayer(this, mode);
     }
     

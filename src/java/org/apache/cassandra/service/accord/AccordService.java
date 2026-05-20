@@ -620,8 +620,7 @@ public class AccordService implements IAccordService, Shutdownable
         // start the progress log on command store initialisation (so creates a synchronisation point)
         journal.writeStartMarker();
         state = State.STARTED;
-        instance = requestInstance = this;
-        node.commandStores().forAllUnsafe(cs -> cs.unsafeProgressLog().start());
+        instance = requestInstance = replyInstance = this;
 
         node.durability().shards().reconfigure(Ints.checkedCast(getAccordShardDurabilityTargetSplits()),
                                                Ints.checkedCast(getAccordShardDurabilityMaxSplits()),

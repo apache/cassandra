@@ -91,6 +91,7 @@ public class ReplayMarkers
     {
         int fd = NativeLibrary.tryOpenDirectory(path);
         NativeLibrary.trySync(fd);
+        NativeLibrary.tryCloseFD(fd);
     }
 
     public static File saveDirectory()
