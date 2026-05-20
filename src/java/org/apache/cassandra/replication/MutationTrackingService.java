@@ -1498,7 +1498,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                     // TODO (expected): backoff, rate limits, per host and total
                     PullMutationsRequest request = new PullMutationsRequest(offsets);
                     logger.trace("Requesting pull mutation request from replica {} for missing offset {}", pullFrom, offsets);
-                    MessagingService.instance().send(Message.out(Verb.PULL_MUTATIONS_REQ, request), pullFrom);
+                    MessagingService.instance().send(Message.out(Verb.MT_PULL_MUTATIONS_REQ, request), pullFrom);
                 }
             }
             catch (Throwable throwable)
