@@ -55,21 +55,26 @@ class TestFormatting(unittest.TestCase):
 
     def test_format_value_text_control_chars(self):
         """
-        Test that control chars are escaped for terminal display (default),
-        but preserved when escape_control_chars=False is passed (for CSV export).
+        Test that control chars AND literal backslashes are escaped for terminal
+        display (default), but BOTH are preserved verbatim when
+        escape_control_chars=False is passed (for CSV export).
         """
         self.assertEqual(
             format_value_text("Hello World", encoding='utf-8', colormap=NO_COLOR_MAP),
             "Hello World"
         )
 
-        test_string = "Hello\nWorld\x00\tTest\r"
+        test_string = "C:\\Users\\alice\nHello\x00"
 
         terminal_output = format_value_text(test_string, encoding='utf-8', colormap=NO_COLOR_MAP)
-        self.assertEqual(terminal_output, "Hello\\nWorld\\x00\\tTest\\r")
+        self.assertEqual(terminal_output, "C:\\\\Users\\\\alice\\nHello\\x00")
 
-        csv_output = format_value_text(test_string, encoding='utf-8', colormap=NO_COLOR_MAP, escape_control_chars=False)
+        csv_output = format_value_text(test_string, encoding='utf-8', colormap=NO_COLOR_MAP,
+                                       escape_control_chars=False)
         self.assertEqual(csv_output, test_string)
+
+        self.assertIn('C:\\Users', csv_output)
+        self.assertNotIn('C:\\\\Users', csv_output)
 
     def test_format_value_list_control_chars(self):
         """ Test control character propagation in lists """

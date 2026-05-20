@@ -479,7 +479,11 @@ def decode_zig_zag_64(n):
 
 @formatter_for('str')
 def format_value_text(val, encoding, colormap, quote=False, escape_control_chars=True, **_):
-    escapedval = val.replace('\\', '\\\\')
+    if escape_control_chars:
+        escapedval = val.replace('\\', '\\\\')
+    else:
+        escapedval = val
+
     if quote:
         escapedval = escapedval.replace("'", "''")
     if escape_control_chars:
