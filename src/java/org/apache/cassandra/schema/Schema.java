@@ -27,7 +27,6 @@ import java.util.function.Supplier;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -243,8 +242,9 @@ public final class Schema implements SchemaProvider
     public Iterable<TableMetadata> getTablesAndViews(String keyspaceName)
     {
         Preconditions.checkNotNull(keyspaceName);
-        KeyspaceMetadata ksm = ObjectUtils.getFirstNonNull(() -> distributedKeyspaces().getNullable(keyspaceName),
-                                                           () -> localKeyspaces.getNullable(keyspaceName));
+        KeyspaceMetadata ksm = distributedKeyspaces().getNullable(keyspaceName);
+        if (ksm == null)
+            ksm = localKeyspaces.getNullable(keyspaceName);
         Preconditions.checkNotNull(ksm, "Keyspace %s not found", keyspaceName);
         return ksm.tablesAndViews();
     }
