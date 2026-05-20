@@ -155,9 +155,6 @@ public final class ServerTestUtils
     {
         daemonInitialization();
 
-        // Need to happen after daemonInitialization for config to be set, but before CFS initialization
-        MutationJournal.start();
-
         if (isServerPrepared)
             return;
 
@@ -196,6 +193,8 @@ public final class ServerTestUtils
         ThreadAwareSecurityManager.install();
 
         CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE.setInt(0);
+        // Need to happen after daemonInitialization for config to be set, but before CFS initialization
+        MutationJournal.start();
         initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
@@ -230,6 +229,7 @@ public final class ServerTestUtils
             cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
         cleanupDirectory(DatabaseDescriptor.getAccordJournalDirectory());
+        cleanupDirectory(DatabaseDescriptor.getMutationTrackingJournalDirectory());
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files
