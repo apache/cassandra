@@ -24,5 +24,5 @@ command -v ant >/dev/null 2>&1 || { echo >&2 "ant needs to be installed"; exit 1
 [ -f "${CASSANDRA_DIR}/build.xml" ] || { echo >&2 "${CASSANDRA_DIR}/build.xml must exist"; exit 1; }
 
 # execute. memory needs to fit within the specified container size, see .jenkins/Jenkinsfile
-ANT_OPTS="-Xmx1g -XX:+PrintClassHistogram -XX:OnOutOfMemoryError='kill -QUIT %p'" ant -f "${CASSANDRA_DIR}/build.xml" check # dependency-check # FIXME dependency-check now requires NVD key downloaded first
+ANT_OPTS="-Xmx2g -XX:+PrintClassHistogram -XX:OnOutOfMemoryError='kill -QUIT %p'" ant -f "${CASSANDRA_DIR}/build.xml" check # dependency-check # FIXME dependency-check now requires NVD key downloaded first
 exit $?
