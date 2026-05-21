@@ -95,6 +95,7 @@ The most commonly used nodetool commands are:
     listpendinghints                    Print all pending hints that this node has
     listsnapshots                       Lists all the snapshots along with the size on disk and true size. True size is the total size of all SSTables which are not backed up to disk. Size on disk is total size of the snapshot on disk. Total TrueDiskSpaceUsed does not make any SSTable deduplication.
     move                                Move node on the token ring to a new token
+    mtadmin                             Manage mutation tracking
     netstats                            Print network information on provided host (connecting node by default)
     pausehandoff                        Pause hints delivery process
     profile                             Manage Async-Profiler on a Cassandra process
