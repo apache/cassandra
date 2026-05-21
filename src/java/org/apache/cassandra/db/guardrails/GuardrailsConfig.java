@@ -437,6 +437,19 @@ public interface GuardrailsConfig
     int getDataDiskUsagePercentageFailThreshold();
 
     /**
+     * @return Whether a single node replicating a given keyspace being full should block writes for the entire
+     * keyspace. Returns {@code true} if this behavior is enabled, {@code false} otherwise.
+     */
+    boolean getDataDiskUsageKeyspaceWideProtectionEnabled();
+
+    /**
+     * Enables or disables blocking writes for a keyspace when any node replicating that keyspace is full.
+     *
+     * @param enabled {@code true} to block writes keyspace-wide once a replica is full, {@code false} to disable.
+     */
+    void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled);
+
+    /**
      * @return The max disk size of the data directories when calculating disk usage thresholds, {@code null} means
      * disabled.
      */
