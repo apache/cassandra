@@ -996,12 +996,13 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   x -> config.data_disk_usage_percentage_fail_threshold = x);
     }
 
-
+    @Override
     public boolean getDataDiskUsageKeyspaceWideProtectionEnabled()
     {
         return config.data_disk_usage_keyspace_wide_protection_enabled;
     }
 
+    @Override
     public void setDataDiskUsageKeyspaceWideProtectionEnabled(boolean enabled)
     {
         updatePropertyWithLogging("data_disk_usage_keyspace_wide_protection_enabled",
