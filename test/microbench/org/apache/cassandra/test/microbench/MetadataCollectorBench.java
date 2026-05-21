@@ -27,6 +27,7 @@ import org.jctools.util.Pow2;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
@@ -34,6 +35,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -47,6 +49,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.TestHelper;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -120,6 +123,12 @@ public class MetadataCollectorBench
             clusterings[i] = clusterings[to];
             clusterings[to] = temp;
         }
+    }
+
+    @TearDown(Level.Trial)
+    public void teardown() throws Exception
+    {
+        TestHelper.teardown();
     }
 
     @Benchmark

@@ -56,10 +56,12 @@ public class InMemoryTrieUnionBench
     @Param({"ON_HEAP", "OFF_HEAP"})
     BufferType bufferType = BufferType.OFF_HEAP;
 
-    @Param({"1000", "100000", "10000000"})
+    // @Param({"1000", "100000", "10000000"})
+    @Param({"1000", "100000"})
     int count = 1000;
 
-    @Param({"2", "3", "8"})
+    // @Param({"2", "3", "8"})
+    @Param({"2", "3"})
     int sources = 2;
 
     @Param({"false", "true"})
