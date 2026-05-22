@@ -170,20 +170,16 @@ public class HexPropertyTest
     }
 
     /**
-     * Exposes bug: Hex.parseLong silently produces wrong values for uppercase A-F input.
+     * Verifies that {@link Hex#parseLong} correctly handles uppercase hex characters A-F
+     * in addition to lowercase a-f and digits 0-9.
      * <p>
-     * The bug is in the nibble computation at Hex.java line 109:
-     * {@code c - (c >= 'a' ? 'a' - 10 : '0')}
-     * For uppercase letters A-F, {@code c >= 'a'} is false, so it computes {@code c - '0'}
-     * which gives wrong values (e.g., 'A'=65, 65-48=17, not the correct 10).
-     * <p>
-     * This test generates mixed-case hex strings and verifies parseLong agrees with
-     * Long.parseUnsignedLong. It is ignored because parseLong does not handle uppercase.
+     * Generates mixed-case hex strings and verifies parseLong agrees with
+     * {@link Long#parseUnsignedLong(String, int)}.
      */
     @Test
     public void parseLongHandlesUppercase()
     {
-        qt().withOnlySeed(3447845985344667502L).check(rs -> {
+        qt().check(rs -> {
             // Generate a valid mixed-case hex string of length 1..16
             int len = rs.nextInt(1, 17);
             char[] chars = new char[len];

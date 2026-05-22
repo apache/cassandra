@@ -106,7 +106,7 @@ public class Hex
         for (int i = start ; i < end ; ++i)
         {
             char c = hex.charAt(i);
-            result |= (long)(c - (c >= 'a' ? 'a' - 10 : '0')) << shift;
+            result |= (long)(c >= 'a' ? c - 'a' + 10 : c >= 'A' ? c - 'A' + 10 : c - '0') << shift;
             shift -= 4;
         }
         return result;
