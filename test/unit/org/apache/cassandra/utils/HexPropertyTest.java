@@ -293,6 +293,39 @@ public class HexPropertyTest
     }
 
     /**
+     * parseLong must throw NumberFormatException for strings containing non-hex characters.
+     * Characters outside [0-9a-fA-F] are invalid hex digits.
+     */
+    @Test
+    public void parseLongRejectsNonHexCharacters()
+    {
+        qt().check(rs -> {
+            // Generate a valid hex string of length 1..16
+            int len = rs.nextInt(1, 17);
+            char[] chars = new char[len];
+            for (int i = 0; i < len; i++)
+            {
+                int nibble = rs.nextInt(16);
+                chars[i] = "0123456789abcdef".charAt(nibble);
+            }
+
+            // Replace one character with a non-hex character
+            int pos = rs.nextInt(0, len);
+            char bad;
+            do
+            {
+                bad = (char) rs.nextInt(0, 128);
+            }
+            while ((bad >= '0' && bad <= '9') || (bad >= 'a' && bad <= 'f') || (bad >= 'A' && bad <= 'F'));
+            chars[pos] = bad;
+
+            String invalid = new String(chars);
+            assertThatThrownBy(() -> Hex.parseLong(invalid, 0, invalid.length()))
+                .isInstanceOf(NumberFormatException.class);
+        });
+    }
+
+    /**
      * bytesToHex always produces a string of even length equal to 2 * input length,
      * containing only lowercase hex characters.
      */

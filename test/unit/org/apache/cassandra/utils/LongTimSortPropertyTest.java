@@ -91,10 +91,12 @@ public class LongTimSortPropertyTest
                     a[k] = tmp;
                 }
                 break;
-            default: // full range longs
+            case 6: // full range longs
                 for (int i = 0; i < size; i++)
                     a[i] = rs.nextLong();
                 break;
+            default:
+                throw new IllegalStateException("Unknown strategy: " + strategy);
         }
         return a;
     }
