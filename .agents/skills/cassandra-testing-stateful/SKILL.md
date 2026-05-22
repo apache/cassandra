@@ -219,6 +219,23 @@ import accord.utils.RandomSource;
 - `modules/accord/accord-core/src/test/java/accord/utils/Gens.java` - Generator utilities
 - `modules/accord/accord-core/src/test/java/accord/utils/README.md` - Documentation
 
+## Example: SingleNodeTableWalkTest (complex real-world stateful test)
+
+`test/distributed/org/apache/cassandra/distributed/test/cql3/SingleNodeTableWalkTest.java` is a complex stateful test that exercises CQL read/write paths against random table schemas with random data. It is a good reference for writing non-trivial stateful tests.
+
+Key design patterns demonstrated:
+- **State with overridable hooks**: The `State` inner class defines boolean predicates (`supportTokens()`, `allowNonPartitionQuery()`, `allowPartitionQuery()`, etc.) that control which commands are eligible via `addIf`. Subclasses override these hooks to alter behavior without duplicating the test structure.
+- **Overridable factory methods**: `createState()`, `createCluster()`, `defineTable()`, `supportedTypes()`, `supportedPrimaryColumnTypes()`, `supportedIndexers()`, and `preCheck()` are all `protected` methods that subclasses override to customize schema generation, cluster topology, and test configuration.
+- **Extensive use of `addIf`/`addAllIf`**: Commands are conditionally included based on current state (e.g., only select existing rows when partitions exist, only compact when there are enough SSTables).
+
+The test has a subclass hierarchy that reuses the same stateful structure for different configurations:
+- `SingleNodeTableWalkTest` -- single-node, base test
+- `MultiNodeTableWalkBase` -- multi-node (overrides `createCluster()`, adjusts consistency)
+  - `MultiNodeTableWalkWithReadRepairTest` / `MultiNodeTableWalkWithoutReadRepairTest`
+  - `CasMultiNodeTableWalkBase` -- CAS (Paxos) transactions
+  - `AccordInteropMultiNodeTableWalkBase` -- Accord transaction interop
+    - `FullAccordInteropMultiNodeTableWalkTest`, `MixedReadsAccordInteropMultiNodeTableWalkTest`
+
 ## Important Notes
 
 - Default examples for `stateful()` is **500** (not 1000 like `qt()`)
