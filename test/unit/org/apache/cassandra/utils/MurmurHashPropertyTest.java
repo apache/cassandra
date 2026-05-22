@@ -85,9 +85,18 @@ public class MurmurHashPropertyTest
     {
         qt().forAll(BYTE_ARRAY_GEN, Gens.longs().all()).check((data, seed) -> {
             long fromArray = MurmurHash.hash2_64(data, 0, data.length, seed);
-            long fromBuffer = MurmurHash.hash2_64(ByteBuffer.wrap(data), 0, data.length, seed);
-            assertThat(fromBuffer)
-                .describedAs("hash2_64 ByteBuffer and byte[] must produce the same result")
+            long fromHeap = MurmurHash.hash2_64(ByteBuffer.wrap(data), 0, data.length, seed);
+            assertThat(fromHeap)
+                .describedAs("hash2_64 heap ByteBuffer and byte[] must produce the same result")
+                .isEqualTo(fromArray);
+
+            // Also test with a direct ByteBuffer
+            ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
+            direct.put(data);
+            direct.flip();
+            long fromDirect = MurmurHash.hash2_64(direct, 0, data.length, seed);
+            assertThat(fromDirect)
+                .describedAs("hash2_64 direct ByteBuffer and byte[] must produce the same result")
                 .isEqualTo(fromArray);
         });
     }
@@ -97,11 +106,20 @@ public class MurmurHashPropertyTest
     {
         qt().forAll(BYTE_ARRAY_GEN, Gens.longs().all()).check((data, seed) -> {
             long[] resultArray = new long[2];
-            long[] resultBuffer = new long[2];
+            long[] resultHeap = new long[2];
+            long[] resultDirect = new long[2];
             MurmurHash.hash3_x64_128(data, 0, data.length, seed, resultArray);
-            MurmurHash.hash3_x64_128(ByteBuffer.wrap(data), 0, data.length, seed, resultBuffer);
-            assertThat(resultBuffer)
-                .describedAs("hash3_x64_128 ByteBuffer and byte[] must produce the same result")
+            MurmurHash.hash3_x64_128(ByteBuffer.wrap(data), 0, data.length, seed, resultHeap);
+            assertThat(resultHeap)
+                .describedAs("hash3_x64_128 heap ByteBuffer and byte[] must produce the same result")
+                .isEqualTo(resultArray);
+
+            ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
+            direct.put(data);
+            direct.flip();
+            MurmurHash.hash3_x64_128(direct, 0, data.length, seed, resultDirect);
+            assertThat(resultDirect)
+                .describedAs("hash3_x64_128 direct ByteBuffer and byte[] must produce the same result")
                 .isEqualTo(resultArray);
         });
     }
@@ -233,6 +251,17 @@ public class MurmurHashPropertyTest
                 .isEqualTo(value);
         });
     }
+
+    // ---- invTailReverse ----
+    // Note: MurmurHash.invTailReverse is a public method with no test coverage.
+    // Testing it in isolation is non-trivial because:
+    // 1. It has specific byte-order conventions (Long.reverseBytes at entry, Longs big-endian
+    //    at exit) that are only meaningful in the context of the full hash3 inverse pipeline.
+    // 2. It has a latent bug: BitSet.toByteArray() can return a shorter array when high bits
+    //    are zero, causing ArrayIndexOutOfBoundsException for certain inputs.
+    // A proper test would require implementing the full non-16-byte hash3 inverse pipeline
+    // (which doesn't exist in the codebase). The 16-byte case is covered by
+    // hash3InverseRoundTripSeedZero, which uses inv_hash3_x64_128 (no tail processing needed).
 
     // ---- Known test vectors (golden values) ----
 

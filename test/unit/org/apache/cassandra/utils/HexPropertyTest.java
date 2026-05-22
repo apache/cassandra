@@ -149,20 +149,29 @@ public class HexPropertyTest
 
     /**
      * parseLong works correctly with arbitrary start/end offsets within a
-     * larger string.
+     * larger string. Uses non-hex characters for padding so that any
+     * off-by-one error in start/end handling would produce wrong values
+     * or exceptions rather than silently reading valid hex from the padding.
      */
     @Test
     public void parseLongWithOffsets()
     {
-        qt().forAll(Gens.longs().all()).check(value -> {
+        qt().check(rs -> {
+            long value = rs.nextLong();
             String hex = Long.toHexString(value);
 
-            // Embed the hex string in a larger string with random prefix/suffix
-            String prefix = "deadbeef";
-            String suffix = "cafebabe";
-            String padded = prefix + hex + suffix;
+            // Generate random non-hex prefix and suffix
+            int prefixLen = rs.nextInt(0, 17);
+            int suffixLen = rs.nextInt(0, 17);
+            StringBuilder sb = new StringBuilder(prefixLen + hex.length() + suffixLen);
+            for (int i = 0; i < prefixLen; i++)
+                sb.append((char) ('g' + rs.nextInt(0, 20))); // g-z are non-hex
+            sb.append(hex);
+            for (int i = 0; i < suffixLen; i++)
+                sb.append((char) ('g' + rs.nextInt(0, 20)));
+            String padded = sb.toString();
 
-            int start = prefix.length();
+            int start = prefixLen;
             int end = start + hex.length();
             long recovered = Hex.parseLong(padded, start, end);
             assertThat(recovered).isEqualTo(value);
@@ -223,7 +232,7 @@ public class HexPropertyTest
     }
 
     /**
-     * Hex strings containing non-hex characters must throw NumberFormatException.
+     * Hex strings containing non-hex ASCII characters must throw NumberFormatException.
      */
     @Test
     public void hexToBytesRejectsNonHexCharacters()
@@ -251,6 +260,35 @@ public class HexPropertyTest
             String invalid = new String(chars);
             assertThatThrownBy(() -> Hex.hexToBytes(invalid))
                 .isInstanceOf(NumberFormatException.class);
+        });
+    }
+
+    /**
+     * Hex strings containing Unicode characters >= 256 must throw an exception.
+     * The {@code charToByte} lookup table is only 256 entries, so characters outside
+     * this range cause an {@link ArrayIndexOutOfBoundsException} rather than the
+     * {@link NumberFormatException} thrown for non-hex ASCII characters.
+     */
+    @Test
+    public void hexToBytesRejectsUnicodeCharacters()
+    {
+        qt().check(rs -> {
+            // Start with a valid even-length hex string (at least 2 chars)
+            int pairCount = rs.nextInt(1, 33);
+            char[] chars = new char[pairCount * 2];
+            for (int i = 0; i < chars.length; i++)
+            {
+                int nibble = rs.nextInt(16);
+                chars[i] = "0123456789abcdef".charAt(nibble);
+            }
+
+            // Replace one character with a Unicode character >= 256
+            int pos = rs.nextInt(0, chars.length);
+            chars[pos] = (char) rs.nextInt(256, 65536);
+
+            String invalid = new String(chars);
+            assertThatThrownBy(() -> Hex.hexToBytes(invalid))
+                .isInstanceOf(ArrayIndexOutOfBoundsException.class);
         });
     }
 
