@@ -108,6 +108,18 @@ Gen<Gen<WaitingOn>> distro = rs -> AccordGens.waitingOn(...);
 Gen<WaitingOn> flattened = Gens.flatten(distro); // flatten Gen<Gen<T>> to Gen<T>
 ```
 
+#### Cassandra Accord-style generators (`test/unit/org/apache/cassandra/utils/AccordGenerators.java`)
+
+Generators using Accord's `Gen<T>` type, directly usable with `Property.qt()` (no bridge needed):
+- `AccordGenerators.byteArray(Gen.IntGen sizeGen)` - Random `byte[]` with size from generator; fills 8 bytes at a time via `nextLong()` for efficiency
+- `AccordGenerators.byteArrayOfSize(int size)` - Random `byte[]` of fixed size
+- `AccordGenerators.keys()` / `AccordGenerators.keys(partitioner)` - `PartitionKey` generators
+- `AccordGenerators.routingKeysGen(partitioner)` - `TokenKey` generators
+- `AccordGenerators.range(partitioner)` - `Range` generators
+- `AccordGenerators.ranges(partitioner)` - `Ranges` generators
+- `AccordGenerators.commands()` - Random `Command` objects
+- `AccordGenerators.topologyGen(partitioner)` - Random `Topology` objects
+
 #### Cassandra generators (`test/unit/org/apache/cassandra/utils/Generators.java`)
 
 General-purpose generators (QuickTheories `Gen` type - use `Generators.toGen()` to convert):
@@ -381,6 +393,7 @@ import accord.utils.RandomSource;
 
 - `modules/accord/accord-core/src/test/java/accord/utils/Property.java` - Core `qt()` / `stateful()` framework
 - `modules/accord/accord-core/src/test/java/accord/utils/Gens.java` - Accord generator utilities
+- `test/unit/org/apache/cassandra/utils/AccordGenerators.java` - Cassandra-specific Accord-style generators (byte arrays, keys, ranges, topologies) - use directly with `qt().forAll()`
 - `test/unit/org/apache/cassandra/utils/Generators.java` - General-purpose generators (UUID, InetAddress, DNS, timestamps, bytes, BigInteger, etc.) + `toGen()`/`fromGen()` bridge
 - `test/unit/org/apache/cassandra/utils/AbstractTypeGenerators.java` - CQL type generators + `getTypeSupport()` for generating values of any type
 - `test/unit/org/apache/cassandra/utils/CassandraGenerators.java` - High-level domain generators (TableMetadata, KeyspaceMetadata, Messages, Tokens, compaction/compression params)
