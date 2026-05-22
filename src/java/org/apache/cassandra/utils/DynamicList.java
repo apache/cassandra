@@ -208,9 +208,6 @@ public class DynamicList<E>
         return size;
     }
 
-    // some quick and dirty tests to confirm the skiplist works as intended
-    // don't create a separate unit test - tools tree doesn't currently warrant them
-
     @VisibleForTesting
     boolean isWellFormed()
     {
