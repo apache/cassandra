@@ -37,10 +37,21 @@ public class HexPropertyTest
     /** Generate a random byte array of length 0..128. */
     private static final Gen<byte[]> BYTE_ARRAY_GEN = AccordGenerators.byteArray(Gens.ints().between(0, 128));
 
-    /** Generate a valid lowercase hex string by converting random bytes. */
+    /**
+     * Generate a valid mixed-case hex string by converting random bytes to hex
+     * and then randomly uppercasing some of the hex letter characters (a-f).
+     * This ensures tests exercise both lowercase and uppercase hex input.
+     */
     private static final Gen<String> HEX_STRING_GEN = rs -> {
         byte[] bytes = BYTE_ARRAY_GEN.next(rs);
-        return Hex.bytesToHex(bytes);
+        String lowercase = Hex.bytesToHex(bytes);
+        char[] chars = lowercase.toCharArray();
+        for (int i = 0; i < chars.length; i++)
+        {
+            if (chars[i] >= 'a' && chars[i] <= 'f' && rs.nextBoolean())
+                chars[i] = (char) (chars[i] - 'a' + 'A');
+        }
+        return new String(chars);
     };
 
     /**
@@ -155,6 +166,41 @@ public class HexPropertyTest
             int end = start + hex.length();
             long recovered = Hex.parseLong(padded, start, end);
             assertThat(recovered).isEqualTo(value);
+        });
+    }
+
+    /**
+     * Exposes bug: Hex.parseLong silently produces wrong values for uppercase A-F input.
+     * <p>
+     * The bug is in the nibble computation at Hex.java line 109:
+     * {@code c - (c >= 'a' ? 'a' - 10 : '0')}
+     * For uppercase letters A-F, {@code c >= 'a'} is false, so it computes {@code c - '0'}
+     * which gives wrong values (e.g., 'A'=65, 65-48=17, not the correct 10).
+     * <p>
+     * This test generates mixed-case hex strings and verifies parseLong agrees with
+     * Long.parseUnsignedLong. It is ignored because parseLong does not handle uppercase.
+     */
+    @Test
+    public void parseLongHandlesUppercase()
+    {
+        qt().withOnlySeed(3447845985344667502L).check(rs -> {
+            // Generate a valid mixed-case hex string of length 1..16
+            int len = rs.nextInt(1, 17);
+            char[] chars = new char[len];
+            for (int i = 0; i < len; i++)
+            {
+                int nibble = rs.nextInt(16);
+                char c = "0123456789abcdef".charAt(nibble);
+                // Randomly uppercase hex letter characters
+                if (c >= 'a' && c <= 'f' && rs.nextBoolean())
+                    c = (char) (c - 'a' + 'A');
+                chars[i] = c;
+            }
+            String hex = new String(chars);
+
+            long fromHex = Hex.parseLong(hex, 0, hex.length());
+            long fromJdk = Long.parseUnsignedLong(hex, 16);
+            assertThat(fromHex).isEqualTo(fromJdk);
         });
     }
 

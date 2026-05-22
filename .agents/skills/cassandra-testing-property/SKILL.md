@@ -405,3 +405,44 @@ import accord.utils.RandomSource;
 - When using QuickTheories generators with `Property.qt()`, wrap them with `Generators.toGen(qtGen)` 
 - Always write properties that are **true for all valid inputs**, not just specific examples
 - When a test fails, always include the seed in bug reports so it can be replayed with `withSeed()`
+
+## Deterministic Execution Requirement
+
+**All randomness in a property test must flow through `RandomSource` for failures to be reproducible via seed.**
+
+Before writing a property test, audit the system under test for internal randomness sources:
+
+| Internal randomness source | Impact | Mitigation |
+|---|---|---|
+| `ThreadLocalRandom` | Seed replay won't reproduce same SUT behavior | Refactor SUT to accept random source, or document limitation |
+| `Math.random()` | Same as above | Same as above |
+| `System.nanoTime()` / `System.currentTimeMillis()` | Timing-dependent behavior varies across runs | Mock time source or accept non-reproducibility |
+| `UUID.randomUUID()` | Different UUIDs each run | Generate UUIDs from `RandomSource` |
+| `Collections.shuffle(list)` | Uses default `Random` | Use `Collections.shuffle(list, random)` with seeded random |
+| **Non-deterministic iteration order** | `HashMap`, `HashSet`, `IdentityHashMap` iteration order varies across JVM versions, boxes, and even runs | Use `LinkedHashMap`/`LinkedHashSet` (insertion order), `TreeMap`/`TreeSet` (sorted order), or sort before iterating |
+
+**How to check**: Do NOT rely on re-running the test on the same machine to verify determinism. Sources like `ThreadLocalRandom` often produce the same sequence within the same JVM process or even across restarts on the same box/JVM version, giving a false sense of reproducibility. The non-determinism only surfaces when running on a different machine, a different JVM version, or under different thread scheduling -- exactly the conditions of a CI failure that someone else needs to debug.
+
+Instead, **audit the source code** of the SUT for uses of `ThreadLocalRandom`, `Math.random()`, `Random()` (unseeded), `UUID.randomUUID()`, `System.nanoTime()`, or any other randomness source that does not flow from the test's `RandomSource`. Grep for these in the SUT class and its transitive dependencies. Also check for non-deterministic iteration order (see below).
+
+**When the SUT cannot be made deterministic** (e.g., it uses `ThreadLocalRandom` internally and refactoring is too invasive):
+1. Add a comment explaining which internal randomness is not controlled
+2. Consider using `withPure(false)` since per-example reproducibility is already limited
+3. Document this in the test's Javadoc so future debuggers know seed replay may not fully reproduce failures
+
+**Example of the problem**: `DynamicList.randomLevel()` uses `ThreadLocalRandom` to determine skip-list level assignments. A property test for `DynamicList` can reproduce the *sequence of operations* from a seed, but not the internal structure of the skip list, because level assignments are non-deterministic. A failure caused by a specific level assignment pattern cannot be replayed.
+
+### Non-deterministic iteration order (subtle)
+
+Collections with unstable iteration order are a particularly insidious source of non-reproducibility because they don't involve any explicit randomness API. `HashMap` and `HashSet` iteration order depends on internal hash table sizing, which can change between JVM versions, machines, or even runs with different heap sizes. If the SUT iterates over a `HashMap` and the iteration order affects behavior (e.g., which element gets processed first, tie-breaking, output ordering), the test becomes non-reproducible across environments even though no random API is called.
+
+Common patterns that break reproducibility:
+- `for (var entry : hashMap.entrySet())` where processing order matters
+- `hashSet.stream().findFirst()` -- which element is "first" is undefined
+- `new ArrayList<>(hashMap.values())` -- list order depends on iteration order
+- Building output by iterating a `HashMap` and concatenating/accumulating results
+- Any algorithm where the result depends on which element is visited first (e.g., selecting a "best" candidate from a map by iterating and comparing)
+
+This is especially dangerous because it often works on the developer's machine and only breaks in CI or on a colleague's box. Unlike `ThreadLocalRandom`, there is no API call to grep for -- you need to understand whether iteration order affects the SUT's observable behavior.
+
+If you can not change the data structures to be iteration safe, export the iteration to a list and add deterministic sorting to solve the problem.

@@ -294,3 +294,19 @@ import accord.utils.RandomSource;
 - The framework retries up to 42 times to find a command passing preconditions before throwing
 - `onSuccess` and `onFailure` callbacks are useful for logging history on completion
 - When writing `detailed()`, include the command parameters (key, range, etc.) for debuggability
+
+## Deterministic Execution Requirement
+
+Stateful tests are especially vulnerable to non-deterministic SUTs because failures depend on the exact sequence of states traversed. If the SUT uses internal randomness (e.g., `ThreadLocalRandom`, `Math.random()`), replaying a seed reproduces the same command sequence but the SUT may take a different internal path, making the failure non-reproducible.
+
+**Before writing a stateful test, audit the SUT for internal randomness.** See the `cassandra-testing-property` skill for a full table of common randomness sources and mitigations.
+
+**Key principle**: Every aspect of the test that affects the outcome must be derived from `RandomSource`. This includes:
+- Values generated for commands (covered by the command factory receiving `RandomSource rs`)
+- The SUT's internal behavior (NOT covered if the SUT uses `ThreadLocalRandom` etc.)
+- Any initialization parameters (covered if `State(RandomSource rs)` constructor is used)
+- **Iteration order of collections in the SUT** -- if the SUT iterates a `HashMap`/`HashSet` and the order affects behavior, the test is non-reproducible across machines/JVM versions even though no random API is called
+
+Stateful tests are particularly sensitive to iteration order because a different traversal order can change which command's precondition is met, which element gets selected, or which state transition fires -- producing a completely different state sequence from the same seed. For example, if a command iterates `HashMap.entrySet()` to find the first element matching a condition, a different iteration order means a different element is found, leading to divergent state. See the `cassandra-testing-property` skill for a full list of common patterns that break reproducibility.
+
+If the SUT cannot be made deterministic, document the limitation prominently in the test class Javadoc.

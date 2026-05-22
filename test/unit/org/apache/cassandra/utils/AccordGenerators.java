@@ -124,7 +124,7 @@ public class AccordGenerators
             for (; i + 8 <= size; i += 8)
                 ByteArrayUtil.putLong(bytes, i, rs.nextLong());
             for (; i < size; i++)
-                bytes[i] = (byte) rs.nextInt(1 << 8);
+                bytes[i] = (byte) rs.nextInt(256);
             return bytes;
         };
     }

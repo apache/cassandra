@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.google.common.annotations.VisibleForTesting;
+
 // simple thread-unsafe skiplist that permits indexing/removal by position, insertion at the end
 // (though easily extended to insertion at any position, not necessary here)
 // we use it for sampling items by position for visiting writes in the pool of pending writes
@@ -201,7 +203,8 @@ public class DynamicList<E>
     // some quick and dirty tests to confirm the skiplist works as intended
     // don't create a separate unit test - tools tree doesn't currently warrant them
 
-    private boolean isWellFormed()
+    @VisibleForTesting
+    boolean isWellFormed()
     {
         for (int i = 0 ; i < maxHeight ; i++)
         {

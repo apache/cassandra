@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 import org.junit.Test;
 
@@ -106,6 +107,27 @@ public class MurmurHashPropertyTest
     }
 
     // ---- ByteBuffer with non-zero offset equivalence ----
+
+    @Test
+    public void hash32OffsetEquivalence()
+    {
+        qt().check(rs -> {
+            int padding = rs.nextInt(1, 33);
+            byte[] data = BYTE_ARRAY_GEN.next(rs);
+            int seed = rs.nextInt();
+
+            // Create a ByteBuffer with leading padding
+            byte[] padded = new byte[padding + data.length];
+            System.arraycopy(data, 0, padded, padding, data.length);
+            ByteBuffer paddedBuf = ByteBuffer.wrap(padded);
+
+            int fromDirect = MurmurHash.hash32(ByteBuffer.wrap(data), 0, data.length, seed);
+            int fromOffset = MurmurHash.hash32(paddedBuf, padding, data.length, seed);
+            assertThat(fromOffset)
+                .describedAs("hash32 with offset must match direct result")
+                .isEqualTo(fromDirect);
+        });
+    }
 
     @Test
     public void hash2_64OffsetEquivalence()
@@ -212,18 +234,64 @@ public class MurmurHashPropertyTest
         });
     }
 
-    // ---- Empty input handling ----
+    // ---- Known test vectors (golden values) ----
 
     @Test
-    public void emptyInputHash32()
+    public void knownTestVectors()
     {
-        qt().forAll(Gens.ints().all()).check(seed -> {
-            ByteBuffer buf = ByteBuffer.allocate(0);
-            int h1 = MurmurHash.hash32(buf, 0, 0, seed);
-            int h2 = MurmurHash.hash32(buf, 0, 0, seed);
-            assertThat(h1).describedAs("Empty input hash32 must be deterministic").isEqualTo(h2);
-        });
+        byte[] empty = new byte[0];
+        byte[] singleZero = new byte[]{ 0x00 };
+        byte[] hello = "Hello".getBytes(StandardCharsets.US_ASCII);
+
+        // hash32 - pinned values; if any of these change, the hash function changed
+        assertThat(MurmurHash.hash32(ByteBuffer.wrap(empty), 0, 0, 0))
+            .describedAs("hash32(empty, seed=0)")
+            .isEqualTo(0);
+        assertThat(MurmurHash.hash32(ByteBuffer.wrap(singleZero), 0, 1, 0))
+            .describedAs("hash32({0x00}, seed=0)")
+            .isEqualTo(-380735811);
+        assertThat(MurmurHash.hash32(ByteBuffer.wrap(hello), 0, hello.length, 0))
+            .describedAs("hash32(\"Hello\", seed=0)")
+            .isEqualTo(1826530862);
+        assertThat(MurmurHash.hash32(ByteBuffer.wrap(hello), 0, hello.length, 42))
+            .describedAs("hash32(\"Hello\", seed=42)")
+            .isEqualTo(120081362);
+
+        // hash2_64 - pinned values
+        assertThat(MurmurHash.hash2_64(empty, 0, 0, 0L))
+            .describedAs("hash2_64(empty, seed=0)")
+            .isEqualTo(0L);
+        assertThat(MurmurHash.hash2_64(singleZero, 0, 1, 0L))
+            .describedAs("hash2_64({0x00}, seed=0)")
+            .isEqualTo(6351753276682545529L);
+        assertThat(MurmurHash.hash2_64(hello, 0, hello.length, 0L))
+            .describedAs("hash2_64(\"Hello\", seed=0)")
+            .isEqualTo(6940510666185404851L);
+        assertThat(MurmurHash.hash2_64(hello, 0, hello.length, 42L))
+            .describedAs("hash2_64(\"Hello\", seed=42)")
+            .isEqualTo(-5190831759633619065L);
+
+        // hash3_x64_128 - pinned values
+        long[] result = new long[2];
+
+        MurmurHash.hash3_x64_128(empty, 0, 0, 0L, result);
+        assertThat(result).describedAs("hash3_x64_128(empty, seed=0)")
+                          .isEqualTo(new long[]{ 0L, 0L });
+
+        MurmurHash.hash3_x64_128(singleZero, 0, 1, 0L, result);
+        assertThat(result).describedAs("hash3_x64_128({0x00}, seed=0)")
+                          .isEqualTo(new long[]{ 5048724184180415669L, 5864299874987029891L });
+
+        MurmurHash.hash3_x64_128(hello, 0, hello.length, 0L, result);
+        assertThat(result).describedAs("hash3_x64_128(\"Hello\", seed=0)")
+                          .isEqualTo(new long[]{ 3871253994707141660L, -6917270852172884668L });
+
+        MurmurHash.hash3_x64_128(hello, 0, hello.length, 42L, result);
+        assertThat(result).describedAs("hash3_x64_128(\"Hello\", seed=42)")
+                          .isEqualTo(new long[]{ 2550721319707356219L, -6862742243595569438L });
     }
+
+    // ---- Empty input handling ----
 
     @Test
     public void emptyInputHash2_64()

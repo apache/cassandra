@@ -55,7 +55,7 @@ public class LongTimSortPropertyTest
         int size = sizeGen.nextInt(rs);
         long[] a = new long[size];
         // Pick a value strategy for this array
-        int strategy = rs.nextInt(0, 4);
+        int strategy = rs.nextInt(0, 7);
         switch (strategy)
         {
             case 0: // all same value
@@ -69,6 +69,27 @@ public class LongTimSortPropertyTest
             case 2: // medium range [-1000, 1000]
                 for (int i = 0; i < size; i++)
                     a[i] = rs.nextInt(-1000, 1001);
+                break;
+            case 3: // pre-sorted ascending
+                for (int i = 0; i < size; i++)
+                    a[i] = i;
+                break;
+            case 4: // pre-sorted descending
+                for (int i = 0; i < size; i++)
+                    a[i] = size - i;
+                break;
+            case 5: // nearly sorted (sorted then perturb a few elements)
+                for (int i = 0; i < size; i++)
+                    a[i] = i;
+                int perturbations = Math.max(1, size / 20);
+                for (int p = 0; p < perturbations && size > 1; p++)
+                {
+                    int j = rs.nextInt(0, size);
+                    int k = rs.nextInt(0, size);
+                    long tmp = a[j];
+                    a[j] = a[k];
+                    a[k] = tmp;
+                }
                 break;
             default: // full range longs
                 for (int i = 0; i < size; i++)

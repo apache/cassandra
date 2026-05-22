@@ -28,6 +28,13 @@ import static accord.utils.Property.commands;
 import static accord.utils.Property.stateful;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Stateful property-based tests for {@link DynamicList}.
+ * <p>
+ * Uses an {@link java.util.ArrayList} as the oracle model to verify that
+ * append, remove, and indexed get operations maintain consistency with the
+ * skip list's internal structure.
+ */
 public class DynamicListPropertyTest
 {
     private static class State
@@ -123,15 +130,23 @@ public class DynamicListPropertyTest
         });
     }
 
+    private static Property.Command<State, Void, ?> verifyStructure(RandomSource rs, State state)
+    {
+        return new Property.SimpleCommand<>("VerifyStructure(size=" + state.model.size() + ')', s -> {
+            assertThat(s.sut.isWellFormed()).as("isWellFormed").isTrue();
+        });
+    }
+
     @Test
-    public void test()
+    public void appendRemoveGetMaintainsModelConsistency()
     {
         stateful().withExamples(500).withSteps(1000).check(commands(() -> State::new)
                                                           .add(3, DynamicListPropertyTest::append)
                                                           .addIf(s -> !s.model.isEmpty(), DynamicListPropertyTest::remove)
                                                           .addIf(s -> !s.model.isEmpty(), DynamicListPropertyTest::get)
                                                           .add(DynamicListPropertyTest::getOutOfBounds)
-                                                           .add(DynamicListPropertyTest::verifyContents)
+                                                          .add(DynamicListPropertyTest::verifyContents)
+                                                          .add(DynamicListPropertyTest::verifyStructure)
                                                           .add(DynamicListPropertyTest::appendWithMaxSize)
                                                           .build());
     }
