@@ -148,47 +148,7 @@ static class Read implements Command<State, Sut, List<Integer>> {
 }
 ```
 
-### Pattern 3: Infrastructure commands (flush, compact, restart)
-
-Singleton commands for lifecycle operations that don't depend on random input.
-
-```java
-private static final UnitCommand<State, Sut> FLUSH = new UnitCommand<>() {
-    @Override public void applyUnit(State state) { /* no model change */ }
-    @Override public void runUnit(Sut sut) { sut.flush(); }
-    @Override public String detailed(State state) { return "Flush"; }
-};
-
-private static final UnitCommand<State, Sut> RESTART = new UnitCommand<>() {
-    @Override public void applyUnit(State state) { state.restartService(); }
-    @Override public void runUnit(Sut sut) { /* lifecycle managed by state */ }
-    @Override public String detailed(State state) { return "Restart"; }
-};
-
-stateful().withExamples(10).withSteps(500).check(commands(() -> State::new, Sut::new)
-    .add(this::insert)
-    .add(this::search)
-    .addIf(State::mayFlush, FLUSH)
-    .add(RESTART)
-    .destroyState(State::close)
-    .destroySut(Sut::close)
-    .build());
-```
-
-### Pattern 4: Guard with ignoreCommand()
-
-When a command's precondition cannot be met, return `Property.ignoreCommand()`.
-
-```java
-public static Property.Command<State, Void, ?> remove(RandomSource rs, State state) {
-    if (state.activeSegments.size() <= 1)
-        return Property.ignoreCommand();  // Can't remove last segment
-    int segment = rs.pick(state.activeSegments);
-    return new Property.SimpleCommand<>("remove(" + segment + ")", s -> s.remove(segment));
-}
-```
-
-### Pattern 5: Multistep commands
+### Pattern 3: Multistep commands
 
 Group multiple commands as an atomic sequence in history.
 
@@ -202,33 +162,7 @@ Gen<Command<State, Void, ?>> topologyCommand = rs -> multistep(
 );
 ```
 
-### Pattern 6: Distributed/integration test (single example, longer steps)
-
-For tests against a real Cluster instance.
-
-```java
-stateful().withExamples(1).withSteps(500).withStepTimeout(Duration.ofMinutes(1))
-    .check(commands(() -> State::new)
-        .add(CreateKeyspace::new)
-        .add(DropKeyspace::new)
-        .add(CreateTable::new)
-        .add(TakeSnapshot::new)
-        .destroyState(State::destroy)
-        .build());
-```
-
-### Pattern 7: Weighted commands and conditional blocks
-
-```java
-stateful().withSteps(20).withExamples(1)
-    .check(commands(this::stateGen)
-        .addIf(State::allowTopologyChanges, 2, (rs, state) -> topologyCommand(state))
-        .add(1, (rs, state) -> repairCommand(rs))
-        .add(7, (rs, state) -> state.dmlGen.apply(rs, state))  // DML is most common
-        .build());
-```
-
-### Pattern 8: Using destroyState for final validation
+### Pattern 4: Using destroyState for final validation
 
 ```java
 stateful().withExamples(50).withSteps(500).check(commands(() -> State::new)
@@ -289,9 +223,8 @@ import accord.utils.RandomSource;
 
 - Default examples for `stateful()` is **500** (not 1000 like `qt()`)
 - Default steps per example is **1000**
-- Random weights (`add` without explicit weight) are computed fresh each example via `unknownWeightGen` (default: 1-10), meaning each example exercises a different command distribution
 - Commands with `addIf` are only included when the predicate is true for the current state
-- The framework retries up to 42 times to find a command passing preconditions before throwing
+- **Prefer `addIf` over `ignoreCommand()`**: Use `addIf(predicate, cmd)` to conditionally include commands rather than having command factories return `Property.ignoreCommand()`. The framework fails the test if too many consecutive commands are ignored, making `ignoreCommand()` flaky-prone. `addIf` avoids this by excluding the command from selection entirely when the predicate is false.
 - `onSuccess` and `onFailure` callbacks are useful for logging history on completion
 - When writing `detailed()`, include the command parameters (key, range, etc.) for debuggability
 
