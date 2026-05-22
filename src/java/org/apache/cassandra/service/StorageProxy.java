@@ -1441,8 +1441,11 @@ public class StorageProxy implements StorageProxyMBean
         boolean attributeNonAccordLatency = true;
         long nonAccordEndTime = -1;
 
-        if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas()))
-            throw new AssertionError("Logged batches are unsupported with transient replication");
+        for (IMutation mutation : mutations)
+        {
+            if (Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas())
+                throw new AssertionError("Logged batches are unsupported with transient replication");
+        }
 
         try
         {
