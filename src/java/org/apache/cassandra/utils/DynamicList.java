@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.IntSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -87,19 +88,26 @@ public class DynamicList<E>
         }
     }
 
+    private final IntSupplier nextInt;
     private final int maxHeight;
     private final Node<E> head;
     private int size;
 
     public DynamicList(int maxExpectedSize)
     {
+        this(maxExpectedSize, () -> ThreadLocalRandom.current().nextInt());
+    }
+
+    public DynamicList(int maxExpectedSize, IntSupplier nextInt)
+    {
+        this.nextInt = nextInt;
         this.maxHeight = 3 + Math.max(0, (int) Math.ceil(Math.log(maxExpectedSize) / Math.log(2)));
         head = new Node<>(maxHeight, null);
     }
 
     private int randomLevel()
     {
-        return 1 + Integer.bitCount(ThreadLocalRandom.current().nextInt() & ((1 << (maxHeight - 1)) - 1));
+        return 1 + Integer.bitCount(nextInt.getAsInt() & ((1 << (maxHeight - 1)) - 1));
     }
 
     public Node<E> append(E value)

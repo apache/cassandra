@@ -47,7 +47,7 @@ public class DynamicListPropertyTest
         State(RandomSource rs)
         {
             int maxExpectedSize = rs.nextInt(4, 128);
-            sut = new DynamicList<>(maxExpectedSize);
+            sut = new DynamicList<>(maxExpectedSize, rs::nextInt);
         }
 
         @Override
