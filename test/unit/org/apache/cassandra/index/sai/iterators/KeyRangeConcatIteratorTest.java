@@ -23,7 +23,6 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.index.sai.iterators.LongIterator.convert;
@@ -127,19 +126,19 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTest
         KeyRangeIterator tokens;
 
         tokens = init.get();
-        tokens.skipTo(LongIterator.fromToken(5));
+        tokens.skipTo(LongIterator.makeKey(5));
         assertTrue(tokens.hasNext());
         assertEquals(5L, tokens.next().token().getLongValue());
 
         tokens = init.get();
-        tokens.skipTo(LongIterator.fromToken(7L));
+        tokens.skipTo(LongIterator.makeKey(7L));
         assertTrue(tokens.hasNext());
         assertEquals(7L, tokens.next().token().getLongValue());
 
         tokens = init.get();
-        tokens.skipTo(LongIterator.fromToken(2L));
-        tokens.skipTo(LongIterator.fromToken(5L));
-        tokens.skipTo(LongIterator.fromToken(10L));
+        tokens.skipTo(LongIterator.makeKey(2L));
+        tokens.skipTo(LongIterator.makeKey(5L));
+        tokens.skipTo(LongIterator.makeKey(10L));
         assertFalse(tokens.hasNext());
         assertEquals(1L, tokens.getMinimum().token().getLongValue());
         assertEquals(9L, tokens.getMaximum().token().getLongValue());
@@ -154,19 +153,19 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTest
         KeyRangeIterator tokens;
 
         tokens = init.get();
-        tokens.skipTo(LongIterator.fromToken(5L));
+        tokens.skipTo(LongIterator.makeKey(5L));
         assertTrue(tokens.hasNext());
         assertEquals(6L, tokens.next().token().getLongValue());
 
         tokens = init.get();
-        tokens.skipTo(LongIterator.fromToken(7L));
+        tokens.skipTo(LongIterator.makeKey(7L));
         assertTrue(tokens.hasNext());
         assertEquals(8L, tokens.next().token().getLongValue());
 
         tokens = init.get();
-        tokens.skipTo(LongIterator.fromToken(2L));
-        tokens.skipTo(LongIterator.fromToken(5L));
-        tokens.skipTo(LongIterator.fromToken(10L));
+        tokens.skipTo(LongIterator.makeKey(2L));
+        tokens.skipTo(LongIterator.makeKey(5L));
+        tokens.skipTo(LongIterator.makeKey(10L));
         assertFalse(tokens.hasNext());
         assertEquals(1L, tokens.getMinimum().token().getLongValue());
         assertEquals(9L, tokens.getMaximum().token().getLongValue());
@@ -424,7 +423,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTest
     private String createErrorMessage(int max, int min)
     {
         return String.format(KeyRangeConcatIterator.MUST_BE_SORTED_ERROR,
-                             TEST_PRIMARY_KEY_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(max)),
-                             TEST_PRIMARY_KEY_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(min)));
+                             LongIterator.makeKey(max),
+                             LongIterator.makeKey(min));
     }
 }

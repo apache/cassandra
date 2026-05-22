@@ -253,7 +253,8 @@ public class SSTableIndex
                                               boolean defer) throws IOException
     {
         KeyRangeIterator allKeys = allSSTableKeys(keyRange);
-        if (TypeUtil.supportsRounding(expression.validator))
+        if (TypeUtil.supportsRounding(expression.validator)
+            || !this.getVersion().onDiskFormat().indexFeatureSet().isRowAware())
         {
             return allKeys;
         }

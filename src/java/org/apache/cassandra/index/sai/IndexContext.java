@@ -477,7 +477,7 @@ public class IndexContext
     private KeyRangeIterator getNonEqIterator(QueryContext context, Collection<MemtableIndex> memtables, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         KeyRangeIterator allKeys = scanMemtable(keyRange, memtables);
-        if (TypeUtil.supportsRounding(expression.validator))
+        if (TypeUtil.supportsRounding(expression.validator) || !version.onDiskFormat().indexFeatureSet().isRowAware())
         {
             return allKeys;
         }

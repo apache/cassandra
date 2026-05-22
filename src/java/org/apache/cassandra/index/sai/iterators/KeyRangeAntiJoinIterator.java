@@ -26,7 +26,21 @@ import org.apache.cassandra.io.util.FileUtils;
 /**
  * An iterator wrapper that wraps two iterators (left and right) and returns the primary keys from the left iterator
  * that do not match the primary keys from the right iterator. The keys returned by the wrapped iterators must
- * follow token-clustering order.
+ * follow the same order.
+ * <p>
+ * In order to avoid false negatives in the output, this class must not be used with iterators that can
+ * return false positives on the right side, in particular:
+ * <ul>
+ *   <li>returned from different overlapping sstable/memtable indexes, because the indexed terms can be overwritten</li>
+ *   <li>returned from indexes that do not handle overwrites in place and may return stale values</li>
+ *   <li>returned from imprecise indexes that can potentially point to different values than the values actually indexed:
+ *     <ul>
+ *       <li>partition-aware indexes (version AA), because they always match the whole partition even if only one row matches</li>
+ *       <li>indexes over types with rounding, because they truncate the term and might match additional rows with a different value than the one searched for</li>
+ *     </ul>
+ *   </li>
+ * </ul>
+ * The above-mentioned conditions are not checked, and if violated, some results may be missing.
  */
 public class KeyRangeAntiJoinIterator extends KeyRangeIterator
 {

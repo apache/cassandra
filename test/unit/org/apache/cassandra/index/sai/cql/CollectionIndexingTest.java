@@ -31,7 +31,7 @@ import static org.junit.Assert.assertEquals;
 // and basic functionality. Comprehensive type testing of collections
 // is in the cql/types/collections package
 //TODO Sort out statement restrictions assertion
-public class CollectionIndexingTest extends SAITester
+public class CollectionIndexingTest extends SAITester.Versioned
 {
     @Before
     public void setup() throws Throwable

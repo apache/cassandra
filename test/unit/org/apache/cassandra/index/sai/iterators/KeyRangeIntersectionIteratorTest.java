@@ -119,15 +119,15 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
         Assert.assertNotNull(range);
 
         // first let's skipTo something before range
-        range.skipTo(LongIterator.fromToken(3L));
+        range.skipTo(LongIterator.makeKey(3L));
         Assert.assertEquals(4L, range.peek().token().getLongValue());
 
         // now let's skip right to the send value
-        range.skipTo(LongIterator.fromToken(5L));
+        range.skipTo(LongIterator.makeKey(5L));
         Assert.assertEquals(6L, range.peek().token().getLongValue());
 
         // now right to the element
-        range.skipTo(LongIterator.fromToken(7L));
+        range.skipTo(LongIterator.makeKey(7L));
         Assert.assertEquals(7L, range.peek().token().getLongValue());
         Assert.assertEquals(7L, range.next().token().getLongValue());
 
@@ -135,7 +135,7 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
         Assert.assertEquals(10L, range.peek().token().getLongValue());
 
         // now right after the last element
-        range.skipTo(LongIterator.fromToken(11L));
+        range.skipTo(LongIterator.makeKey(11L));
         Assert.assertFalse(range.hasNext());
     }
 
@@ -400,7 +400,7 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
     }
 
     @Test
-    public void testRandomized() throws Throwable
+    public void testRandomKeys() throws Throwable
     {
         for (int iteratorCount = 2; iteratorCount <= 5; iteratorCount++)
         {
@@ -408,7 +408,7 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
             {
                 var inputs = new ArrayList<List<PrimaryKey>>(iteratorCount);
                 for (int j = 0; j < iteratorCount; j++)
-                    inputs.add(randomPrimaryKeys(testIteration / 10, testIteration / 10));
+                    inputs.add(randomPrimaryKeysOfMixedTypes(1 + testIteration / 10, 1 + testIteration / 10));
 
                 testMerge(inputs,
                           KeyRangeIntersectionIteratorTest::intersection,
@@ -418,19 +418,22 @@ public class KeyRangeIntersectionIteratorTest extends AbstractKeyRangeIteratorTe
     }
 
     @Test
-    public void testSkippingRandomized() throws Throwable
+    public void testSkippingWithRandomKeys() throws Throwable
     {
         for (int iteratorCount = 2; iteratorCount <= 5; iteratorCount++)
         {
             for (int testIteration = 0; testIteration < 200; testIteration++)
             {
+                int avgPartitions = 1 + testIteration / 10;
+                int avgRowsPerPartition = 1 + testIteration / 10;
+
                 var inputs = new ArrayList<List<PrimaryKey>>(iteratorCount);
                 for (int j = 0; j < iteratorCount; j++)
-                    inputs.add(randomPrimaryKeys(testIteration / 10, testIteration / 10));
+                    inputs.add(randomPrimaryKeysOfMixedTypes(avgPartitions, avgRowsPerPartition));
 
                 // Generate random skip positions.
                 // Use a different data set so that some skip positions exist in the merged result and some do not.
-                var skips = randomSkips(randomPrimaryKeys(testIteration / 10, testIteration / 10));
+                var skips = randomSkips(randomPrimaryKeysOfMixedTypes(avgPartitions, avgRowsPerPartition));
 
                 testSkipping(inputs, skips, KeyRangeIntersectionIteratorTest::intersectionIterator);
             }

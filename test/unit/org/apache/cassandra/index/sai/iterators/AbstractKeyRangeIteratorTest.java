@@ -30,8 +30,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nullable;
-
+import com.google.common.base.Preconditions;
 import org.junit.Assert;
 
 import org.apache.cassandra.db.Clustering;
@@ -40,6 +39,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAIUtil;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.cassandra.utils.Pair;
@@ -50,6 +50,9 @@ public class AbstractKeyRangeIteratorTest extends SaiRandomizedTest
 {
     static final PrimaryKey.Factory TEST_PRIMARY_KEY_FACTORY = SAIUtil.currentVersion().onDiskFormat()
                                                                       .newPrimaryKeyFactory(new ClusteringComparator(LongType.instance));
+
+    static final PrimaryKey.Factory TEST_AA_KEY_FACTORY = Version.AA.onDiskFormat()
+                                                                    .newPrimaryKeyFactory(new ClusteringComparator(LongType.instance));
 
     protected long[] arr(long... longArray)
     {
@@ -140,7 +143,7 @@ public class AbstractKeyRangeIteratorTest extends SaiRandomizedTest
 
             // skipping to the same element should also be a no-op
             if (randomBoolean())
-                ri.skipTo(LongIterator.fromToken(totalOrdering[count]));
+                ri.skipTo(LongIterator.makeKey(totalOrdering[count]));
 
             // skip a few elements
             if (nextDouble() < 0.1)
@@ -149,7 +152,7 @@ public class AbstractKeyRangeIteratorTest extends SaiRandomizedTest
                 if (count + n < totalOrdering.length)
                 {
                     count += n;
-                    ri.skipTo(LongIterator.fromToken(totalOrdering[count]));
+                    ri.skipTo(LongIterator.makeKey(totalOrdering[count]));
                 }
             }
             Assert.assertEquals(totalOrdering[count++], ri.next().token().getLongValue());
@@ -183,15 +186,63 @@ public class AbstractKeyRangeIteratorTest extends SaiRandomizedTest
     }
 
     /**
-     * Generates a random list of primary keys with the given average number of partitions and rows per partition.
+     * Generates a list of random primary keys with the given average number of partitions and rows per partition.
+     * Generates keys of various types (mixed) - 25% of keys with static clusterings, 25% of partition-aware keys
+     * and the rest are regular row keys.
+     *
+     * @see this#randomPrimaryKeys(int, int, double, double)
+     */
+    static List<PrimaryKey> randomPrimaryKeysOfMixedTypes(int avgPartitions, int avgRowsPerPartition)
+    {
+        return randomPrimaryKeys(avgPartitions, avgRowsPerPartition, 0.25, 0.25);
+    }
+
+
+    /**
+     * Generates a list of random primary keys with the given average number of partitions and rows per partition.
+     * Generates only keys with regular clusterings (i.e. keys pointing to regular rows, not static rows).
+     *
+     * @see this#randomPrimaryKeys(int, int, double, double)
+     */
+    static List<PrimaryKey> randomPrimaryKeysWithRegularClusterings(int avgPartitions, int avgRowsPerPartition)
+    {
+        return randomPrimaryKeys(avgPartitions, avgRowsPerPartition, 0.0, 0.0);
+    }
+
+    /**
+     * Generates a list of random primary keys with the given average number of partitions and rows per partition.
+     * Generates only keys with static clusterings (i.e. keys pointing to static rows).
+     *
+     * @see this#randomPrimaryKeys(int, int, double, double)
+     */
+    static List<PrimaryKey> randomPrimaryKeysWithStaticClusterings(int avgPartitions, int avgRowsPerPartition)
+    {
+        return randomPrimaryKeys(avgPartitions, avgRowsPerPartition, 1.0, 0.0);
+    }
+
+    /**
+     * Generates a list of random primary keys with the given average number of partitions and rows per partition.
      * Partition keys and clusterings are generated in such a way that when combining two such lists generated with
      * same parameters (but different random), there is a high chance both sets would contain many common keys, as well
      * as each would contain some keys not present in the other set.
      *
+     * @param avgPartitions mean number of partitions to generate
+     * @param avgRowsPerPartition mean number of rows in a partition
+     * @param staticClusteringProbability probability of generating a key for the static row
+     *                                    with respect to the number of partitions
+     * @param partitionAwareKeyProbability probability of generating a key for the whole partition as if coming from
+     *                                     a partition-aware AA index, with respect to the number of partitions
      * @return list of primary keys in (token, clustering) order.
      */
-    static List<PrimaryKey> randomPrimaryKeys(int avgPartitions, int avgRowsPerPartition)
+    private static List<PrimaryKey> randomPrimaryKeys(int avgPartitions,
+                                                      int avgRowsPerPartition,
+                                                      double staticClusteringProbability,
+                                                      double partitionAwareKeyProbability)
     {
+        Preconditions.checkArgument(staticClusteringProbability >= 0.0 && staticClusteringProbability <= 1.0);
+        Preconditions.checkArgument(partitionAwareKeyProbability >= 0.0 && partitionAwareKeyProbability <= 1.0);
+        Preconditions.checkArgument(staticClusteringProbability + partitionAwareKeyProbability <= 1.0);
+
         List<PrimaryKey> keys = new ArrayList<>((int)(avgPartitions * avgRowsPerPartition * 1.5));
 
         for (int p = 0; p < avgPartitions * 2; p++)
@@ -199,16 +250,21 @@ public class AbstractKeyRangeIteratorTest extends SaiRandomizedTest
             if (randomBoolean())   // skip 50% of partitions
                 continue;
 
-            if (randomBoolean())
+            double keyTypeSelector = randomDouble();
+            if (keyTypeSelector < staticClusteringProbability)
             {
-                keys.add(makeKey(p, null)); // add partition key only
+                keys.add(makeKeyForStaticRow(p));
+            }
+            else if (keyTypeSelector < staticClusteringProbability + partitionAwareKeyProbability)
+            {
+                keys.add(makePartitionAwareKey(p));
             }
             else
             {
                 for (int r = 0; r < avgRowsPerPartition * 2; r++)
                 {
                     if (randomBoolean())   // skip 50% of rows
-                        keys.add(makeKey(p, (long) r));
+                        keys.add(makeKeyForRegularRow(p, (long) r));
                 }
             }
         }
@@ -219,16 +275,39 @@ public class AbstractKeyRangeIteratorTest extends SaiRandomizedTest
     }
 
     /**
-      * Helper to create PrimaryKey with/without clustering.
-      * Pass null clustering to create a key with Clustering.EMPTY.
-      */
-    static PrimaryKey makeKey(long partitionKey, @Nullable Long clustering)
+     * Creates a row-aware primary key with non-empty clustering
+     */
+    static PrimaryKey makeKeyForRegularRow(long partitionKey, long clustering)
+    {
+        DecoratedKey decoratedKey = decorate(partitionKey);
+        ByteBuffer clusteringValue = LongType.instance.getSerializer().serialize(clustering);
+        return TEST_PRIMARY_KEY_FACTORY.create(decoratedKey, Clustering.make(clusteringValue));
+    }
+
+    /**
+     * Creates a row-aware primary key with static clustering
+     */
+    static PrimaryKey makeKeyForStaticRow(long partitionKey)
+    {
+        DecoratedKey decoratedKey = decorate(partitionKey);
+        return TEST_PRIMARY_KEY_FACTORY.create(decoratedKey, Clustering.STATIC_CLUSTERING);
+    }
+
+    /**
+     * Creates a partition-aware primary key (keys of this type are used by AA indexes)
+     */
+    static PrimaryKey makePartitionAwareKey(long partitionKey)
+    {
+        DecoratedKey decoratedKey = decorate(partitionKey);
+        return TEST_AA_KEY_FACTORY.createPartitionKeyOnly(decoratedKey);
+    }
+
+
+    private static DecoratedKey decorate(long partitionKey)
     {
         ByteBuffer pkValue = LongType.instance.getSerializer().serialize(partitionKey);
-        ByteBuffer clusteringValue = LongType.instance.getSerializer().serialize(clustering);
         DecoratedKey pk = Murmur3Partitioner.instance.decorateKey(pkValue);
-        Clustering<ByteBuffer> c = clustering == null ? Clustering.EMPTY : Clustering.make(clusteringValue);
-        return TEST_PRIMARY_KEY_FACTORY.create(pk, c);
+        return pk;
     }
 
     /**

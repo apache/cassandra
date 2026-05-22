@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.index.sai.iterators;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.LongFunction;
 
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -32,16 +35,11 @@ public class LongIterator extends KeyRangeIterator
 
     public LongIterator(long[] tokens)
     {
-        this(tokens, t -> t);
-    }
-
-    public LongIterator(long[] tokens, LongFunction<Long> toOffset)
-    {
-        super(tokens.length == 0 ? null : fromToken(tokens[0]), tokens.length == 0 ? null : fromToken(tokens[tokens.length - 1]), tokens.length);
+        super(tokens.length == 0 ? null : makeKey(tokens[0]), tokens.length == 0 ? null : makeKey(tokens[tokens.length - 1]), tokens.length);
 
         this.keys = new ArrayList<>(tokens.length);
         for (long token : tokens)
-            this.keys.add(fromTokenAndRowId(token, toOffset.apply(token)));
+            this.keys.add(makeKey(token));
     }
 
     @Override
@@ -64,11 +62,16 @@ public class LongIterator extends KeyRangeIterator
     public void close()
     {}
 
-    public static PrimaryKey fromToken(long token)
+    /// Generates a row-aware primary key with given token assuming {@link Murmur3Partitioner} is used.
+    /// The partition key is filled with inverse murmur3 hash.
+    /// The clustering of the returned key is empty.
+    public static PrimaryKey makeKey(long token)
     {
-        return SAITester.TEST_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(token));
+        Murmur3Partitioner.LongToken longToken =  new Murmur3Partitioner.LongToken(token);
+        ByteBuffer keyBytes = Murmur3Partitioner.LongToken.keyForToken(longToken);
+        DecoratedKey partitionKey = new BufferDecoratedKey(longToken, keyBytes);
+        return SAITester.TEST_FACTORY.create(partitionKey, Clustering.EMPTY);
     }
-
 
     public static List<Long> convert(KeyRangeIterator tokens)
     {
@@ -81,15 +84,10 @@ public class LongIterator extends KeyRangeIterator
 
     public static List<Long> convert(final long... nums)
     {
-        return new ArrayList<Long>(nums.length)
+        return new ArrayList<>(nums.length)
         {{
             for (long n : nums)
                 add(n);
         }};
-    }
-
-    private PrimaryKey fromTokenAndRowId(long token, long rowId)
-    {
-        return SAITester.TEST_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(token));
     }
 }

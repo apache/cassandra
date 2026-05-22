@@ -223,15 +223,15 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
         KeyRangeIterator tokens = builder.build();
         Assert.assertNotNull(tokens);
 
-        tokens.skipTo(LongIterator.fromToken(5L));
+        tokens.skipTo(LongIterator.makeKey(5L));
         Assert.assertTrue(tokens.hasNext());
         Assert.assertEquals(5L, tokens.next().token().getLongValue());
 
-        tokens.skipTo(LongIterator.fromToken(7L));
+        tokens.skipTo(LongIterator.makeKey(7L));
         Assert.assertTrue(tokens.hasNext());
         Assert.assertEquals(7L, tokens.next().token().getLongValue());
 
-        tokens.skipTo(LongIterator.fromToken(10L));
+        tokens.skipTo(LongIterator.makeKey(10L));
         Assert.assertFalse(tokens.hasNext());
         Assert.assertEquals(1L, tokens.getMinimum().token().getLongValue());
         Assert.assertEquals(9L, tokens.getMaximum().token().getLongValue());
@@ -271,19 +271,19 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
 
         tokens = new LongIterator(new long[] { 0L, 1L, 3L, 5L });
 
-        tokens.skipTo(LongIterator.fromToken(2L));
+        tokens.skipTo(LongIterator.makeKey(2L));
         Assert.assertTrue(tokens.hasNext());
         Assert.assertEquals(3L, tokens.peek().token().getLongValue());
         Assert.assertEquals(3L, tokens.next().token().getLongValue());
 
-        tokens.skipTo(LongIterator.fromToken(5L));
+        tokens.skipTo(LongIterator.makeKey(5L));
         Assert.assertTrue(tokens.hasNext());
         Assert.assertEquals(5L, tokens.peek().token().getLongValue());
         Assert.assertEquals(5L, tokens.next().token().getLongValue());
 
         LongIterator empty = new LongIterator(new long[0]);
 
-        empty.skipTo(LongIterator.fromToken(3L));
+        empty.skipTo(LongIterator.makeKey(3L));
         Assert.assertFalse(empty.hasNext());
     }
 
@@ -406,33 +406,32 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
     @Test
     public void testEmptyClusteringTwoWayMerge() {
         PrimaryKey[] keysA = {
-        makeKey(1, 1L),
-        makeKey(2, 1L),
-        makeKey(2, 1000L),
-        makeKey(3, null),
-        makeKey(3, 30L),
-        makeKey(3, 31L),
-        makeKey(3, 32L),
-        makeKey(3, 33L),
-        makeKey(4, null)
+        makeKeyForRegularRow(1, 1L),
+        makeKeyForRegularRow(2, 1L),
+        makeKeyForRegularRow(2, 1000L),
+        makePartitionAwareKey(3),
+        makeKeyForRegularRow(3, 30L),
+        makeKeyForRegularRow(3, 31L),
+        makeKeyForRegularRow(3, 32L),
+        makeKeyForRegularRow(3, 33L),
+        makePartitionAwareKey(4)
         };
 
         PrimaryKey[] keysB = {
-        makeKey(0, null),
-        makeKey(1, 2L),
-        makeKey(2, null),
-        makeKey(3, 31L),
-        makeKey(4, null)
+        makePartitionAwareKey(0),
+        makeKeyForRegularRow(1, 2L),
+        makePartitionAwareKey(2),
+        makeKeyForRegularRow(3, 31L),
+        makePartitionAwareKey(4)
         };
 
         List<PrimaryKey> expected = Arrays.asList(
-        makeKey(0, null),
-        makeKey(1, 1L),
-        makeKey(1, 2L),
-        makeKey(2, null),
-        makeKey(3, null),
-        makeKey(4, null)
-        );
+        makePartitionAwareKey(0),
+        makeKeyForRegularRow(1, 1L),
+        makeKeyForRegularRow(1, 2L),
+        makePartitionAwareKey(2),
+        makePartitionAwareKey(3),
+        makeKeyForStaticRow(4));
 
         testUnion(expected, keysA, keysB);
     }
@@ -440,55 +439,55 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
     @Test
     public void testEmptyClusteringThreeWayMerge() {
         PrimaryKey[] keysA = {
-        makeKey(1, 11L),
-        makeKey(2, 21L),
-        makeKey(2, 1000L),
-        makeKey(3, null),
-        makeKey(3, 0L),
-        makeKey(3, 1L),
-        makeKey(3, 2L),
-        makeKey(4, 41L),
-        makeKey(6, null),
-        makeKey(7, 72L),
-        makeKey(7, 73L)
+        makeKeyForRegularRow(1, 11L),
+        makeKeyForRegularRow(2, 21L),
+        makeKeyForRegularRow(2, 1000L),
+        makePartitionAwareKey(3),
+        makeKeyForRegularRow(3, 0L),
+        makeKeyForRegularRow(3, 1L),
+        makeKeyForRegularRow(3, 2L),
+        makeKeyForRegularRow(4, 41L),
+        makePartitionAwareKey(6),
+        makeKeyForRegularRow(7, 72L),
+        makeKeyForRegularRow(7, 73L)
         };
 
         PrimaryKey[] keysB = {
-        makeKey(0, null),
-        makeKey(1, 13L),
-        makeKey(2, null),
-        makeKey(3, 1L),
-        makeKey(4, 40L),
-        makeKey(4, 42L),
-        makeKey(4, 43L),
-        makeKey(4, 45L),
-        makeKey(5, 50L),
-        makeKey(7, 71L),
-        makeKey(7, 73L),
-        makeKey(7, 74L)
+        makeKeyForStaticRow(0),
+        makeKeyForRegularRow(1, 13L),
+        makePartitionAwareKey(2),
+        makeKeyForRegularRow(3, 1L),
+        makeKeyForRegularRow(4, 40L),
+        makeKeyForRegularRow(4, 42L),
+        makeKeyForRegularRow(4, 43L),
+        makeKeyForRegularRow(4, 45L),
+        makeKeyForRegularRow(5, 50L),
+        makeKeyForRegularRow(7, 71L),
+        makeKeyForRegularRow(7, 73L),
+        makeKeyForRegularRow(7, 74L)
         };
 
         PrimaryKey[] keysC = {
-        makeKey(1, 12L),
-        makeKey(2, 22L),
-        makeKey(2, 5L),
-        makeKey(3, 1L),
-        makeKey(4, null),
-        makeKey(6, 60L),
-        makeKey(7, null)
+        makeKeyForRegularRow(1, 12L),
+        makeKeyForRegularRow(2, 22L),
+        makeKeyForRegularRow(2, 5L),
+        makeKeyForRegularRow(3, 1L),
+        makePartitionAwareKey(4),
+        makeKeyForRegularRow(6, 60L),
+        makePartitionAwareKey(7)
         };
 
         List<PrimaryKey> expected = Arrays.asList(
-        makeKey(0, null),
-        makeKey(1, 11L),
-        makeKey(1, 12L),
-        makeKey(1, 13L),
-        makeKey(2, null),
-        makeKey(3, null),
-        makeKey(4, null),
-        makeKey(5, 50L),
-        makeKey(6, null),
-        makeKey(7, null)
+        makePartitionAwareKey(0),
+        makeKeyForRegularRow(1, 11L),
+        makeKeyForRegularRow(1, 12L),
+        makeKeyForRegularRow(1, 13L),
+        makePartitionAwareKey(2),
+        makePartitionAwareKey(3),
+        makePartitionAwareKey(4),
+        makeKeyForRegularRow(5, 50L),
+        makePartitionAwareKey(6),
+        makePartitionAwareKey(7)
         );
 
         testUnion(expected, keysA, keysB, keysC);
@@ -516,7 +515,7 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
     }
 
     @Test
-    public void testRandomized() throws Throwable
+    public void testRandomKeys() throws Throwable
     {
         for (int iteratorCount = 2; iteratorCount <= 5; iteratorCount++)
         {
@@ -524,7 +523,7 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
             {
                 var inputs = new ArrayList<List<PrimaryKey>>(iteratorCount);
                 for (int j = 0; j < iteratorCount; j++)
-                    inputs.add(randomPrimaryKeys(i / 10, i / 10));
+                    inputs.add(randomPrimaryKeysOfMixedTypes(1 + i / 10, 1 + i / 10));
 
                 testMerge(inputs,
                           KeyRangeUnionIteratorTest::union,
@@ -534,19 +533,22 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTest
     }
 
     @Test
-    public void testSkippingRandomized() throws Throwable
+    public void testSkippingWithRandomKeys() throws Throwable
     {
         for (int iteratorCount = 2; iteratorCount <= 5; iteratorCount++)
         {
             for (int testIteration = 0; testIteration < 200; testIteration++)
             {
+                int avgPartitions = 1 + testIteration / 10;
+                int avgRowsPerPartition = 1 + testIteration / 10;
+
                 var inputs = new ArrayList<List<PrimaryKey>>(iteratorCount);
                 for (int j = 0; j < iteratorCount; j++)
-                    inputs.add(randomPrimaryKeys(testIteration / 10, testIteration / 10));
+                    inputs.add(randomPrimaryKeysOfMixedTypes(avgPartitions, avgRowsPerPartition));
 
                 // Generate random skip positions.
                 // Use a different data set so that some skip positions exist in the merged result and some do not.
-                var skips = randomSkips(randomPrimaryKeys(testIteration / 10, testIteration / 10));
+                var skips = randomSkips(randomPrimaryKeysOfMixedTypes(avgPartitions, avgRowsPerPartition));
 
                 testSkipping(inputs, skips, KeyRangeUnionIteratorTest::unionIterator);
             }
