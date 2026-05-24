@@ -32,6 +32,7 @@ import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryReader;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
@@ -93,8 +94,13 @@ public class LiteralIndexSegmentTermsReader implements Closeable
 
     public PostingList exactMatch(ByteComparable term, QueryEventListener.TrieIndexEventListener perQueryEventListener, QueryContext context)
     {
+        return search(term, Expression.IndexOperator.EQ, perQueryEventListener, context);
+    }
+
+    public PostingList search(ByteComparable term, Expression.IndexOperator operator, QueryEventListener.TrieIndexEventListener perQueryEventListener, QueryContext context)
+    {
         perQueryEventListener.onSegmentHit();
-        return new TermQuery(term, perQueryEventListener, context).execute();
+        return new TermQuery(term, perQueryEventListener, context).execute(operator);
     }
 
     @VisibleForTesting
@@ -119,6 +125,11 @@ public class LiteralIndexSegmentTermsReader implements Closeable
 
         public PostingList execute()
         {
+            return execute(Expression.IndexOperator.EQ);
+        }
+
+        public PostingList execute(Expression.IndexOperator operator)
+        {
             try
             {
                 long postingOffset = lookupPostingsOffset(term);
@@ -132,7 +143,7 @@ public class LiteralIndexSegmentTermsReader implements Closeable
                 context.checkpoint();
 
                 // when posting is found, resources will be closed when posting reader is closed.
-                return getPostingsReader(postingOffset);
+                return getPostingsReader(postingOffset, operator);
             }
             catch (Throwable e)
             {
@@ -165,11 +176,10 @@ public class LiteralIndexSegmentTermsReader implements Closeable
             }
         }
 
-        public PostingsReader getPostingsReader(long offset) throws IOException
+        public PostingsReader getPostingsReader(long offset, Expression.IndexOperator operator) throws IOException
         {
             PostingsReader.BlocksSummary header = new PostingsReader.BlocksSummary(postingsSummaryInput, offset);
-
-            return new PostingsReader(postingsInput, header, listener.postingListEventListener());
+            return PostingsReader.forOperator(postingsInput, header, operator, listener.postingListEventListener());
         }
     }
 }

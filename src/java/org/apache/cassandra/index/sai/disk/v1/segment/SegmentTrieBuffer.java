@@ -64,7 +64,7 @@ public class SegmentTrieBuffer
 
         try
         {
-            trie.putSingleton(term, segmentRowId, postingsAccumulator, termLength <= MAX_RECURSIVE_TERM_LENGTH);
+            trie.putSingleton(term, segmentRowId, postingsAccumulator, true, true);
         }
         catch (InMemoryTrie.SpaceExhaustedException e)
         {
