@@ -216,6 +216,19 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
+        # limit one agent pod per node
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
     agent-dind-medium: |
       - name: agent-dind-medium
         label: agent-dind cassandra-medium cassandra-amd64-medium
@@ -293,6 +306,19 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
+        # limit one agent pod per node
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
     agent-dind-large: |
       - name: agent-dind-large
         label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
@@ -370,5 +396,18 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
+        # limit one agent pod per node
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
 
 

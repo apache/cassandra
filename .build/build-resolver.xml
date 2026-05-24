@@ -56,8 +56,8 @@
 
         <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
         <resolver:remoterepos id="all">
-            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
-            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}" checksums="fail" />
+            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}" checksums="fail" />
             <!-- Snapshot artifacts must not exist in nor be downloaded by any Cassandra release artifact.
                  Please validate that all artifacts included in parent-pom-template.xml are release
                  artifacts before committing.

@@ -40,6 +40,7 @@
         <arg value="-Paccord_group=org.apache.cassandra" />
         <arg value="-Paccord_artifactId=cassandra-accord" />
         <arg value="-Paccord_version=${version}" />
+        <arg value="-Dmaven.repo.local=${maven.repo.local}" if:set="maven.repo.local" />
       </exec>
       <!-- when dependencies are copied into the build dir they may be ignored if already present, so cleanup to pick up latest changes -->
       <delete>

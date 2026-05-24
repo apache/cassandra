@@ -51,6 +51,12 @@ echo "${username} ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/${username}
 chmod 0440 /etc/sudoers.d/${username}
 mkdir -p ${BUILD_HOME}/docker ${DIST_DIR} ${BUILD_HOME}/.ssh
 
+# rsync in cached maven dependencies
+echo "Syncing maven dependencies and gradle wrapper"
+rsync -a /root/.m2/repository/ ${BUILD_HOME}/.m2/repository/
+cp -a /root/.gradle ${BUILD_HOME}/
+chown -R ${username}:${username} ${BUILD_HOME}/.gradle ${BUILD_HOME}/.m2
+
 # we need to make SSH less strict to prevent various dtests from failing when they attempt to
 # git clone a given commit/tag/etc
 echo 'Host *\n UserKnownHostsFile /dev/null\n StrictHostKeyChecking no' > ${BUILD_HOME}/.ssh/config

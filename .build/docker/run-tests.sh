@@ -25,6 +25,8 @@
 [ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname -- "$0")/../..)"
 [ "x${cassandra_dtest_dir}" != "x" ] || cassandra_dtest_dir="${cassandra_dir}/../cassandra-dtest"
 [ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
+# parameterise the maven repository host directory, as it cannot be shared across containers.
+# m2_dir fails under /tmp on macos
 [ "x${m2_dir}" != "x" ] || m2_dir="${HOME}/.m2/repository"
 [ "x${docker_timeout_hours}" != "x" ] || docker_timeout_hours="1"
 [ -d "${build_dir}" ] || { mkdir -p "${build_dir}" ; }
@@ -147,7 +149,7 @@ if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
   if ! ( docker pull -q ${image_name} >/dev/null 2>/dev/null ) ; then
     # Create build images containing the build tool-chain, Java and an Apache Cassandra git working directory, with retry
     echo "Building docker image..."
-    until docker build -t ${image_name} -f docker/${dockerfile} .  ; do
+    until docker build -t ${image_name} -f docker/${dockerfile} --load .  ; do
       echo "docker build failed… trying again in 10s… "
       sleep 10
     done
@@ -294,7 +296,7 @@ docker_command="source \${CASSANDRA_DIR}/.build/docker/_set_java.sh ${java_versi
 # start the container, timeout after 4 hours
 docker_id=$(docker run --name ${container_name} ${docker_flags} ${docker_envs} ${docker_mounts} ${docker_volume_opt} ${image_name} sleep ${docker_timeout_hours}h)
 
-echo "Running container ${container_name} ${docker_id}"
+echo "Running container ${container_name} ${docker_id} using image ${image_name}"
 
 docker exec --user root ${container_name} bash -c "\${CASSANDRA_DIR}/.build/docker/_create_user.sh cassandra $(id -u) $(id -g)" | tee -a ${logfile}
 docker exec --user root ${container_name} update-alternatives --set python /usr/bin/python${python_version} | tee -a ${logfile}
