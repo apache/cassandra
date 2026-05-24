@@ -36,6 +36,7 @@ controller:
   customJenkinsLabels:
     - controller
   resources:
+    # increase cpu/memory as agent pool sizes get bigger (pre-ci.c.a.o uses 8 and 20g)
     requests:
       cpu: 4
       memory: 16G
@@ -90,6 +91,23 @@ controller:
                           url('https://github.com/apache/cassandra')
                         }
                         branch('trunk')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+          - script: >
+              pipelineJob('cassandra-6.0') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('cassandra-6.0')
                         scriptPath('.jenkins/Jenkinsfile')
                       }
                     }
@@ -216,6 +234,19 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
     agent-dind-medium: |
       - name: agent-dind-medium
         label: agent-dind cassandra-medium cassandra-amd64-medium
@@ -293,6 +324,19 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
     agent-dind-large: |
       - name: agent-dind-large
         label: agent-dind cassandra-large cassandra-amd64-large cassandra-amd64-large-dedicated
@@ -370,5 +414,18 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
+        yaml: |
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchExpressions:
+                        - key: jenkins/cassius-jenkins-agent
+                          operator: In
+                          values:
+                            - "true"
+                    topologyKey: kubernetes.io/hostname
 
 

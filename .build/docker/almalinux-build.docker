@@ -26,7 +26,7 @@ ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
 ARG UID_ARG=1000
 ARG GID_ARG=1000
 
-LABEL org.cassandra.buildenv=almalinux
+LABEL org.cassandra.buildenv=almalinux_build
 
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \
@@ -55,3 +55,12 @@ RUN rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm
 
 # python3 is needed for the gen-doc target
 RUN pip3 install --upgrade pip
+
+# Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
+COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
+RUN alternatives --set java $(alternatives --display java | grep "family java-11-openjdk" | cut -d' ' -f1)
+RUN alternatives --set javac $(alternatives --display javac | grep "family java-11-openjdk" | cut -d' ' -f1)
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
+RUN JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") \
+    bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+RUN cp -a /root/.gradle /home/image-cache/.gradle

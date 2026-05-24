@@ -59,7 +59,7 @@ set -e # enable immediate exit if venv setup fails
 # fresh virtualenv and test logs results everytime
 rm -fr ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
 
-# re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu2004_test docker image
+# re-use when possible the pre-installed virtualenv found in the cassandra-ubuntu-test docker image
 virtualenv-clone ${BUILD_HOME}/env${python_version} ${BUILD_DIR}/venv || virtualenv --python=python3 ${BUILD_DIR}/venv
 source ${BUILD_DIR}/venv/bin/activate
 

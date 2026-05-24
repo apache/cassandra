@@ -24,7 +24,7 @@ ZONE="us-central1-c"
 gcloud container clusters create ${CLUSTER_NAME} --machine-type e2-standard-8 --disk-type=pd-ssd --num-nodes 1 --node-labels=cassandra.jenkins.controller=true --autoscaling-profile optimize-utilization --zone ${ZONE}
 
 # small resource nodes
-gcloud container node-pools create agents-small --cluster ${CLUSTER_NAME} --machine-type n2-highcpu-4 --disk-type=pd-ssd --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=50 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.small=true --zone ${ZONE}
+gcloud container node-pools create agents-small --cluster ${CLUSTER_NAME} --machine-type e2-highcpu-8 --disk-type=pd-ssd --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=50 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.small=true --zone ${ZONE}
 
 # medium resource nodes
 #  preference (by cost): n2-highcpu-8, c3-highcpu-8, n4-highcpu-8, n1-highcpu-16
@@ -32,6 +32,12 @@ gcloud container node-pools create agents-medium --cluster ${CLUSTER_NAME} --mac
 
 # large resource nodes
 gcloud container node-pools create agents-large --cluster ${CLUSTER_NAME} --machine-type n2-standard-8 --disk-type=pd-ssd --enable-autoscaling --spot --num-nodes=0 --min-nodes=0 --max-nodes=160 --node-labels=cassandra.jenkins.agent=true,cassandra.jenkins.agent.large=true --zone ${ZONE}
+
+# For each sized resource nodes, pick any machine type that fits, those listed above should work and be the most cost-effective, but this can change region to region
+# See https://github.com/apache/cassandra/blob/cassandra-6.0/.jenkins/Jenkinsfile#L35-L38
+# and agent.podTemplates.*.resourceLimitCpu and agent.podTemplates.*.resourceLimitMemory (adding gke/eks requirements) in https://github.com/apache/cassandra/blob/cassandra-6.0/.jenkins/k8s/jenkins-deployment.yaml
+# The jenkins resource requirements should fit into the corresponding dind podTemplate limits.
+# Remember to allow a buffer for gke/eks pods deployed on each node.
 ```
 
 
