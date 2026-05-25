@@ -40,6 +40,13 @@ download_deps_for_branch() {
 
     # ensure git modules are initialised
     ant init
+    # HACK
+    if [ -d "modules/accord" ]; then
+    local version=$(grep '<property name="base.version"' build.xml | sed 's/.*value="\([^"]*\)".*/\1/')
+        cd modules/accord
+        ./gradlew clean publishToMavenLocal -Dmaven.repo.local="$CUSTOM_M2_REPO" -Paccord_group=org.apache.cassandra -Paccord_artifactId=cassandra-accord -Paccord_version="${version}-SNAPSHOT" -x test -x rat -x checkstyleMain -x checkstyleTest -x javadoc
+        cd -
+    fi
     # download all dependencies
     ant -Dmaven.repo.local="$CUSTOM_M2_REPO" -Dlocal.repository="$CUSTOM_M2_REPO" resolver-dist-lib
 }
