@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Avoid type lookup in SerializationHeader#getType if schema and SSTable are aligned (CASSANDRA-21402)
  * Replace LongAdder in metric-like logic with ThreadLocalCounter (CASSANDRA-21400)
  * BTreeRow.hasLiveData: avoid Cell iteration if there are no cell tombstones (CASSANDRA-21363)
  * Reduce memory allocations in row merge logic (CASSANDRA-21359)
