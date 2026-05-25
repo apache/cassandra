@@ -349,6 +349,7 @@ public class SerializationHeader
         public SerializationHeader toHeader(TableMetadata metadata) throws UnknownColumnException
         {
             Map<ByteBuffer, AbstractType<?>> typeMap = new HashMap<>(staticColumns.size() + regularColumns.size());
+            boolean hasTypeMismatch = false;
 
             RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
             for (Map<ByteBuffer, AbstractType<?>> map : ImmutableList.of(staticColumns, regularColumns))
@@ -357,9 +358,10 @@ public class SerializationHeader
                 for (Map.Entry<ByteBuffer, AbstractType<?>> e : map.entrySet())
                 {
                     ByteBuffer name = e.getKey();
-                    AbstractType<?> other = typeMap.put(name, e.getValue());
-                    if (other != null && !other.equals(e.getValue()))
-                        throw new IllegalStateException("Column " + name + " occurs as both regular and static with types " + other + "and " + e.getValue());
+                    AbstractType<?> diskType = e.getValue();
+                    AbstractType<?> other = typeMap.put(name, diskType);
+                    if (other != null && !other.equals(diskType))
+                        throw new IllegalStateException("Column " + name + " occurs as both regular and static with types " + other + "and " + diskType);
 
                     ColumnMetadata column = metadata.getColumn(name);
                     if (column == null || column.isStatic() != isStatic)
@@ -376,11 +378,15 @@ public class SerializationHeader
                         if (column == null)
                             throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                     }
+                    if (!diskType.equals(column.type))
+                        hasTypeMismatch = true;
                     builder.add(column);
                 }
             }
 
-            return new SerializationHeader(true, keyType, clusteringTypes, builder.build(), stats, typeMap);
+            // if all on-disk types match the current schema then we can use
+            // fast column.type path on every cell read instead of doing a map lookup.
+            return new SerializationHeader(true, keyType, clusteringTypes, builder.build(), stats, hasTypeMismatch ? typeMap : null);
         }
 
         @Override
