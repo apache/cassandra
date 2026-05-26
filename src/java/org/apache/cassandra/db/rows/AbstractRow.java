@@ -44,16 +44,6 @@ public abstract class AbstractRow implements Row
         return Unfiltered.Kind.ROW;
     }
 
-    @Override
-    public boolean hasLiveData(long nowInSec, boolean enforceStrictLiveness)
-    {
-        if (primaryKeyLivenessInfo().isLive(nowInSec))
-            return true;
-        else if (enforceStrictLiveness)
-            return false;
-        return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
-    }
-
     public boolean isStatic()
     {
         return clustering() == Clustering.STATIC_CLUSTERING;

@@ -12,6 +12,7 @@ Merged from 5.0:
 
 
 6.0-alpha2
+ * BTreeRow#hasLiveData: Avoid Cell iteration if there are no tombstones in a row (CASSANDRA-21363)
  * Reduce memory allocations in row merge logic (CASSANDRA-21359)
  * Restore option to avoid hint transfer during decommission (CASSANDRA-21341)
  * Add an offline cluster metadata tool (CASSANDRA-19151)
