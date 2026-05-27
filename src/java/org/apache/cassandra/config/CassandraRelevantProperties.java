@@ -238,6 +238,11 @@ public enum CassandraRelevantProperties
     /** minimum allowed TTL for snapshots */
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
 
+    /**
+     * Validates names of to-be-taken snapshots, defaults to false.
+     */
+    SNAPSHOT_NAME_VALIDATION("cassandra.snapshot.validation", "false"),
+
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
 
