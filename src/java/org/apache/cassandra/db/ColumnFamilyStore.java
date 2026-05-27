@@ -93,6 +93,8 @@ import org.json.simple.JSONObject;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -1837,6 +1839,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> snapshotWithoutFlush(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, RateLimiter rateLimiter)
     {
+        validateSnapshotName(snapshotName);
+
         if (rateLimiter == null)
             rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
@@ -1866,6 +1870,41 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (ephemeral)
             createEphemeralSnapshotMarkerFile(snapshotName);
         return snapshottedSSTables;
+    }
+
+    private void validateSnapshotName(String snapshotName)
+    {
+        if (snapshotName.contains(File.separator))
+        {
+            throw new IllegalArgumentException("Snapshot name cannot contain " + File.separator);
+        }
+
+        if (snapshotName.equals(".") || snapshotName.equals(".."))
+        {
+            throw new IllegalArgumentException("Snapshot name '" + snapshotName + "' is reserved");
+        }
+
+        if (!CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION.getBoolean())
+            return;
+
+        // the length of valid snapshot name has to be less than or equal to FILENAME_LENGTH - that is 255 -
+        // we are following the max length as it is in SchemaConstants for table name.
+        if (snapshotName.length() > SchemaConstants.FILENAME_LENGTH)
+        {
+            throw new IllegalArgumentException(format("Snapshot name must not be more than %d characters long for " +
+                                                      "resolved snapshot name (got %d characters for \"%s\")",
+                                                      FILENAME_LENGTH, snapshotName.length(), snapshotName));
+        }
+
+        // Allowed characters follow the AWS S3 "Safe characters" set documented at
+        // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines :
+        //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
+        // The path separator '/' is intentionally excluded,
+        // which is what blocks traversal attempts such as "../../mysnapshot"
+        if (!Pattern.compile("[a-zA-Z0-9!_.*'()-]+").matcher(snapshotName).matches())
+        {
+            throw new IllegalArgumentException("Snapshot name contains illegal characters: " + snapshotName);
+        }
     }
 
     private void writeSnapshotManifest(final JSONArray filesJSONArr, final String snapshotName)
