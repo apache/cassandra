@@ -210,6 +210,11 @@ public enum CassandraRelevantProperties
     /** This property indicates whether disable_mbean_registration is true */
     IS_DISABLED_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
 
+    /**
+     * Validates names of to-be-taken snapshots, defaults to false.
+     */
+    SNAPSHOT_NAME_VALIDATION("cassandra.snapshot.validation", "false"),
+
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
 
