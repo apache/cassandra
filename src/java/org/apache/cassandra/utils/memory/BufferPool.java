@@ -33,7 +33,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -151,7 +150,7 @@ public class BufferPool
     /**
      * Size of unpooled buffer being allocated outside of buffer pool in bytes.
      */
-    private final LongAdder overflowMemoryUsage = new LongAdder();
+    private final ThreadLocalCounter overflowMemoryUsage = new ThreadLocalCounter();
 
     /**
      * Size of buffer being used in bytes, including pooled buffer and unpooled buffer.
@@ -265,7 +264,7 @@ public class BufferPool
 
     private void updateOverflowMemoryUsage(int size)
     {
-        overflowMemoryUsage.add(size);
+        overflowMemoryUsage.inc(size);
     }
 
     public void setRecycleWhenFreeForCurrentThread(boolean recycleWhenFree)
@@ -278,7 +277,7 @@ public class BufferPool
      */
     public long sizeInBytes()
     {
-        return memoryAllocated.get() + overflowMemoryUsage.longValue();
+        return memoryAllocated.get() + overflowMemoryUsage.getCount();
     }
 
     /**
@@ -286,7 +285,7 @@ public class BufferPool
      */
     public long usedSizeInBytes()
     {
-        return memoryInUse.getCount() + overflowMemoryUsage.longValue();
+        return memoryInUse.getCount() + overflowMemoryUsage.getCount();
     }
 
     /**
@@ -294,7 +293,7 @@ public class BufferPool
      */
     public long overflowMemoryInBytes()
     {
-        return overflowMemoryUsage.longValue();
+        return overflowMemoryUsage.getCount();
     }
 
     /**
@@ -826,7 +825,7 @@ public class BufferPool
             else
             {
                 put(buffer, chunk);
-                memoryInUse.inc(-size);
+                memoryInUse.dec(size);
             }
         }
 
