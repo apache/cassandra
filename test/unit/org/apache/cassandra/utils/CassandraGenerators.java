@@ -1750,6 +1750,7 @@ public final class CassandraGenerators
         Set<UserType> udts = CassandraGenerators.extractUDTs(metadata);
         if (!udts.isEmpty())
         {
+            List<UserType> ordered = new ArrayList<>();
             Deque<UserType> pending = new ArrayDeque<>(udts);
             Set<ByteBuffer> visited = new HashSet<>();
             while (!pending.isEmpty())
@@ -1759,8 +1760,22 @@ public final class CassandraGenerators
                 subTypes.remove(next); // it includes self
                 if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> visited.contains(t.name)))
                 {
-                    fn.accept(next);
+                    try 
+                    {
+                        fn.accept(next);
+                    } 
+                    catch (Throwable t) 
+                    {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Unable to add type ").append(next.toCqlString(false, false, false));
+                        sb.append("\nHistory:");
+                        for (var udt : ordered)
+                            sb.append("\n\t").append(udt.toCqlString(false, false, false));
+                        AssertionError e = new AssertionError(sb.toString(), t);
+                        throw e;
+                    }
                     visited.add(next.name);
+                    ordered.add(next);
                 }
                 else
                 {

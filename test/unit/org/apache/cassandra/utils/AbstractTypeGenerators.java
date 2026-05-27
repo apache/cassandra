@@ -828,16 +828,19 @@ public final class AbstractTypeGenerators
         return userTypeGen(elementGen, sizeGen, ksGen, nameGen, BOOLEAN_GEN);
     }
 
-    private static ThreadLocal<String> OVERRIDE_KEYSPACE = new ThreadLocal<>();
+    private static final ThreadLocal<String> OVERRIDE_KEYSPACE = new ThreadLocal<>();
+    private static final ThreadLocal<Set<String>> SEEN_UDT_NAMES = new ThreadLocal<>();
 
     public static void overrideUDTKeyspace(String ks)
     {
         OVERRIDE_KEYSPACE.set(ks);
+        SEEN_UDT_NAMES.set(new HashSet<>());
     }
 
     public static void clearUDTKeyspace()
     {
         OVERRIDE_KEYSPACE.remove();
+        SEEN_UDT_NAMES.remove();
     }
 
     public interface UserTypeFieldsGen
@@ -876,7 +879,11 @@ public final class AbstractTypeGenerators
             String ks = OVERRIDE_KEYSPACE.get();
             if (ks == null)
                 ks = ksGen.generate(rnd);
-            String name = nameGen.generate(rnd);
+            Set<String> seenNames = SEEN_UDT_NAMES.get();
+            Gen<String> localNameGen = nameGen;
+            if (seenNames != null)
+                localNameGen = Generators.filter(nameGen, seenNames::add);
+            String name = localNameGen.generate(rnd);
             ByteBuffer nameBB = AsciiType.instance.decompose(name);
 
             for (int i = 0; i < numElements; i++)
