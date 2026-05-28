@@ -28,8 +28,10 @@ import java.nio.file.attribute.FileTime;
 import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
@@ -55,6 +57,7 @@ import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystemProvider;
@@ -306,6 +309,38 @@ public class StartupChecksTest
         testKernelBug1057843Check("ext4", DiskAccessMode.direct, new Semver("6.1.66.1-generic"), false);
         testKernelBug1057843Check("tmpfs", DiskAccessMode.direct, new Semver("6.1.64.1-generic"), false);
         testKernelBug1057843Check("ext4", DiskAccessMode.mmap, new Semver("6.1.64.1-generic"), false);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testErrorneousCustomCheckFailsStartup()
+    {
+        // ServiceLoader instantiates providers lazily: a custom StartupCheck whose no-arg
+        // constructor throws does NOT fail ServiceLoader.load(), it fails later, during
+        // iteration, surfacing as a ServiceConfigurationError from the iterator. We model that
+        // here by having the iterator throw on next(). withServiceLoaderTests() must catch the
+        // error around the iteration loop and rethrow it as a ConfigurationException, rather than
+        // letting it escape uncaught (which would be wrapped by applyStartupChecks() into a
+        // misleading "Invalid configuration of startup_checks" failure).
+        ServiceConfigurationError error = new ServiceConfigurationError("org.example.BadCheck could not be instantiated",
+                                                                        new RuntimeException("Failure to instantiate"));
+
+        Iterator<StartupCheck> failingIterator = mock(Iterator.class);
+        when(failingIterator.hasNext()).thenReturn(true);
+        when(failingIterator.next()).thenThrow(error);
+
+        ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
+        doReturn(failingIterator).when(loader).iterator();
+
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class))
+        {
+            serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
+
+            assertThatExceptionOfType(ConfigurationException.class)
+                .isThrownBy(() -> new StartupChecks().withDefaultTests().withServiceLoaderTests())
+                .withMessageContaining("Unable to get startup checks via ServiceLoader")
+                .withCause(error);
+        }
     }
 
     @SuppressWarnings("unchecked")
