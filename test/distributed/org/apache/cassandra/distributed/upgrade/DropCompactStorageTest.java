@@ -20,7 +20,10 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -42,11 +45,17 @@ public class DropCompactStorageTest extends UpgradeTestBase
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck) VALUES (1,1)", ConsistencyLevel.ALL);
         })
         .runAfterClusterUpgrade((cluster) -> {
-            cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
+            if (needsCMSInitialization(cluster))
+                cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
             cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl DROP COMPACT STORAGE");
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                       ConsistencyLevel.ALL),
                        row(1, 1, null));
         }).run();
+    }
+
+    private static boolean needsCMSInitialization(UpgradeableCluster cluster)
+    {
+        return ((IInvokableInstance) cluster.get(1)).callOnInstance(() -> ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP);
     }
 }
