@@ -39,6 +39,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.index.sai.memory.ShardedMemtableIndex;
 import org.apache.cassandra.index.sai.memory.UnshardedMemtableIndex;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -86,9 +87,10 @@ public class MemtableIndexFlushBench extends AbstractMemtableIndexBench
     }
 
     public void setupIndexesExpressionsAndTerms() {
+        Memtable memtable = cfs.getCurrentMemtable();
         memtableIndex = (shardCount > 1)
-                        ? new ShardedMemtableIndex(index, cfs, shardCount) :
-                        new UnshardedMemtableIndex(index);
+                        ? new ShardedMemtableIndex(index, cfs, shardCount, memtable) :
+                        new UnshardedMemtableIndex(index, memtable);
 
         setupTerms(numberOfTerms);
         populateIndexData();

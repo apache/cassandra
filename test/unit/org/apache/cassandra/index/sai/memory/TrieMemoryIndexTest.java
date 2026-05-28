@@ -33,7 +33,6 @@ import org.HdrHistogram.Histogram;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -43,11 +42,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.ExcludingBounds;
-import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -110,9 +105,9 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
 
         for (int executionCount = 0; executionCount < 1000; executionCount++)
         {
-            Expression expression = generateRandomExpression();
+            Expression expression = generateRandomExpression(this.index);
 
-            AbstractBounds<PartitionPosition> keyRange = generateRandomBounds(keys);
+            AbstractBounds<PartitionPosition> keyRange = generateRandomBounds(keys, Murmur3Partitioner.instance);
 
             Set<Integer> expectedKeys = keyMap.keySet()
                                               .stream()
@@ -135,62 +130,6 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
 
             assertEquals(expectedKeys, foundKeys);
         }
-    }
-
-    private AbstractBounds<PartitionPosition> generateRandomBounds(List<DecoratedKey> keys)
-    {
-        PartitionPosition leftBound = getRandom().nextBoolean() ? Murmur3Partitioner.instance.getMinimumToken().minKeyBound()
-                                                                : keys.get(getRandom().nextIntBetween(0, keys.size() - 1)).getToken().minKeyBound();
-
-        PartitionPosition rightBound = getRandom().nextBoolean() ? Murmur3Partitioner.instance.getMinimumToken().minKeyBound()
-                                                                 : keys.get(getRandom().nextIntBetween(0, keys.size() - 1)).getToken().maxKeyBound();
-
-        AbstractBounds<PartitionPosition> keyRange;
-
-        if (leftBound.isMinimum() && rightBound.isMinimum())
-            keyRange = new Range<>(leftBound, rightBound);
-        else
-        {
-            if (AbstractBounds.strictlyWrapsAround(leftBound, rightBound))
-            {
-                PartitionPosition temp = leftBound;
-                leftBound = rightBound;
-                rightBound = temp;
-            }
-            if (getRandom().nextBoolean())
-                keyRange = new Bounds<>(leftBound, rightBound);
-            else if (getRandom().nextBoolean())
-                keyRange = new ExcludingBounds<>(leftBound, rightBound);
-            else
-                keyRange = new IncludingExcludingBounds<>(leftBound, rightBound);
-        }
-        return keyRange;
-    }
-
-    private Expression generateRandomExpression()
-    {
-        Expression expression = Expression.create(index);
-
-        int equality = getRandom().nextIntBetween(0, 100);
-        int lower = getRandom().nextIntBetween(0, 75);
-        int upper = getRandom().nextIntBetween(25, 100);
-        while (upper <= lower)
-            upper = getRandom().nextIntBetween(0, 100);
-
-        if (getRandom().nextBoolean())
-            expression.add(Operator.EQ, Int32Type.instance.decompose(equality));
-        else
-        {
-            boolean useLower = getRandom().nextBoolean();
-            boolean useUpper = getRandom().nextBoolean();
-            if (!useLower && !useUpper)
-                useLower = useUpper = true;
-            if (useLower)
-                expression.add(getRandom().nextBoolean() ? Operator.GT : Operator.GTE, Int32Type.instance.decompose(lower));
-            if (useUpper)
-                expression.add(getRandom().nextBoolean() ? Operator.LT : Operator.LTE, Int32Type.instance.decompose(upper));
-        }
-        return expression;
     }
 
     @Test

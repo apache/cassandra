@@ -267,6 +267,16 @@ public class StorageAttachedIndexDDLTest extends SAITester
     }
 
     @Test
+    public void shouldRejectShardsOptionOnVectorIndex()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val vector<float, 3>)");
+
+        assertThatThrownBy(() -> executeNet("CREATE INDEX ON %s(val) USING 'sai' WITH OPTIONS = { 'shards' : '4' }"))
+        .isInstanceOf(InvalidQueryException.class)
+        .hasMessageContaining("vector column does not support sharding");
+    }
+
+    @Test
     public void shouldCreateIndexIfExists()
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");

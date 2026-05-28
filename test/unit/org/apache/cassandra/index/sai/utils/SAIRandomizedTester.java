@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.utils;
 
 import java.io.IOException;
+import java.util.List;
 
 import com.google.common.base.Preconditions;
 
@@ -28,11 +29,22 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.ExcludingBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
+import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
@@ -198,5 +210,62 @@ public class SAIRandomizedTester extends SAITester
             array[i] = array[randomPosition];
             array[randomPosition] = temp;
         }
+    }
+
+    public static Expression generateRandomExpression(StorageAttachedIndex index)
+    {
+        Expression expression = Expression.create(index);
+
+        int equality = getRandom().nextIntBetween(0, 100);
+        int lower = getRandom().nextIntBetween(0, 75);
+        int upper = getRandom().nextIntBetween(25, 100);
+        while (upper <= lower)
+            upper = getRandom().nextIntBetween(0, 100);
+
+        if (getRandom().nextBoolean())
+            expression.add(Operator.EQ, Int32Type.instance.decompose(equality));
+        else
+        {
+            boolean useLower = getRandom().nextBoolean();
+            boolean useUpper = getRandom().nextBoolean();
+            if (!useLower && !useUpper)
+                useLower = useUpper = true;
+            if (useLower)
+                expression.add(getRandom().nextBoolean() ? Operator.GT : Operator.GTE, Int32Type.instance.decompose(lower));
+            if (useUpper)
+                expression.add(getRandom().nextBoolean() ? Operator.LT : Operator.LTE, Int32Type.instance.decompose(upper));
+        }
+        return expression;
+    }
+
+    public static AbstractBounds<PartitionPosition> generateRandomBounds(List<DecoratedKey> keys,
+                                                                         IPartitioner partitioner)
+    {
+        PartitionPosition leftBound = getRandom().nextBoolean() ? partitioner.getMinimumToken().minKeyBound()
+                                                                : keys.get(getRandom().nextIntBetween(0, keys.size() - 1)).getToken().minKeyBound();
+
+        PartitionPosition rightBound = getRandom().nextBoolean() ? partitioner.getMinimumToken().minKeyBound()
+                                                                 : keys.get(getRandom().nextIntBetween(0, keys.size() - 1)).getToken().maxKeyBound();
+
+        AbstractBounds<PartitionPosition> keyRange;
+
+        if (leftBound.isMinimum() && rightBound.isMinimum())
+            keyRange = new Range<>(leftBound, rightBound);
+        else
+        {
+            if (AbstractBounds.strictlyWrapsAround(leftBound, rightBound))
+            {
+                PartitionPosition temp = leftBound;
+                leftBound = rightBound;
+                rightBound = temp;
+            }
+            if (getRandom().nextBoolean())
+                keyRange = new Bounds<>(leftBound, rightBound);
+            else if (getRandom().nextBoolean())
+                keyRange = new ExcludingBounds<>(leftBound, rightBound);
+            else
+                keyRange = new IncludingExcludingBounds<>(leftBound, rightBound);
+        }
+        return keyRange;
     }
 }
