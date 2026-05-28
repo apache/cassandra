@@ -43,7 +43,7 @@ public class ClusterMetadataUpgradeHibernateTest extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgrade(1, 2) // not node3 - we manually upgrade that below
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.get(3).shutdown().get();
@@ -79,7 +79,7 @@ public class ClusterMetadataUpgradeHibernateTest extends UpgradeTestBase
         .nodes(3)
         .nodesToUpgrade(1, 2)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             cluster.get(3).shutdown().get();

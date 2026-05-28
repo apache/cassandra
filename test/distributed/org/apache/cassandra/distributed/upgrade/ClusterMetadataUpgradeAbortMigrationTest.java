@@ -34,7 +34,7 @@ public class ClusterMetadataUpgradeAbortMigrationTest extends UpgradeTestBase
         .nodesToUpgrade(1, 2, 3)
         .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
                                 .set(Constants.KEY_DTEST_FULL_STARTUP, true))
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {
             cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':2}"));
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");

@@ -54,7 +54,7 @@ public class ClusterMetadataUpgradeChangeIPTest extends UpgradeTestBase
         .withBuilder(builder -> builder.withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                        .withTokenSupplier((TokenSupplier) i -> i == 4 ? ts.tokens(3) : ts.tokens(i)))
         .nodes(3)
-        .upgradesToCurrentFrom(v50)
+        .singleUpgradeToCurrentFrom(v50)
         .setup((cluster) -> {})
         .runAfterClusterUpgrade((cluster) -> {
             cluster.get(3).shutdown().get();
