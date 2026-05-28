@@ -73,4 +73,9 @@ public class ThreadLocalCounter extends com.codahale.metrics.Counter implements 
     {
         return ThreadLocalMetrics.getCount(metricId);
     }
+
+    public void reset()
+    {
+        ThreadLocalMetrics.getCountAndReset(metricId);
+    }
 }

@@ -2,16 +2,8 @@
  * Avoid using ObjectUtils.getFirstNonNull in Schema (CASSANDRA-21394)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
-6.0-alpha2
- * Ensure schema created before 2.1 without tableId in folder name can be loaded in SnapshotLoader (CASSANDRA-21246)
- * Differentiate between legitimate cases where the first entry is the same as the last entry and empty bounds in SSTableCursorWriter#addIndexBlock() (CASSANDRA-21255)
- * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
-Merged from 5.0:
- * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
- * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
-
-
-6.0-alpha2
+Merged from 6.0:
+ * Replace LongAdder in metric-like logic with ThreadLocalCounter (CASSANDRA-21400)
  * BTreeRow#hasLiveData: Avoid Cell iteration if there are no tombstones in a row (CASSANDRA-21363)
  * Reduce memory allocations in row merge logic (CASSANDRA-21359)
  * Restore option to avoid hint transfer during decommission (CASSANDRA-21341)
@@ -24,7 +16,16 @@ Merged from 5.0:
  * Avoid unit conversion in DatabaseDescriptor.getMaxValueSize() for every deserializing Cell (CASSANDRA-21295)
  * Fix single token batch atomicity with Accord/non-Accord batches by using the batch log (CASSANDRA-20588)
  * Avoid CompactionOptions parsing for every read by WithoutPurgeableTombstones (CASSANDRA-21294)
+ * Ensure schema created before 2.1 without tableId in folder name can be loaded in SnapshotLoader (CASSANDRA-21246)
+ * Differentiate between legitimate cases where the first entry is the same as the last entry and empty bounds in SSTableCursorWriter#addIndexBlock() (CASSANDRA-21255)
+ * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
  * Synchronously publish changes to local gossip state following metadata updates (CASSANDRA-21239)
+Merged from 5.0:
+ * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
+ * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
+
+
+6.0-alpha2
  * Change default for cassandra.set_sep_thread_name to false to reduce CPU usage (CASSANDRA-21089)
  * Avoid permission checks for masked columns when the table doesn't have any (CASSANDRA-21299)
  * Reduce allocations and array copies due to buffer resizing in LocalDataResponse during row serialization (CASSANDRA-21285)
