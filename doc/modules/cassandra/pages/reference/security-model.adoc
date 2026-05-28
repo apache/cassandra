@@ -335,8 +335,13 @@ authorization.
 *Active Controls*:
 
 * *Default Superuser Disabled*: The default `cassandra` role has been removed or disabled (`ALTER
-  ROLE cassandra WITH SUPERUSER = false AND LOGIN = false`) and replaced with a dedicated superuser
-  with a strong password.
+  ROLE cassandra WITH SUPERUSER = false AND LOGIN = false`) and replaced with a dedicated superuser.
+  When `PasswordAuthenticator` (or the password fallback path of
+  `MutualTlsWithPasswordFallbackAuthenticator`) is in use, the dedicated superuser is protected by a
+  strong password. When `MutualTlsAuthenticator` is in use, the dedicated superuser is a passwordless
+  role bound to a specific administrative mTLS identity (client certificate) via the configured
+  certificate-to-role mapping; password-based login is not required and is not the only acceptable
+  hardening for the superuser role.
 * *Principle of Least Privilege*: Permissions are granted at the minimum necessary scope using `GRANT`
   statements scoped to specific keyspaces, tables, or MBeans.
 * *Role Separation*: Administrative (superuser), operational (JMX), and application roles are separated.
@@ -519,8 +524,12 @@ risks are evaluated against this hardened baseline:
 . *Authentication*: `PasswordAuthenticator`, `MutualTlsWithPasswordFallbackAuthenticator` or
   `MutualTlsAuthenticator` is configured (not `AllowAllAuthenticator`). The default `cassandra`
   superuser account is removed or disabled. A dedicated superuser is in use. When using
-  `PasswordAuthenticator`, strong passwords are enforced. When using `MutualTlsAuthenticator`,
-  client certificate validation is enforced through the TLS truststore.
+  `PasswordAuthenticator` (or the password fallback path of
+  `MutualTlsWithPasswordFallbackAuthenticator`), strong passwords are enforced. When using
+  `MutualTlsAuthenticator`, the dedicated superuser is a passwordless role bound to a specific
+  administrative mTLS identity, and client certificate validation is enforced through the TLS
+  truststore. Either form -- a strong password under password-based authentication, or a passwordless
+  role bound to an administrative certificate identity under mutual TLS -- satisfies this baseline.
 . *Authorization*: `CassandraAuthorizer` is configured (not `AllowAllAuthorizer`). Permissions
   follow an allowlist model -- no access is granted unless explicitly assigned via `GRANT`.
 . *Client-to-Node Encryption*: `client_encryption_options` is enabled with `optional: false`,
@@ -553,7 +562,10 @@ This threat model further assumes:
 . Physical security of servers is maintained
 . The Cassandra distribution has been obtained from official Apache channels and verified with release signatures
 . SSL/TLS key material is properly generated, stored, and rotated
-. Credentials are strong, unique, and managed through a secure credential management process
+. Credentials are strong, unique, and managed through a secure credential management process. For
+  password-based authentication this means strong, rotated passwords; for mutual TLS authentication
+  this means properly issued, scoped, and rotated client certificates whose subject identity is bound
+  to a specific Cassandra role (which may be passwordless)
 . Any pluggable implementation of a Cassandra interface or SPI (authenticators, authorizers, snitches,
   seed providers, partitioners, compressors, SSL context factories, audit loggers, triggers, UDFs,
   startup checks, etc.) and any JAR placed on the Cassandra classpath is sourced from a trusted vendor
