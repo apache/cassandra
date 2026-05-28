@@ -31,6 +31,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.AuthenticateMessage;
 
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
+
 public interface IAuthenticator
 {
     /**
@@ -248,6 +250,7 @@ public interface IAuthenticator
     abstract class AuthenticationMode
     {
         private final String displayName;
+        private final String normalizedDisplayName;
 
         /**
          * @param displayName How this mode should be displayed in tooling and JMX beans.  Note that it is desirable
@@ -256,6 +259,7 @@ public interface IAuthenticator
         public AuthenticationMode(@Nonnull String displayName)
         {
             this.displayName = displayName;
+            this.normalizedDisplayName = toLowerCaseLocalized(displayName);
         }
 
         /**
@@ -283,15 +287,15 @@ public interface IAuthenticator
         public boolean equals(Object o)
         {
             if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (!(o instanceof AuthenticationMode)) return false;
             AuthenticationMode that = (AuthenticationMode) o;
-            return displayName.equals(that.displayName);
+            return normalizedDisplayName.equals(that.normalizedDisplayName);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(displayName);
+            return Objects.hash(normalizedDisplayName);
         }
     }
 }

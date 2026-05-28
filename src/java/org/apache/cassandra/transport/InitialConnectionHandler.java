@@ -28,6 +28,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
@@ -87,6 +88,8 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     compressions.add("lz4");
 
                     Map<String, List<String>> supportedOptions = new HashMap<>();
+                    if (DatabaseDescriptor.isAuthenticatorNegotiationEnabled())
+                        supportedOptions.put(StartupMessage.AUTHENTICATORS, List.of());
                     supportedOptions.put(StartupMessage.CQL_VERSION, cqlVersions);
                     supportedOptions.put(StartupMessage.COMPRESSION, compressions);
                     supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());

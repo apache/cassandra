@@ -19,10 +19,12 @@ package org.apache.cassandra.config;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -83,6 +85,23 @@ public class Config
     public static final String PROPERTY_PREFIX = "cassandra.";
 
     public String cluster_name = "Test Cluster";
+
+    /**
+     * Configuration for authenticator negotiation, enabling nodes to support multiple authentication mechanisms
+     * and negotiate with clients at connection time.
+     * <p/>
+     * When configured, these settings take precedence over the legacy 'authenticator' configuration. The
+     * 'default_authenticator' is used for non-negotiating clients or when negotiation fails to resolve.
+     */
+    public static class AuthenticatorNegotiationConfig
+    {
+        public boolean enabled = false;
+        public boolean require_authentication = true;
+        public ParameterizedClass default_authenticator;
+        public List<ParameterizedClass> authenticators = new ArrayList<>();
+    }
+
+    public AuthenticatorNegotiationConfig authenticator_negotiation = new AuthenticatorNegotiationConfig();
     public ParameterizedClass authenticator;
     public ParameterizedClass authorizer;
     public ParameterizedClass role_manager;

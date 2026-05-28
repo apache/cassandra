@@ -37,7 +37,7 @@ import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.CassandraDaemon;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -52,8 +52,7 @@ public class AuthTest extends TestBaseImpl
 {
     /**
      * Simply tests that initialisation of a test Instance results in
-     * StorageService.instance.doAuthSetup being called as the regular
-     * startup does in CassandraDaemon.setup
+     * CassandraDaemon.doAuthSetup being called just as the regular startup does.
      */
     @Test
     public void authSetupIsCalledAfterStartup() throws IOException
@@ -64,7 +63,7 @@ public class AuthTest extends TestBaseImpl
             await().pollDelay(1, SECONDS)
                    .pollInterval(1, SECONDS)
                    .atMost(10, SECONDS)
-                   .until(() -> instance.callOnInstance(() -> StorageService.instance.authSetupCalled()));
+                   .until(() -> instance.callOnInstance(() -> CassandraDaemon.isAuthSetupCalled()));
         }
     }
 

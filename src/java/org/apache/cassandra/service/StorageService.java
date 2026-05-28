@@ -44,7 +44,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -81,8 +80,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.auth.AuthCacheService;
-import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.concurrent.FutureTask;
@@ -472,8 +469,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean isSurveyMode = TEST_WRITE_SURVEY.getBoolean(false);
     /* true if node is rebuilding and receiving data */
     private volatile boolean initialized = false;
-    private final AtomicBoolean authSetupCalled = new AtomicBoolean(CassandraRelevantProperties.SKIP_AUTH_SETUP.getBoolean());
-    private volatile boolean authSetupComplete = false;
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
@@ -1125,27 +1120,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         InProgressSequences.finishInProgressSequences(id);
     }
 
-    void doAuthSetup()
-    {
-        doAuthSetup(true);
-    }
-
-    @VisibleForTesting
-    public void doAuthSetup(boolean async)
-    {
-        if (!authSetupCalled.getAndSet(true))
-        {
-            DatabaseDescriptor.getRoleManager().setup(async);
-            DatabaseDescriptor.getAuthenticator().setup();
-            DatabaseDescriptor.getAuthorizer().setup();
-            DatabaseDescriptor.getNetworkAuthorizer().setup();
-            DatabaseDescriptor.getCIDRAuthorizer().setup();
-            AuthCacheService.initializeAndRegisterCaches();
-            Schema.instance.registerListener(new AuthSchemaChangeListener());
-            authSetupComplete = true;
-        }
-    }
-
     public void doAutoRepairSetup()
     {
         AutoRepairService.setup();
@@ -1155,17 +1129,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             AutoRepair.instance.setup();
             logger.info("AutoRepair setup complete!");
         }
-    }
-
-    public boolean isAuthSetupComplete()
-    {
-        return authSetupComplete;
-    }
-
-    @VisibleForTesting
-    public boolean authSetupCalled()
-    {
-        return authSetupCalled.get();
     }
 
     public boolean isJoined()

@@ -35,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -53,7 +54,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
+import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -422,7 +425,7 @@ public class CassandraDaemon
         };
 
         ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-        StorageService.instance.doAuthSetup();
+        doAuthSetup();
 
         // Apply overrides before re-enabling auto-compaction
         setCompactionStrategyOverrides(Schema.instance.getKeyspaces());
@@ -635,6 +638,75 @@ public class CassandraDaemon
             }
         }
         return entitiesToChangeCompaction;
+    }
+
+    // Auth setup state - static so it can be accessed from anywhere
+    private static final AtomicBoolean authSetupCalled = new AtomicBoolean(CassandraRelevantProperties.SKIP_AUTH_SETUP.getBoolean());
+    private static volatile boolean authSetupComplete = false;
+
+    /**
+     * Initialize authentication and authorization subsystems.
+     * This should be called after storage initialization since auth data is stored in system tables.
+     */
+    public static void doAuthSetup()
+    {
+        doAuthSetup(true);
+    }
+
+    /**
+     * Initialize authentication and authorization subsystems.
+     *
+     * @param async if true, initialize the role manager asynchronously
+     */
+    @VisibleForTesting
+    public static void doAuthSetup(boolean async)
+    {
+        if (!authSetupCalled.getAndSet(true))
+        {
+            DatabaseDescriptor.getRoleManager().setup(async);
+
+            // Call setup() on all negotiable authenticators (includes default authenticator)
+            List<IAuthenticator> authenticators = DatabaseDescriptor.getNegotiableAuthenticators();
+            if (authenticators.isEmpty())
+            {
+                // Fallback: if negotiation not configured, setup default authenticator
+                DatabaseDescriptor.getDefaultAuthenticator().setup();
+            }
+            else
+            {
+                for (IAuthenticator authenticator : authenticators)
+                    authenticator.setup();
+            }
+
+            DatabaseDescriptor.getAuthorizer().setup();
+            DatabaseDescriptor.getNetworkAuthorizer().setup();
+            DatabaseDescriptor.getCIDRAuthorizer().setup();
+            AuthCacheService.initializeAndRegisterCaches();
+            Schema.instance.registerListener(new AuthSchemaChangeListener());
+            authSetupComplete = true;
+        }
+    }
+
+    public static boolean isAuthSetupComplete()
+    {
+        return authSetupComplete;
+    }
+
+    @VisibleForTesting
+    public static boolean isAuthSetupCalled()
+    {
+        return authSetupCalled.get();
+    }
+
+    /**
+     * Reset auth setup state for testing purposes.
+     * This allows tests to re-run auth setup in the same JVM.
+     */
+    @VisibleForTesting
+    public static void resetAuthSetup()
+    {
+        authSetupCalled.set(false);
+        authSetupComplete = false;
     }
 
     public void setupVirtualKeyspaces()

@@ -225,7 +225,12 @@ public class DatabaseDescriptor
     private static DiskAccessMode compactionReadDiskAccessMode;
 
     private static AbstractCryptoProvider cryptoProvider;
-    private static IAuthenticator authenticator;
+
+    // Cached value: true if any authenticator requires authentication
+    private static boolean isAuthenticationRequired;
+    private static List<IAuthenticator> negotiableAuthenticators = List.of();
+    private static IAuthenticator defaultAuthenticator;
+
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
     private static ICIDRAuthorizer cidrAuthorizer;
@@ -394,7 +399,7 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Equivalent to {@link #clientInitialization(boolean) clientInitialization(true, Config::new)}.
+     * Equivalent to {@link #clientInitialization(boolean, Supplier) clientInitialization(failIfDaemonOrTool, Config::new)}.
      */
     public static void clientInitialization(boolean failIfDaemonOrTool)
     {
@@ -2030,12 +2035,45 @@ public class DatabaseDescriptor
         DatabaseDescriptor.cryptoProvider = cryptoProvider;
     }
 
+    @VisibleForTesting /* Only for testing */
+    public static void setAuthenticatorNegotationEnabled(boolean isEnabled)
+    {
+        conf.authenticator_negotiation.enabled = isEnabled;
+    }
+
+    public static boolean isAuthenticatorNegotiationEnabled()
+    {
+        return conf.authenticator_negotiation.enabled &&
+               !negotiableAuthenticators.isEmpty();
+    }
+
+    public static List<IAuthenticator> getNegotiableAuthenticators()
+    {
+        return negotiableAuthenticators;
+    }
+
+    public static void setNegotiableAuthenticators(List<IAuthenticator> authenticators)
+    {
+        negotiableAuthenticators = new ArrayList<>(authenticators);
+        isAuthenticationRequired = computeAuthenticationRequired();
+    }
+
     /**
-     * Returns the authenticator configured for this node.
+     * Returns the default authenticator configured for this node.
+     * @deprecated Use {@link #getDefaultAuthenticator()} instead.
      */
+    @Deprecated(since = "6.0.0")
     public static IAuthenticator getAuthenticator()
     {
-        return authenticator;
+        return getDefaultAuthenticator();
+    }
+
+    /**
+     * Returns the default authenticator configured for this node.
+     */
+    public static IAuthenticator getDefaultAuthenticator()
+    {
+        return defaultAuthenticator;
     }
 
     /**
@@ -2046,35 +2084,54 @@ public class DatabaseDescriptor
      */
     public static <T extends IAuthenticator> Optional<T> getAuthenticator(Class<T> clazz)
     {
-        return hasAuthenticator(clazz) ? Optional.of(clazz.cast(authenticator)) : Optional.empty();
+        return negotiableAuthenticators.stream()
+                                       .filter(auth -> clazz.isAssignableFrom(auth.getClass()))
+                                       .findFirst()
+                                       .map(clazz::cast);
     }
 
     /**
      * Sets the authenticator used by this node to authenticate clients.
+     * @deprecated Use {@link #setDefaultAuthenticator(IAuthenticator)} instead.
      */
+    @Deprecated(since = "6.0.0" )
     public static void setAuthenticator(IAuthenticator authenticator)
     {
-        DatabaseDescriptor.authenticator = authenticator;
+        setDefaultAuthenticator(authenticator);
+    }
+
+    public static void setDefaultAuthenticator(IAuthenticator authenticator)
+    {
+        defaultAuthenticator = authenticator;
+        isAuthenticationRequired = computeAuthenticationRequired();
     }
 
     /**
-     * Indicates if this node uses an authenticator that requires authentication.
+     * Computes whether authentication is required based on current authenticator configuration.
+     * Checks both the default authenticator and any negotiable authenticators.
+     * Returns true if ANY authenticator requires authentication, false otherwise.
+     */
+    private static boolean computeAuthenticationRequired()
+    {
+        // Check default authenticator first (handles legacy setAuthenticator() calls)
+        if (defaultAuthenticator != null && defaultAuthenticator.requireAuthentication())
+            return true;
+
+        // Also check negotiable authenticators list
+        return negotiableAuthenticators.stream()
+                                       .anyMatch(IAuthenticator::requireAuthentication);
+    }
+
+    /**
+     * Indicates if this node uses an authenticator that requires authentication. With authenticator negotiation,
+     * returns true if ANY negotiable authenticator requires authentication. This determines whether authentication
+     * infrastructure (caches, role management) should be enabled, and whether anonymous (i.e. unauthenticated)
+     * users can elevate permissions to perform CREATE/DROP TRIGGER and other operations.
      */
     public static boolean isAuthenticationRequired()
     {
-        return authenticator.requireAuthentication();
+        return isAuthenticationRequired;
     }
-
-    /**
-     * Indicates if this node is configured with an authenticator of the specified type.
-     * @param clazz The class of the authenticator.
-     * @return True if this node has an authenticator of the specified type, false otherwise.
-     */
-    private static boolean hasAuthenticator(Class<? extends IAuthenticator> clazz)
-    {
-        return clazz.isAssignableFrom(authenticator.getClass());
-    }
-
 
     public static IAuthorizer getAuthorizer()
     {
@@ -4874,7 +4931,6 @@ public class DatabaseDescriptor
     public static EncryptionContext getEncryptionContext()
     {
         return encryptionContext;
-
     }
 
     public static long getGCWarnThreshold()

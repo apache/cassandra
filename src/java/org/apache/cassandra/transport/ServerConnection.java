@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
@@ -38,7 +37,6 @@ public class ServerConnection extends Connection
 {
     private static final Logger logger = LoggerFactory.getLogger(ServerConnection.class);
 
-    private volatile IAuthenticator.SaslNegotiator saslNegotiator;
     private final ClientState clientState;
     private volatile ConnectionStage stage;
     public final Counter requests = new Counter();
@@ -105,8 +103,6 @@ public class ServerConnection extends Connection
                 if (responseType == Message.Type.READY || responseType == Message.Type.AUTH_SUCCESS)
                 {
                     stage = ConnectionStage.READY;
-                    // we won't use the authenticator again, null it so that it can be GC'd
-                    saslNegotiator = null;
                 }
                 break;
             case READY:
@@ -118,10 +114,13 @@ public class ServerConnection extends Connection
 
     public IAuthenticator.SaslNegotiator getSaslNegotiator(QueryState queryState)
     {
-        if (saslNegotiator == null)
-            saslNegotiator = DatabaseDescriptor.getAuthenticator()
-                                               .newSaslNegotiator(queryState.getClientAddress(), certificates());
-        return saslNegotiator;
+        // Get the authenticator that was negotiated/selected for this connection
+        IAuthenticator authenticator = queryState.getClientState().getAuthenticator();
+
+        if (authenticator == null)
+            throw new IllegalStateException("Authenticator must be set in ClientState before creating SASL negotiator");
+
+        return authenticator.newSaslNegotiator(queryState.getClientAddress(), certificates());
     }
 
     private Certificate[] certificates()

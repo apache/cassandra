@@ -83,6 +83,7 @@ import com.datastax.driver.core.exceptions.UnauthorizedException;
 import com.datastax.shaded.netty.channel.EventLoopGroup;
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
@@ -110,11 +111,10 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.auth.AuthCacheService;
-import org.apache.cassandra.auth.AuthSchemaChangeListener;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IRoleManager;
+import org.apache.cassandra.auth.SpiffeCertificateValidator;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
@@ -184,6 +184,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
@@ -632,7 +633,57 @@ public abstract class CQLTester
 
     protected static void requireAuthentication(final IAuthenticator authenticator)
     {
-        DatabaseDescriptor.setAuthenticator(authenticator);
+        // Setup for single authenticator mode (no negotiation)
+        DatabaseDescriptor.setDefaultAuthenticator(authenticator);
+        DatabaseDescriptor.setAuthenticatorNegotationEnabled(false);
+        DatabaseDescriptor.setNegotiableAuthenticators(List.of());
+
+        commonAuthSetup();
+    }
+
+    protected static void requireAuthenticatorNegotiation()
+    {
+        final Map<String, String> authenticatorParams = ImmutableMap.of("validator_class_name", SpiffeCertificateValidator.class.getSimpleName());
+        requireAuthenticatorNegotiation(new AuthTestUtils.LocalPasswordAuthenticator(), new AuthTestUtils.LocalMutualTLSAuthenticator(authenticatorParams));
+    }
+
+    protected static void requireAuthenticatorNegotiation(IAuthenticator... negotiableAuthenticators)
+    {
+        // Setup for negotiation mode with multiple authenticators
+        // Find or create the LocalPasswordAuthenticator instance that will be shared
+        AuthTestUtils.LocalPasswordAuthenticator passwordAuth = null;
+        for (IAuthenticator auth : negotiableAuthenticators)
+        {
+            if (auth instanceof AuthTestUtils.LocalPasswordAuthenticator)
+            {
+                passwordAuth = (AuthTestUtils.LocalPasswordAuthenticator) auth;
+                break;
+            }
+        }
+        if (passwordAuth == null)
+            passwordAuth = new AuthTestUtils.LocalPasswordAuthenticator();
+
+        // Create default authenticator that delegates to the shared instance
+        IAuthenticator defaultAuthenticator = new AuthTestUtils.LocalDefaultPasswordAuthenticator(passwordAuth);
+        DatabaseDescriptor.setDefaultAuthenticator(defaultAuthenticator);
+        DatabaseDescriptor.setAuthenticatorNegotationEnabled(true);
+
+        // Build negotiable list and ensure the shared password authenticator is included
+        List<IAuthenticator> negotiableList = new ArrayList<>(List.of(negotiableAuthenticators));
+        if (!negotiableList.contains(passwordAuth))
+            negotiableList.add(passwordAuth);
+
+        DatabaseDescriptor.setNegotiableAuthenticators(negotiableList);
+
+        commonAuthSetup();
+    }
+
+    /**
+     * Common auth setup for both single and negotiation modes.
+     * Sets up authorizers, role manager, and calls doAuthSetup().
+     */
+    private static void commonAuthSetup()
+    {
         DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
         DatabaseDescriptor.setNetworkAuthorizer(new AuthTestUtils.LocalCassandraNetworkAuthorizer());
         DatabaseDescriptor.setCIDRAuthorizer(new AuthTestUtils.LocalCassandraCIDRAuthorizer());
@@ -652,14 +703,10 @@ public abstract class CQLTester
         DatabaseDescriptor.setRoleManager(roleManager);
         //TODO
         //MigrationManager.announceNewKeyspace(AuthKeyspace.metadata(), true);
-        DatabaseDescriptor.getRoleManager().setup();
-        DatabaseDescriptor.getAuthenticator().setup();
-        DatabaseDescriptor.getAuthorizer().setup();
-        DatabaseDescriptor.getNetworkAuthorizer().setup();
-        DatabaseDescriptor.getCIDRAuthorizer().setup();
-        Schema.instance.registerListener(new AuthSchemaChangeListener());
 
-        AuthCacheService.initializeAndRegisterCaches();
+        // Use centralized auth setup - use sync mode for tests
+        CassandraDaemon.resetAuthSetup();
+        CassandraDaemon.doAuthSetup(false);  // false = synchronous setup for tests
     }
 
     /**

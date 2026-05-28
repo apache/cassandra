@@ -19,9 +19,12 @@ package org.apache.cassandra.transport.messages;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.auth.AuthenticatorNegotiator;
 import org.apache.cassandra.auth.IAuthenticator;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -45,6 +48,7 @@ import static org.apache.cassandra.utils.LocalizeString.toUpperCaseLocalized;
  */
 public class StartupMessage extends Message.Request
 {
+    public static final String AUTHENTICATORS = "AUTHENTICATORS";
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
     public static final String PROTOCOL_VERSIONS = "PROTOCOL_VERSIONS";
@@ -134,37 +138,43 @@ public class StartupMessage extends Message.Request
 
         Guardrails.minimumClientDriverVersion.guard(driverName, driverVersion, clientState);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
-        if (authenticator.requireAuthentication())
-        {
-            // If the authenticator supports early authentication, attempt to authenticate.
-            if (authenticator.supportsEarlyAuthentication())
-            {
-                IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(state);
-                // If the negotiator determines that sending an authenticate message is not necessary, attempt to authenticate here,
-                // otherwise, send an Authenticate message to begin the traditional authentication flow.
-                if (!negotiator.shouldSendAuthenticateMessage())
-                {
-                    // Attempt to authenticate the user.
-                    return AuthUtil.handleLogin(connection, state, EMPTY_CLIENT_RESPONSE, (negotiationComplete, challenge) ->
-                    {
-                        if (negotiationComplete)
-                        {
-                            // Authentication was successful, proceed.
-                            return new ReadyMessage();
-                        } else
-                        {
-                            // It's expected that any negotiator that requires a challenge will likely not support early
-                            // authentication, in this case we can just go through the traditional auth flow.
-                            return authenticator.getAuthenticateMessage(clientState);
-                        }
-                    });
-                }
-            }
-            return authenticator.getAuthenticateMessage(clientState);
-        }
-        else
+        Set<String> clientAuthenticators = Set.of(StringUtils.defaultIfEmpty(options.get(AUTHENTICATORS), StringUtils.EMPTY).split(","));
+
+        IAuthenticator authenticator = AuthenticatorNegotiator.negotiateAuthenticator(clientAuthenticators);
+
+        // Set the authenticator for this connection
+        clientState.setAuthenticator(authenticator);
+
+        if (!authenticator.requireAuthentication()) {
             return new ReadyMessage();
+        }
+
+        // If the authenticator supports early authentication, attempt to authenticate.
+        if (authenticator.supportsEarlyAuthentication())
+        {
+            IAuthenticator.SaslNegotiator saslNegotiator = ((ServerConnection) connection).getSaslNegotiator(state);
+            // If the negotiator determines that sending an authenticate message is not necessary, attempt to authenticate here,
+            // otherwise, send an Authenticate message to begin the traditional authentication flow.
+            if (!saslNegotiator.shouldSendAuthenticateMessage())
+            {
+                // Attempt to authenticate the user.
+                return AuthUtil.handleLogin(connection, state, EMPTY_CLIENT_RESPONSE, (negotiationComplete, challenge) ->
+                {
+                    if (negotiationComplete)
+                    {
+                        // Authentication was successful, proceed.
+                        return new ReadyMessage();
+                    } else
+                    {
+                        // It's expected that any negotiator that requires a challenge will likely not support early
+                        // authentication, in this case we can just go through the traditional auth flow.
+                        return authenticator.getAuthenticateMessage(clientState);
+                    }
+                });
+            }
+        }
+
+        return authenticator.getAuthenticateMessage(clientState);
     }
 
     private static Map<String, String> upperCaseKeys(Map<String, String> options)

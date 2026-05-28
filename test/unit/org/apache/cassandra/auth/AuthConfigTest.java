@@ -23,14 +23,18 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -39,6 +43,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.loadCertificateChain;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.config.YamlConfigurationLoaderTest.load;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -53,6 +58,9 @@ public class AuthConfigTest
 
     private static final String CREDENTIALS_CACHE_MBEAN = MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME;
 
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     @Before
     public void setup()
     {
@@ -63,6 +71,55 @@ public class AuthConfigTest
     public void teardown()
     {
         unregisterCaches();
+    }
+
+    @Test
+    public void testConfigureAuthenticatorNegotiation()
+    {
+        Config config = load("cassandra-auth-negotiation-permissive.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(()->config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
+        assertThat(authenticator instanceof PasswordAuthenticator);
+        assertNotNull(authenticator);
+        assertTrue(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
+        assertTrue(DatabaseDescriptor.isAuthenticationRequired());
+        List<IAuthenticator> negotiableAuthenticators = DatabaseDescriptor.getNegotiableAuthenticators();
+        assertNotNull(negotiableAuthenticators);
+        assertEquals(3, negotiableAuthenticators.size());
+        assertTrue(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class).isPresent());
+        assertTrue(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class).isPresent());
+        assertTrue(DatabaseDescriptor.getAuthenticator(AllowAllAuthenticator.class).isPresent());
+    }
+
+    @Test
+    public void testConfigureAuthenticatorNegotiationStrict()
+    {
+        Config config = load("cassandra-auth-negotiation-strict.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
+
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
+        assertThat(authenticator instanceof PasswordAuthenticator);
+        assertNotNull(authenticator);
+        assertTrue(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
+        assertTrue(DatabaseDescriptor.isAuthenticationRequired());
+        List<IAuthenticator> negotiableAuthenticators = DatabaseDescriptor.getNegotiableAuthenticators();
+        assertNotNull(negotiableAuthenticators);
+        assertEquals(2, negotiableAuthenticators.size());
+        assertTrue(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class).isPresent());
+        assertTrue(DatabaseDescriptor.getAuthenticator(MutualTlsAuthenticator.class).isPresent());
+        assertFalse(DatabaseDescriptor.getAuthenticator(AllowAllAuthenticator.class).isPresent());
+    }
+
+    @Test
+    public void testRequireAuthenticationRejectsAllowAll()
+    {
+        expectedException.expect(ConfigurationException.class);
+        expectedException.expectMessage("require_authentication");
+        expectedException.expectMessage("AllowAllAuthenticator");
+
+        Config config = load("cassandra-auth-negotiation-invalid.yaml");
+        DatabaseDescriptor.unsafeDaemonInitialization(() -> config);
     }
 
     @Test
@@ -93,8 +150,11 @@ public class AuthConfigTest
         Config config = load("cassandra-passwordauth.yaml");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
+
+        // Verify negotiation is NOT enabled for legacy config
+        assertFalse(DatabaseDescriptor.isAuthenticatorNegotiationEnabled());
 
         assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class))
             .isPresent()
@@ -116,7 +176,7 @@ public class AuthConfigTest
         config.authenticator.parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
 
         // MutualTlsWithPasswordFallbackAuthenticator is-a PasswordAuthenticator, so we expect getAuthenticator to
@@ -144,7 +204,7 @@ public class AuthConfigTest
         Config config = load("cassandra-mtls.yaml");
         DatabaseDescriptor.unsafeDaemonInitialization(()->config);
 
-        IAuthenticator authenticator = DatabaseDescriptor.getAuthenticator();
+        IAuthenticator authenticator = DatabaseDescriptor.getDefaultAuthenticator();
         assertNotNull(authenticator);
 
         assertThat(DatabaseDescriptor.getAuthenticator(PasswordAuthenticator.class)).isEmpty();

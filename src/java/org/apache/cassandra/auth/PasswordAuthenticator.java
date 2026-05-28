@@ -75,6 +75,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
     private static final Set<AuthenticationMode> AUTHENTICATION_MODES = Collections.singleton(AuthenticationMode.PASSWORD);
+    static final byte NUL = 0;
 
     @VisibleForTesting
     static final Set<IRoleManager.Option> SUPPORTED_ROLE_OPTIONS =
@@ -89,16 +90,8 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                        IRoleManager.Option.HASHED_PASSWORD,
                        IRoleManager.Option.GENERATED_PASSWORD);
 
-    static final byte NUL = 0;
+    private static CredentialsCache cache;
     private SelectStatement authenticateStatement;
-
-    private final CredentialsCache cache;
-
-    public PasswordAuthenticator()
-    {
-        cache = new CredentialsCache(this);
-        AuthCacheService.instance.register(cache);
-    }
 
     /**
      * {@inheritDoc}
@@ -248,6 +241,17 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
     public void setup()
     {
+        // Cache initialization is deferred to setup() to avoid duplicate cache registration when subclasses
+        // of PasswordAuthenticator (e.g., MutualTlsWithPasswordFallbackAuthenticator) are also instantiated.
+        synchronized (PasswordAuthenticator.class)
+        {
+            if (cache == null)
+            {
+                cache = new CredentialsCache(this);
+                AuthCacheService.instance.register(cache);
+            }
+        }
+
         String query = String.format("SELECT %s FROM %s.%s WHERE role = ?",
                                      SALTED_HASH,
                                      SchemaConstants.AUTH_KEYSPACE_NAME,

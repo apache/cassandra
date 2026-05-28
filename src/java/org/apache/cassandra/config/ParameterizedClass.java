@@ -148,6 +148,6 @@ public class ParameterizedClass
     @Override
     public String toString()
     {
-        return class_name + parameters;
+        return class_name + (parameters == null ? "{}" : parameters);
     }
 }

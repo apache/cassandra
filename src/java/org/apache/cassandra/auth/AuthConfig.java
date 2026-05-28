@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -38,7 +40,32 @@ public final class AuthConfig
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthConfig.class);
 
+    private static final String AUTH_PACKAGE = AuthConfig.class.getPackage().getName();
+
     private static boolean initialized;
+
+    /**
+     * Normalized authenticator configuration that abstracts away the difference between
+     * legacy single-authenticator config and negotiated multi-authenticator config.
+     */
+    private static class AuthenticatorConfig
+    {
+        final IAuthenticator defaultAuthenticator;
+        final List<IAuthenticator> negotiableAuthenticators;
+        final boolean requireAuthentication;
+        final boolean isNegotiationEnabled;
+
+        AuthenticatorConfig(IAuthenticator defaultAuthenticator,
+                           List<IAuthenticator> negotiableAuthenticators,
+                           boolean requireAuthentication,
+                           boolean isNegotiationEnabled)
+        {
+            this.defaultAuthenticator = defaultAuthenticator;
+            this.negotiableAuthenticators = negotiableAuthenticators;
+            this.requireAuthentication = requireAuthentication;
+            this.isNegotiationEnabled = isNegotiationEnabled;
+        }
+    }
 
     /**
      * Resets the initialized flag, enabling AuthConfig to be reconfigured multiple times within a single
@@ -60,48 +87,54 @@ public final class AuthConfig
 
         Config conf = DatabaseDescriptor.getRawConfig();
 
-
-        /* Authentication, authorization and role management backend, implementing IAuthenticator, I*Authorizer & IRoleManager */
-
-        IAuthenticator authenticator = authInstantiate(conf.authenticator, AllowAllAuthenticator.class);
+        // Load and normalize authenticator configuration
+        AuthenticatorConfig authConfig = loadAuthenticatorConfig(conf);
 
         // the configuration options regarding credentials caching are only guaranteed to
-        // work with PasswordAuthenticator, so log a message if some other authenticator
-        // is in use and non-default values are detected
-        if (!(authenticator instanceof PasswordAuthenticator || authenticator instanceof MutualTlsAuthenticator)
+        // work with PasswordAuthenticator and MutualTlsAuthenticator, so log a message if none of the
+        // configured authenticators use credentials caching and non-default values are detected
+        boolean hasCredentialsCaching = authConfig.negotiableAuthenticators.stream()
+            .anyMatch(auth -> auth instanceof PasswordAuthenticator || auth instanceof MutualTlsAuthenticator);
+
+        if (!hasCredentialsCaching
             && (conf.credentials_update_interval != null
                 || conf.credentials_validity.toMilliseconds() != 2000
                 || conf.credentials_cache_max_entries != 1000))
         {
             logger.info("Configuration options credentials_update_interval, credentials_validity and " +
-                        "credentials_cache_max_entries may not be applicable for the configured authenticator ({})",
-                        authenticator.getClass().getName());
+                        "credentials_cache_max_entries may not be applicable for the configured authenticators");
         }
 
-        DatabaseDescriptor.setAuthenticator(authenticator);
+        DatabaseDescriptor.setDefaultAuthenticator(authConfig.defaultAuthenticator);
+        DatabaseDescriptor.setNegotiableAuthenticators(authConfig.negotiableAuthenticators);
+
+        // Validate require_authentication setting if negotiation is configured
+        if (authConfig.isNegotiationEnabled)
+        {
+            validateRequireAuthentication(authConfig);
+        }
 
         // authorizer
 
         IAuthorizer authorizer = authInstantiate(conf.authorizer, AllowAllAuthorizer.class);
-
-        if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
-        {
-            throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
-                                             authenticator.getClass().getName() + " to enable authentication", false);
-        }
-
+        validateAuthenticatorAuthorizerCompatibility(authConfig, authorizer);
         DatabaseDescriptor.setAuthorizer(authorizer);
 
         // role manager
 
         IRoleManager roleManager = authInstantiate(conf.role_manager, CassandraRoleManager.class);
 
-        if (authenticator instanceof PasswordAuthenticator && !(roleManager instanceof CassandraRoleManager))
-            throw new ConfigurationException(authenticator.getClass().getName() + " requires " + CassandraRoleManager.class.getName(), false);
+        // PasswordAuthenticator requires CassandraRoleManager. Check if any negotiable authenticator is
+        // a PasswordAuthenticator.
+        boolean hasPasswordAuth = authConfig.negotiableAuthenticators.stream()
+            .anyMatch(auth -> auth instanceof PasswordAuthenticator);
+
+        if (hasPasswordAuth && !(roleManager instanceof CassandraRoleManager))
+            throw new ConfigurationException("PasswordAuthenticator requires " + CassandraRoleManager.class.getName(), false);
 
         DatabaseDescriptor.setRoleManager(roleManager);
 
-        // authenticator
+        // internode authenticator
 
         IInternodeAuthenticator internodeAuthenticator = authInstantiate(conf.internode_authenticator,
                                                                          AllowAllInternodeAuthenticator.class);
@@ -110,29 +143,19 @@ public final class AuthConfig
         // network authorizer
 
         INetworkAuthorizer networkAuthorizer = authInstantiate(conf.network_authorizer, AllowAllNetworkAuthorizer.class);
-
-        if (networkAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
-        {
-            throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator.class_name, false);
-        }
-
+        validateAuthenticatorNetworkAuthorizerCompatibility(authConfig, networkAuthorizer);
         DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
 
         // cidr authorizer
 
         ICIDRAuthorizer cidrAuthorizer = authInstantiate(conf.cidr_authorizer, AllowAllCIDRAuthorizer.class);
-
-        if (cidrAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
-        {
-            throw new ConfigurationException(conf.cidr_authorizer + " can't be used with " + conf.authenticator, false);
-        }
-
+        validateAuthenticatorCIDRAuthorizerCompatibility(authConfig, cidrAuthorizer);
         DatabaseDescriptor.setCIDRAuthorizer(cidrAuthorizer);
 
         // Validate at last to have authenticator, authorizer, role-manager and internode-auth setup
         // in case these rely on each other.
 
-        authenticator.validateConfiguration();
+        authConfig.negotiableAuthenticators.forEach(IAuthenticator::validateConfiguration);
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
         networkAuthorizer.validateConfiguration();
@@ -141,12 +164,19 @@ public final class AuthConfig
     }
 
     private static <T> T authInstantiate(ParameterizedClass authCls, Class<T> defaultCls) {
+        return (T) authInstantiate(authCls).orElseGet(() -> defaultAuthInstantiate(defaultCls));
+    }
+
+    private static <T> Optional<T> authInstantiate(ParameterizedClass authCls) {
         if (authCls != null && authCls.class_name != null)
         {
-            String authPackage = AuthConfig.class.getPackage().getName();
-            return ParameterizedClass.newInstance(authCls, List.of("", authPackage));
+            return Optional.of(ParameterizedClass.newInstance(authCls, List.of("", AUTH_PACKAGE)));
         }
 
+        return Optional.empty();
+    }
+
+    private static <T> T defaultAuthInstantiate(Class<T> defaultCls) {
         // for now, this has to stay and can not be replaced by ParameterizedClass.newInstance as above
         // due to that failing for simulator dtests. See CASSANDRA-20450 for more information.
         try
@@ -157,5 +187,226 @@ public final class AuthConfig
         {
             throw new ConfigurationException("Failed to instantiate " + defaultCls.getName(), e);
         }
+    }
+
+    /**
+     * Validates the require_authentication setting when authenticator negotiation is configured. If
+     * require_authentication is true, all authenticators must require authentication. If require_authentication is
+     * false and non-authenticating authenticators are present, logs a warning and continues.
+     */
+    private static void validateRequireAuthentication(AuthenticatorConfig authConfig)
+    {
+        // Check all negotiable authenticators (includes default)
+        for (IAuthenticator authenticator : authConfig.negotiableAuthenticators)
+        {
+            if (!authenticator.requireAuthentication())
+            {
+                if (authConfig.requireAuthentication)
+                {
+                    throw new ConfigurationException(
+                        "require_authentication is true but authenticator doesn't require authentication: " 
+                        + authenticator.getClass().getName(), false);
+                }
+                else
+                {
+                    logger.warn("require_authentication is false and authenticator doesn't require authentication: {}. " +
+                               "This may allow unauthenticated access.",
+                               authenticator.getClass().getName());
+                }
+            }
+        }
+    }
+
+    /**
+     * Validates compatibility between authenticators and authorizer when negotiation is configured.
+     * If any authenticator doesn't require authentication and the authorizer requires authorization:
+     * - require_authentication: true -> fail (strict mode)
+     * - require_authentication: false -> warn (permissive mode for migration)
+     */
+    private static void validateAuthenticatorAuthorizerCompatibility(AuthenticatorConfig authConfig,
+                                                                     IAuthorizer authorizer)
+    {
+        if (!authorizer.requireAuthorization())
+            return;
+
+        // If negotiating, all authenticators have to work with the authorizer (require authentication).
+        if (authConfig.isNegotiationEnabled)
+        {
+            validateAuthorizerCompatibility(authConfig, authorizer.getClass().getName(),
+                                            "limited access based on 'anonymous' role permissions");
+            return;
+        }
+
+        // Otherwise, just the default authenticator has to work with the authorizer.
+        if (!authConfig.defaultAuthenticator.requireAuthentication())
+            throw new ConfigurationException(authorizer.getClass().getName() + " has authorization enabled which requires " +
+                                             authConfig.defaultAuthenticator.getClass().getName() + " to enable authentication", false);
+    }
+
+    /**
+     * Validates compatibility between authenticators and network authorizer when negotiation is configured.
+     */
+    private static void validateAuthenticatorNetworkAuthorizerCompatibility(AuthenticatorConfig authConfig,
+                                                                            INetworkAuthorizer networkAuthorizer)
+    {
+        if (!networkAuthorizer.requireAuthorization())
+            return;
+
+        // If negotiating, all authenticators have to work with the authorizer (require authentication).
+        if (authConfig.isNegotiationEnabled)
+        {
+            validateAuthorizerCompatibility(authConfig, networkAuthorizer.getClass().getName(),
+                                            "limited network access");
+            return;
+        }
+
+        // Otherwise, just the default authenticator has to work with the authorizer.
+        if (!authConfig.defaultAuthenticator.requireAuthentication())
+            throw new ConfigurationException(networkAuthorizer.getClass().getName() + " can't be used with " +
+                                             authConfig.defaultAuthenticator.getClass().getName(), false);
+    }
+
+    /**
+     * Validates compatibility between authenticators and CIDR authorizer when negotiation is configured.
+     */
+    private static void validateAuthenticatorCIDRAuthorizerCompatibility(AuthenticatorConfig authConfig,
+                                                                         ICIDRAuthorizer cidrAuthorizer)
+    {
+        if (!cidrAuthorizer.requireAuthorization())
+            return;
+
+        // If negotiating, all authenticators have to work with the authorizer (require authentication).
+        if (authConfig.isNegotiationEnabled)
+        {
+            validateAuthorizerCompatibility(authConfig, cidrAuthorizer.getClass().getName(),
+                                            "limited CIDR-based access");
+            return;
+        }
+
+        // Otherwise, just the default authenticator has to work with the authorizer.
+        if (!authConfig.defaultAuthenticator.requireAuthentication())
+            throw new ConfigurationException(cidrAuthorizer.getClass().getName() + " can't be used with " +
+                                             authConfig.defaultAuthenticator.getClass().getName(), false);
+    }
+
+    /**
+     * Common validation logic for authorizer compatibility.
+     * Checks if any authenticator doesn't require authentication when an authorizer requires authorization.
+     */
+    private static void validateAuthorizerCompatibility(AuthenticatorConfig authConfig,
+                                                        String authorizerName,
+                                                        String accessDescription)
+    {
+        boolean hasNonAuthenticating = authConfig.negotiableAuthenticators.stream()
+            .anyMatch(authenticator -> !authenticator.requireAuthentication());
+        
+        if (hasNonAuthenticating)
+        {
+            if (authConfig.requireAuthentication)
+            {
+                throw new ConfigurationException(
+                    "require_authentication is true but some negotiable authenticators don't require authentication. " +
+                    "This is incompatible with " + authorizerName + " which requires authorization.", false);
+            }
+            else
+            {
+                logger.warn("{} requires authorization but some negotiable authenticators don't require authentication. " +
+                           "Unauthenticated clients will have {}. " +
+                           "Set require_authentication: true to enforce authentication.",
+                           authorizerName, accessDescription);
+            }
+        }
+    }
+
+    /**
+     * Loads and normalizes authenticator configuration from either legacy or negotiation config.
+     * Returns a normalized structure containing default authenticator, negotiable authenticators list,
+     * and configuration flags.
+     */
+    private static AuthenticatorConfig loadAuthenticatorConfig(Config conf)
+    {
+        // Determine if authenticator_negotiation was enabled
+        boolean negotiationEnabled = conf.authenticator_negotiation.enabled;
+
+        // Determine default authenticator based on configuration precedence
+        IAuthenticator defaultAuthenticator;
+
+        if (negotiationEnabled)
+        {
+            ParameterizedClass defaultAuthenticatorConfig = conf.authenticator_negotiation.default_authenticator;
+
+            if (defaultAuthenticatorConfig == null)
+                // authenticator_negotiation is configured but default_authenticator is missing - fail to start
+                throw new ConfigurationException(
+                    "authenticator_negotiation section requires default_authenticator to be specified", false);
+
+            defaultAuthenticator = (IAuthenticator) authInstantiate(defaultAuthenticatorConfig)
+                                                    .orElseThrow(() -> new ConfigurationException(
+                                                    "Unable to load default_authenticator from authenticator_negotiation section: "
+                                                    + conf.authenticator_negotiation.default_authenticator.class_name, false
+                                                    ));
+        }
+        else
+        {
+            // Fall back to legacy authenticator config
+            defaultAuthenticator = authInstantiate(conf.authenticator, AllowAllAuthenticator.class);
+        }
+
+        List<IAuthenticator> negotiableAuthenticators = new ArrayList<>();
+
+        if (negotiationEnabled)
+        {
+            logger.info("Authentication negotiation enabled: initializing authenticators");
+            List<ParameterizedClass> authenticators = conf.authenticator_negotiation.authenticators;
+
+            if (authenticators != null)
+            {
+                for (ParameterizedClass clazz: authenticators)
+                {
+                    // We generally can't instantiate multiple instances of an authenticator, so if the
+                    // default is also in the list of negotiable authenticators, just re-use the instance
+                    // that we have.
+                    // TODO - ParameterizedClass.equals() fails when comparing configs with null vs empty parameters
+                    //  (e.g., 'default_authenticator: PasswordAuthenticator' vs 'default_authenticator:\n\t- class_name: PasswordAuthenticator').
+                    //  This causes duplicate authenticator instances and incorrect negotiation order.
+                    //  Fix: Normalize null to empty map in ParameterizedClass.equals()/hashCode().
+                    //  https://issues.apache.org/jira/browse/CASSANDRA-21238
+                    if (clazz.equals(conf.authenticator_negotiation.default_authenticator))
+                    {
+                        negotiableAuthenticators.add(defaultAuthenticator);
+                        continue;
+                    }
+
+                    Optional<IAuthenticator> authenticator = authInstantiate(clazz);
+
+                    if (authenticator.isEmpty())
+                    {
+                        logger.warn("Unable to instantiate configured authenticator {}", clazz.class_name);
+                    }
+                    else
+                    {
+                        negotiableAuthenticators.add(authenticator.get());
+                    }
+                }
+            }
+
+            logger.info("Configured negotiable authenticators {}", negotiableAuthenticators);
+        }
+
+        // Ensure default authenticator is available for negotiation (as lowest priority) so clients can
+        // explicitly signal support for it, rather than falling back to it blindly when negotiation fails.
+        if (!negotiableAuthenticators.contains(defaultAuthenticator))
+        {
+            logger.info("Adding default authenticator as least-preferred for negotiation: {}",
+                        defaultAuthenticator.getClass().getName());
+            negotiableAuthenticators.add(defaultAuthenticator);
+        }
+
+        return new AuthenticatorConfig(
+            defaultAuthenticator,
+            negotiableAuthenticators,
+            conf.authenticator_negotiation.require_authentication,
+            negotiationEnabled
+        );
     }
 }
