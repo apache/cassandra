@@ -101,6 +101,23 @@ Cassandra trusts the following data sources. It is the responsibility of the dep
 * *SSL/TLS key material*: Keystores, truststores, and PEM files used for client-to-node, node-to-node,
   and JMX encryption. Deployers must protect these files with appropriate filesystem permissions and
   manage certificate lifecycle (Cassandra supports hot reloading of SSL certificates).
+* *Pluggable extension points, service provider interfaces (SPIs), and operator-supplied JARs*:
+  Cassandra exposes numerous extension points that operators select via `cassandra.yaml` or that are
+  discovered from the classpath at startup. Examples include authentication and authorization plugins
+  (`IAuthenticator`, `IAuthorizer`, `INetworkAuthorizer`, `IRoleManager`, `IInternodeAuthenticator`,
+  `ICIDRAuthorizer`), topology, partitioning, and seed selection (`IEndpointSnitch`, `IPartitioner`,
+  `ISeedProvider`), TLS material providers (`ISslContextFactory`), storage and data-path components
+  (`ICompressor`, `SSTableFormat.Factory`), audit and startup hooks (`IAuditLogger`, `StartupCheck`),
+  per-table triggers (`ITrigger`), CQL constraint providers (`ConstraintProvider`), and any other
+  interface or `java.util.ServiceLoader` SPI that Cassandra resolves at runtime. User-defined functions
+  and aggregates loaded as Java code, and any other JAR placed on the Cassandra classpath
+  (including the `triggers/` directory) fall in the same category. These implementations run in-process
+  with the full privileges of the Cassandra JVM and can invoke any Cassandra internal, read or modify
+  any data the process can access, and observe any in-memory state. The Apache Cassandra project does
+  *not* control the security properties of third-party implementations and cannot make guarantees about
+  them. Deployers are responsible for sourcing such components only from trusted vendors, reviewing or
+  auditing their behavior, restricting who can publish JARs to a node's classpath or trigger/UDF
+  directories, and treating them with the same care as the Cassandra distribution itself.
 
 === Untrusted Sources
 
@@ -537,6 +554,11 @@ This threat model further assumes:
 . The Cassandra distribution has been obtained from official Apache channels and verified with release signatures
 . SSL/TLS key material is properly generated, stored, and rotated
 . Credentials are strong, unique, and managed through a secure credential management process
+. Any pluggable implementation of a Cassandra interface or SPI (authenticators, authorizers, snitches,
+  seed providers, partitioners, compressors, SSL context factories, audit loggers, triggers, UDFs,
+  startup checks, etc.) and any JAR placed on the Cassandra classpath is sourced from a trusted vendor
+  and treated as part of the trusted code base; third-party implementations are outside the control of
+  the Apache Cassandra project
 
 == Vulnerability Reporting Scope
 
