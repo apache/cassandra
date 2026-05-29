@@ -36,6 +36,7 @@ controller:
   customJenkinsLabels:
     - controller
   resources:
+    # increase cpu/memory as agent pool sizes get bigger (pre-ci.c.a.o uses 8 and 20g)
     requests:
       cpu: 4
       memory: 16G
@@ -90,6 +91,23 @@ controller:
                           url('https://github.com/apache/cassandra')
                         }
                         branch('trunk')
+                        scriptPath('.jenkins/Jenkinsfile')
+                      }
+                    }
+                    lightweight()
+                  }
+                }
+              }
+          - script: >
+              pipelineJob('cassandra-6.0') {
+                definition {
+                  cpsScm {
+                    scm {
+                      git {
+                        remote {
+                          url('https://github.com/apache/cassandra')
+                        }
+                        branch('cassandra-6.0')
                         scriptPath('.jenkins/Jenkinsfile')
                       }
                     }
