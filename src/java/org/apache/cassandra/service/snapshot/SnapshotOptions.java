@@ -49,7 +49,7 @@ public class SnapshotOptions
     //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
     // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines
     // Hyphen is placed last in the character class, so it stays literal and never becomes a range operator.
-    private static final Pattern SAFE_SNAPSHOT_NAME = Pattern.compile("[a-zA-Z0-9!_.*'()-]+");
+    private static final Pattern SAFE_SNAPSHOT_NAME = Pattern.compile("[a-zA-Z0-9_.-]+");
     public final SnapshotType type;
     public final String tag;
     public final DurationSpec.IntSecondsBound ttl;
@@ -243,10 +243,11 @@ public class SnapshotOptions
                                                           FILENAME_LENGTH, resolvedSnapshotname.length(), resolvedSnapshotname));
             }
 
-            // Allowed characters follow the AWS S3 "Safe characters" set documented at
-            // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines :
-            //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
-            // The path separator '/' is intentionally excluded,
+            // Allowed characters are a conservative subset of the AWS S3 "Safe characters" set
+            // (https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines):
+            //   0-9  a-z  A-Z  -  _  .
+            // The remaining S3-safe characters (! * ' ( )) are intentionally excluded as they are
+            // shell-significant and error-prone in paths, and the path separator '/' is excluded too,
             // which is what blocks traversal attempts such as "../../mysnapshot"
             if (!SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotname).matches())
             {

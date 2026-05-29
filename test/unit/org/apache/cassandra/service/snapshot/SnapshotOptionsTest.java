@@ -45,23 +45,14 @@ public class SnapshotOptionsTest
 
         try (WithProperties p = new WithProperties().set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, true))
         {
-            // Previously-allowed alphanumerics, '-' and '_' must still be accepted.
+            // Only alphanumerics, '-', '_' and '.' are accepted.
             validate("atag", USER);
             validate("a-tag", USER);
             validate("a_tag", USER);
             validate("a_tag" + Instant.now().toEpochMilli(), USER);
             validate("a_tag_1and_something2-more", USER);
             validate("a".repeat(255), USER);
-
-            // AWS S3 "Safe characters" newly accepted by the relaxed allowlist:
-            //   !  .  *  '  (  )
-            // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines
             validate("snap.2026-05-20", USER);
-            validate("important!", USER);
-            validate("backup*", USER);
-            validate("o'snap", USER);
-            validate("snap(1)", USER);
-            validate("!._-*'()", USER);
             // Dots embedded in a name are not traversal: with '/' excluded, "a..tag" is just a literal directory.
             validate("a..tag", USER);
 
@@ -75,12 +66,26 @@ public class SnapshotOptionsTest
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Snapshot name must not be more than 255 characters long");
 
-            // '/' is not in the S3-safe set; this is what kills traversal attempts like "../../mysnapshot".
+            // '/' is not in the allowed set; this is what kills traversal attempts like "../../mysnapshot".
             assertThatThrownBy(() -> validate('a' + sep + "tag", USER))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Snapshot name cannot contain " + sep);
 
-            // Other characters outside the S3-safe set must still be rejected.
+            // The shell-significant S3 "safe" characters (! * ' ( )) are deliberately NOT allowed.
+            assertThatThrownBy(() -> validate("important!", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: important!");
+            assertThatThrownBy(() -> validate("backup*", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: backup*");
+            assertThatThrownBy(() -> validate("o'snap", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: o'snap");
+            assertThatThrownBy(() -> validate("snap(1)", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: snap(1)");
+
+            // Other characters outside the allowed set must still be rejected.
             assertThatThrownBy(() -> validate("a tag", USER))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Snapshot name contains illegal characters: a tag");
@@ -101,9 +106,12 @@ public class SnapshotOptionsTest
 
         try (WithProperties p = new WithProperties().set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, false))
         {
-            // Previously-rejected characters are now accepted: space, ':', and other non-S3-safe chars.
+            // The character check is bypassed entirely: space, ':', and the now-disallowed
+            // shell-significant characters (! * ' ( )) are all accepted.
             assertThatCode(() -> validate("a tag", USER)).doesNotThrowAnyException();
             assertThatCode(() -> validate("a:tag", USER)).doesNotThrowAnyException();
+            assertThatCode(() -> validate("important!", USER)).doesNotThrowAnyException();
+            assertThatCode(() -> validate("snap(1)", USER)).doesNotThrowAnyException();
 
             assertThatCode(() -> validate("a".repeat(256), USER)).doesNotThrowAnyException();
             assertThatCode(() -> validate("a".repeat(250), SnapshotType.UPGRADE)).doesNotThrowAnyException();
