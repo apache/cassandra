@@ -636,9 +636,14 @@ public class SimpleClient implements Closeable
     private void handleGracefulDisconnect()
     {
         draining.set(true);
+        // Wait for the last write to complete, then close the channel.
+        // New requests are rejected by the draining check in execute().
+        // In-flight responses will still be delivered via the ResponseHandler
+        // before the channel fully closes.
         if (lastWriteFuture != null)
-            lastWriteFuture.awaitUninterruptibly();
-        close();
+            lastWriteFuture.addListener(f -> close());
+        else
+            close();
     }
 
 
@@ -733,9 +738,8 @@ public class SimpleClient implements Closeable
 
                     if (event.type == Event.Type.GRACEFUL_DISCONNECT)
                     {
-                        client.draining.set(true);
-                        client.handleGracefulDisconnect();
                         logger.info("Received GRACEFUL_DISCONNECT. Entering draining mode.");
+                        client.handleGracefulDisconnect();
                     }
 
                     if (eventHandler != null)

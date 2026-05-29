@@ -33,6 +33,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.awaitility.Awaitility;
@@ -55,7 +56,7 @@ public class GracefulDisconnectTest
 
         ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         EmbeddedChannel ch1 = new EmbeddedChannel();
-        ch1.attr(StorageService.EVENT_DISPATCHER).set(msg -> {
+        ch1.attr(Dispatcher.EVENT_DISPATCHER).set(msg -> {
         });
         channelGroup.add(ch1);
 
@@ -82,9 +83,9 @@ public class GracefulDisconnectTest
         EmbeddedChannel ch1 = new EmbeddedChannel(DefaultChannelId.newInstance());
         EmbeddedChannel ch2 = new EmbeddedChannel(DefaultChannelId.newInstance());
 
-        ch1.attr(StorageService.EVENT_DISPATCHER).set(msg -> {
+        ch1.attr(Dispatcher.EVENT_DISPATCHER).set(msg -> {
         });
-        ch2.attr(StorageService.EVENT_DISPATCHER).set(msg -> {
+        ch2.attr(Dispatcher.EVENT_DISPATCHER).set(msg -> {
         });
         channelGroup.add(ch1);
         channelGroup.add(ch2);
@@ -113,7 +114,7 @@ public class GracefulDisconnectTest
         ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
         EmbeddedChannel ch1 = new EmbeddedChannel();
-        ch1.attr(StorageService.EVENT_DISPATCHER).set(msg -> {
+        ch1.attr(Dispatcher.EVENT_DISPATCHER).set(msg -> {
         });
         channelGroup.add(ch1);
 
@@ -145,7 +146,7 @@ public class GracefulDisconnectTest
 
         EmbeddedChannel ch1 = new EmbeddedChannel();
         AtomicReference<EventMessage> capturedMessage = new AtomicReference<>();
-        ch1.attr(StorageService.EVENT_DISPATCHER).set(capturedMessage::set);
+        ch1.attr(Dispatcher.EVENT_DISPATCHER).set(capturedMessage::set);
         channelGroup.add(ch1);
 
         StorageService.instance.gracefulDisconnect(() -> {

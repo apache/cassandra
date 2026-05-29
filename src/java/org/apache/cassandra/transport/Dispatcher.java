@@ -525,7 +525,7 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
      *
      * Pre-v5 connections simply write the EventMessage directly to the pipeline.
      */
-    static final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
+    public static final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
     Consumer<EventMessage> eventDispatcher(final Channel channel,
                                            final ProtocolVersion version,
                                            final FrameEncoder.PayloadAllocator allocator)

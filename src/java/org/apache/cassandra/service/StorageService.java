@@ -224,6 +224,7 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.transport.ClientResourceLimits;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -305,7 +306,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static final int INDEFINITE = -1;
     public static final int RING_DELAY_MILLIS = getRingDelay(); // delay after which we assume ring has stablized
 
-    static final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
 
     {
         PathUtils.setDeletionListener(path -> {
@@ -1215,6 +1215,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void setGracefulDisconnectGracePeriod(long value)
     {
+        if (value < 0)
+            throw new IllegalArgumentException("graceful_disconnect_grace_period must not be negative.");
+
         if (value > DatabaseDescriptor.getGracefulDisconnectMaxDrain())
             throw new IllegalArgumentException("graceful_disconnect_grace_period cannot exceed graceful_disconnect_max_drain.");
 
@@ -1232,7 +1235,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setGracefulDisconnectMaxDrain(long value)
     {
         if (value <= 0)
-            throw new IllegalArgumentException("graceful_disconnect_max_drain must be greater than 0 when graceful_disconnect_enabled is set to true.");
+            throw new IllegalArgumentException("graceful_disconnect_max_drain must be greater than 0.");
 
         if (value < DatabaseDescriptor.getGracefulDisconnectGracePeriod())
             throw new IllegalArgumentException("graceful_disconnect_max_drain cannot be less than graceful_disconnect_grace_period.");
@@ -3919,8 +3922,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (actionStarted.compareAndSet(false, true))
             {
                 int remaining = connectedChannels.get();
-                ClientMetrics.instance.markForcedDisconnect(remaining);
-                ClientMetrics.instance.decrementConnectionsDraining(remaining);
+                if (remaining > 0)
+                    ClientMetrics.instance.markForcedDisconnect(remaining);
                 defaultAction.run();
             }
         };
@@ -3932,7 +3935,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // before all listeners have fired, triggering the action prematurely.
         EventMessage gracefulDisconnectEventMessage = new EventMessage(new Event.GracefulDisconnect());
         channelGroup.forEach(channel -> {
-            Consumer<EventMessage> dispatcher = channel.attr(EVENT_DISPATCHER).get();
+            // Increment before registering listener to avoid race where the listener fires
+            // and decrements before we increment.
+            ClientMetrics.instance.incrementConnectionsDraining();
+            Consumer<EventMessage> dispatcher = channel.attr(Dispatcher.EVENT_DISPATCHER).get();
             if (dispatcher != null)
                 dispatcher.accept(gracefulDisconnectEventMessage);
             channel.closeFuture().addListener((future -> {
@@ -3943,9 +3949,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     timeoutTask.cancel(false);
                 }
             }));
-            ClientMetrics.instance.incrementConnectionsDraining();
         });
-        // All channels were already closed before we could register listeners
+        // All channels were already closed before we could register listeners;
         // close futures fired inline and decremented the counter to 0 during forEach.
         if (connectedChannels.get() == 0)
         {
