@@ -73,15 +73,8 @@ public class SnapshotTest extends CQLTester
             assertThatCode(() -> cfs.snapshot("a_tag_1and_something2-more")).doesNotThrowAnyException();
             assertThatCode(() -> cfs.snapshot(repeat('a', SchemaConstants.FILENAME_LENGTH))).doesNotThrowAnyException();
 
-            // AWS S3 "Safe characters" accepted by the relaxed allowlist:
-            //   !  .  *  '  (  )
-            // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines
+            // Only alphanumerics, '-', '_' and '.' are accepted.
             assertThatCode(() -> cfs.snapshot("snap.2026-05-20")).doesNotThrowAnyException();
-            assertThatCode(() -> cfs.snapshot("important!")).doesNotThrowAnyException();
-            assertThatCode(() -> cfs.snapshot("backup*")).doesNotThrowAnyException();
-            assertThatCode(() -> cfs.snapshot("o'snap")).doesNotThrowAnyException();
-            assertThatCode(() -> cfs.snapshot("snap(1)")).doesNotThrowAnyException();
-            assertThatCode(() -> cfs.snapshot("!._-*'()")).doesNotThrowAnyException();
             // Dots embedded in a name are not traversal: with '/' excluded, "a..tag" is just a literal directory.
             assertThatCode(() -> cfs.snapshot("a..tag")).doesNotThrowAnyException();
 
@@ -91,12 +84,26 @@ public class SnapshotTest extends CQLTester
             .hasMessage("Snapshot name must not be more than 255 characters long for " +
                         "resolved snapshot name (got 256 characters for \"" + tooLong + "\")");
 
-            // '/' is not in the S3-safe set; this is what kills traversal attempts like "../../mysnapshot".
+            // '/' is not in the allowed set; this is what kills traversal attempts like "../../mysnapshot".
             assertThatThrownBy(() -> cfs.snapshot("a" + sep + "tag"))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Snapshot name cannot contain " + sep);
 
-            // Other characters outside the S3-safe set must still be rejected.
+            // The shell-significant S3 "safe" characters (! * ' ( )) are deliberately NOT allowed.
+            assertThatThrownBy(() -> cfs.snapshot("important!"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: important!");
+            assertThatThrownBy(() -> cfs.snapshot("backup*"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: backup*");
+            assertThatThrownBy(() -> cfs.snapshot("o'snap"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: o'snap");
+            assertThatThrownBy(() -> cfs.snapshot("snap(1)"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Snapshot name contains illegal characters: snap(1)");
+
+            // Other characters outside the allowed set must still be rejected.
             assertThatThrownBy(() -> cfs.snapshot("a tag"))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Snapshot name contains illegal characters: a tag");
@@ -118,9 +125,12 @@ public class SnapshotTest extends CQLTester
         {
             p.set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, false);
 
-            // Previously-rejected characters are now accepted: space, ':', and other non-S3-safe chars.
+            // The character check is bypassed entirely: space, ':', and the now-disallowed
+            // shell-significant characters (! * ' ( )) are all accepted.
             assertThatCode(() -> cfs.snapshot("a tag")).doesNotThrowAnyException();
             assertThatCode(() -> cfs.snapshot("a:tag")).doesNotThrowAnyException();
+            assertThatCode(() -> cfs.snapshot("important!")).doesNotThrowAnyException();
+            assertThatCode(() -> cfs.snapshot("snap(1)")).doesNotThrowAnyException();
 
             // Path separator and "." / ".." rejections are unconditional — they guard against
             // traversal regardless of the toggle.

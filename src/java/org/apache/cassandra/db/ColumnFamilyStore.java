@@ -1896,12 +1896,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                       FILENAME_LENGTH, snapshotName.length(), snapshotName));
         }
 
-        // Allowed characters follow the AWS S3 "Safe characters" set documented at
-        // https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines :
-        //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
-        // The path separator '/' is intentionally excluded,
+        // Allowed characters are a conservative subset of the AWS S3 "Safe characters" set
+        // (https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines):
+        //   0-9  a-z  A-Z  -  _  .
+        // The remaining S3-safe characters (! * ' ( )) are intentionally excluded as they are
+        // shell-significant and error-prone in paths, and the path separator '/' is excluded too,
         // which is what blocks traversal attempts such as "../../mysnapshot"
-        if (!Pattern.compile("[a-zA-Z0-9!_.*'()-]+").matcher(snapshotName).matches())
+        if (!Pattern.compile("[a-zA-Z0-9_.-]+").matcher(snapshotName).matches())
         {
             throw new IllegalArgumentException("Snapshot name contains illegal characters: " + snapshotName);
         }
