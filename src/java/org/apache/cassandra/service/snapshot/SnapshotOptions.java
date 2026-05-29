@@ -39,17 +39,18 @@ import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 public class SnapshotOptions
 {
     public static final String SKIP_FLUSH = "skipFlush";
     public static final String TTL = "ttl";
 
-    // Follows AWS S3 "Safe characters" for object keys:
-    //   0-9  a-z  A-Z  !  -  _  .  *  '  (  )
-    // See https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines
+    // Conservative subset of the AWS S3 "Safe characters" set: 0-9  a-z  A-Z  -  _  .
+    // See the validation site in validateTag for the full rationale on excluded characters.
     // Hyphen is placed last in the character class, so it stays literal and never becomes a range operator.
     private static final Pattern SAFE_SNAPSHOT_NAME = Pattern.compile("[a-zA-Z0-9_.-]+");
+
     public final SnapshotType type;
     public final String tag;
     public final DurationSpec.IntSecondsBound ttl;
@@ -232,15 +233,15 @@ public class SnapshotOptions
             // it e.g. prepends timestamp and type for system snapshots, and we need to validate it as a whole.
             // If, for example, tag would be less than max allowed FILENAME_LENGTH,
             // we might in fact produce a snapshot name longer than FILENAME_LENGTH if we prepended a timestamp to it.
-            String resolvedSnapshotname = SnapshotOptions.getSnapshotName(type, tag, Instant.now());
+            String resolvedSnapshotName = SnapshotOptions.getSnapshotName(type, tag, now());
 
             // the length of valid snapshot name has to be less than or equal to FILENAME_LEGTH - that is 255 -
             // we are following the max length as it is in SchemaConstants for table name.
-            if (resolvedSnapshotname.length() > SchemaConstants.FILENAME_LENGTH)
+            if (resolvedSnapshotName.length() > SchemaConstants.FILENAME_LENGTH)
             {
                 throw new IllegalArgumentException(format("Snapshot name must not be more than %d characters long for " +
                                                           "resolved snapshot name (got %d characters for \"%s\")",
-                                                          FILENAME_LENGTH, resolvedSnapshotname.length(), resolvedSnapshotname));
+                                                          FILENAME_LENGTH, resolvedSnapshotName.length(), resolvedSnapshotName));
             }
 
             // Allowed characters are a conservative subset of the AWS S3 "Safe characters" set
@@ -249,9 +250,9 @@ public class SnapshotOptions
             // The remaining S3-safe characters (! * ' ( )) are intentionally excluded as they are
             // shell-significant and error-prone in paths, and the path separator '/' is excluded too,
             // which is what blocks traversal attempts such as "../../mysnapshot"
-            if (!SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotname).matches())
+            if (!SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotName).matches())
             {
-                throw new IllegalArgumentException("Snapshot name contains illegal characters: " + resolvedSnapshotname);
+                throw new IllegalArgumentException("Snapshot name contains illegal characters: " + resolvedSnapshotName);
             }
         }
 
