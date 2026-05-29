@@ -3,6 +3,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Move exception handling of SPI startup checks when iterating over them (CASSANDRA-21409)
  * Avoid type lookup in SerializationHeader#getType if schema and SSTable are aligned (CASSANDRA-21402)
  * Replace LongAdder in metric-like logic with ThreadLocalCounter (CASSANDRA-21400)
  * BTreeRow#hasLiveData: Avoid Cell iteration if there are no tombstones in a row (CASSANDRA-21363)

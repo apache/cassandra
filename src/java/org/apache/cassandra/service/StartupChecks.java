@@ -156,29 +156,24 @@ public class StartupChecks
 
     public StartupChecks withServiceLoaderTests()
     {
-        ServiceLoader<StartupCheck> loader;
-
-        try
-        {
-            loader = ServiceLoader.load(StartupCheck.class);
-        }
-        catch (ServiceConfigurationError t)
-        {
-            logger.warn("Unable to get startup checks via ServiceLoader. " +
-                        "Custom checks will not be triggered. Reason: " + t.getMessage());
-            return this;
-        }
-
         Set<StartupCheck> customChecks = new HashSet<>();
         Set<String> uniqueNames = new HashSet<>();
         Set<String> duplicitNames = new HashSet<>();
 
-        for (StartupCheck check : loader)
+        try
         {
-            if (!uniqueNames.add(check.name()))
-                duplicitNames.add(check.name());
-            else
-                customChecks.add(check);
+            for (StartupCheck check : ServiceLoader.load(StartupCheck.class))
+            {
+                if (!uniqueNames.add(check.name()))
+                    duplicitNames.add(check.name());
+                else
+                    customChecks.add(check);
+            }
+        }
+        catch (ServiceConfigurationError t)
+        {
+            throw new ConfigurationException("Unable to get startup checks via ServiceLoader. " +
+                                             "Custom checks will not be triggered.", t);
         }
 
         if (!duplicitNames.isEmpty())
