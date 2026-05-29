@@ -718,6 +718,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
                 metric.tombstoneScannedHistogram.update(tombstones);
                 metric.liveScannedHistogram.update(liveRows);
+                metric.totalRowsRead.inc(liveRows);
 
                 boolean warnTombstones = tombstones > warningThreshold && respectTombstoneThresholds;
                 if (warnTombstones)
