@@ -117,7 +117,7 @@
 **** xref:cassandra:managing/tools/cqlsh.adoc[cqlsh: the CQL shell]
 **** xref:cassandra:managing/tools/nodetool/nodetool.adoc[nodetool]
 **** xref:cassandra:managing/tools/sstable/index.adoc[SSTable tools]
-**** xref:cassandra:managing/tools/cassandra_stress.adoc[cassandra-stress]
+**** xref:cassandra:tooling/cassandra-stress.adoc[cassandra-stress]
 
 
 ** xref:cassandra:troubleshooting/index.adoc[Troubleshooting]

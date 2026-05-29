@@ -19,7 +19,7 @@ This section covers the new features in Apache Cassandra 5.0.
 * Trie SSTables: https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-25%3A+Trie-indexed+SSTable+format[CEP-25], https://issues.apache.org/jira/browse/CASSANDRA-18398[JIRA ticket]
 * JDK 17: xref:cassandra:reference/java17.adoc[Docs], https://issues.apache.org/jira/browse/CASSANDRA-16895[JIRA ticket]
 * More guardrails: https://github.com/apache/cassandra/blob/trunk/NEWS.txt[NEWS.txt]
-* TTL and writetime on collections and UDTs: xref:cassandra:developing/cql/dml.html#writetime-and-ttl-function[Docs], https://issues.apache.org/jira/browse/CASSANDRA-8877[JIRA ticket]
+* TTL and writetime on collections and UDTs: xref:cassandra:developing/cql/functions.adoc#writetime-and-ttl-functions[Docs], https://issues.apache.org/jira/browse/CASSANDRA-8877[JIRA ticket]
 * New vector data type: xref:cassandra:reference/vector-data-type.adoc[Docs], https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-30%3A+Approximate+Nearest+Neighbor%28ANN%29+Vector+Search+via+Storage-Attached+Indexes[CEP-30], https://issues.apache.org/jira/browse/CASSANDRA-18504[JIRA ticket]
 * New vector similarity functions: xref:cassandra:vector-search/overview.adoc[Docs], https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-30%3A+Approximate+Nearest+Neighbor%28ANN%29+Vector+Search+via+Storage-Attached+Indexes[CEP-30], https://issues.apache.org/jira/browse/CASSANDRA-18640[JIRA ticket]
 * Unified Compaction Strategy: xref:cassandra:managing/operating/compaction/ucs.adoc[Docs], https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-26%3A+Unified+Compaction+Strategy[CEP-26], https://issues.apache.org/jira/browse/CASSANDRA-18397[JIRA ticket]

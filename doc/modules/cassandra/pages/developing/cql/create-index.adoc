@@ -8,7 +8,7 @@ After an index has been created, it is automatically updated when data in the co
 Indexing via this `CREATE INDEX` command can impact performance.
 Before creating an index, be aware of when and xref:cassandra:developing/cql/indexing/2i/2i-when-to-use.adoc#when-no-index[when not to create an index].
 
-Use xref:cassandra:developing/cql/indexing/create-custom-index.adoc[CREATE CUSTOM INDEX] for Storage-Attached Indexes (SAI).
+Use xref:cassandra:developing/cql/create-custom-index.adoc[CREATE CUSTOM INDEX] for Storage-Attached Indexes (SAI).
 
 *Restriction:* Indexing counter columns is not supported.
 For maps, index the key, value, or entries.

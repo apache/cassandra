@@ -48,7 +48,7 @@ The table that does not have clustering columns has a one-row partition in which
 * A column designated to be the partition key cannot be static.
 ====
 
-You can do xref:developing/batch/batch-good-example.adoc[batch conditional updates to a static column].
+You can do xref:cassandra:developing/cql/batch/batch-good-example.adoc[batch conditional updates to a static column].
 
 Use the `DISTINCT` keyword to select static columns.
 In this case, the database retrieves only the beginning (static column) of the partition.

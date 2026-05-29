@@ -67,6 +67,7 @@ include::cassandra:partial$compress-subproperties.adoc[]
 
 include::cassandra:partial$compact-subproperties.adoc[]
 
+[[table_options]]
 == Optional parameters
 
 // Table Keywords
@@ -88,7 +89,7 @@ If the column already contains data, it is indexed during the execution of this 
 After an index has been created, it is automatically updated when data in the column changes.
 
 Indexing with the `CREATE INDEX` command can impact performance.
-Before creating an index, be aware of when and xref:cassandra:developing/indexing/2i/2i-when-to-use.adoc#when-no-index[when not to create an index].
+Before creating an index, be aware of when and xref:cassandra:developing/cql/indexing/2i/2i-when-to-use.adoc#when-no-index[when not to create an index].
 
 *Restriction:* Indexing counter columns is not supported.
 
