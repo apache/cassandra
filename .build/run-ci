@@ -205,10 +205,10 @@ def parse_arguments() -> argparse.Namespace:
     """
     args = argument_parser().parse_args()
 
-    assert args.repository.startswith("https://github.com/") and args.repository.endswith("cassandra.git"),\
+    assert args.repository.startswith("https://github.com/") and args.repository.removesuffix(".git").endswith("cassandra"),\
         f"Only github apache/cassandra (forked) repository supported, got: {args.repository}"
-    assert args.dtest_repository.startswith("https://github.com/") and args.dtest_repository.endswith("cassandra-dtest.git"),\
-        f"Only github apache/cassandra (forked) repository supported, got: {args.dtest_repository}"
+    assert args.dtest_repository.startswith("https://github.com/") and args.dtest_repository.removesuffix(".git").endswith("cassandra-dtest"),\
+        f"Only github apache/cassandra-dtest (forked) repository supported, got: {args.dtest_repository}"
     assert not (args.setup and args.only_setup), "Both --setup or --only-setup cannot be specified."
     assert not (args.tear_down and args.only_tear_down), "Both --tear-down or --only-tear-down cannot be specified."
     assert not ("custom" == args.profile and not args.profile_custom_regexp), "Custom profile requires --profile-custom-regexp."
