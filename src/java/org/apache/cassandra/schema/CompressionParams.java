@@ -322,7 +322,7 @@ public final class CompressionParams
             return null;
         }
 
-        return registry.getProvider(compressorClass).createCompressor(compressorClass, compressionOptions);
+        return registry.getCompressor(compressorClass, compressionOptions);
     }
 
     public static ICompressor createCompressor(ParameterizedClass compression) throws ConfigurationException

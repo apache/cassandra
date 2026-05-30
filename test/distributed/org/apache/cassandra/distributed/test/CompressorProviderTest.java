@@ -78,7 +78,7 @@ public class CompressorProviderTest extends TestBaseImpl
     {
         Map<String, Object> snappyProviderOptions = new HashMap<>();
         snappyProviderOptions.put("class_name", HealthyTestProvider.class.getName());
-        snappyProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString()));
+        snappyProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
 
         Map<String, Object> providers = new HashMap<>();
         providers.put(SnappyCompressor.class.getSimpleName(), snappyProviderOptions);
@@ -166,7 +166,7 @@ public class CompressorProviderTest extends TestBaseImpl
     {
         Map<String, Object> lz4ProviderOptions = new HashMap<>();
         lz4ProviderOptions.put("class_name", UnhealthyTestProvider.class.getName());
-        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString()));
+        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
 
         Map<String, Object> providers = new HashMap<>();
         providers.put(LZ4Compressor.class.getSimpleName(), lz4ProviderOptions);
@@ -202,7 +202,7 @@ public class CompressorProviderTest extends TestBaseImpl
     {
         Map<String, Object> lz4ProviderOptions = new HashMap<>();
         lz4ProviderOptions.put("class_name", UnhealthyTestProvider.class.getName());
-        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.FALSE.toString()));
+        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString()));
 
         Map<String, Object> providers = new HashMap<>();
         providers.put(LZ4Compressor.class.getSimpleName(), lz4ProviderOptions);
@@ -235,7 +235,7 @@ public class CompressorProviderTest extends TestBaseImpl
         // refuse to start with a ConfigurationException.
         Map<String, Object> bogusProviderOptions = new HashMap<>();
         bogusProviderOptions.put("class_name", HealthyTestProvider.class.getName());
-        bogusProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString()));
+        bogusProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
 
         Map<String, Object> providers = new HashMap<>();
         providers.put("no_such_compressor", bogusProviderOptions);

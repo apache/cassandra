@@ -33,7 +33,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.io.compress.AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER;
+import static org.apache.cassandra.io.compress.AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER;
 
 /**
  * CompressorRegistry manages the registration and retrieval of compression providers.
@@ -122,6 +122,49 @@ public final class CompressorRegistry
     }
 
     /**
+     * Creates a compressor. Firstly, we get a provider for this compressor class, or we use default compressor provider
+     * if there is not such a mapping. Then we try to use that provider to instantiate a compressor with given parameters.
+     * When the construction of a compressor fails, if a provider is configured is not configured to fallback,
+     * an exception is thrown, otherwise a compressor by a default compressor provider is created.
+     *
+     * @param compressorClass compressor class to create a compressor of
+     * @param compressionOptions compressor options
+     * @return an instance of a given compressor class
+     */
+    public ICompressor getCompressor(Class<?> compressorClass, Map<String, String> compressionOptions)
+    {
+        AbstractCompressionProvider provider = getProvider(compressorClass);
+
+        try
+        {
+            ICompressor compressor = provider.createCompressor(compressorClass, compressionOptions);
+            if (compressor.serializedAs() != compressorClass)
+            {
+                // TODO refine the type of thrown exception
+                throw new RuntimeException(String.format("The result of ICompressor.serializedAs(), %s, of a compressor object created " +
+                                                         "by a compressor provider %s does not match the compressor class to get a compressor for. " +
+                                                         "You need to override serializedAs() method of your custom compressor and return " +
+                                                         "base compressor class it is the substitute for.",
+                                                         compressor.serializedAs(),
+                                                         provider.getClass()));
+            }
+            return compressor;
+        }
+        catch (Throwable t)
+        {
+            if (provider.isFailOnMissingProvider())
+            {
+                // TODO refine the type of thrown exception
+                throw t;
+            }
+            else
+            {
+                return DEFAULT_COMPRESSION_PROVIDER.createCompressor(compressorClass, compressionOptions);
+            }
+        }
+    }
+
+    /**
      * Populates the registry with compression providers specified in the configuration.
      * Should be called during initialization to ensure providers are registered and available for use.
      * If a provider fails to initialize and fallback is enabled, the default provider is used.
@@ -201,7 +244,7 @@ public final class CompressorRegistry
 
             // Strip the registry-reserved key before handing parameters to the plugin, so it sees only its own configuration.
             Map<String, String> pluginParameters = new HashMap<>(p);
-            pluginParameters.remove(FALLBACK_TO_DEFAULT_PROVIDER);
+            pluginParameters.remove(FAIL_ON_MISSING_PROVIDER);
 
             compressionProvider.init(pluginParameters);
 
@@ -221,9 +264,9 @@ public final class CompressorRegistry
                         e);
         }
 
-        boolean fallbackToDefault = Boolean.parseBoolean(p.getOrDefault(FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString()));
+        boolean failOnMissingProvider = Boolean.parseBoolean(p.getOrDefault(FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
 
-        if (fallbackToDefault)
+        if (!failOnMissingProvider)
             return DEFAULT_COMPRESSION_PROVIDER;
 
         throw new ConfigurationException("Failed to initialize compression provider " + providerConfig);

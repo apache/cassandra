@@ -21,9 +21,6 @@ package org.apache.cassandra.io.compress;
 import java.util.Collections;
 import java.util.Map;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * Abstract base class for compression providers.
  * Provides common functionality for loading and managing compressors
@@ -31,12 +28,10 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class AbstractCompressionProvider
 {
-    protected static final Logger logger = LoggerFactory.getLogger(AbstractCompressionProvider.class);
-
     /**
      * Configuration key for enabling fallback to the default provider.
      */
-    public static final String FALLBACK_TO_DEFAULT_PROVIDER = "fallback_to_default_provider";
+    public static final String FAIL_ON_MISSING_PROVIDER = "fail_on_missing_provider";
 
     private Map<String, String> parameters = Collections.emptyMap();
 
@@ -67,7 +62,7 @@ public abstract class AbstractCompressionProvider
      * Initialises this provider with the {@code parameters} block from its
      * {@code compressor_providers} entry in cassandra.yaml. Called by {@link CompressorRegistry}
      * exactly once, after no-arg construction and before {@link #isHealthy()}. The map never
-     * contains the registry-reserved key {@link #FALLBACK_TO_DEFAULT_PROVIDER} — that one is
+     * contains the registry-reserved key {@link #FAIL_ON_MISSING_PROVIDER} — that one is
      * consumed by the registry itself. May be empty but is never null.
      * <p>
      * The default implementation stores the map so subclasses can retrieve it via
@@ -86,5 +81,10 @@ public abstract class AbstractCompressionProvider
     public Map<String, String> getParameters()
     {
         return parameters;
+    }
+
+    public boolean isFailOnMissingProvider()
+    {
+        return Boolean.parseBoolean(parameters.getOrDefault(FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
     }
 }

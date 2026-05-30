@@ -3003,15 +3003,17 @@ compression_dictionary_cache_expire: 24h
 # Configuring pluggable compressor providers.
 # Keys of compressor_providers map to implementations of ICompressor. FQCN are allowed to be keys as well.
 # Cassandra will attempt to load the provider with the specified class_name for each compressor key.
+# You can only override built-in compressors.
 # Parameters:
-#   - fallback_to_default_provider: If "true", falls back to DefaultCompressionProvider
-#     when the plugin fails to load. If "false", throws an exception on failure.
+#   - fail_on_missing_provider: If "false", falls back to DefaultCompressionProvider
+#     when the plugin fails to load. If "true", throws an exception on failure.
+#     The default value is "false".
 # If this section is commented out, Cassandra uses DefaultCompressionProvider
 # with built-in compressor implementation.
 #compressor_providers:
 #  LZ4Compressor:
 #    class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider
 #    parameters:
-#      fallback_to_default_provider: "true"
+#      fail_on_missing_provider: "false"
 #  org.apache.cassandra.io.compress.ZstdCompressor:
 #    class_name: org.apache.cassandra.io.compress.DefaultCompressionProvider

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.compress;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.After;
@@ -65,7 +66,7 @@ public class CompressorRegistryTest
     @Test
     public void testRegisterServiceProvider() throws Exception
     {
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
         config.compressor_providers.put(NoopCompressor.class.getSimpleName(), new ParameterizedClass(HealthyTestCompressionProvider.class.getName(), params));
 
         DatabaseDescriptor.setConfig(config);
@@ -83,7 +84,7 @@ public class CompressorRegistryTest
         // The registry resolves a compressor type to its plugin via three accepted key forms in
         // compressor_providers: fully qualified class name, simple class name, and the
         // CompressorType abbreviation. Verify each form independently routes to the plugin.
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
         String[] keys = {
         NoopCompressor.class.getName(),                                  // FQCN
         NoopCompressor.class.getSimpleName(),                            // simple name
@@ -109,7 +110,7 @@ public class CompressorRegistryTest
     @Test
     public void testUnhealthyProviderWithFallback()
     {
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
         ParameterizedClass parameterizedClass = new ParameterizedClass(UnhealthyTestCompressionProvider.class.getName(), params);
 
         AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(parameterizedClass);
@@ -120,7 +121,7 @@ public class CompressorRegistryTest
     @Test
     public void testUnhealthyProviderWithoutFallback()
     {
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.FALSE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString());
         ParameterizedClass parameterizedClass = new ParameterizedClass(UnhealthyTestCompressionProvider.class.getName(), params);
 
         assertThatExceptionOfType(ConfigurationException.class)
@@ -135,7 +136,7 @@ public class CompressorRegistryTest
         // this exercises the catch block in resolveProvider, distinct from the isHealthy()==false
         // path. With fallback enabled, the default provider must be returned and the original
         // exception's cause chain should be available in the warn log (not just its message).
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
         ParameterizedClass parameterizedClass = new ParameterizedClass("org.apache.cassandra.does.not.Exist", params);
 
         AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(parameterizedClass);
@@ -150,6 +151,8 @@ public class CompressorRegistryTest
         // block). resolveProvider must tolerate this rather than NPE on getOrDefault.
         ParameterizedClass pc = new ParameterizedClass();
         pc.class_name = "org.apache.cassandra.does.not.Exist";
+        pc.parameters = new HashMap<>();
+        pc.parameters.put(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
 
         AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(pc);
         assertThat(provider).isEqualTo(CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
@@ -161,7 +164,7 @@ public class CompressorRegistryTest
         // A compressor_providers entry with no 'class_name' is a config mistake and must fail
         // loudly — silently substituting the default would mask typos like 'clas_name:'.
         ParameterizedClass parameterizedClass = new ParameterizedClass(null,
-                                                                       Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString()));
+                                                                       Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString()));
 
         assertThatExceptionOfType(ConfigurationException.class)
         .isThrownBy(() -> CompressorRegistry.instance.resolveProvider(parameterizedClass))
@@ -173,7 +176,7 @@ public class CompressorRegistryTest
     {
         // Same catch block as above, but with fallback disabled — the resolver must surface a
         // ConfigurationException rather than silently use the default.
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.FALSE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString());
         ParameterizedClass parameterizedClass = new ParameterizedClass("org.apache.cassandra.does.not.Exist", params);
 
         assertThatExceptionOfType(ConfigurationException.class)
@@ -186,7 +189,7 @@ public class CompressorRegistryTest
     {
         // A plugin that does not override init() must still be able to retrieve its parameters via
         // the default getParameters() accessor, with the registry-reserved key stripped out.
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER, Boolean.TRUE.toString(),
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString(),
                                             "abc", "1",
                                             "def", "2");
         ParameterizedClass pc = new ParameterizedClass(HealthyTestCompressionProvider.class.getName(), params);
@@ -197,7 +200,7 @@ public class CompressorRegistryTest
         assertThat(provider.getParameters())
         .containsEntry("abc", "1")
         .containsEntry("def", "2")
-        .doesNotContainKey(AbstractCompressionProvider.FALLBACK_TO_DEFAULT_PROVIDER);
+        .doesNotContainKey(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER);
     }
 
     public static class UnhealthyTestCompressionProvider extends AbstractCompressionProvider
