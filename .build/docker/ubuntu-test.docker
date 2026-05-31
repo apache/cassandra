@@ -81,7 +81,7 @@ RUN find /etc -type f -name java.security -exec sed -i 's/TLSv1, TLSv1.1//' {} \
 RUN find /etc -type f -name java.security -exec sed -i 's/3DES_EDE_CBC$/3DES_EDE_CBC, TLSv1, TLSv1.1/' {} \;
 
 # create and change to cassandra-tmp user, use an rare uid to avoid collision later on
-RUN mkdir -p /root && chmod -R a+rwx /root
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
 RUN adduser --disabled-login --uid 901743 --lastuid 901743 --gecos cassandra cassandra-tmp
 RUN gpasswd -a cassandra-tmp sudo
 RUN echo "cassandra-tmp ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/build
@@ -97,8 +97,8 @@ ENV ANT_HOME=/usr/share/ant
 
 # Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
 COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
-RUN bash /tmp/_prepopulate_maven_deps.sh /root/.m2/repository
-RUN cp -a /home/cassandra-tmp/.gradle /root/.gradle
+RUN bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository
+RUN cp -a /home/cassandra-tmp/.gradle /home/image-cache/.gradle
 
 # run pip commands and setup virtualenv (note we do this after we switch to cassandra user so we
 # setup the virtualenv for the cassandra user and not the root user by accident) for Python 3.8/3.11

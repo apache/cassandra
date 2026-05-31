@@ -21,6 +21,13 @@ set -e
 command -v ant >/dev/null 2>&1 || { error 1 "ant needs to be installed"; }
 command -v git >/dev/null 2>&1 || { error 1 "git needs to be installed"; }
 
+
+error() {
+  echo >&2 $2;
+  set -x
+  exit $1
+}
+
 # Function to download dependencies for a branch
 download_deps_for_branch() {
     local branch=$1
@@ -42,7 +49,7 @@ download_deps_for_branch() {
     ant init
     # HACK
     if [ -d "modules/accord" ]; then
-    local version=$(grep '<property name="base.version"' build.xml | sed 's/.*value="\([^"]*\)".*/\1/')
+        local version=$(grep '<property name="base.version"' build.xml | sed 's/.*value="\([^"]*\)".*/\1/')
         cd modules/accord
         ./gradlew clean publishToMavenLocal -Dmaven.repo.local="$CUSTOM_M2_REPO" -Paccord_group=org.apache.cassandra -Paccord_artifactId=cassandra-accord -Paccord_version="${version}-SNAPSHOT" -x test -x rat -x checkstyleMain -x checkstyleTest -x javadoc
         cd -
@@ -52,6 +59,7 @@ download_deps_for_branch() {
 }
 
 CUSTOM_M2_REPO="${1:-$HOME/.m2/repository}"
+TMP_DIR=${TMP_DIR:-/tmp}
 
 cd $TMP_DIR
 git clone https://github.com/apache/cassandra.git

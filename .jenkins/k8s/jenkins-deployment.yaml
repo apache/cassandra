@@ -234,7 +234,7 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
-        # limit one agent pod per node
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
         yaml: |
           spec:
             affinity:
@@ -324,7 +324,7 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
-        # limit one agent pod per node
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
         yaml: |
           spec:
             affinity:
@@ -414,7 +414,7 @@ agent:
           - emptyDirVolume:
               memory: 'false'
               mountPath: /certs
-        # limit one agent pod per node
+        # limit one agent pod per node for simpler operations (like orphan cleanup)
         yaml: |
           spec:
             affinity:

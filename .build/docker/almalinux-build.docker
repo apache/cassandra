@@ -106,5 +106,7 @@ ENV PATH="$PATH:/usr/local/go/bin"
 COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
 RUN alternatives --set java $(alternatives --display java | grep "family java-11-openjdk" | cut -d' ' -f1)
 RUN alternatives --set javac $(alternatives --display javac | grep "family java-11-openjdk" | cut -d' ' -f1)
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
 RUN JAVA_HOME=$(readlink -f /usr/bin/javac | sed "s:/bin/javac::") \
-    bash /tmp/_prepopulate_maven_deps.sh /root/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+    bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+RUN cp -a /root/.gradle /home/image-cache/.gradle

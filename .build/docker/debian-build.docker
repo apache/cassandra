@@ -113,4 +113,6 @@ RUN git config --global --add safe.directory ${CASSANDRA_DIR}
 
 # Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
 COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
-RUN bash /tmp/_prepopulate_maven_deps.sh /root/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
+RUN bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+RUN cp -a /root/.gradle /home/image-cache/.gradle
