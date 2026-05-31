@@ -3,6 +3,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Add rowsMutatedPerWriteHistogram metric to track rows mutated per write request (CASSANDRA-21320)
  * Add TotalRowsRead and TotalRowsMutated counters to TableMetrics for accurate per-table row throughput tracking (CASSANDRA-21321)
  * Move exception handling of SPI startup checks when iterating over them (CASSANDRA-21409)
  * Avoid type lookup in SerializationHeader#getType if schema and SSTable are aligned (CASSANDRA-21402)
