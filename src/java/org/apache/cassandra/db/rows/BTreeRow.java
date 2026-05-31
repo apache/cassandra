@@ -859,6 +859,7 @@ public class BTreeRow extends AbstractRow
         private final boolean isSorted;
         private BTree.Builder<Cell<?>> cells_;
         private boolean hasComplex = false;
+        private long minCellDeletionTime = Cell.MAX_DELETION_TIME;
 
         // For complex column at index i of 'columns', we store at complexDeletions[i] its complex deletion.
 
@@ -888,6 +889,7 @@ public class BTreeRow extends AbstractRow
             cells_ = builder.cells_ == null ? null : builder.cells_.copy();
             isSorted = builder.isSorted;
             hasComplex = builder.hasComplex;
+            minCellDeletionTime = builder.minCellDeletionTime;
         }
 
         @Override
@@ -919,6 +921,7 @@ public class BTreeRow extends AbstractRow
             this.deletion = Deletion.LIVE;
             this.cells_.reuse();
             this.hasComplex = false;
+            this.minCellDeletionTime = Cell.MAX_DELETION_TIME;
             if (pool != null)
             {
                 pool.offer(this);
@@ -951,12 +954,14 @@ public class BTreeRow extends AbstractRow
 
             getCells().add(cell);
             hasComplex |= cell.column.isComplex();
+            minCellDeletionTime = Math.min(minCellDeletionTime, minDeletionTime(cell));
         }
 
         public void addComplexDeletion(ColumnMetadata column, DeletionTime complexDeletion)
         {
             getCells().add(new ComplexColumnDeletion(column, complexDeletion));
             hasComplex = true;
+            minCellDeletionTime = Math.min(minCellDeletionTime, minDeletionTime(complexDeletion));
         }
 
         public Row build()
@@ -965,14 +970,33 @@ public class BTreeRow extends AbstractRow
                 getCells().sort();
             // we can avoid resolving if we're sorted and have no complex values
             // (because we'll only have unique simple cells, which are already in their final condition)
-            if (!isSorted | hasComplex)
+            boolean resolved = !isSorted | hasComplex;
+            if (resolved)
                 getCells().resolve(CellResolver.instance);
             Object[] btree = getCells().build();
 
             if (deletion.isShadowedBy(primaryKeyLivenessInfo))
                 deletion = Deletion.LIVE;
 
-            long minDeletionTime = minDeletionTime(btree, primaryKeyLivenessInfo, deletion.time());
+            long minDeletionTime;
+            // Use the incrementally tracked min when it is guaranteed to be exact:
+            //  - !resolved: CellResolver did not run, so no cells were merged or shadowed.
+            //  - minCellDeletionTime == Cell.MAX_DELETION_TIME: no cell or complex deletion contributed
+            //    any deletion info, so reconciliation in CellResolver cannot have made the tracked min
+            //    pessimistic (every cell has localDeletionTime == NO_DELETION_TIME).
+            // Otherwise fall back to the exact O(N) computation, since reconciliation between expiring
+            // cells with equal timestamps may keep a cell whose localDeletionTime is larger than what
+            // we tracked.
+            if (!resolved || minCellDeletionTime == Cell.MAX_DELETION_TIME)
+            {
+                minDeletionTime = Math.min(minCellDeletionTime,
+                                           Math.min(minDeletionTime(primaryKeyLivenessInfo),
+                                                    minDeletionTime(deletion.time())));
+            }
+            else
+            {
+                minDeletionTime = minDeletionTime(btree, primaryKeyLivenessInfo, deletion.time());
+            }
             Row row = BTreeRow.create(clustering, primaryKeyLivenessInfo, deletion, btree, minDeletionTime);
             reset();
             return row;
