@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -133,9 +134,8 @@ public class MutationTrackingTables
                                .build());
         }
     
-        private void addShardRows(Shard shard, SimpleDataSet result)
+        private void addShardRows(Shard.DebugInfo shardDebugInfo, SimpleDataSet result)
         {
-            Shard.DebugInfo shardDebugInfo = shard.getDebugInfo();
             for (Map.Entry<CoordinatorLogId, CoordinatorLog.DebugInfo> entry : shardDebugInfo.logs.entrySet())
             {
                 CoordinatorLogId logId = entry.getKey();
@@ -159,7 +159,7 @@ public class MutationTrackingTables
     
             for (Shard shard : MutationTrackingService.instance().getShards())
             {
-                addShardRows(shard, result);
+                addShardRows(shard.getDebugInfo(), result);
             }
     
             return result;
@@ -170,16 +170,12 @@ public class MutationTrackingTables
         {
             String keyspaceName = UTF8Type.instance.compose(key.getKey());
             SimpleDataSet result = new SimpleDataSet(metadata());
-    
-            for (Shard shard : MutationTrackingService.instance().getShards())
-            {
-                Shard.DebugInfo debugInfo = shard.getDebugInfo();
-                if (!debugInfo.keyspace.equals(keyspaceName))
-                    continue;
-    
-                addShardRows(shard, result);
-            }
-    
+
+            List<Shard> shards = new ArrayList<>();
+            MutationTrackingService.instance().forEachShardInKeyspace(keyspaceName, shards::add);
+            for (Shard shard : shards)
+                addShardRows(shard.getDebugInfo(), result);
+
             return result;
         }
     }
