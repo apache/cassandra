@@ -51,7 +51,7 @@ import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.tcm.Discovery.DiscoveredNodes;
+import org.apache.cassandra.tcm.discovery.Discovery.DiscoveredNodes;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
