@@ -69,7 +69,7 @@ public class AccordCleanupTest extends AccordTestBase
         AccordTestBase.setupCluster(builder -> builder
                                                .withoutVNodes()
                                                .appendConfig(config -> config
-                                                                       .set("accord.shard_durability_cycle", "25s")
+                                                                       .set("accord.shard_durability_cycle", "20s")
                                                                        .with(Feature.GOSSIP, Feature.NETWORK)), 2);
         SHARED_CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS " + KEYSPACE + ';');
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
@@ -97,7 +97,6 @@ public class AccordCleanupTest extends AccordTestBase
         String qualifiedTableName = KEYSPACE + '.' + tableName;
 
         test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'", cluster -> {
-            // Loses ownership of k = 1 and Accord no longer needs it
             setupForCleanupTest(cluster, tableName, qualifiedTableName);
 
             NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
@@ -117,7 +116,6 @@ public class AccordCleanupTest extends AccordTestBase
         String qualifiedTableName = KEYSPACE + '.' + tableName;
 
         test("CREATE TABLE " + qualifiedTableName + " (k int PRIMARY KEY, v int) WITH transactional_mode='full'", cluster -> {
-            // Loses ownership of k = 1 and Accord no longer needs it
             setupForCleanupTest(cluster, tableName, qualifiedTableName);
 
             cluster.get(1).runOnInstance(() -> {
