@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Offline nodetool commands should not print network options in help (CASSANDRA-20876)
  * Defer creation of the system_cluster_metadata keyspace until CMS initialization (CASSANDRA-21477)
  * Support direct I/O for background SSTable writes (CASSANDRA-21134)
  * Relax assertion on partitioner instances in SinglePartitionReadCommand (CASSANDRA-21251)

@@ -114,6 +114,36 @@ public class NodetoolClassHierarchyTest extends CQLTester
     }
 
     /**
+     * Ensures that all commands implementing {@code LocalCommand} do not establish a JMX connection.
+     */
+    @Test
+    public void testLocalCommandsShouldNotConnect() throws Exception
+    {
+        CommandLine root = NodeTool.createCommandLine(CommandLine.defaultFactory());
+        List<String> failedCommands = new ArrayList<>();
+
+        commandTreeWalker(root, cmd -> {
+            Object userObject = cmd.getCommandSpec().userObject();
+            if (userObject instanceof LocalCommand && userObject instanceof AbstractCommand)
+            {
+                AbstractCommand abstractCommand = (AbstractCommand) userObject;
+                try
+                {
+                    if (abstractCommand.shouldConnect())
+                        failedCommands.add(fullCommandName(cmd));
+                }
+                catch (Exception e)
+                {
+                    failedCommands.add(fullCommandName(cmd) + " (" + e.getMessage() + ")");
+                }
+            }
+        });
+
+        assertTrue("The following commands implement LocalCommand but shouldConnect() does not return false: " + failedCommands,
+                   failedCommands.isEmpty());
+    }
+
+    /**
      * For a given command, follows the {@code @ParentCommand} chain and collects all
      * options and parameters declared on each parent.
      */
