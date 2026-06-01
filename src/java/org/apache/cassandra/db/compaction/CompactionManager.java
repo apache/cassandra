@@ -655,7 +655,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         default boolean incompleteOperation()
         {
             return false;
-        };
+        }
     }
 
     public enum AllSSTableOpStatus
@@ -886,8 +886,8 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
 
     public static class InUseRanges
     {
-        public List<Range<Token>> noLongerOwnedRangesInUseByAccord;
-        public List<Range<Token>> allRanges;
+        public final List<Range<Token>> noLongerOwnedRangesInUseByAccord;
+        public final List<Range<Token>> allRanges;
 
         public InUseRanges(List<Range<Token>> noLongerOwnedRangesInUseByAccord, List<Range<Token>> allRanges)
         {

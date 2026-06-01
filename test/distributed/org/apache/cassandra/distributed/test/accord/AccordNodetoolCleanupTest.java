@@ -156,15 +156,33 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             long token1 = (Long) result1.toObjectArrays()[0][0];
             long token2 = (Long) result2.toObjectArrays()[0][0];
+            long newToken = token1 - 1000;
 
-            assertTrue((token2 < (token1 - 1000)) && token1 < Long.parseLong(originalToken));
+            assertTrue((token2 < newToken) && (token1 < Long.parseLong(originalToken)));
 
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             // Cluster 1 now only owns token2, but Accord still requires token1
             cluster.get(1).runOnInstance(() -> {
-                AccordService.instance().node().durability().shards().stop();
-                StorageService.instance.move(Long.toString(token1 - 1000));
+                AccordService.instance().node().durability().shards().start();
+                StorageService.instance.move(Long.toString(newToken));
+            });
+
+            // Wait until Accord retires range, so it no longer has ownership of token1
+            cluster.get(1).runOnInstance(() -> {
+                TableId tid = Schema.instance.getTableMetadata(KEYSPACE, tableName).id();
+                RoutingKey key = TokenKey.parse(tid, String.valueOf(token1), Murmur3Partitioner.instance);
+
+                Util.spinUntilTrue(() -> {
+                    boolean doesNotContainsToken = true;
+                    List<Ranges> inUseRanges = getBlocking(AccordService.instance().node().commandStores().getInUseRangesAndMarkRetiredRangesUnsafeToRead());
+                    for (Ranges ranges : inUseRanges)
+                    {
+                        if (ranges.intersects(key))
+                            doesNotContainsToken = false;
+                    }
+                    return doesNotContainsToken;
+                }, 30);
             });
 
             NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
@@ -173,9 +191,9 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
             assertEquals(2, nodetoolResult.getRc());
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
-            // Ensure data is still there
+            // Ensure data is correct
             assertEquals(1, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1").length);
-            assertEquals(1, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 2 LIMIT 1").length);
+            assertEquals(0, cluster.get(1).executeInternal("SELECT k FROM " + qualifiedTableName + " WHERE k = 2 LIMIT 1").length);
         });
 
     }
