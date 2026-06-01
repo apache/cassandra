@@ -30,7 +30,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Command(name = "history", description = "Print previously executed nodetool commands")
-public class History extends AbstractCommand
+public class History extends AbstractCommand implements LocalCommand
 {
     @Option(paramLabel = "commands",
     names = { "-n", "--num", "--number-of-commands" },
