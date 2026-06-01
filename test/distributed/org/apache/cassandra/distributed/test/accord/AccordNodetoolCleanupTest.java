@@ -153,6 +153,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
             SimpleQueryResult result2 = cluster.coordinator(1).executeWithResult("SELECT token(k) FROM " + qualifiedTableName + " WHERE k = 1 LIMIT 1", ConsistencyLevel.SERIAL);
 
             cluster.get(1).flush(withKeyspace("%s"));
+            assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             long token1 = (Long) result1.toObjectArrays()[0][0];
             long token2 = (Long) result2.toObjectArrays()[0][0];
@@ -187,8 +188,7 @@ public class AccordNodetoolCleanupTest extends AccordTestBase
 
             NodeToolResult nodetoolResult = cluster.get(1).nodetoolResult("cleanup", KEYSPACE, tableName);
 
-            assertTrue(nodetoolResult.getStdout().contains("Some SSTables in keyspace " + KEYSPACE + " are still being used by Accord and were not cleaned up, check server logs for more information."));
-            assertEquals(2, nodetoolResult.getRc());
+            assertEquals(0, nodetoolResult.getRc());
             assertEquals(1, (int) cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName).getLiveSSTables().size()));
 
             // Ensure data is correct
