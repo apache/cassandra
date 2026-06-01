@@ -22,6 +22,7 @@ import java.nio.ByteOrder;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
@@ -38,7 +39,18 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     private long markedPointer;
 
     final Rebufferer rebufferer;
-    protected BufferHolder bufferHolder = Rebufferer.EMPTY;
+
+    // It is made private to prevent subclasses from modifying the value
+    // without also updating the corresponding bufferHolderOffset
+    private BufferHolder bufferHolder = Rebufferer.EMPTY;
+
+    // The value is cached to avoid megamorphic calls of bufferHolder.
+    // It must be updated in sync with bufferHolder value
+    private long bufferHolderOffset = 0;
+
+    // The value is cached to avoid megamorphic calls of bufferHolder
+    // it is immutable, the SSTable early-open mechanism does not mutate existing readers
+    private final long fileLength;
 
     /**
      * Only created through Builder
@@ -49,6 +61,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     {
         super(Rebufferer.EMPTY.buffer());
         this.rebufferer = rebufferer;
+        this.fileLength = rebufferer.fileLength();
     }
 
     /**
@@ -67,7 +80,9 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         bufferHolder.release();
         bufferHolder = rebufferer.rebuffer(position);
         buffer = bufferHolder.buffer();
-        buffer.position(Ints.checkedCast(position - bufferHolder.offset()));
+        long newOffset = bufferHolder.offset();
+        bufferHolderOffset = newOffset;
+        buffer.position(Ints.checkedCast(position - newOffset));
 
         assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
     }
@@ -76,13 +91,23 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     public long getFilePointer()
     {
         if (buffer == null)     // closed already
-            return rebufferer.fileLength();
+            return fileLength;
         return current();
+    }
+
+    protected BufferHolder getBufferHolder()
+    {
+        return bufferHolder;
+    }
+
+    protected long getBufferHolderOffset()
+    {
+        return bufferHolderOffset;
     }
 
     protected long current()
     {
-        return bufferHolder.offset() + buffer.position();
+        return bufferHolderOffset + buffer.position();
     }
 
     public String getPath()
@@ -164,6 +189,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         rebufferer.closeReader();
         buffer = null;
         bufferHolder = null;
+        bufferHolderOffset = 0;
 
         //For performance reasons we don't keep a reference to the file
         //channel so we don't close it
@@ -197,7 +223,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         if (buffer == null)
             throw new IllegalStateException("Attempted to seek in a closed RAR");
 
-        long bufferOffset = bufferHolder.offset();
+        long bufferOffset = bufferHolderOffset;
         if (newPosition >= bufferOffset && newPosition < bufferOffset + buffer.limit())
         {
             buffer.position((int) (newPosition - bufferOffset));
@@ -274,7 +300,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
     public long length()
     {
-        return rebufferer.fileLength();
+        return fileLength;
     }
 
     public long getPosition()
@@ -282,6 +308,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         return current();
     }
 
+    @VisibleForTesting
     public double getCrcCheckChance()
     {
         return rebufferer.getCrcCheckChance();
