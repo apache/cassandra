@@ -65,6 +65,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.discovery.Discovery;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
