@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Locator;
+import org.apache.cassandra.tcm.discovery.Discovery;
 import org.apache.cassandra.tcm.membership.Location;
 
 import static org.junit.Assert.assertEquals;

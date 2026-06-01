@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm;
+package org.apache.cassandra.tcm.discovery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +48,8 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
