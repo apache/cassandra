@@ -250,9 +250,11 @@ public class SnapshotOptions
             // The remaining S3-safe characters (! * ' ( )) are intentionally excluded as they are
             // shell-significant and error-prone in paths, and the path separator '/' is excluded too,
             // which is what blocks traversal attempts such as "../../mysnapshot"
-            if (!SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotName).matches())
+            if (type == SnapshotType.USER && !SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotName).matches())
             {
-                throw new IllegalArgumentException("Snapshot name contains illegal characters: " + resolvedSnapshotName);
+                throw new IllegalArgumentException("Snapshot name contains illegal characters: " + resolvedSnapshotName + ". " +
+                                                   "Allowed characters must match the pattern: " + SAFE_SNAPSHOT_NAME.pattern() +
+                                                   " with a maximum of length of " + FILENAME_LENGTH + " characters.");
             }
         }
 

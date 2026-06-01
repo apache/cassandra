@@ -74,24 +74,24 @@ public class SnapshotOptionsTest
             // The shell-significant S3 "safe" characters (! * ' ( )) are deliberately NOT allowed.
             assertThatThrownBy(() -> validate("important!", USER))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Snapshot name contains illegal characters: important!");
+            .hasMessageContaining("Snapshot name contains illegal characters: important!");
             assertThatThrownBy(() -> validate("backup*", USER))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Snapshot name contains illegal characters: backup*");
+            .hasMessageContaining("Snapshot name contains illegal characters: backup*");
             assertThatThrownBy(() -> validate("o'snap", USER))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Snapshot name contains illegal characters: o'snap");
+            .hasMessageContaining("Snapshot name contains illegal characters: o'snap");
             assertThatThrownBy(() -> validate("snap(1)", USER))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Snapshot name contains illegal characters: snap(1)");
+            .hasMessageContaining("Snapshot name contains illegal characters: snap(1)");
 
             // Other characters outside the allowed set must still be rejected.
             assertThatThrownBy(() -> validate("a tag", USER))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Snapshot name contains illegal characters: a tag");
+            .hasMessageContaining("Snapshot name contains illegal characters: a tag");
             assertThatThrownBy(() -> validate("a:tag", USER))
             .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Snapshot name contains illegal characters: a:tag");
+            .hasMessageContaining("Snapshot name contains illegal characters: a:tag");
 
             // "." and ".." pass the charset check but resolve to the snapshots/ dir itself
             // and its parent (the live table dir) respectively, so they must be rejected as reserved.
@@ -102,6 +102,14 @@ public class SnapshotOptionsTest
             assertThatThrownBy(() -> validate("..", USER))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Snapshot name '..' is reserved");
+
+            // snapshot name contains "+" which might be present in a Cassandra version
+            // the usage of "+" is forbidden for USER snapshots
+            validate("this_is_system_snapshot-7.0.0+abc123", SnapshotType.UPGRADE);
+
+            assertThatThrownBy(() -> validate("this_is_snapshot-7.0.0+abc123", USER))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Snapshot name contains illegal characters: this_is_snapshot-7.0.0+abc123");
         }
 
         try (WithProperties p = new WithProperties().set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, false))
