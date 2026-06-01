@@ -461,6 +461,19 @@ value `STDOUT` (without single quotes) to print the CSV to stdout.
 See `shared-copy-options` for options that apply to both `COPY TO` and
 `COPY FROM`.
 
+[NOTE]
+====
+`COPY TO` exports CSV using a restricted RFC 4180-compatible format and does not
+preserve control characters in text column values. Text columns containing control characters
+such as newlines (`\n`), carriage returns (`\r`), null bytes (`\x00`),
+or other non-printable characters cannot be reliably exported — values
+will be corrupted on re-import via `COPY FROM`. Beyond data integrity,
+non-printable characters in CSV output can pose security risks, including
+CSV injection and other forms of malicious data embedding. If your data
+contains such characters, consider using DSBulk, Spark, or
+`sstableloader` for data migration instead.
+====
+
 ==== Options for `COPY TO`
 
 `MAXREQUESTS`::
