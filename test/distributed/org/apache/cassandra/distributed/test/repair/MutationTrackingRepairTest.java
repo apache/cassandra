@@ -881,10 +881,11 @@ public class MutationTrackingRepairTest extends TestBaseImpl
     @Test
     public void testRepairFailsOnTopologyChange() throws Exception
     {
-        insertData("tbl", 0, 50);
-
         // Block offset broadcasts so the sync coordinator stays alive waiting
         IMessageFilters.Filter offsetFilter = CLUSTER.filters().verbs(Verb.MT_BROADCAST_LOG_OFFSETS.id).drop();
+
+        // must use inconsistent data to prevent write process from marking the writes reconciled
+        insertDataWithInconsistency("tbl", 0, 50);
 
         // Use a latch to detect when the sync request has been sent, meaning
         // the sync coordinator is active and tracking shard references
