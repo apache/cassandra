@@ -26,8 +26,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
-
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This
  * is useful to give Java threads meaningful names which is useful when using
@@ -169,12 +167,12 @@ public class NamedThreadFactory implements ThreadFactory
         if (PRESERVE_THREAD_CREATION_STACKTRACE)
             thread = new InspectableFastThreadLocalThread(threadGroup, runnable, threadName);
         else
-            thread = new FastThreadLocalThread(threadGroup, runnable, threadName);
+            thread = new CassandraThread(threadGroup, runnable, threadName);
         thread.setDaemon(daemon);
         return thread;
     }
 
-    public static class InspectableFastThreadLocalThread extends FastThreadLocalThread
+    public static class InspectableFastThreadLocalThread extends CassandraThread
     {
         public StackTraceElement[] creationTrace;
 
@@ -184,21 +182,7 @@ public class NamedThreadFactory implements ThreadFactory
             creationTrace = Arrays.copyOfRange(creationTrace, 2, creationTrace.length);
         }
 
-        public InspectableFastThreadLocalThread() { super(); setStack(); }
-
-        public InspectableFastThreadLocalThread(Runnable target) { super(target); setStack(); }
-
-        public InspectableFastThreadLocalThread(ThreadGroup group, Runnable target) { super(group, target); setStack(); }
-
-        public InspectableFastThreadLocalThread(String name) { super(name); setStack(); }
-
-        public InspectableFastThreadLocalThread(ThreadGroup group, String name) { super(group, name); setStack(); }
-
-        public InspectableFastThreadLocalThread(Runnable target, String name) { super(target, name); setStack(); }
-
         public InspectableFastThreadLocalThread(ThreadGroup group, Runnable target, String name) { super(group, target, name); setStack(); }
-
-        public InspectableFastThreadLocalThread(ThreadGroup group, Runnable target, String name, long stackSize) { super(group, target, name, stackSize); setStack(); }
 
     }
     public static  <T extends Thread> T setupThread(T thread, int priority, ClassLoader contextClassLoader, Thread.UncaughtExceptionHandler uncaughtExceptionHandler)

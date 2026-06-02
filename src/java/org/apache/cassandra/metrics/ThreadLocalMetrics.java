@@ -36,6 +36,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.concurrent.CassandraThread;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Shutdownable;
 
@@ -84,10 +85,7 @@ public class ThreadLocalMetrics
         @Override
         protected ThreadLocalMetrics initialValue()
         {
-            ThreadLocalMetrics result = new ThreadLocalMetrics();
-            allThreadLocalMetrics.add(result);
-            destroyWhenUnreachable(Thread.currentThread(), result::release);
-            return result;
+            return create();
         }
 
         // this method is invoked when a thread is going to finish, but it works only for FastThreadLocalThread
@@ -98,6 +96,14 @@ public class ThreadLocalMetrics
             value.release();
         }
     };
+
+    public static ThreadLocalMetrics create()
+    {
+        ThreadLocalMetrics result = new ThreadLocalMetrics();
+        allThreadLocalMetrics.add(result);
+        destroyWhenUnreachable(Thread.currentThread(), result::release);
+        return result;
+    }
 
     private static volatile AtomicLongArray summaryValues = new AtomicLongArray(INITIAL_COUNTERS_CAPACITY);
 
@@ -182,7 +188,7 @@ public class ThreadLocalMetrics
         shutdownAndWait(timeout, unit, of(cleaner));
     }
 
-    private void release()
+    public void release()
     {
         // Using this lock while moving we want to avoid races with readers in getCount
         // such races can cause a transfered value lost or its double-counting by a reader
@@ -274,7 +280,11 @@ public class ThreadLocalMetrics
         return getCount(metricId, true);
     }
 
-    public static ThreadLocalMetrics get() {
+    public static ThreadLocalMetrics get()
+    {
+        Thread currentThread = Thread.currentThread();
+        if (currentThread instanceof CassandraThread)
+            return ((CassandraThread)currentThread).getThreadLocalMetrics();
         return threadLocalMetricsCurrent.get();
     }
 

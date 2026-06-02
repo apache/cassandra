@@ -3,6 +3,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Implement custom CassandraThread to keep direct references to frequently used thread local objects (CASSANDRA-21020)
  * Avoid megamorphic call overhead at RandomAccessReader#current (CASSANDRA-21399)
  * Enable async GC logging for JDK versions which support it to avoid potential hiccups caused by GC log file I/O blocking (CASSANDRA-21372)
  * Add rowsMutatedPerWriteHistogram metric to track rows mutated per write request (CASSANDRA-21320)
