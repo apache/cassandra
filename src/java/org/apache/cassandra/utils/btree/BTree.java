@@ -3286,7 +3286,7 @@ public class BTree
          * was constructed from for the contents of {@code buffer}.
          * <p>
          * For {@link FastBuilder} these are mostly the same, so they are fetched from a global cache and
-         * resized accordingly, but for {@link AbstractUpdater} we maintain a buffer of sizes.
+         * resized accordingly, but for {@link Updater} we maintain a buffer of sizes.
          */
         int setDrainSizeMap(Object[] original, int keysInOriginal, Object[] branch, int keysInBranch)
         {
@@ -3315,7 +3315,7 @@ public class BTree
          * was constructed from for the contents of {@code savedBuffer}.
          * <p>
          * For {@link FastBuilder} these are always the same size, so they are fetched from a global cache,
-         * but for {@link AbstractUpdater} we maintain a buffer of sizes.
+         * but for {@link Updater} we maintain a buffer of sizes.
          *
          * @return the size of {@code branch}
          */
@@ -3346,7 +3346,7 @@ public class BTree
          * was constructed from the contents of both {@code savedBuffer} and {@code buffer}
          * <p>
          * For {@link FastBuilder} these are mostly the same size, so they are fetched from a global cache
-         * and only the last items updated, but for {@link AbstractUpdater} we maintain a buffer of sizes.
+         * and only the last items updated, but for {@link Updater} we maintain a buffer of sizes.
          */
         void setRedistributedSizeMap(Object[] branch, int steal)
         {
@@ -3485,11 +3485,60 @@ public class BTree
 
         /**
          * Clear any references we might still retain, to avoid holding onto memory.
-         * <p>
-         * While this method is not strictly  necessary, it exists to
-         * ensure the implementing classes are aware they must handle it.
          */
-        abstract void reset();
+        void reset()
+        {
+            leaf().count = 0;
+            clearLeafBuffer(leaf().buffer);
+            if (leaf().savedBuffer != null)
+                clearLeafBuffer(leaf().savedBuffer);
+            leaf().savedNextKey = null;
+            BranchBuilder branch = leaf().parent;
+            while (branch != null && branch.inUse)
+            {
+                branch.count = 0;
+                branch.hasRightChild = false;
+                clearBranchBuffer(branch.buffer);
+                if (branch.savedBuffer != null)
+                    clearBranchBuffer(branch.savedBuffer);
+                branch.savedNextKey = null;
+                branch.clearSourceNode();
+                branch.inUse = false;
+                branch = branch.parent;
+            }
+            Invariants.require(branch == null || (branch.count == 0 && !branch.hasRightChild));
+        }
+
+        /**
+         * Clear the contents of a leaf buffer, aborting once we encounter a null entry
+         * to save time on small trees
+         */
+        private void clearLeafBuffer(Object[] array)
+        {
+            if (array[0] == null)
+                return;
+            // find first null entry; loop from beginning, to amortise cost over size of working set
+            int i = 1;
+            while (i < array.length && array[i] != null)
+                ++i;
+            Arrays.fill(array, 0, i, null);
+        }
+
+        /**
+         * Clear the contents of a branch buffer, aborting once we encounter a null entry
+         * to save time on small trees
+         */
+        private void clearBranchBuffer(Object[] array)
+        {
+            if (array[0] == null && array[MAX_KEYS] == null)
+                return;
+            // find first null entry; loop from beginning, to amortise cost over size of working set
+            int i = 1;
+            while (i < MAX_KEYS && array[i] != null)
+                ++i;
+            Arrays.fill(array, 0, i, null);
+            Arrays.fill(array, MAX_KEYS, MAX_KEYS + i + 1, null);
+        }
     }
 
     /**
@@ -3544,14 +3593,7 @@ public class BTree
         @Override
         public void reset()
         {
-            Arrays.fill(leaf().buffer, null);
-            leaf().count = 0;
-            BranchBuilder branch = leaf().parent;
-            while (branch != null && branch.inUse)
-            {
-                branch.reset();
-                branch = branch.parent;
-            }
+            super.reset();
         }
 
         public boolean validateEmpty()
@@ -3580,62 +3622,6 @@ public class BTree
         }
     }
 
-    private static abstract class AbstractUpdater extends AbstractFastBuilder implements AutoCloseable
-    {
-        void reset()
-        {
-            assert leaf().count == 0;
-            clearLeafBuffer(leaf().buffer);
-            if (leaf().savedBuffer != null)
-                Arrays.fill(leaf().savedBuffer, null);
-
-            BranchBuilder branch = leaf().parent;
-            while (branch != null && branch.inUse)
-            {
-                branch.count = 0;
-                branch.hasRightChild = false;
-                clearBranchBuffer(branch.buffer);
-                if (branch.savedBuffer != null && branch.savedBuffer[0] != null)
-                    Arrays.fill(branch.savedBuffer, null); // by definition full, if non-empty
-                branch.inUse = false;
-                branch = branch.parent;
-            }
-            Invariants.require(branch == null || (branch.count == 0 && !branch.hasRightChild));
-        }
-
-        /**
-         * Clear the contents of a branch buffer, aborting once we encounter a null entry
-         * to save time on small trees
-         */
-        private void clearLeafBuffer(Object[] array)
-        {
-            if (array[0] == null)
-                return;
-            // find first null entry; loop from beginning, to amortise cost over size of working set
-            int i = 1;
-            while (i < array.length && array[i] != null)
-                ++i;
-            Arrays.fill(array, 0, i, null);
-        }
-
-        /**
-         * Clear the contents of a branch buffer, aborting once we encounter a null entry
-         * to save time on small trees
-         */
-        private void clearBranchBuffer(Object[] array)
-        {
-            if (array[0] == null)
-                return;
-
-            // find first null entry; loop from beginning, to amortise cost over size of working set
-            int i = 1;
-            while (i < MAX_KEYS && array[i] != null)
-                ++i;
-            Arrays.fill(array, 0, i, null);
-            Arrays.fill(array, MAX_KEYS, MAX_KEYS + i + 1, null);
-        }
-    }
-
     /**
      * A pooled object for modifying an existing tree with a new (typically smaller) tree.
      * <p>
@@ -3650,7 +3636,7 @@ public class BTree
      * Searches within both trees to accelerate the process of modification, instead of performing a simple
      * iteration over the new tree.
      */
-    static class Updater<Compare, Existing extends Compare, Insert extends Compare> extends AbstractUpdater implements AutoCloseable
+    static class Updater<Compare, Existing extends Compare, Insert extends Compare> extends AbstractFastBuilder implements AutoCloseable
     {
         static final TinyThreadLocalPool<Updater> POOL = new TinyThreadLocalPool<>();
         TinyThreadLocalPool.TinyPool pool;
@@ -3869,7 +3855,7 @@ public class BTree
      * <p>
      * The approach taken here hopefully balances simplicity, garbage generation and execution time.
      */
-    static abstract class AbstractSeekingTransformer<I, O> extends AbstractUpdater implements AutoCloseable
+    static abstract class AbstractSeekingTransformer<I, O> extends AbstractFastBuilder implements AutoCloseable
     {
         /**
          * An iterator over the tree we are updating
