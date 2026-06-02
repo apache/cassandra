@@ -60,6 +60,7 @@ public class MutationTrackingUtils
 
     public static class IgnoreReasons
     {
+        public static final String NO_TOPOLOGY_CHANGES = "NO_TOPOLOGY_CHANGES";
         public static final String NO_RANGE_MOVEMENTS = "NO_RANGE_MOVEMENTS";
     }
 
