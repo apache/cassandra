@@ -260,8 +260,8 @@ public class AccordCleanupTest extends AccordTestBase
 
         // Cluster 1 no longer owns token
         cluster.get(1).runOnInstance(() -> {
-            StorageService.instance.move(Long.toString(token - 1000));
             AccordService.instance().node().durability().shards().start();
+            StorageService.instance.move(Long.toString(token - 1000));
         });
 
         // Wait until Accord retires range, so it no longer has ownership of token
@@ -278,7 +278,7 @@ public class AccordCleanupTest extends AccordTestBase
                         doesNotContainsToken = false;
                 }
                 return doesNotContainsToken;
-            }, 35);
+            }, 30);
         });
     }
 
@@ -304,8 +304,8 @@ public class AccordCleanupTest extends AccordTestBase
 
         // Cluster 1 now only owns token2, but Accord still requires token1
         cluster.get(1).runOnInstance(() -> {
-            StorageService.instance.move(Long.toString(newToken));
             AccordService.instance().node().durability().shards().start();
+            StorageService.instance.move(Long.toString(newToken));
         });
 
         // Wait until Accord retires range, so it no longer has ownership of token1
@@ -322,7 +322,7 @@ public class AccordCleanupTest extends AccordTestBase
                         doesNotContainsToken = false;
                 }
                 return doesNotContainsToken;
-            }, 35);
+            }, 30);
         });
     }
 
