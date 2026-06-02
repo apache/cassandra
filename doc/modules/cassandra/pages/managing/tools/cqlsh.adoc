@@ -463,8 +463,8 @@ See `shared-copy-options` for options that apply to both `COPY TO` and
 
 [NOTE]
 ====
-`COPY TO` only supports printable characters in text column values, in
-accordance with RFC 4180. Text columns containing control characters
+`COPY TO` exports CSV using a restricted RFC 4180-compatible format and does not
+preserve control characters in text column values. Text columns containing control characters
 such as newlines (`\n`), carriage returns (`\r`), null bytes (`\x00`),
 or other non-printable characters cannot be reliably exported — values
 will be corrupted on re-import via `COPY FROM`. Beyond data integrity,
