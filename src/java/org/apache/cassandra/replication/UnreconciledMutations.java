@@ -36,6 +36,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.schema.TableId;
 
 /**
@@ -268,7 +269,22 @@ public class UnreconciledMutations
             for (int offset = iter.start(), end = iter.end(); offset <= end; offset++)
             {
                 ShortMutationId id = new ShortMutationId(witnessed.logId, offset);
-                Mutation mutation = MutationJournal.instance().read(id);
+                Mutation mutation;
+                try
+                {
+                    mutation = MutationJournal.instance().read(id);
+                }
+                catch (RuntimeException e)
+                {
+                    if (e.getCause() instanceof UnknownTableException)
+                    {
+                        UnknownTableException ute = (UnknownTableException) e.getCause();
+                        logger.warn("Skipping loading mutation {} from unknown (probably removed) table with id {}", id, ute.id);
+                        continue;
+                    }
+                    throw e;
+                }
+
                 if (mutation != null)
                 {
                     result.addDirectly(mutation);

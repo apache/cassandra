@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -69,6 +71,18 @@ public class CoordinatorLogTest
                                                  .addRegularColumn("value", UTF8Type.instance)
                                                  .build());
         MutationJournal.start();
+    }
+
+    @Before
+    public void beforeTest()
+    {
+        MutationJournal.instance().truncateForTesting();
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        MutationJournal.instance().truncateForTesting();
     }
 
     private static Token tk(String key)

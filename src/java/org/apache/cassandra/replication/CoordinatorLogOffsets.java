@@ -47,6 +47,8 @@ public interface CoordinatorLogOffsets<O extends Offsets>
 
     Mutations<O> mutations();
 
+    boolean isEmpty();
+
     default ActivatedTransfers transfers()
     {
         return ActivatedTransfers.EMPTY;
