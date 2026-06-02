@@ -103,13 +103,12 @@ public class SnapshotOptionsTest
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Snapshot name '..' is reserved");
 
-            // snapshot name contains "+" which might be present in a Cassandra version
-            // the usage of "+" is forbidden for USER snapshots
+            // "+" is part of the allowed set because it can appear in a Cassandra version
+            // (build metadata, e.g. "7.0.0+abc123"), which ends up in system snapshot names.
+            // The character check applies uniformly to all snapshot types, so "+" is accepted
+            // for system and user snapshots alike.
             validate("this_is_system_snapshot-7.0.0+abc123", SnapshotType.UPGRADE);
-
-            assertThatThrownBy(() -> validate("this_is_snapshot-7.0.0+abc123", USER))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("Snapshot name contains illegal characters: this_is_snapshot-7.0.0+abc123");
+            validate("this_is_snapshot-7.0.0+abc123", USER);
         }
 
         try (WithProperties p = new WithProperties().set(CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION, false))

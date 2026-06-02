@@ -46,10 +46,10 @@ public class SnapshotOptions
     public static final String SKIP_FLUSH = "skipFlush";
     public static final String TTL = "ttl";
 
-    // Conservative subset of the AWS S3 "Safe characters" set: 0-9  a-z  A-Z  -  _  .
-    // See the validation site in validateTag for the full rationale on excluded characters.
+    // Allowed snapshot-name characters:  0-9  a-z  A-Z  -  _  .  +
+    // See the validation site in validateTag for the full rationale (an S3 safe-set subset, plus '+').
     // Hyphen is placed last in the character class, so it stays literal and never becomes a range operator.
-    private static final Pattern SAFE_SNAPSHOT_NAME = Pattern.compile("[a-zA-Z0-9_.-]+");
+    private static final Pattern SAFE_SNAPSHOT_NAME = Pattern.compile("[a-zA-Z0-9_.+-]+");
 
     public final SnapshotType type;
     public final String tag;
@@ -247,10 +247,12 @@ public class SnapshotOptions
             // Allowed characters are a conservative subset of the AWS S3 "Safe characters" set
             // (https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines):
             //   0-9  a-z  A-Z  -  _  .
+            // plus '+', which is not an S3 "Safe character" but can legitimately appear in system
+            // snapshot names via version build metadata (e.g. an upgrade snapshot "<millis>-upgrade-5.0.4+build-...").
             // The remaining S3-safe characters (! * ' ( )) are intentionally excluded as they are
             // shell-significant and error-prone in paths, and the path separator '/' is excluded too,
             // which is what blocks traversal attempts such as "../../mysnapshot"
-            if (type == SnapshotType.USER && !SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotName).matches())
+            if (!SAFE_SNAPSHOT_NAME.matcher(resolvedSnapshotName).matches())
             {
                 throw new IllegalArgumentException("Snapshot name contains illegal characters: " + resolvedSnapshotName + ". " +
                                                    "Allowed characters must match the pattern: " + SAFE_SNAPSHOT_NAME.pattern() +
