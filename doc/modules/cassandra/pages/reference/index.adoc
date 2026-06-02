@@ -7,3 +7,4 @@
 * xref:reference/sai-virtual-table-indexes.adoc[SAI virtual table]
 * xref:reference/static.adoc[Static columns]
 * xref:reference/vector-data-type.adoc[Vector data type]
+* xref:reference/data-recovery.adoc[Data Recovery]
