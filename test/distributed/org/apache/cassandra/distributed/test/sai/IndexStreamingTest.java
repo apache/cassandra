@@ -69,7 +69,7 @@ public class IndexStreamingTest extends TestBaseImpl
     @Parameterized.Parameter(2)
     public boolean isWide;
 
-    @Parameterized.Parameters(name = "isLiteral={0}, isZeroCopyStreaming={1}")
+    @Parameterized.Parameters(name = "isLiteral={0}, isZeroCopyStreaming={1}, isWide={2}")
     public static List<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
