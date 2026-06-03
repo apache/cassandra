@@ -78,6 +78,10 @@ public class SnapshotTest extends CQLTester
             // Dots embedded in a name are not traversal: with '/' excluded, "a..tag" is just a literal directory.
             assertThatCode(() -> cfs.snapshot("a..tag")).doesNotThrowAnyException();
 
+            // "+" is part of the allowed set because it can appear in a Cassandra version
+            // (build metadata, e.g. "7.0.0+abc123"), which ends up in system snapshot names.
+            assertThatCode(() -> cfs.snapshot("this_is_snapshot-7.0.0+abc123")).doesNotThrowAnyException();
+
             String tooLong = repeat('a', SchemaConstants.FILENAME_LENGTH + 1);
             assertThatThrownBy(() -> cfs.snapshot(tooLong))
             .isInstanceOf(IllegalArgumentException.class)
