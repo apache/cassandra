@@ -351,9 +351,10 @@ public class TrackedImportFailureTest extends TrackedTransferTestBase
             createSchema(cluster, keyspace);
 
             Iterable<IInvokableInstance> down = Collections.singleton(cluster.get(3));
-            Iterable<IInvokableInstance> up = cluster.stream().filter(instance -> instance != down).collect(Collectors.toList());
             for (IInvokableInstance instance : down)
                 instance.shutdown().get();
+
+            Iterable<IInvokableInstance> up = cluster.stream().filter(instance -> !instance.isShutdown()).collect(Collectors.toList());
 
             doImport(cluster, keyspace);
 
