@@ -157,6 +157,13 @@ def pipelineProfileNames(putFirst) {
     return set
 }
 
+@NonCPS
+def extractBuildXmlProperty(String xml, String name) {
+    def m = xml =~ /property\s*name="${name}"\s*value="([^"]*)"/
+    assert m, "${name} not found in build.xml"
+    return m[0][1]
+}
+
 @Field Map cachedTasks = null
 
 def tasks() {
@@ -231,12 +238,8 @@ def tasks() {
 
   // find the default JDK and the supported JDKs defined in the build.xml
   def build_xml = readFile(file: 'build.xml')
-  def javaVersionDefaultMatch = (build_xml =~ /property\s*name="java\.default"\s*value="([^"]*)"/)
-  assert javaVersionDefaultMatch, "java.default property not found in build.xml"
-  def javaVersionDefault = javaVersionDefaultMatch[0][1]
-  def javaVersionsSupportedMatch = (build_xml =~ /property\s*name="java\.supported"\s*value="([^"]*)"/)
-  assert javaVersionsSupportedMatch, "java.supported property not found in build.xml"
-  def javaVersionsSupported = javaVersionsSupportedMatch[0][1].split(',') as List
+  def javaVersionDefault   = extractBuildXmlProperty(build_xml, 'java.default')
+  def javaVersionsSupported = extractBuildXmlProperty(build_xml, 'java.supported').split(',') as List
 
   // define matrix axes
   def Map matrix_axes = [
