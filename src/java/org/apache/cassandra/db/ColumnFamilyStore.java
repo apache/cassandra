@@ -2073,7 +2073,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // which is what blocks traversal attempts such as "../../mysnapshot"
         if (!Pattern.compile("[a-zA-Z0-9_.+-]+").matcher(snapshotName).matches())
         {
-            throw new IllegalArgumentException("Snapshot name contains illegal characters: " + snapshotName);
+            throw new IllegalArgumentException("Snapshot name contains illegal characters: " + snapshotName + ". " +
+                                               "Allowed characters must match the pattern: [a-zA-Z0-9_.+-]+" +
+                                               " with a maximum of length of " + FILENAME_LENGTH + " characters.");
         }
     }
 
