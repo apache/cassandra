@@ -231,8 +231,8 @@ public class TrackedImportTransfer extends CoordinatedTransfer
             if (!purgeable)
                 return;
 
-            notifyFailure();
             TransferTrackingService.instance().scheduleCleanup();
+            notifyFailure();
         }
         catch (Throwable t)
         {
