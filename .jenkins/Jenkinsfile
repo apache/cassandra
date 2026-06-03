@@ -363,14 +363,29 @@ def build(command, cell) {
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
           script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
           timeout(time: 1, unit: 'HOURS') {
-            def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
-            dir("build") {
-              archiveArtifacts artifacts: "${logfile}", fingerprint: true
-              copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
-            }
-            if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
-            if ("jar" == cell.step) {
-              stash name: "${cell.arch}_${cell.jdk}"
+            try {
+              def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+              dir("build") {
+                archiveArtifacts artifacts: "${logfile}", fingerprint: true
+                copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
+              }
+              if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
+              if ("jar" == cell.step) {
+                stash name: "${cell.arch}_${cell.jdk}"
+              }
+            } catch (exc) {
+              if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
+                def descriptions = []
+                for (def cause in exc.getCauses()) {
+                  echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
+                  if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption')) {
+                    throw exc // user explicitly aborted — do not retry
+                  }
+                  descriptions.add(cause.getShortDescription())
+                }
+                error("Retryable interruption: ${descriptions.join(', ')}")
+              }
+              throw exc
             }
           }
           dir("build") {
@@ -417,10 +432,16 @@ def test(command, cell) {
               }
               if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
             } catch (exc) {
-              if (exc.getClass().getName() == "org.jenkinsci.plugins.workflow.steps.FlowInterruptedException") {
-                for (def causeOfInterruption in exc.getCauses()) {
-                  echo "CauseOfInterruption: ${causeOfInterruption.getClass().getName()} - ${causeOfInterruption.getShortDescription()}"
+              if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
+                def descriptions = []
+                for (def cause in exc.getCauses()) {
+                  echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
+                  if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption')) {
+                    throw exc // user explicitly aborted — do not retry
+                  }
+                  descriptions.add(cause.getShortDescription())
                 }
+                error("Retryable interruption: ${descriptions.join(', ')}")
               }
               throw exc
             } finally {
