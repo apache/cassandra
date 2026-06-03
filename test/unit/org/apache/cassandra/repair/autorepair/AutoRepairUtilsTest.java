@@ -19,6 +19,9 @@
 package org.apache.cassandra.repair.autorepair;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -44,8 +47,11 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.repair.autorepair.AutoRepairConfig.RepairType;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.AutoRepairHistory;
 import org.apache.cassandra.repair.autorepair.AutoRepairUtils.CurrentRepairStatus;
@@ -708,5 +714,55 @@ public class AutoRepairUtilsTest extends CQLTester
 
         boolean result = AutoRepairUtils.hasNodesBelowMinimumVersion();
         assertTrue(result);
+    }
+
+    /**
+     * Reproduces CASSANDRA-21426: when parallel_repair_count > 1 and another node has an ongoing repair,
+     * hasReplicaWithOngoingRepair calls getRangeAddresses with the live TokenMetadata singleton, which
+     * triggers the assertion in getTopology() that prevents calling it on the live instance.
+     */
+    @Test
+    public void testGetMostEligibleHostToRepairWithOngoingParallelRepair() throws UnknownHostException
+    {
+        InetAddressAndPort otherEndpoint = InetAddressAndPort.getByName("127.0.0.2");
+        UUID otherHostId = UUID.randomUUID();
+        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+
+        try
+        {
+            // Register a second endpoint in TokenMetadata so it has tokens and can be resolved
+            tokenMetadata.updateNormalToken(Murmur3Partitioner.instance.getRandomToken(), otherEndpoint);
+            tokenMetadata.updateHostId(otherHostId, otherEndpoint);
+
+            long currentMillis = System.currentTimeMillis();
+
+            // Build repair histories: other node has ongoing repair, local node is finished
+            AutoRepairHistory otherHistory = new AutoRepairHistory(otherHostId, null, currentMillis, currentMillis - 100,
+                                                                   null, 0, false);
+            AutoRepairHistory myHistory = new AutoRepairHistory(hostId, null, currentMillis - 200, currentMillis - 100,
+                                                                null, 0, false);
+
+            // Construct CurrentRepairStatus directly to avoid CQL reads that fail with the extra endpoint
+            List<AutoRepairHistory> allHistories = new ArrayList<>();
+            allHistories.add(otherHistory);
+            allHistories.add(myHistory);
+            CurrentRepairStatus currentRepairStatus = new CurrentRepairStatus(allHistories, null, hostId);
+
+            // Verify preconditions: otherHostId is repairing, local node is not
+            assertTrue(currentRepairStatus.hostIdsWithOnGoingRepair.contains(otherHostId));
+            assertFalse(currentRepairStatus.hostIdsWithOnGoingRepair.contains(hostId));
+
+            // This exercises the code path:
+            // getMostEligibleHostToRepair -> hasReplicaWithOngoingRepair
+            //   -> getRangeAddresses(getTokenMetadata()) -> calculateNaturalReplicas -> getTopology()
+            // Without the fix, getTopology() asserts because it's called on the live TokenMetadata singleton.
+            AutoRepairHistory result = AutoRepairUtils.getMostEligibleHostToRepair(repairType, currentRepairStatus, hostId);
+            assertNotNull(result);
+            assertEquals(hostId, result.hostId);
+        }
+        finally
+        {
+            tokenMetadata.removeEndpoint(otherEndpoint);
+        }
     }
 }
