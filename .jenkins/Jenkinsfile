@@ -74,7 +74,7 @@ pipeline {
     string(name: 'repository', defaultValue: params.repository ?: scm.userRemoteConfigs[0].url, description: 'Cassandra Repository')
     string(name: 'branch', defaultValue: params.branch ?: scm.branch, description: 'Branch')
 
-    choice(name: 'profile', choices: pipelineProfileNames(params.profile ?: ''), defaultValue: params.profile ?: 'skinny', description: 'Pick a pipeline profile.')
+    choice(name: 'profile', choices: pipelineProfileNames(params.profile ?: ''), description: 'Pick a pipeline profile.')
     string(name: 'profile_custom_regexp', defaultValue: params.profile_custom_regexp ?: '', description: 'Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: stress.*|jvm-dtest.*')
 
     choice(name: 'architecture', choices: archsSupported + "all", description: 'Pick architecture. The ARM64 is disabled by default at the moment.')
