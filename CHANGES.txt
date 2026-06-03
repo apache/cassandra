@@ -1,4 +1,5 @@
 5.0.9
+ * Fix AssertionError in hasReplicaWithOngoingRepair when parallel_repair_count > 1 (CASSANDRA-21426)
  * putShortVolatile is not volatile in InMemoryTrie (CASSANDRA-21353)
  * Fix RequestFailureReason serializer and nits in a few others (CASSANDRA-21437)
  * Remove golang dependency in gen-doc and replace with python implementation (CASSANDRA-21432)
