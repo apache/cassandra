@@ -1038,7 +1038,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, endpoints))
                 {
                     Set<InetAddressAndPort> downEndpoints = replication.getNaturalReplicas(range.right).filter(e -> !endpoints.contains(e)).endpoints();
-                    downEndpoints.removeAll(endpoints);
 
                     throw new RuntimeException(String.format("Insufficient live nodes to repair paxos for %s in %s for %s.\n" +
                                                              "There must be enough live nodes to satisfy EACH_QUORUM, but the following nodes are down: %s\n" +

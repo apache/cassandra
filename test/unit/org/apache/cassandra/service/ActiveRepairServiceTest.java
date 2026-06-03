@@ -83,6 +83,7 @@ import static org.junit.Assert.assertNull;
 public class ActiveRepairServiceTest
 {
     public static final String KEYSPACE5 = "Keyspace5";
+    public static final String KEYSPACE_RF3 = "KeyspaceRf3";
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_COUNTER = "Counter1";
     public static final int TASK_SECONDS = 10;
@@ -101,6 +102,9 @@ public class ActiveRepairServiceTest
                                     KeyspaceParams.simple(2),
                                     SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
                                     SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDARD1));
+        SchemaLoader.createKeyspace(KEYSPACE_RF3,
+                                    KeyspaceParams.simple(3),
+                                    SchemaLoader.standardCFMD(KEYSPACE_RF3, CF_STANDARD1));
     }
 
     @Before
@@ -263,6 +267,38 @@ public class ActiveRepairServiceTest
         assertNotNull(failed);
         assertEquals(ActiveRepairService.ParentRepairStatus.FAILED, ActiveRepairService.ParentRepairStatus.valueOf(failed.get(0)));
 
+    }
+
+    @Test
+    public void repairPaxosForTopologyChangeThrowsRuntimeExceptionWhenInsufficientLiveNodes() throws Throwable
+    {
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+
+        // Local node is the only live replica.
+        tmd.updateNormalToken(tmd.partitioner.getRandomToken(), FBUtilities.getBroadcastAddressAndPort());
+        // Two additional natural replicas with no gossip state -> treated as down by the FailureDetector.
+        tmd.updateNormalToken(tmd.partitioner.getRandomToken(), InetAddressAndPort.getByName("127.0.0.3"));
+        tmd.updateNormalToken(tmd.partitioner.getRandomToken(), InetAddressAndPort.getByName("127.0.0.4"));
+
+        // With exactly RF endpoints in the ring, every range's natural replicas are all three nodes.
+        Token token = tmd.partitioner.getMinimumToken();
+        Collection<Range<Token>> ranges = Collections.singleton(new Range<>(token, token));
+
+        try
+        {
+            ActiveRepairService.instance.repairPaxosForTopologyChange(KEYSPACE_RF3, ranges, "test");
+            Assert.fail("Expected RuntimeException due to insufficient live nodes");
+        }
+        catch (UnsupportedOperationException e)
+        {
+            Assert.fail("repairPaxosForTopologyChange must not throw UnsupportedOperationException: " + e);
+        }
+        catch (RuntimeException e)
+        {
+            Assert.assertTrue("Unexpected message: " + e.getMessage(),
+                              e.getMessage() != null && e.getMessage().contains("Insufficient live nodes to repair paxos"));
+        }
     }
 
     Set<InetAddressAndPort> addTokens(int max) throws Throwable
