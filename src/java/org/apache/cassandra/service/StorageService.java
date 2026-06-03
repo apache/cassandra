@@ -218,6 +218,7 @@ import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.Unregister;
+import org.apache.cassandra.telemetry.Telemetry;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -857,6 +858,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         RegistrationStatus.instance.onRegistration();
         Startup.maybeExecuteStartupTransformation(self);
+
+        Telemetry.init(DatabaseDescriptor.getClusterName(),
+                       FBUtilities.getReleaseVersionString(),
+                       FBUtilities.getBroadcastAddressAndPort().getHostAddress(false),
+                       FBUtilities.getBroadcastAddressAndPort().getPort(),
+                       Integer.toString(self.id()),
+                       ClusterMetadata.current().locator.local());
 
         if (CassandraRelevantProperties.SYNC_SYSTEM_PEERS_TABLES_AT_STARTUP.getBoolean())
             SystemPeersValidator.validateAndRepair(ClusterMetadata.current());

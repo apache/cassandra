@@ -189,6 +189,12 @@ public class CreateRoleStatement extends AuthenticationStatement
     }
 
     @Override
+    public String getQuerySummary()
+    {
+        return "CREATE ROLE";
+    }
+
+    @Override
     public String obfuscatePassword(String query)
     {
         return PasswordObfuscator.obfuscate(query, opts);

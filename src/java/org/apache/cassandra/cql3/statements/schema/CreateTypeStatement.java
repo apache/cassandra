@@ -140,6 +140,12 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_TYPE, keyspaceName, typeName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE TYPE %s.%s", keyspaceName, typeName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, typeName);

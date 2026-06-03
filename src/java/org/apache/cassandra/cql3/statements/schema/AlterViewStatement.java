@@ -126,6 +126,12 @@ public final class AlterViewStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_VIEW, keyspaceName, viewName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("ALTER VIEW %s.%s", keyspaceName, viewName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, viewName);

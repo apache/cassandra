@@ -164,5 +164,9 @@
       <artifactId>cassandra-accord</artifactId>
       <classifier>tests</classifier>
     </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-sdk-testing</artifactId>
+    </dependency>
   </dependencies>
 </project>

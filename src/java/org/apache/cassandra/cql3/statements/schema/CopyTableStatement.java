@@ -113,6 +113,12 @@ public final class CopyTableStatement extends AlterSchemaStatement
     }
 
     @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE TABLE %s.%s LIKE %s.%s", targetKeyspace, targetTableName, sourceKeyspace, sourceTableName);
+    }
+
+    @Override
     public boolean compatibleWith(ClusterMetadata metadata)
     {
         return metadata.directory.commonSerializationVersion.isAtLeast(Version.V5);

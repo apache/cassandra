@@ -185,7 +185,7 @@
         <retry retrycount="3" retrydelay="10" >
             <resolve>
                 <dependencies pomRef="all-pom"/>
-                <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
+                <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,runtime,provided,!system"/>
             </resolve>
         </retry>
         <retry retrycount="3" retrydelay="10" >
@@ -212,7 +212,7 @@
         <retry retrycount="3" retrydelay="10" >
             <resolve failOnMissingAttachments="true">
                 <dependencies pomRef="all-pom"/>
-                <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
+                <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,runtime,!provide,!system"/>
             </resolve>
         </retry>
         <mkdir dir="${build.lib}/x86_64"/>

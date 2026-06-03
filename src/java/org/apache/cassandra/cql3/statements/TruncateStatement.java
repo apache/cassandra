@@ -134,4 +134,10 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
     {
         return new AuditLogContext(AuditLogEntryType.TRUNCATE, keyspace(), name());
     }
+
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("TRUNCATE %s", qualifiedName);
+    }
 }

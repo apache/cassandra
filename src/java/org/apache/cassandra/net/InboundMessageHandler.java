@@ -37,6 +37,8 @@ import org.apache.cassandra.net.Message.Header;
 import org.apache.cassandra.net.ResourceLimits.Limit;
 import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.telemetry.CassandraAttributes;
+import org.apache.cassandra.telemetry.Telemetry;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -46,6 +48,10 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
@@ -421,12 +427,41 @@ public class InboundMessageHandler extends AbstractMessageHandler
     {
         Header header = task.header();
 
+        // Start tracing
+        Context otelContext = header.traceContext();
+        final Span span;
+        // Only start replica span if the context was propagated
+        SpanContext propagatedSpanContext = Span.fromContext(otelContext).getSpanContext();
+        if (propagatedSpanContext.isValid() && propagatedSpanContext.isRemote())
+        {
+            span = Telemetry.getRequestTracer()
+                            .spanBuilder(header.verb.name()) // Span name will be updated with additional details
+                            .setParent(otelContext)
+                            .setAttribute(CassandraAttributes.CASSANDRA_NET_VERB, header.verb.name())
+                            .setAttribute(CassandraAttributes.THREAD_ID, Thread.currentThread().getId())
+                            .setAttribute(CassandraAttributes.THREAD_NAME, Thread.currentThread().getName())
+                            .startSpan();
+        }
+        else
+        {
+            span = Span.getInvalid();
+        }
+        // Legacy tracing
         TraceState state = Tracing.instance.initializeFromMessage(header);
         if (state != null) state.trace("{} message received from {}", header.verb, header.from);
         AccordRemoteTracing.traceOffWire(header);
 
         callbacks.onDispatched(task.size(), header);
-        header.verb.stage.execute(ExecutorLocals.create(state), task);
+        header.verb.stage.execute(ExecutorLocals.create(state), () -> {
+            try (Scope scope = span.makeCurrent())
+            {
+                task.run();
+            }
+            finally
+            {
+                span.end();
+            }
+        });
     }
 
     private abstract class ProcessMessage implements Runnable

@@ -1041,6 +1041,8 @@ public class Config
     public volatile CustomGuardrailConfig role_name_policy = new CustomGuardrailConfig();
     public volatile AutoRepairConfig auto_repair = new AutoRepairConfig();
 
+    public volatile boolean opentelemetry_enabled = false;
+
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
      */

@@ -155,4 +155,10 @@ public class ListRolesStatement extends AuthorizationStatement
     {
         return new AuditLogContext(AuditLogEntryType.LIST_ROLES);
     }
+
+    @Override
+    public String getQuerySummary()
+    {
+        return "LIST ROLES";
+    }
 }

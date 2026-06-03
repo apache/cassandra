@@ -297,6 +297,12 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_AGGREGATE, keyspaceName, aggregateName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE AGGREGATE %s.%s", keyspaceName, aggregateName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, aggregateName);

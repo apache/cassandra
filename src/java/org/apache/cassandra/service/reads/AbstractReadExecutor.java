@@ -45,10 +45,11 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
+
+import io.opentelemetry.context.Context;
 
 import static com.google.common.collect.Iterables.all;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -73,7 +74,6 @@ public abstract class AbstractReadExecutor
     protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
     protected final DigestResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> digestResolver;
     protected final ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler;
-    protected final TraceState traceState;
     protected final ColumnFamilyStore cfs;
     protected final Dispatcher.RequestTime requestTime;
 
@@ -91,7 +91,6 @@ public abstract class AbstractReadExecutor
         this.digestResolver = new DigestResolver<>(coordinator, command, this.replicaPlan, requestTime);
         this.handler = new ReadCallback<>(digestResolver, command, this.replicaPlan, requestTime);
         this.cfs = cfs;
-        this.traceState = Tracing.instance.get();
         this.requestTime = requestTime;
 
 
@@ -152,8 +151,7 @@ public abstract class AbstractReadExecutor
                 continue;
             }
 
-            if (traceState != null)
-                traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
+            Tracing.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
 
             if (null == message)
                 message = readCommand.createMessage(false, requestTime).withEpoch(ClusterMetadata.current().epoch);
@@ -165,7 +163,7 @@ public abstract class AbstractReadExecutor
         if (hasLocalEndpoint)
         {
             logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
-            Stage.READ.maybeExecuteImmediately(new LocalReadRunnable(readCommand, handler, requestTime));
+            Stage.READ.maybeExecuteImmediately(Context.current().wrap(new LocalReadRunnable(readCommand, handler, requestTime)));
         }
     }
 
@@ -358,8 +356,7 @@ public abstract class AbstractReadExecutor
                 // nor would we be able to speculate a new 'write' if the repair writes are insufficient
                 super.replicaPlan.addToContacts(extraReplica);
 
-                if (traceState != null)
-                    traceState.trace("speculating read retry on {}", extraReplica);
+                Tracing.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
                 MessagingService.instance().sendWithCallback(retryCommand.createMessage(false, requestTime), extraReplica.endpoint(), handler);
             }

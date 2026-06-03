@@ -101,6 +101,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_TYPE, keyspaceName, typeName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("ALTER TYPE %s.%s", keyspaceName, typeName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, typeName);

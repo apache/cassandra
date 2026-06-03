@@ -67,6 +67,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
+import io.opentelemetry.context.Context;
+
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsForLevel;
@@ -220,7 +222,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 
         if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf() && readCoordinator.localReadSupported())
         {
-            Stage.READ.execute(new StorageProxy.LocalReadRunnable(rangeCommand, handler, requestTime, trackRepairedStatus));
+            Stage.READ.execute(Context.current().wrap(new StorageProxy.LocalReadRunnable(rangeCommand, handler, requestTime, trackRepairedStatus)));
         }
         else
         {

@@ -129,6 +129,12 @@ public final class CreateTriggerStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_TRIGGER, keyspaceName, triggerName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE TRIGGER %s.%s", keyspaceName, triggerName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, triggerName);

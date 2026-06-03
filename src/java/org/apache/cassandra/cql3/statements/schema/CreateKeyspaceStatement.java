@@ -136,6 +136,12 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_KEYSPACE, keyspaceName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE KEYSPACE %s", keyspaceName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s)", getClass().getSimpleName(), keyspaceName);

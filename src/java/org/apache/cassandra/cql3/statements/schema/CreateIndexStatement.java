@@ -347,6 +347,12 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_INDEX, keyspaceName, indexName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE INDEX %s.%s", keyspaceName, indexName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, indexName);

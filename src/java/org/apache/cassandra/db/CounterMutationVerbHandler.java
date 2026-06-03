@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +29,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.transport.Dispatcher;
 
+import io.opentelemetry.api.trace.Span;
+
 public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<CounterMutation>
 {
     public static final CounterMutationVerbHandler instance = new CounterMutationVerbHandler();
@@ -36,6 +40,12 @@ public class CounterMutationVerbHandler extends AbstractMutationVerbHandler<Coun
     protected void applyMutation(final Message<CounterMutation> message, InetAddressAndPort respondToAddress)
     {
         final CounterMutation cm = message.payload;
+        if (Span.current().getSpanContext().isValid())
+        {
+            String target = cm.getPartitionUpdates().stream()
+                              .map((pu) -> pu.metadata().toString()).collect(Collectors.joining(" "));
+            Span.current().updateName(String.format("%s %s", message.verb().name(), target));
+        }
         logger.trace("Applying forwarded {}", cm);
 
         String localDataCenter = DatabaseDescriptor.getLocator().local().datacenter;

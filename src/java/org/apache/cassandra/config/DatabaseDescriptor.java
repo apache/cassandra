@@ -6255,6 +6255,11 @@ public class DatabaseDescriptor
         conf.repair_disk_headroom_reject_ratio = value;
     }
 
+    public static boolean getOpenTelemetryEnabled()
+    {
+        return conf.opentelemetry_enabled;
+    }
+
     @VisibleForTesting
     public static void setPartitioner(String name)
     {

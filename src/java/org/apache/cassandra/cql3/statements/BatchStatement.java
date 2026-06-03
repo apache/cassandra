@@ -28,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
@@ -817,5 +818,20 @@ public class BatchStatement implements CQLStatement.CompositeCQLStatement
     public AuditLogContext getAuditLogContext()
     {
         return new AuditLogContext(AuditLogEntryType.BATCH);
+    }
+
+    /**
+     * For batch statement, the query summary consists of deduplicated list of targets
+     * not to produce too long query summary.
+     */
+    @Override
+    public String getQuerySummary()
+    {
+        TreeSet<String> summary = new TreeSet<>();
+        for (ModificationStatement statement : statements)
+        {
+            summary.add(statement.getQuerySummary());
+        }
+        return String.format("%s BATCH %s", type.name(), String.join(" ", summary));
     }
 }

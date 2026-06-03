@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
@@ -28,15 +29,23 @@ import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.telemetry.CassandraAttributes;
+import org.apache.cassandra.telemetry.Telemetry;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import io.netty.buffer.ByteBuf;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.semconv.ClientAttributes;
+import io.opentelemetry.semconv.DbAttributes;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -45,7 +54,7 @@ public class PrepareMessage extends Message.Request
     private static final Logger logger = LoggerFactory.getLogger(PrepareMessage.class);
     private static final NoSpamLogger nospam = NoSpamLogger.getLogger(logger, 10, TimeUnit.MINUTES);
 
-    public static final Message.Codec<PrepareMessage> codec = new Message.Codec<PrepareMessage>()
+    public static final Message.Codec<PrepareMessage> codec = new Message.Codec<>()
     {
         public PrepareMessage decode(ByteBuf body, ProtocolVersion version)
         {
@@ -116,6 +125,22 @@ public class PrepareMessage extends Message.Request
     }
 
     @Override
+    protected Span createSpan(InetSocketAddress clientAddress, Context context)
+    {
+        return Telemetry.getRequestTracer().spanBuilder(type.name())
+                        .setSpanKind(SpanKind.SERVER)
+                        .setParent(context)
+                        .setAttribute(DbAttributes.DB_SYSTEM_NAME, CassandraAttributes.DB_SYSTEM_NAME_CASSANDRA)
+                        .setAttribute(DbAttributes.DB_QUERY_TEXT, query)
+                        .setAttribute(CassandraAttributes.CASSANDRA_QUERY_TYPE, type.name())
+                        .setAttribute(ClientAttributes.CLIENT_ADDRESS, clientAddress.getAddress().getHostAddress())
+                        .setAttribute(ClientAttributes.CLIENT_PORT, clientAddress.getPort())
+                        .setAttribute(CassandraAttributes.CASSANDRA_COORDINATOR_ADDRESS, FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(false))
+                        .setAttribute(CassandraAttributes.CASSANDRA_COORDINATOR_PORT, FBUtilities.getBroadcastNativeAddressAndPort().getPort())
+                        .startSpan();
+    }
+
+    @Override
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
         try
@@ -127,6 +152,14 @@ public class PrepareMessage extends Message.Request
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();
             long queryTime = currentTimeMillis();
             ResultMessage.Prepared response = queryHandler.prepare(query, clientState, getCustomPayload());
+            if (Span.current().getSpanContext().isValid())
+            {
+                QueryHandler.Prepared prepared = queryHandler.getPrepared(response.statementId);
+                if (prepared != null && prepared.statement != null)
+                {
+                    Span.current().updateName(String.format("%s %s", type.name(), prepared.statement.getQuerySummary()));
+                }
+            }
             QueryEvents.instance.notifyPrepareSuccess(() -> queryHandler.getPrepared(response.statementId), query, state, queryTime, response);
             return response;
         }
@@ -134,6 +167,7 @@ public class PrepareMessage extends Message.Request
         {
             QueryEvents.instance.notifyPrepareFailure(null, query, state, e);
             JVMStabilityInspector.inspectThrowable(e);
+            Span.current().recordException(e);
             return ErrorMessage.fromException(e);
         }
     }

@@ -53,6 +53,9 @@ import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Context;
+
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -293,7 +296,7 @@ public class Message<T> implements ResponseContext
             flags = ARTIFICIAL_LATENCY.addTo(flags);
 
         InetAddressAndPort from = getBroadcastAddressAndPort();
-        return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue)), payload);
+        return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue, verb.isResponse())), payload);
     }
 
     public static <T> Message<T> internalResponse(Verb verb, T payload)
@@ -428,7 +431,7 @@ public class Message<T> implements ResponseContext
 
     private static final EnumMap<ParamType, Object> NO_PARAMS = new EnumMap<>(ParamType.class);
 
-    private static Map<ParamType, Object> buildParams(ParamType type, Object value)
+    private static Map<ParamType, Object> buildParams(ParamType type, Object value, boolean isResponse)
     {
         EnumMap<ParamType, Object> params = NO_PARAMS;
         if (Tracing.isTracing())
@@ -439,6 +442,13 @@ public class Message<T> implements ResponseContext
             if (params.isEmpty())
                 params = new EnumMap<>(ParamType.class);
             params.put(type, value);
+        }
+        // OpenTelemetry tracing
+        if (!isResponse && Span.current().isRecording())
+        {
+            if (params.isEmpty())
+                params = new EnumMap<>(ParamType.class);
+            params.put(ParamType.TRACE_CONTEXT, Context.current());
         }
 
         return params;
@@ -643,6 +653,14 @@ public class Message<T> implements ResponseContext
         public TraceType traceType()
         {
             return (TraceType) params.getOrDefault(ParamType.TRACE_TYPE, TraceType.QUERY);
+        }
+
+        /**
+         * @return the OpenTelemetry context when it is propagated from the remote peer.
+         */
+        public Context traceContext()
+        {
+            return (Context) params.getOrDefault(ParamType.TRACE_CONTEXT, Context.current());
         }
 
         public Map<ParamType, Object> params()
