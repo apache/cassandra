@@ -31,6 +31,8 @@ Merged from 6.0:
 Merged from 5.0:
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
+Merged from 4.0:
+ * Validate snapshot names (CASSANDRA-21389)
 
 
 6.0-alpha2
