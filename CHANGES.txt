@@ -5,6 +5,7 @@
 Merged from 4.1:
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
 Merged from 4.0:
+ * Validate snapshot names (CASSANDRA-21389)
  * BTree.FastBuilder.reset() fails to clear savedBuffer and savedNextKey, causing ClassCastException and SSTable header corruption during schema disagreement (CASSANDRA-21216, CASSANDRA-21260)
  * Backport CASSANDRA-17810 fix and improve RTBoundValidator error messages (CASSANDRA-18282)
 
