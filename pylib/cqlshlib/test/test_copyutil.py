@@ -18,6 +18,8 @@
 # and $CQL_TEST_PORT to the associated port.
 
 
+import csv
+import io
 import unittest
 
 from cassandra.metadata import MIN_LONG, Murmur3Token
@@ -25,7 +27,9 @@ from cassandra.policies import SimpleConvictionPolicy
 from cassandra.pool import Host
 from unittest.mock import Mock
 
-from cqlshlib.copyutil import ExportTask
+from cqlshlib.copyutil import ExportProcess, ExportTask
+from cqlshlib.displaying import NO_COLOR_MAP
+from cqlshlib.formatting import CqlType, DateTimeFormat, format_value_text
 
 
 class CopyTaskTest(unittest.TestCase):
@@ -114,3 +118,70 @@ class TestExportTask(CopyTaskTest):
             (None, MIN_LONG + 1): {'hosts': ('10.0.0.2', '10.0.0.3', '10.0.0.4'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'endtoken': MIN_LONG + 1}, expected_ranges)
+
+
+class TestExportFormatValue(unittest.TestCase):
+    """
+    Unit tests for ExportProcess.format_value, the COPY TO serializer.
+
+    Regression tests for CASSANDRA-21131: text values - including text nested in
+    collections - must not be backslash-escaped by the display formatter on export.
+    The csv.writer already performs CSV-level escaping with the dialect escapechar,
+    so pre-escaping in format_value_text doubled every backslash and corrupted the
+    data on each COPY TO / COPY FROM round-trip.
+    """
+
+    # CSV dialect produced from the default COPY ESCAPE / QUOTE / DELIMITER options.
+    # No explicit quoting is configured, so csv defaults to QUOTE_MINIMAL.
+    DIALECT = dict(quotechar='"', escapechar='\\', delimiter=',', doublequote=False)
+
+    def _format_value(self, val, typestring):
+        # Build an ExportProcess without running __init__ (which starts a
+        # multiprocessing.Process and opens cluster connections); set only the
+        # attributes that format_value reads.
+        proc = ExportProcess.__new__(ExportProcess)
+        proc.formatters = {}
+        proc.encoding = 'utf-8'
+        proc.date_time_format = DateTimeFormat()
+        proc.float_precision = 5
+        proc.double_precision = 12
+        proc.nullval = ''
+        proc.decimal_sep = '.'
+        proc.thousands_sep = ''
+        proc.boolean_styles = ['True', 'False']
+        return proc.format_value(val, CqlType(typestring))
+
+    def _csv_round_trip(self, formatted):
+        buf = io.StringIO()
+        csv.writer(buf, **self.DIALECT).writerow([formatted])
+        return next(csv.reader(io.StringIO(buf.getvalue()), **self.DIALECT))[0]
+
+    def test_scalar_text_is_not_backslash_escaped(self):
+        for typestring in ('text', 'varchar', 'ascii'):
+            self.assertEqual(self._format_value('V\\S', typestring), 'V\\S')
+            self.assertEqual(self._format_value('C:\\tmp\\f', typestring), 'C:\\tmp\\f')
+            self.assertEqual(self._format_value('\\"Marianne"\\', typestring), '\\"Marianne"\\')
+
+    def test_collection_text_is_not_backslash_escaped(self):
+        # The type_name of these is list/set/map/tuple, so a scalar-only check in
+        # format_value would miss them; the fix propagates escape_backslash through
+        # the collection formatters down to each text element.
+        self.assertEqual(self._format_value(['V\\S', 'a\\b'], 'list<text>'), "['V\\S', 'a\\b']")
+        self.assertEqual(self._format_value({'x\\y'}, 'set<text>'), "{'x\\y'}")
+        self.assertEqual(self._format_value({'k\\1': 'v\\2'}, 'map<text, text>'), "{'k\\1': 'v\\2'}")
+        self.assertEqual(self._format_value(('a\\b', 'c\\d'), 'tuple<text, text>'), "('a\\b', 'c\\d')")
+
+    def test_backslashes_survive_csv_round_trip(self):
+        # csv.writer adds exactly one layer of escaping that csv.reader removes on
+        # COPY FROM, so a value written by format_value comes back unchanged.
+        for stored in ('V\\S', 'C:\\path\\to\\file', '\\"Marianne"\\', 'plain'):
+            formatted = self._format_value(stored, 'text')
+            self.assertEqual(self._csv_round_trip(formatted), stored)
+
+    def test_display_formatting_still_escapes_backslashes(self):
+        # The terminal-display path must keep doubling backslashes so SELECT output
+        # renders them visibly; only the CSV export path opts out via
+        # escape_backslash=False. This is why the parameter is retained.
+        self.assertEqual(
+            format_value_text('V\\S', encoding='utf-8', colormap=NO_COLOR_MAP),
+            'V\\\\S')
