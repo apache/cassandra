@@ -134,24 +134,17 @@ public final class CompressorRegistry
     public ICompressor getCompressor(Class<?> compressorClass, Map<String, String> compressionOptions)
     {
         AbstractCompressionProvider provider = getProvider(compressorClass);
-
+        ICompressor compressor;
         try
         {
-            ICompressor compressor = provider.createCompressor(compressorClass, compressionOptions);
-            if (compressor.serializedAs() != compressorClass)
-            {
-                // TODO refine the type of thrown exception
-                throw new RuntimeException(String.format("The result of ICompressor.serializedAs(), %s, of a compressor object created " +
-                                                         "by a compressor provider %s does not match the compressor class to get a compressor for. " +
-                                                         "You need to override serializedAs() method of your custom compressor and return " +
-                                                         "base compressor class it is the substitute for.",
-                                                         compressor.serializedAs(),
-                                                         provider.getClass()));
-            }
-            return compressor;
+            compressor = provider.createCompressor(compressorClass, compressionOptions);
         }
         catch (Throwable t)
         {
+            logger.warn("Failed to " +
+                        "create compressor {}. Will attempt fallback to default if enabled.",
+                        compressorClass.getName(),
+                        t.getMessage());
             if (provider.isFailOnMissingProvider())
             {
                 // TODO refine the type of thrown exception
@@ -162,7 +155,18 @@ public final class CompressorRegistry
                 return DEFAULT_COMPRESSION_PROVIDER.createCompressor(compressorClass, compressionOptions);
             }
         }
-    }
+        if (compressor.serializedAs() != compressorClass)
+        {
+            // TODO refine the type of thrown exception
+            throw new RuntimeException(String.format("The result of ICompressor.serializedAs(), %s, of a compressor object created " +
+                                                     "by a compressor provider %s does not match the compressor class to get a compressor for. " +
+                                                     "You need to override serializedAs() method of your custom compressor and return " +
+                                                     "base compressor class it is the substitute for.",
+                                                     compressor.serializedAs(),
+                                                     provider.getClass()));
+        }
+        return compressor;
+     }
 
     /**
      * Populates the registry with compression providers specified in the configuration.
@@ -264,7 +268,7 @@ public final class CompressorRegistry
                         e);
         }
 
-        boolean failOnMissingProvider = Boolean.parseBoolean(p.getOrDefault(FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+        boolean failOnMissingProvider = Boolean.parseBoolean(p.getOrDefault(FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString()));
 
         if (!failOnMissingProvider)
             return DEFAULT_COMPRESSION_PROVIDER;

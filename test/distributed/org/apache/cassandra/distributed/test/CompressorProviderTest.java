@@ -166,7 +166,7 @@ public class CompressorProviderTest extends TestBaseImpl
     {
         Map<String, Object> lz4ProviderOptions = new HashMap<>();
         lz4ProviderOptions.put("class_name", UnhealthyTestProvider.class.getName());
-        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString()));
 
         Map<String, Object> providers = new HashMap<>();
         providers.put(LZ4Compressor.class.getSimpleName(), lz4ProviderOptions);
@@ -202,7 +202,7 @@ public class CompressorProviderTest extends TestBaseImpl
     {
         Map<String, Object> lz4ProviderOptions = new HashMap<>();
         lz4ProviderOptions.put("class_name", UnhealthyTestProvider.class.getName());
-        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString()));
+        lz4ProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
 
         Map<String, Object> providers = new HashMap<>();
         providers.put(LZ4Compressor.class.getSimpleName(), lz4ProviderOptions);

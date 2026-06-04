@@ -85,6 +85,6 @@ public abstract class AbstractCompressionProvider
 
     public boolean isFailOnMissingProvider()
     {
-        return Boolean.parseBoolean(parameters.getOrDefault(FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+        return Boolean.parseBoolean(parameters.getOrDefault(FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString()));
     }
 }
