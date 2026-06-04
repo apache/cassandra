@@ -79,6 +79,7 @@ import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -174,9 +175,11 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Throwables.propagate;
+import static java.lang.String.format;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.DatabaseDescriptor.getFlushWriters;
 import static org.apache.cassandra.db.commitlog.CommitLogPosition.NONE;
+import static org.apache.cassandra.schema.SchemaConstants.FILENAME_LENGTH;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -2011,6 +2014,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             throw new IllegalStateException(String.format("can not take ephemeral snapshot (%s) while ttl is specified too", snapshotName));
         }
 
+        validateSnapshotName(snapshotName);
+
         if (rateLimiter == null)
             rateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
 
@@ -2032,6 +2037,46 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
 
         return createSnapshot(snapshotName, ephemeral, ttl, snapshottedSSTables, creationTime);
+    }
+
+    private void validateSnapshotName(String snapshotName)
+    {
+        if (snapshotName.contains(File.pathSeparator()))
+        {
+            throw new IllegalArgumentException("Snapshot name cannot contain " + File.pathSeparator());
+        }
+
+        if (snapshotName.equals(".") || snapshotName.equals(".."))
+        {
+            throw new IllegalArgumentException("Snapshot name '" + snapshotName + "' is reserved");
+        }
+
+        if (!CassandraRelevantProperties.SNAPSHOT_NAME_VALIDATION.getBoolean())
+            return;
+
+        // the length of valid snapshot name has to be less than or equal to FILENAME_LEGTH - that is 255 -
+        // we are following the max length as it is in SchemaConstants for table name.
+        if (snapshotName.length() > SchemaConstants.FILENAME_LENGTH)
+        {
+            throw new IllegalArgumentException(format("Snapshot name must not be more than %d characters long for " +
+                                                      "resolved snapshot name (got %d characters for \"%s\")",
+                                                      FILENAME_LENGTH, snapshotName.length(), snapshotName));
+        }
+
+        // Allowed characters are a conservative subset of the AWS S3 "Safe characters" set
+        // (https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html#object-key-guidelines):
+        //   0-9  a-z  A-Z  -  _  .
+        // plus '+', which is not an S3 "Safe character" but can legitimately appear in system
+        // snapshot names via version build metadata (e.g. an upgrade snapshot "<millis>-upgrade-5.0.4+build-...").
+        // The remaining S3-safe characters (! * ' ( )) are intentionally excluded as they are
+        // shell-significant and error-prone in paths, and the path separator '/' is excluded too,
+        // which is what blocks traversal attempts such as "../../mysnapshot"
+        if (!Pattern.compile("[a-zA-Z0-9_.+-]+").matcher(snapshotName).matches())
+        {
+            throw new IllegalArgumentException("Snapshot name contains illegal characters: " + snapshotName + ". " +
+                                               "Allowed characters must match the pattern: [a-zA-Z0-9_.+-]+" +
+                                               " with a maximum of length of " + FILENAME_LENGTH + " characters.");
+        }
     }
 
     protected TableSnapshot createSnapshot(String tag, boolean ephemeral, DurationSpec.IntSecondsBound ttl, Set<SSTableReader> sstables, Instant creationTime) {
