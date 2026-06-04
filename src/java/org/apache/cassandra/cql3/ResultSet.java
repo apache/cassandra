@@ -46,17 +46,25 @@ public class ResultSet
     public static final Codec codec = new Codec();
 
     public final ResultMetadata metadata;
-    public final List<List<ByteBuffer>> rows;
+    public final List<List<byte[]>> rows;
 
     public ResultSet(ResultMetadata resultMetadata)
     {
-        this(resultMetadata, new ArrayList<List<ByteBuffer>>());
+        this(resultMetadata, new ArrayList<List<byte[]>>());
     }
 
-    public ResultSet(ResultMetadata resultMetadata, List<List<ByteBuffer>> rows)
+    public ResultSet(ResultMetadata resultMetadata, List<List<byte[]>> rows)
     {
         this.metadata = resultMetadata;
         this.rows = rows;
+    }
+
+    public static ResultSet fromByteBufferRows(ResultMetadata resultMetadata, List<List<ByteBuffer>> bbRows)
+    {
+        List<List<byte[]>> converted = new ArrayList<>(bbRows.size());
+        for (List<ByteBuffer> bbRow : bbRows)
+            converted.add(convertByteBufferList(bbRow));
+        return new ResultSet(resultMetadata, converted);
     }
 
     public int size()
@@ -69,21 +77,40 @@ public class ResultSet
         return size() == 0;
     }
 
-    public void addRow(List<ByteBuffer> row)
+    public void addRow(List<byte[]> row)
     {
         assert row.size() == metadata.valueCount();
         rows.add(row);
     }
 
-    public void addColumnValue(ByteBuffer value)
+    public void addByteBufferRow(List<ByteBuffer> row)
+    {
+        assert row.size() == metadata.valueCount();
+        rows.add(convertByteBufferList(row));
+    }
+
+    private static List<byte[]> convertByteBufferList(List<ByteBuffer> row)
+    {
+        List<byte[]> converted = new ArrayList<>(row.size());
+        for (ByteBuffer bb : row)
+            converted.add(ByteBufferUtil.getArrayUnsafeNullable(bb));
+        return converted;
+    }
+
+    public void addColumnValue(byte[] value)
     {
         if (rows.isEmpty() || lastRow().size() == metadata.valueCount())
-            rows.add(new ArrayList<ByteBuffer>(metadata.valueCount()));
+            rows.add(new ArrayList<byte[]>(metadata.valueCount()));
 
         lastRow().add(value);
     }
 
-    private List<ByteBuffer> lastRow()
+    public void addColumnValue(ByteBuffer value)
+    {
+        addColumnValue(ByteBufferUtil.getArrayUnsafeNullable(value));
+    }
+
+    private List<byte[]> lastRow()
     {
         return rows.get(rows.size() - 1);
     }
@@ -110,11 +137,11 @@ public class ResultSet
         {
             StringBuilder sb = new StringBuilder();
             sb.append(metadata).append('\n');
-            for (List<ByteBuffer> row : rows)
+            for (List<byte[]> row : rows)
             {
                 for (int i = 0; i < row.size(); i++)
                 {
-                    ByteBuffer v = row.get(i);
+                    byte[] v = row.get(i);
                     if (v == null)
                     {
                         sb.append(" | null");
@@ -123,9 +150,9 @@ public class ResultSet
                     {
                         sb.append(" | ");
                         if (metadata.flags.contains(Flag.NO_METADATA))
-                            sb.append("0x").append(ByteBufferUtil.bytesToHex(v));
+                            sb.append("0x").append(ByteBufferUtil.bytesToHex(ByteBuffer.wrap(v)));
                         else
-                            sb.append(metadata.names.get(i).type.getString(v));
+                            sb.append(metadata.names.get(i).type.getString(ByteBuffer.wrap(v)));
                     }
                 }
                 sb.append('\n');
@@ -151,12 +178,12 @@ public class ResultSet
         {
             ResultMetadata m = ResultMetadata.codec.decode(body, version);
             int rowCount = body.readInt();
-            ResultSet rs = new ResultSet(m, new ArrayList<List<ByteBuffer>>(rowCount));
+            ResultSet rs = new ResultSet(m, new ArrayList<List<byte[]>>(rowCount));
 
             // rows
             int totalValues = rowCount * m.columnCount;
             for (int i = 0; i < totalValues; i++)
-                rs.addColumnValue(CBUtil.readValue(body));
+                rs.addColumnValue(CBUtil.readValueAsBytes(body));
 
             return rs;
         }
@@ -165,7 +192,7 @@ public class ResultSet
         {
             ResultMetadata.codec.encode(rs.metadata, dest, version);
             dest.writeInt(rs.rows.size());
-            for (List<ByteBuffer> row : rs.rows)
+            for (List<byte[]> row : rs.rows)
             {
                 // Note that we do only want to serialize only the first columnCount values, even if the row
                 // as more: see comment on ResultMetadata.names field.
@@ -177,7 +204,7 @@ public class ResultSet
         public int encodedSize(ResultSet rs, ProtocolVersion version)
         {
             int size = ResultMetadata.codec.encodedSize(rs.metadata, version) + 4;
-            for (List<ByteBuffer> row : rs.rows)
+            for (List<byte[]> row : rs.rows)
             {
                 for (int i = 0; i < rs.metadata.columnCount; i++)
                     size += CBUtil.sizeOfValue(row.get(i));

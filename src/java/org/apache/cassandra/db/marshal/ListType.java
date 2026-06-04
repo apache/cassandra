@@ -222,6 +222,15 @@ public class ListType<T> extends CollectionType<List<T>>
         return bbs;
     }
 
+    public List<byte[]> serializedValuesAsByteArrays(Iterator<Cell<?>> cells)
+    {
+        assert isMultiCell;
+        List<byte[]> bbs = new ArrayList<>();
+        while (cells.hasNext())
+            bbs.add(cells.next().valueAsArray());
+        return bbs;
+    }
+
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {

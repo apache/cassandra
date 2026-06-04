@@ -170,11 +170,11 @@ public class DriverBurnTest extends CQLTester
 
                             for (int i = 0; i < actualRS.size(); i++)
                             {
-                                List<ByteBuffer> expected = expectedRS.result.rows.get(i);
+                                List<byte[]> expected = expectedRS.result.rows.get(i);
                                 Row actual = actualRS.get(i);
 
                                 for (int col = 0; col < expected.size(); col++)
-                                    Assert.assertEquals(actual.getBytes(col), expected.get(col));
+                                    Assert.assertEquals(actual.getBytes(col), ByteBuffer.wrap(expected.get(col)));
                             }
                         }
                         counter++;

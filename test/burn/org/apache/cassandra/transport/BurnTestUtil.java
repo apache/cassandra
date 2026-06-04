@@ -109,7 +109,7 @@ public class BurnTestUtil
             rows.add(row);
         }
 
-        ResultSet resultSet = new ResultSet(new ResultSet.ResultMetadata(columns), rows);
+        ResultSet resultSet = ResultSet.fromByteBufferRows(new ResultSet.ResultMetadata(columns), rows);
         return new ResultMessage.Rows(resultSet);
     }
 
