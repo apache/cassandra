@@ -73,6 +73,7 @@ public class AccordJournalCompactionTest
     }
 
     private AtomicInteger counter = new AtomicInteger();
+
     @Before
     public void beforeTest() throws Throwable
     {

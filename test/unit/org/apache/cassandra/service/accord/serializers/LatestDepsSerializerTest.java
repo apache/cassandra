@@ -99,12 +99,13 @@ public class LatestDepsSerializerTest
         Arrays.sort(starts);
         for (int i = 0 ; i < size ; ++i)
         {
-            if (rs.nextBoolean()) continue;
+            if (size > 1 && rs.nextBoolean()) continue;
             entries[i] = new LatestDeps.LatestEntry(knownDeps.next(rs),
                                                     rs.nextBoolean() ? rs.nextBoolean() ? Ballot.ZERO : Ballot.MAX : ballots.next(rs),
                                                     rs.nextBoolean() ? null : deps.next(rs),
                                                     rs.nextBoolean() ? null : deps.next(rs));
         }
+
         LatestDeps latestDeps = LatestDeps.SerializerSupport.create(starts, entries);
         DataOutputBuffer buf = new DataOutputBuffer();
         Serializers.testSerde(buf, LatestDepsSerializers.latestDeps, latestDeps);

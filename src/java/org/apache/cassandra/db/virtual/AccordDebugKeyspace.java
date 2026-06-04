@@ -308,7 +308,7 @@ public class AccordDebugKeyspace extends VirtualKeyspace
                         "CREATE TABLE %s (\n" +
                         "  executor_id int,\n" +
                         "  status text,\n" +
-                        "  position int,\n" +
+                        "  position bigint,\n" +
                         "  unique_position int,\n" +
                         "  description text,\n" +
                         "  command_store_id int,\n" +
