@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.AccordGenerators;
 
 import static accord.utils.Property.qt;
 import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializersTest.rangesForEpochGen;
+import static org.apache.cassandra.service.accord.serializers.CommandStoreSerializersTest.previouslyOwnedGen;
 
 public class TopologyRecordTest
 {
@@ -85,14 +86,13 @@ public class TopologyRecordTest
             Gen<Ranges> rangesGen = AccordGenerators.ranges(TBL1, partitioner);
             Gen<CommandStores.RangesForEpoch> rangesForEpochGen = rangesForEpochGen(rangesGen);
             Topology topology = AccordGenerators.topologyGen(rangesGen).next(rs);
+            CommandStores.PreviouslyOwned previouslyOwned = previouslyOwnedGen(rangesGen).next(rs);
 
             Int2ObjectHashMap<CommandStores.RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
             for (Node.Id node : topology.nodes())
                 commandStores.put(node.id, rangesForEpochGen.next(rs));
 
-            Node.Id self = rs.pick(topology.nodes());
-
-            return new Journal.TopologyUpdate(commandStores, topology);
+            return new Journal.TopologyUpdate(commandStores, topology, previouslyOwned);
         };
     }
 
@@ -120,8 +120,8 @@ public class TopologyRecordTest
 
     private static void maybeUpdatePartitioner(TopologyRecord expected)
     {
-        Journal.TopologyUpdate update = expected.getUpdate();
+        Journal.TopologyUpdate update = expected.update();
         if (update != null)
-            maybeUpdatePartitioner(expected.getUpdate());
+            maybeUpdatePartitioner(expected.update());
     }
 }
