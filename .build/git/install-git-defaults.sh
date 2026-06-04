@@ -63,8 +63,18 @@ install_hook() {
       installed=false
     fi
   fi
+  # Resolve the source hooks directory. When git is configured with
+  # core.symlinks=false (e.g. for security reasons, or on filesystems that
+  # don't support symlinks), a symlinked hooks dir such as post-switch is
+  # checked out as a plain text file whose contents are the link target.
+  # Follow that indirection so the build works regardless of core.symlinks.
+  local src_dir="$bin/git-hooks/${name}"
+  while [[ -f "$src_dir" ]]; do
+    src_dir="$(dirname "$src_dir")/$(cat "$src_dir")"
+  done
+
   # install all hooks
-  cp "$bin"/git-hooks/"${name}"/* "$d_dir"/
+  cp "$src_dir"/* "$d_dir"/
 
   # install coordinator hook
   install_template_script "$script_name" "$d_dir"
