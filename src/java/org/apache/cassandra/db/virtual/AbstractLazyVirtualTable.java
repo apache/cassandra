@@ -670,7 +670,7 @@ public abstract class AbstractLazyVirtualTable implements VirtualTable
                 }
                 Arrays.sort(columns, 0, columnCount, (a, b) -> ColumnData.comparator.compare((BufferCell)a, (BufferCell)b));
                 Object[] btree = BTree.build(BulkIterator.of(columns), columnCount, UpdateFunction.noOp);
-                BTreeRow row = BTreeRow.create(parent.clustering, LivenessInfo.create(timestampMicros, nowInSeconds), Row.Deletion.LIVE, btree);
+                BTreeRow row = BTreeRow.create(parent.clustering, LivenessInfo.create(timestampMicros), Row.Deletion.LIVE, btree);
                 if (!rowFilter.isSatisfiedBy(metadata, parent.partitionKey(), row, nowInSeconds))
                     return null;
                 return new FilteredRow(row);

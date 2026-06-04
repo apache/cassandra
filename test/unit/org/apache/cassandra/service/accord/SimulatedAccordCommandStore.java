@@ -52,6 +52,7 @@ import accord.impl.basic.SimulatedFault;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
@@ -118,7 +119,6 @@ public class SimulatedAccordCommandStore implements AutoCloseable
 {
     private final List<Throwable> failures = new ArrayList<>();
     private final SimulatedExecutorFactory globalExecutor;
-    private final CommandStore.EpochUpdateHolder updateHolder;
     private final BooleanSupplier shouldEvict, shouldFlush, shouldCompact;
 
     public final NodeCommandStoreService storeService;
@@ -166,14 +166,12 @@ public class SimulatedAccordCommandStore implements AutoCloseable
             stage.unsafeSetExecutor(globalExecutor.configureSequential("ignore").build());
 
         this.nodeId = AccordTopology.tcmIdToAccord(ClusterMetadata.currentNullable().myNodeId());
-        this.updateHolder = new CommandStore.EpochUpdateHolder();
         this.topology = AccordTopology.createAccordTopology(ClusterMetadata.current());
         this.topologies = new Topologies.Single(SizeOfIntersectionSorter.SUPPLIER, topology);
         Ranges ranges = topology.ranges();
         if (tableId != null)
             ranges = ranges.overlapping(Ranges.of(TokenRange.create(TokenKey.min(tableId, getPartitioner()), TokenKey.max(tableId, getPartitioner()))));
-        CommandStores.RangesForEpoch rangesForEpoch = new CommandStores.RangesForEpoch(topology.epoch(), ranges);
-        updateHolder.add(topology.epoch(), rangesForEpoch, ranges);
+        RangesForEpoch rangesForEpoch = new RangesForEpoch(topology.epoch(), ranges);
 
         this.storeService = new NodeCommandStoreService()
         {
@@ -295,14 +293,13 @@ public class SimulatedAccordCommandStore implements AutoCloseable
                                                        @Override public void notify(SafeCommandStore safeStore, SafeCommand safeCommand, TxnId listener) {}
                                                        @Override public boolean notify(SafeCommandStore safeStore, SafeCommand safeCommand, LocalListeners.ComplexListener listener) { return false; }
                                                    }),
-                                                   updateHolder,
+                                                   rangesForEpoch,
                                                    journal,
                                                    new AccordExecutorSimple(0, CommandStore.class.getSimpleName() + '[' + 0 + ']', agent));
         this.commandStore.executor().executeDirectlyWithLock(() -> {
             commandStore.executor().setCapacity(8 << 20);
             commandStore.executor().setWorkingSetSize(4 << 20);
         });
-        commandStore.unsafeUpdateRangesForEpoch();
 
         shouldEvict = boolSource(rs.fork());
         {

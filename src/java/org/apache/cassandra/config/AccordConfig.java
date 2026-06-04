@@ -317,6 +317,9 @@ public class AccordConfig
     // TODO (required): roll this back to catchup_on_start_exit_on_failure: true
     public boolean catchup_on_start_exit_on_failure = false;
     public CatchupMode catchup_on_start = NORMAL;
+    public boolean execute_waiting_on_start = true;
+    public DurationSpec.IntSecondsBound execute_waiting_on_start_timeout = new DurationSpec.IntSecondsBound(0);
+    public boolean execute_waiting_on_start_fail_on_timeout = false;
     public DurationSpec.IntSecondsBound shutdown_grace_period = new DurationSpec.IntSecondsBound(15 * 60);
 
     public enum RangeIndexMode { in_memory, journal_sai }

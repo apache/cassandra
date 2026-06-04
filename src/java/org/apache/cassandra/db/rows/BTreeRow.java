@@ -120,10 +120,7 @@ public class BTreeRow extends AbstractRow
     {
         long minDeletionTime = Math.min(minDeletionTime(primaryKeyLivenessInfo), minDeletionTime(deletion.time()));
         if (minDeletionTime != Long.MIN_VALUE)
-        {
-            long result = BTree.<ColumnData>accumulate(btree, (cd, l) -> Math.min(l, minDeletionTime(cd)) , minDeletionTime);
-            minDeletionTime = result;
-        }
+            minDeletionTime = BTree.<ColumnData>accumulate(btree, (cd, l) -> Math.min(l, minDeletionTime(cd)) , minDeletionTime);
 
         return create(clustering, primaryKeyLivenessInfo, deletion, btree, minDeletionTime);
     }
@@ -144,11 +141,17 @@ public class BTreeRow extends AbstractRow
 
     public static BTreeRow singleCellRow(Clustering<?> clustering, Cell<?> cell)
     {
+        return singleCellRow(clustering, LivenessInfo.EMPTY, cell);
+    }
+
+    public static BTreeRow singleCellRow(Clustering<?> clustering, LivenessInfo primaryKeyLivenessInfo, Cell<?> cell)
+    {
+        long minDeletionTime = Math.min(minDeletionTime(primaryKeyLivenessInfo), minDeletionTime(cell));
         if (cell.column().isSimple())
-            return new BTreeRow(clustering, BTree.singleton(cell), minDeletionTime(cell));
+            return new BTreeRow(clustering, primaryKeyLivenessInfo, Deletion.LIVE, BTree.singleton(cell), minDeletionTime);
 
         ComplexColumnData complexData = new ComplexColumnData(cell.column(), new Cell<?>[]{ cell }, DeletionTime.LIVE);
-        return new BTreeRow(clustering, BTree.singleton(complexData), minDeletionTime(cell));
+        return new BTreeRow(clustering, primaryKeyLivenessInfo, Deletion.LIVE, BTree.singleton(complexData), minDeletionTime);
     }
 
     public static BTreeRow emptyDeletedRow(Clustering<?> clustering, Deletion deletion)

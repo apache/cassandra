@@ -405,7 +405,7 @@ public class UnfilteredRowIteratorsMergeTest
     static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering<?> clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), nowInSec);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos));
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 

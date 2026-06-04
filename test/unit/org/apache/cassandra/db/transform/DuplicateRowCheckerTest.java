@@ -212,7 +212,7 @@ public class DuplicateRowCheckerTest extends CQLTester
         for (int i = 0; i < clusteringValues.length; i++)
             clusteringByteBuffers[i] = decompose(metadata.clusteringColumns().get(i).type, clusteringValues[i]);
 
-        return BTreeRow.noCellLiveRow(Clustering.make(clusteringByteBuffers), LivenessInfo.create(0, 0));
+        return BTreeRow.noCellLiveRow(Clustering.make(clusteringByteBuffers), LivenessInfo.create(0));
     }
 
     public static UnfilteredRowIterator partition(TableMetadata metadata,

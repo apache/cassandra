@@ -64,6 +64,7 @@ import accord.impl.DefaultRemoteListeners;
 import accord.local.Command;
 import accord.local.CommandBuilder;
 import accord.local.CommandStore;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
@@ -662,7 +663,7 @@ public class CommandsForKeySerializerTest
                   null,
                   ignore -> new ProgressLog.NoOpProgressLog(),
                   ignore -> new DefaultLocalListeners(null, new DefaultRemoteListeners((a, b, c, d, e)->{}), DefaultLocalListeners.DefaultNotifySink.INSTANCE),
-                  new EpochUpdateHolder());
+                  new RangesForEpoch(1, Ranges.EMPTY));
         }
 
         @Override public boolean inStore() { return true; }
