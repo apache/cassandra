@@ -288,12 +288,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
                         logger.error("Encountered TopologyImage Repeat record for epoch {}, but no prior image record was found", ref.key().id.epoch());
                         return null;
                     }
-                    prev = reader.read().asImage(Invariants.nonNull(prev.getUpdate()));
+                    prev = reader.read().asImage(Invariants.nonNull(prev.update()));
                 }
                 else prev = reader.read();
 
-                return new accord.api.Journal.TopologyUpdate(prev.getUpdate().commandStores,
-                                                             prev.getUpdate().global);
+                return new accord.api.Journal.TopologyUpdate(prev.update().commandStores,
+                                                             prev.update().global,
+                                                             prev.update().previouslyOwned);
             }
 
             @Override
@@ -359,6 +360,13 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
     }
 
     @Override
+    public Ranges loadPermanentlyUnsafeToRead(int commandStoreId)
+    {
+        KeepFirst<Ranges> accumulator = readLast(new JournalKey(TxnId.NONE, JournalKey.Type.PERMANENTLY_UNSAFE_TO_READ, commandStoreId));
+        return accumulator.get();
+    }
+
+    @Override
     public PersistentField.Persister<DurableBefore, DurableBefore> durableBeforePersister()
     {
         return new DurableBeforePersister(this);
@@ -376,6 +384,8 @@ public class AccordJournal implements accord.api.Journal, RangeSearcher.Supplier
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.SAFE_TO_READ, commandStoreId), fieldUpdates.newSafeToRead);
         if (fieldUpdates.newRangesForEpoch != null)
             pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.RANGES_FOR_EPOCH, commandStoreId), fieldUpdates.newRangesForEpoch);
+        if (fieldUpdates.newPermanentlyUnsafeToRead != null)
+            pointer = appendInternal(new JournalKey(TxnId.NONE, JournalKey.Type.PERMANENTLY_UNSAFE_TO_READ, commandStoreId), fieldUpdates.newPermanentlyUnsafeToRead);
 
         if (onFlush == null)
             return;

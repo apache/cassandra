@@ -26,6 +26,7 @@ import org.agrona.collections.Int2ObjectHashMap;
 
 import accord.api.Journal;
 import accord.local.CommandStores;
+import accord.local.CommandStores.PreviouslyOwned;
 import accord.local.Node;
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;
@@ -50,7 +51,7 @@ public interface TopologyRecord
     long epoch();
     TopologyRecord asRepeat();
 
-    Journal.TopologyUpdate getUpdate();
+    Journal.TopologyUpdate update();
     static TopologyRecord newTopology(Journal.TopologyUpdate update)
     {
         return new NewTopology(update);
@@ -121,7 +122,7 @@ public interface TopologyRecord
         }
 
         @Override
-        public Journal.TopologyUpdate getUpdate()
+        public Journal.TopologyUpdate update()
         {
             return update;
         }
@@ -182,7 +183,7 @@ public interface TopologyRecord
         }
 
         @Override
-        public Journal.TopologyUpdate getUpdate()
+        public Journal.TopologyUpdate update()
         {
             return update;
         }
@@ -225,12 +226,20 @@ public interface TopologyRecord
 
     class TopologyUpdateSerializer implements UnversionedSerializer<Journal.TopologyUpdate>
     {
+        private static final int TOP_BIT = 0x40000000;
         public static final TopologyUpdateSerializer instance = new TopologyUpdateSerializer();
 
         @Override
         public void serialize(Journal.TopologyUpdate from, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt32(from.commandStores.size());
+            out.writeUnsignedVInt32(from.commandStores.size() | TOP_BIT);
+            out.writeUnsignedVInt32(0);
+            out.writeUnsignedVInt32(from.previouslyOwned.size());
+            for (int i = 0 ; i < from.previouslyOwned.size() ; ++i)
+            {
+                out.writeUnsignedVInt(from.previouslyOwned.epochs(i));
+                KeySerializers.ranges.serialize(from.previouslyOwned.ranges(i), out);
+            }
             for (Map.Entry<Integer, CommandStores.RangesForEpoch> e : from.commandStores.entrySet())
             {
                 out.writeUnsignedVInt32(e.getKey());
@@ -243,6 +252,23 @@ public interface TopologyRecord
         public Journal.TopologyUpdate deserialize(DataInputPlus in) throws IOException
         {
             int commandStoresSize = in.readUnsignedVInt32();
+            int flags = 0;
+            PreviouslyOwned previouslyOwned = PreviouslyOwned.EMPTY;
+            if ((commandStoresSize & TOP_BIT) != 0)
+            {
+                commandStoresSize ^= TOP_BIT;
+                // future proofing
+                flags = in.readUnsignedVInt32();
+                int previouslyOwnedSize = in.readUnsignedVInt32();
+                long[] epochs = new long[previouslyOwnedSize];
+                Ranges[] ranges = new Ranges[previouslyOwnedSize];
+                for (int i = 0 ; i < previouslyOwnedSize ; ++i)
+                {
+                    epochs[i] = in.readUnsignedVInt();
+                    ranges[i] = KeySerializers.ranges.deserialize(in);
+                }
+                previouslyOwned = new PreviouslyOwned(epochs.length == 0 ? 0 : epochs[0], epochs, ranges);
+            }
             Int2ObjectHashMap<CommandStores.RangesForEpoch> commandStores = new Int2ObjectHashMap<>();
             for (int j = 0; j < commandStoresSize; j++)
             {
@@ -251,13 +277,20 @@ public interface TopologyRecord
                 commandStores.put(commandStoreId, rfe);
             }
             Topology global = TopologySerializers.compactTopology.deserialize(in);
-            return new Journal.TopologyUpdate(commandStores, global);
+            return new Journal.TopologyUpdate(commandStores, global, previouslyOwned);
         }
 
         @Override
         public long serializedSize(Journal.TopologyUpdate from)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(from.commandStores.size());
+            long size = TypeSizes.sizeofUnsignedVInt(from.commandStores.size() | TOP_BIT);
+            size += TypeSizes.sizeofUnsignedVInt(0);
+            size += TypeSizes.sizeofUnsignedVInt(from.previouslyOwned.size());
+            for (int i = 0 ; i < from.previouslyOwned.size() ; ++i)
+            {
+                size += TypeSizes.sizeofUnsignedVInt(from.previouslyOwned.epochs(i));
+                size += KeySerializers.ranges.serializedSize(from.previouslyOwned.ranges(i));
+            }
             for (Map.Entry<Integer, CommandStores.RangesForEpoch> e : from.commandStores.entrySet())
             {
                 size += TypeSizes.sizeofUnsignedVInt(e.getKey());

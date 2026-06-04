@@ -92,10 +92,12 @@ public class AccordJournalCompactionTest
         NavigableMap<Timestamp, Ranges> safeToReadAtAccumulator = ImmutableSortedMap.of(Timestamp.NONE, Ranges.EMPTY);
         NavigableMap<TxnId, Ranges> bootstrapBeganAtAccumulator = ImmutableSortedMap.of(TxnId.NONE, Ranges.EMPTY);
         RangesForEpoch rangesForEpochAccumulator = null;
+        Ranges permanentlyUnsafeToReadAccumulator = Ranges.EMPTY;
 
         Gen<DurableBefore> durableBeforeGen = AccordGenerators.durableBeforeGen(DatabaseDescriptor.getPartitioner());
         Gen<NavigableMap<Timestamp, Ranges>> safeToReadGen = AccordGenerators.safeToReadGen(DatabaseDescriptor.getPartitioner());
         Gen<RangesForEpoch> rangesForEpochGen = AccordGenerators.rangesForEpoch(DatabaseDescriptor.getPartitioner());
+        Gen<Ranges> permanentlyUnsafeToRead = AccordGenerators.ranges(DatabaseDescriptor.getPartitioner());
 
         AccordJournal journal = new AccordJournal(new TestParams()
         {
@@ -129,6 +131,7 @@ public class AccordJournalCompactionTest
 //                updates.addRedundantBefore = redundantBeforeGen.next(rs);
                 updates.newSafeToRead = safeToReadGen.next(rs);
                 updates.newRangesForEpoch = rangesForEpochGen.next(rs);
+                updates.newPermanentlyUnsafeToRead = permanentlyUnsafeToRead.next(rs);
 
                 journal.durableBeforePersister().persist(addDurableBefore, null);
                 journal.saveStoreState(1, updates, null);
@@ -141,6 +144,8 @@ public class AccordJournalCompactionTest
                     safeToReadAtAccumulator = updates.newSafeToRead;
                 if (updates.newRangesForEpoch != null)
                     rangesForEpochAccumulator = updates.newRangesForEpoch;
+                if (updates.newPermanentlyUnsafeToRead != null)
+                    permanentlyUnsafeToReadAccumulator = updates.newPermanentlyUnsafeToRead;
 
                 if (i % 100 == 0)
                     journal.closeCurrentSegmentForTestingIfNonEmpty();
@@ -153,6 +158,7 @@ public class AccordJournalCompactionTest
             Assert.assertEquals(bootstrapBeganAtAccumulator, journal.loadBootstrapBeganAt(1));
             Assert.assertEquals(safeToReadAtAccumulator, journal.loadSafeToRead(1));
             Assert.assertEquals(rangesForEpochAccumulator, journal.loadRangesForEpoch(1));
+            Assert.assertEquals(permanentlyUnsafeToReadAccumulator, journal.loadPermanentlyUnsafeToRead(1));
         }
         finally
         {

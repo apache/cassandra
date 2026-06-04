@@ -37,6 +37,7 @@ import org.apache.cassandra.service.accord.JournalKey;
 import org.apache.cassandra.service.accord.journal.Merger.KeepFirst;
 import org.apache.cassandra.service.accord.journal.Merger.SimpleMerger;
 import org.apache.cassandra.service.accord.serializers.CommandStoreSerializers;
+import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.Version;
 
 import static accord.local.CommandStores.RangesForEpoch;
@@ -250,7 +251,6 @@ public class MergeSerializers
                               SimpleMerger<?, ? super RangesForEpoch>,
                               SimpleMerger<RangesForEpoch, RangesForEpoch>>
     {
-        public static final RangesForEpochSerializer instance = new RangesForEpochSerializer();
         public KeepFirst<RangesForEpoch> mergerFor()
         {
             return new KeepFirst<>(null);
@@ -275,11 +275,40 @@ public class MergeSerializers
         }
     }
 
+    public static class PermanentlyUnsafeToReadSerializer
+    implements MergeSerializer<Ranges,
+                              SimpleMerger<?, ? super Ranges>,
+                              SimpleMerger<Ranges, Ranges>>
+    {
+        public KeepFirst<Ranges> mergerFor()
+        {
+            return new KeepFirst<>(Ranges.EMPTY);
+        }
+
+        @Override
+        public void serialize(JournalKey key, Ranges from, DataOutputPlus out, Version userVersion) throws IOException
+        {
+            KeySerializers.ranges.serialize(from, out);
+        }
+
+        @Override
+        public void reserialize(JournalKey key, SimpleMerger<Ranges, Ranges> from, DataOutputPlus out, Version userVersion) throws IOException
+        {
+            serialize(key, from.get(), out, userVersion);
+        }
+
+        @Override
+        public void deserialize(JournalKey key, SimpleMerger<?, ? super Ranges> into, DataInputPlus in, Version userVersion) throws IOException
+        {
+            into.update(KeySerializers.ranges.deserialize(in));
+        }
+    }
+
     public static class TopologySerializer implements MergeSerializer<TopologyRecord, TopologyMerger, TopologyMerger>
     {
         public static final TopologySerializer INSTANCE = new TopologySerializer();
 
-        public TopologySerializer() {}
+        private TopologySerializer() {}
 
         @Override
         public TopologyMerger mergerFor()
@@ -309,6 +338,7 @@ public class MergeSerializers
     public static class TopologyMerger implements Merger
     {
         TopologyRecord.TopologyImage read, write;
+        boolean hasRead;
 
         public TopologyMerger()
         {
@@ -317,6 +347,7 @@ public class MergeSerializers
         @Override
         public void reset(JournalKey key)
         {
+            hasRead = false;
             read = write = null;
         }
 
@@ -327,11 +358,15 @@ public class MergeSerializers
 
         public void read(TopologyRecord update)
         {
+            if (hasRead)
+                return;
+
             if (Objects.requireNonNull(update.kind()) == TopologyRecord.Kind.New)
-                read = new TopologyRecord.TopologyImage(update.epoch(), TopologyRecord.Kind.Image, update.getUpdate());
+                read = new TopologyRecord.TopologyImage(update.epoch(), TopologyRecord.Kind.Image, update.update());
             else
                 read = (TopologyRecord.TopologyImage) update;
             write = read;
+            hasRead = true;
         }
 
         public void write(TopologyRecord.TopologyImage image)
