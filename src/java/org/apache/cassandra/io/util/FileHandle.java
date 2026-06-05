@@ -18,8 +18,8 @@
 package org.apache.cassandra.io.util;
 
 import java.util.Optional;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
@@ -75,7 +75,7 @@ public class FileHandle extends SharedCloseableImpl
     // Properties to support unbuilding via toBuilder
     private final ChunkCache chunkCache;
     private final MmappedRegionsCache mmappedRegionsCache;
-    private final Supplier<Double> crcCheckChanceSupplier;
+    private final DoubleSupplier crcCheckChanceSupplier;
     private final long lengthOverride;
     private final int bufferSize;
     private final BufferType bufferType;
@@ -88,7 +88,7 @@ public class FileHandle extends SharedCloseableImpl
                        DiskAccessMode diskAccessMode,
                        ChunkCache chunkCache,
                        MmappedRegionsCache mmappedRegionsCache,
-                       Supplier<Double> crcCheckChanceSupplier,
+                       DoubleSupplier crcCheckChanceSupplier,
                        long lengthOverride,
                        int bufferSize,
                        BufferType bufferType)
@@ -338,7 +338,7 @@ public class FileHandle extends SharedCloseableImpl
         public final File file;
 
         private CompressionMetadata compressionMetadata;
-        private Supplier<Double> crcCheckChanceSupplier = () -> 1.0;
+        private DoubleSupplier crcCheckChanceSupplier = () -> 1.0;
         private ChunkCache chunkCache;
         private int bufferSize = RandomAccessReader.DEFAULT_BUFFER_SIZE;
         private BufferType bufferType = BufferType.OFF_HEAP;
@@ -378,7 +378,7 @@ public class FileHandle extends SharedCloseableImpl
             return this;
         }
 
-        public Builder withCrcCheckChance(Supplier<Double> crcCheckChanceSupplier)
+        public Builder withCrcCheckChance(DoubleSupplier crcCheckChanceSupplier)
         {
             this.crcCheckChanceSupplier = crcCheckChanceSupplier;
             return this;

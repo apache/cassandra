@@ -21,7 +21,7 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Supplier;
+import java.util.function.DoubleSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -38,9 +38,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 {
     final CompressionMetadata metadata;
     final int maxCompressedLength;
-    final Supplier<Double> crcCheckChanceSupplier;
+    final DoubleSupplier crcCheckChanceSupplier;
 
-    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
+    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, DoubleSupplier crcCheckChanceSupplier)
     {
         super(channel, metadata.dataLength);
         this.metadata = metadata;
@@ -57,7 +57,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     @VisibleForTesting
     public double getCrcCheckChance()
     {
-        return crcCheckChanceSupplier.get();
+        return crcCheckChanceSupplier.getAsDouble();
     }
 
     boolean shouldCheckCrc()
@@ -279,7 +279,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         private final CompressedReader reader;
         private final CompressedReader scanReader;
 
-        public Direct(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
+        public Direct(ChannelProxy channel, CompressionMetadata metadata, DoubleSupplier crcCheckChanceSupplier)
         {
             super(channel, metadata, crcCheckChanceSupplier);
             int blockSize = FileUtils.getFileBlockSize(channel.file());
@@ -367,7 +367,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         private final CompressedReader reader;
         private final CompressedReader scanReader;
 
-        public Standard(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
+        public Standard(ChannelProxy channel, CompressionMetadata metadata, DoubleSupplier crcCheckChanceSupplier)
         {
             super(channel, metadata, crcCheckChanceSupplier);
             reader = new RandomAccessCompressedReader(channel, metadata);
@@ -465,7 +465,7 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     {
         protected final MmappedRegions regions;
 
-        public Mmap(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions, Supplier<Double> crcCheckChanceSupplier)
+        public Mmap(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions, DoubleSupplier crcCheckChanceSupplier)
         {
             super(channel, metadata, crcCheckChanceSupplier);
             this.regions = regions;

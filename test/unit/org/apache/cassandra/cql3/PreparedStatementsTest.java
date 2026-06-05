@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -498,7 +497,7 @@ public class PreparedStatementsTest extends CQLTester
                                                            Arrays.asList(Int32Serializer.instance.serialize(1),
                                                                          Int32Serializer.instance.serialize(10),
                                                                          Int32Serializer.instance.serialize(20)),
-                                                           EnumSet.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC));
+                                                           org.apache.cassandra.cql3.ResultSet.Flag.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC));
 
             // This is an _unsuccessful_ LWT update (as the condition fails)
             verifyMetadataFlagsWithLWTsUpdate(simpleClient,
@@ -516,7 +515,7 @@ public class PreparedStatementsTest extends CQLTester
                                                            Arrays.asList(Int32Serializer.instance.serialize(1),
                                                                          Int32Serializer.instance.serialize(10),
                                                                          Int32Serializer.instance.serialize(20)),
-                                                           EnumSet.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC));
+                                                           org.apache.cassandra.cql3.ResultSet.Flag.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC));
 
             // force a schema change on that table
             simpleClient.execute(String.format("ALTER TABLE %s.%s ADD v3 int",
@@ -574,8 +573,10 @@ public class PreparedStatementsTest extends CQLTester
                                                                          Int32Serializer.instance.serialize(1),
                                                                          Int32Serializer.instance.serialize(30),
                                                                          null),
-                                                           EnumSet.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC,
-                                                                      org.apache.cassandra.cql3.ResultSet.Flag.METADATA_CHANGED));
+                                                           org.apache.cassandra.cql3.ResultSet.Flag.of(
+                                                                org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC,
+                                                                org.apache.cassandra.cql3.ResultSet.Flag.METADATA_CHANGED
+                                                           ));
 
             // This is an _unsuccessful_ LWT update (as the condition fails)
             verifyMetadataFlagsWithLWTsUpdate(simpleClient,
@@ -594,7 +595,7 @@ public class PreparedStatementsTest extends CQLTester
                                                             Int32Serializer.instance.serialize(1),
                                                             Int32Serializer.instance.serialize(30),
                                                             null),
-                                              EnumSet.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC));
+                                              org.apache.cassandra.cql3.ResultSet.Flag.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC));
         }
     }
 
@@ -602,13 +603,13 @@ public class PreparedStatementsTest extends CQLTester
                                                                      ResultMessage.Prepared prepSelect,
                                                                      List<String> columnNames,
                                                                      List<ByteBuffer> expectedRow,
-                                                                     EnumSet<org.apache.cassandra.cql3.ResultSet.Flag> expectedFlags)
+                                                                     int expectedFlags)
     {
         ResultMessage result = simpleClient.executePrepared(prepSelect,
                                                             Collections.singletonList(Int32Serializer.instance.serialize(1)),
                                                             ConsistencyLevel.LOCAL_ONE);
         ResultMessage.Rows rows = (ResultMessage.Rows) result;
-        EnumSet<org.apache.cassandra.cql3.ResultSet.Flag> resultFlags = rows.result.metadata.getFlags();
+        int resultFlags = rows.result.metadata.getFlags();
         assertEquals(expectedFlags,
                      resultFlags);
         assertEquals(columnNames.size(),
@@ -620,7 +621,7 @@ public class PreparedStatementsTest extends CQLTester
         assertEqualRows(expectedRow,
                         rows.result.rows.get(0));
 
-        if (resultFlags.contains(org.apache.cassandra.cql3.ResultSet.Flag.METADATA_CHANGED))
+        if (org.apache.cassandra.cql3.ResultSet.Flag.contains(resultFlags, org.apache.cassandra.cql3.ResultSet.Flag.METADATA_CHANGED))
             prepSelect = prepSelect.withResultMetadata(rows.result.metadata);
         return prepSelect;
     }
@@ -635,8 +636,8 @@ public class PreparedStatementsTest extends CQLTester
                                                             params,
                                                             ConsistencyLevel.LOCAL_ONE);
         ResultMessage.Rows rows = (ResultMessage.Rows) result;
-        EnumSet<org.apache.cassandra.cql3.ResultSet.Flag> resultFlags = rows.result.metadata.getFlags();
-        assertEquals(EnumSet.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC),
+        int resultFlags = rows.result.metadata.getFlags();
+        assertEquals(org.apache.cassandra.cql3.ResultSet.Flag.of(org.apache.cassandra.cql3.ResultSet.Flag.GLOBAL_TABLES_SPEC),
                      resultFlags);
         assertEquals(columnNames.size(),
                      rows.result.metadata.getColumnCount());
