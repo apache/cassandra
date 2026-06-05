@@ -31,6 +31,8 @@
 # variables, with defaults
 [ "x${cassandra_dir}" != "x" ] || cassandra_dir="$(readlink -f $(dirname -- "$0")/../..)"
 [ "x${build_dir}" != "x" ] || build_dir="${cassandra_dir}/build"
+# parameterise the maven repository host directory, as it cannot be shared across containers
+# m2_dir fails under /tmp on macos
 [ "x${m2_dir}" != "x" ] || m2_dir="${HOME}/.m2/repository"
 [ -d "${build_dir}" ] || { mkdir -p "${build_dir}" ; }
 [ -d "${m2_dir}" ] || { mkdir -p "${m2_dir}" ; }
@@ -99,7 +101,7 @@ if ! ( [[ "$(docker images -q ${image_name} 2>/dev/null)" != "" ]] ) ; then
   if ! ( docker pull -q ${image_name} >/dev/null 2>/dev/null ) ; then
     # Create build images containing the build tool-chain, Java and an Apache Cassandra git working directory, with retry
     echo "Building docker image..."
-    until docker build -t ${image_name} -f docker/${dockerfile} .  ; do
+    until docker build -t ${image_name} -f docker/${dockerfile} --load .  ; do
         echo "docker build failed… trying again in 10s… "
         sleep 10
     done

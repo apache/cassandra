@@ -205,10 +205,10 @@ def parse_arguments() -> argparse.Namespace:
     """
     args = argument_parser().parse_args()
 
-    assert args.repository.startswith("https://github.com/") and args.repository.endswith("cassandra.git"),\
+    assert args.repository.startswith("https://github.com/") and args.repository.removesuffix(".git").endswith("cassandra"),\
         f"Only github apache/cassandra (forked) repository supported, got: {args.repository}"
-    assert args.dtest_repository.startswith("https://github.com/") and args.dtest_repository.endswith("cassandra-dtest.git"),\
-        f"Only github apache/cassandra (forked) repository supported, got: {args.dtest_repository}"
+    assert args.dtest_repository.startswith("https://github.com/") and args.dtest_repository.removesuffix(".git").endswith("cassandra-dtest"),\
+        f"Only github apache/cassandra-dtest (forked) repository supported, got: {args.dtest_repository}"
     assert not (args.setup and args.only_setup), "Both --setup or --only-setup cannot be specified."
     assert not (args.tear_down and args.only_tear_down), "Both --tear-down or --only-tear-down cannot be specified."
     assert not ("custom" == args.profile and not args.profile_custom_regexp), "Custom profile requires --profile-custom-regexp."
@@ -307,27 +307,36 @@ def get_jenkins(k8s_client: client.CoreV1Api, args, kube_ns: str) -> Tuple[str, 
     return ip, server
 
 
+def ensure_job_parameters_visible(server: jenkins.Jenkins, job_name: str):
+    """
+    If necessary, triggers a non-parameter build to make parameterised builds visible.
+    """
+    job_info = server.get_job_info(job_name)
+    if any(param.get("parameterDefinitions") for param in job_info.get("property", [])):
+        return
+
+    print(f"Parameters are not visible for job {job_name}; initiating non-parameter build.")
+    queue_item = server.build_job(job_name)
+    build_number = wait_for_build_number(server, queue_item)
+    time.sleep(6)
+    try:
+        server.stop_build(job_name, build_number)
+    except client.exceptions.ApiException as e:
+        print(f"Failed to stop non-parameter build {job_name} {build_number}: {e}")
+    print(f"Parameters should now be available for job {job_name}.")
+
+
+def ensure_cassandra_job_parameters_visible(server: jenkins.Jenkins):
+    """Ensures parameterised builds are visible for all cassandra* jobs."""
+    for job in server.get_jobs():
+        job_name = job.get("name", "")
+        if job_name.startswith("cassandra"):
+            ensure_job_parameters_visible(server, job_name)
+
+
 def trigger_jenkins_build(server: jenkins.Jenkins, job_name: str, **build_params) -> dict:
     """Triggers a Jenkins build with specified parameters and returns the queue item."""
-
-    def check_for_parameter_build(server: jenkins.Jenkins, job_name: str):
-        """
-        If necessary, triggers a non-parameter build (which makes the parameterised build visible).
-        """
-        job_info = server.get_job_info(job_name)
-        if not any(param.get("parameterDefinitions") for param in job_info.get("property", [])):
-            print("Parameters are not visible; initiating non-parameter build.")
-            queue_item = server.build_job(job_name)
-            build_number = wait_for_build_number(server, queue_item)
-            time.sleep(6)
-            try:
-                server.stop_build(job_name, build_number)
-            except client.exceptions.ApiException as e:
-                print(f"Failed to stop non-parameter build {job_name} {build_number} for job : {e}")
-            print("Parameters should now be available.")
-
-    # Check and trigger non-parameter build if parameters are not visible
-    check_for_parameter_build(server, job_name)
+    ensure_job_parameters_visible(server, job_name)
     print("Triggering Jenkins build… ")
     return server.build_job(job_name, parameters=build_params)
 
@@ -820,6 +829,8 @@ def main():
             install_jenkins(args.kubeconfig, args.kubecontext, DEFAULT_KUBE_NS)
 
     (ip, server) = get_jenkins(k8s_client, args, DEFAULT_KUBE_NS)
+    if args.setup or args.only_setup:
+        ensure_cassandra_job_parameters_visible(server)
     if args.only_setup:
         return
     if args.download_results:

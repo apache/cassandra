@@ -10,7 +10,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 LABEL org.opencontainers.image.authors="Apache Cassandra <dev@cassandra.apache.org>"
 
 # CONTEXT is expected to be cassandra/.build
@@ -23,7 +23,7 @@ ENV LC_CTYPE=en_US.UTF-8
 ENV PYTHONIOENCODING=utf-8
 ENV PYTHONUNBUFFERED=true
 
-LABEL org.cassandra.buildenv=ubuntu_2004
+LABEL org.cassandra.buildenv=ubuntu_test
 
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \
@@ -42,7 +42,7 @@ RUN echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80proxy.conf
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common apt-utils
+    apt-get install -y --no-install-recommends software-properties-common apt-utils gnupg
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     add-apt-repository -y ppa:deadsnakes/ppa && \
@@ -54,7 +54,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
         vim lsof sudo libjemalloc2 dumb-init locales rsync \
         openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk openjdk-21-jdk ant ant-optional
 
-
+RUN update-alternatives --remove java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/jre/bin/java
+RUN update-alternatives --install /usr/bin/java java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/java 1081
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 2
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 3
 RUN python3.8 -m pip install --upgrade pip
@@ -80,6 +81,7 @@ RUN find /etc -type f -name java.security -exec sed -i 's/TLSv1, TLSv1.1//' {} \
 RUN find /etc -type f -name java.security -exec sed -i 's/3DES_EDE_CBC$/3DES_EDE_CBC, TLSv1, TLSv1.1/' {} \;
 
 # create and change to cassandra-tmp user, use an rare uid to avoid collision later on
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
 RUN adduser --disabled-login --uid 901743 --lastuid 901743 --gecos cassandra cassandra-tmp
 RUN gpasswd -a cassandra-tmp sudo
 RUN echo "cassandra-tmp ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/build
@@ -88,10 +90,15 @@ RUN chmod 0440 /etc/sudoers.d/build
 # switch to the cassandra user
 RUN mkdir -p ${BUILD_HOME} && chmod a+rwx ${BUILD_HOME}
 USER cassandra-tmp
-ENV HOME ${BUILD_HOME}
+ENV HOME=${BUILD_HOME}
 WORKDIR ${BUILD_HOME}
 
 ENV ANT_HOME=/usr/share/ant
+
+# Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
+COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
+RUN bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository
+RUN cp -a /home/cassandra-tmp/.gradle /home/image-cache/.gradle
 
 # run pip commands and setup virtualenv (note we do this after we switch to cassandra user so we
 # setup the virtualenv for the cassandra user and not the root user by accident) for Python 3.8/3.11
@@ -111,14 +118,21 @@ RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
     && pip3 install -r /opt/requirements.txt \
     && pip3 freeze --user"
 
-RUN virtualenv --python=python3.11 ${BUILD_HOME}/env3.11
+RUN python3.11 -m venv ${BUILD_HOME}/env3.11
 RUN chmod +x ${BUILD_HOME}/env3.11/bin/activate
 
 RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
     && source ${BUILD_HOME}/env3.11/bin/activate \
     && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
-    && pip3 install -r /opt/requirements.txt \
+    && pip3 install --upgrade \"pip<25.0\"  \"setuptools==60.8.2\" wheel \
+    && pip3 install --no-build-isolation -r /opt/requirements.txt \
     && pip3 freeze --user"
+
+# 4* requires java8, sudo doesn't work on cross-platform builds
+USER root
+RUN update-alternatives --set java /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/java
+RUN update-alternatives --set javac /usr/lib/jvm/java-8-openjdk-$(dpkg --print-architecture)/bin/javac
+USER cassandra-tmp
 
 # Initialize the CCM git repo as well as this also can fail to clone
 RUN /bin/bash -c "source ${BUILD_HOME}/env3.8/bin/activate && \
@@ -132,16 +146,23 @@ RUN bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
     latest_4_1=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")4\.1\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
     for i in $(seq 1 $latest_4_1); do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
 
-# 5+ requires java11
-RUN sudo update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architecture)
+# 5+ requires java11, sudo doesn't work on cross-platform builds
+USER root
+RUN update-alternatives --set java /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/java
+RUN update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-$(dpkg --print-architecture)/bin/javac
+USER cassandra-tmp
 
 # Initialize ccm versions. branch heads and all versions iterating through to the latest version found on downloads.apache.org/cassandra
 RUN rm -fr ${BUILD_HOME}/.ccm/repository/_git_cache_apache
 RUN /bin/bash -c 'source ${BUILD_HOME}/env3.8/bin/activate && \
     ccm create --quiet -n 1 -v git:cassandra-5.0 test && ccm remove test && \
+    ccm create --quiet -n 1 -v git:cassandra-6.0 test && ccm remove test && \
     ccm create --quiet -n 1 -v git:trunk test && ccm remove test && \
     latest_5_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")5\.0\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
     for i in $(seq 1 $latest_5_0); do echo $i ; ccm create --quiet -n 1 -v binary:5.0.$i test && ccm remove test ; done'
+    # TODO uncomment when 6.0.0 is released
+    #latest_6_0=$(curl -s https://downloads.apache.org/cassandra/ | grep -oP "(?<=href=\")6\.0\.[0-9]+(?=\")" | sort -V | tail -1 | cut -d"." -f3) && \
+    #for i in $(seq 1 $latest_6_0); do echo $i ; ccm create --quiet -n 1 -v binary:6.0.$i test && ccm remove test ; done'
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
 #  and other directories we don't need in image
