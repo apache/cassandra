@@ -23,7 +23,7 @@ ENV DIST_DIR=/dist
 ENV BUILD_HOME=/home/build
 ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
 
-LABEL org.cassandra.buildenv=bullseye
+LABEL org.cassandra.buildenv=debian_build
 
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \
@@ -110,3 +110,9 @@ RUN sed -i 's/UID_MIN			 1000/UID_MIN			 10/' /etc/login.defs
 
 # suppress warnings about mismatching ownership
 RUN git config --global --add safe.directory ${CASSANDRA_DIR}
+
+# Prepopulate Maven repository with dependencies from all branches. see _create_user.sh
+COPY docker/_prepopulate_maven_deps.sh /tmp/_prepopulate_maven_deps.sh
+RUN mkdir -p /home/image-cache && chmod -R a+rwx /home/image-cache
+RUN bash /tmp/_prepopulate_maven_deps.sh /home/image-cache/.m2/repository && rm /tmp/_prepopulate_maven_deps.sh
+RUN cp -a /root/.gradle /home/image-cache/.gradle

@@ -72,7 +72,7 @@ pipeline {
   }
   parameters {
     string(name: 'repository', defaultValue: params.repository ?: scm.userRemoteConfigs[0].url, description: 'Cassandra Repository')
-    string(name: 'branch', defaultValue: params.branch ?: scm.userRemoteConfigs[0].refspec, description: 'Branch')
+    string(name: 'branch', defaultValue: params.branch ?: scm.branch, description: 'Branch')
 
     choice(name: 'profile', choices: pipelineProfileNames(params.profile ?: ''), description: 'Pick a pipeline profile.')
     string(name: 'profile_custom_regexp', defaultValue: params.profile_custom_regexp ?: '', description: 'Regexp for stages when using custom profile. See `testSteps` in Jenkinsfile for list of stages. Example: stress.*|jvm-dtest.*')
@@ -157,6 +157,13 @@ def pipelineProfileNames(putFirst) {
     return set
 }
 
+@NonCPS
+def extractBuildXmlProperty(String xml, String name) {
+    def m = xml =~ /property\s*name="${name}"\s*value="([^"]*)"/
+    assert m, "${name} not found in build.xml"
+    return m[0][1]
+}
+
 @Field Map cachedTasks = null
 
 def tasks() {
@@ -231,12 +238,8 @@ def tasks() {
 
   // find the default JDK and the supported JDKs defined in the build.xml
   def build_xml = readFile(file: 'build.xml')
-  def javaVersionDefaultMatch = (build_xml =~ /property\s*name="java\.default"\s*value="([^"]*)"/)
-  assert javaVersionDefaultMatch, "java.default property not found in build.xml"
-  def javaVersionDefault = javaVersionDefaultMatch[0][1]
-  def javaVersionsSupportedMatch = (build_xml =~ /property\s*name="java\.supported"\s*value="([^"]*)"/)
-  assert javaVersionsSupportedMatch, "java.supported property not found in build.xml"
-  def javaVersionsSupported = javaVersionsSupportedMatch[0][1].split(',') as List
+  def javaVersionDefault   = extractBuildXmlProperty(build_xml, 'java.default')
+  def javaVersionsSupported = extractBuildXmlProperty(build_xml, 'java.supported').split(',') as List
 
   // define matrix axes
   def Map matrix_axes = [
@@ -360,14 +363,29 @@ def build(command, cell) {
           def script_vars = "#!/bin/bash \n set -o pipefail ; " // pipe to tee needs pipefail
           script_vars = "${script_vars} m2_dir=\'${WORKSPACE}/build/m2\'"
           timeout(time: 1, unit: 'HOURS') {
-            def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
-            dir("build") {
-              archiveArtifacts artifacts: "${logfile}", fingerprint: true
-              copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
-            }
-            if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
-            if ("jar" == cell.step) {
-              stash name: "${cell.arch}_${cell.jdk}"
+            try {
+              def status = sh label: "RUNNING ${cell.step}...", script: "${script_vars} ${build_script} ${cell.jdk} 2>&1 | tee >( xz -c > build/${logfile} )", returnStatus: true
+              dir("build") {
+                archiveArtifacts artifacts: "${logfile}", fingerprint: true
+                copyToNightlies("${logfile}", "${cell.step}/jdk${cell.jdk}/${cell.arch}/")
+              }
+              if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
+              if ("jar" == cell.step) {
+                stash name: "${cell.arch}_${cell.jdk}"
+              }
+            } catch (exc) {
+              if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
+                def descriptions = []
+                for (def cause in exc.getCauses()) {
+                  echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
+                  if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption')) {
+                    throw exc // user explicitly aborted — do not retry
+                  }
+                  descriptions.add(cause.getShortDescription())
+                }
+                error("Retryable interruption: ${descriptions.join(', ')}")
+              }
+              throw exc
             }
           }
           dir("build") {
@@ -414,10 +432,16 @@ def test(command, cell) {
               }
               if (0 != status) { error("Stage ${cell.step}${cell_suffix} failed with exit status ${status}") }
             } catch (exc) {
-              if (exc.getClass().getName() == "org.jenkinsci.plugins.workflow.steps.FlowInterruptedException") {
-                for (def causeOfInterruption in exc.getCauses()) {
-                  echo "CauseOfInterruption: ${causeOfInterruption.getClass().getName()} - ${causeOfInterruption.getShortDescription()}"
+              if ("org.jenkinsci.plugins.workflow.steps.FlowInterruptedException" == exc.getClass().getName()) {
+                def descriptions = []
+                for (def cause in exc.getCauses()) {
+                  echo "CauseOfInterruption: ${cause.getClass().getName()} - ${cause.getShortDescription()}"
+                  if (cause.getClass().getName().contains('CauseOfInterruption$UserInterruption')) {
+                    throw exc // user explicitly aborted — do not retry
+                  }
+                  descriptions.add(cause.getShortDescription())
                 }
+                error("Retryable interruption: ${descriptions.join(', ')}")
               }
               throw exc
             } finally {
