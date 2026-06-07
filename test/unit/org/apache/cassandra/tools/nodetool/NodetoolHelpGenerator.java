@@ -18,25 +18,26 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.INodeProbeFactory;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool;
+import org.apache.cassandra.tools.Output;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -45,47 +46,78 @@ import static com.google.common.collect.Lists.newArrayList;
  * a separator between command hierarchy levels in the file names (e.g. {@code "info$threads"}) due to the fact that
  * a command name can contain special characters like {@code -} or {@code _}.
  * <p>
- * The generator calls the {@code ./nodetool help} command to get the list of available commands and their descriptions,
- * in order to generate the latest help output for each command be sure to run the generator after the jars are built
- * (e.g. {@code ant jar}).
+ * The help output is produced in-process (single JVM); be sure to run the generator after the jars are built
+ * (e.g. {@code ant jar}). Pass {@code --dir <path>} to override the output directory and {@code --txt} to append
+ * a {@code .txt} extension (used by {@code doc/scripts/gen-nodetool-docs.py}).
  */
 public class NodetoolHelpGenerator
 {
     private static final Logger logger = LoggerFactory.getLogger(NodetoolHelpGenerator.class);
-    private static final Map<String, String> ENV = ImmutableMap.of("JAVA_HOME", CassandraRelevantProperties.JAVA_HOME.getString());
     private static final String NODETOOL_COMMAND_HELP_WRITE_DIR = "test/resources/nodetool/help/";
+    private static final String ROOT_COMMAND_FILE = "nodetool";
     private static final String IGNORE_LINE = "        With no arguments,";
     private static final String NODETOOL_COMMAND_LIST_START_AFTER = "The most commonly used nodetool commands are:";
     private static final String NODETOOL_SUBCOMMAND_LIST_START_AFTER = "COMMANDS";
     private static final Pattern NODETOOL_COMMAND_DESCRIPTION_SPACES = Pattern.compile("^ {4}(\\S+)");
     private static final Pattern NODETOOL_SUBCOMMAND_DESCRIPTION_SPACES = Pattern.compile("^ {8}(\\S+)");
     private static final String COMMAND_FULL_NAME_SEPARATOR = "$";
+    private static final INodeProbeFactory NO_PROBE = new INodeProbeFactory()
+    {
+        public NodeProbe create(String host, int port) { throw new UnsupportedOperationException(); }
+        public NodeProbe create(String host, int port, String user, String pass) { throw new UnsupportedOperationException(); }
+    };
+
+    private final String writeDir;
+    private final String extension;
+
+    public NodetoolHelpGenerator(String writeDir, String extension)
+    {
+        this.writeDir = writeDir;
+        this.extension = extension;
+    }
 
     /**
-     * Main method to generate help files for all nodetool commands to the {@code test/resources/nodetool/help/}.
+     * Main method to generate help files for all nodetool commands to the {@code test/resources/nodetool/help/}
+     * (or to the directory specified via {@code --dir}).
      * <p>
      * For example, the {@code nodetool help bootstrap resume} help output results in a file
      * {@code test/resources/nodetool/help/bootstrap$resume}, where the {@code $} character
-     * is used as a separator for the subcommand. The arguments are passed as a list of commands
-     * to generate help files for. For example, {@code bootstrap resume} is passed.
-     * <p>
-     * By default, the files are written to {@code test/resources/nodetool/help/}.
+     * is used as a separator for the subcommand. Trailing positional arguments generate the help
+     * for a single command only (e.g. {@code bootstrap resume}).
      */
     public static void main(String[] args)
     {
-        List<String> commands = new ArrayList<>(List.of(args));
-//        commands.add("assassinate");
+        String dir = NODETOOL_COMMAND_HELP_WRITE_DIR;
+        String extension = "";
+        List<String> commands = new ArrayList<>();
+        for (int i = 0; i < args.length; i++)
+        {
+            switch (args[i])
+            {
+                case "--dir":
+                    if (++i >= args.length)
+                        throw new IllegalArgumentException("--dir requires a path");
+                    dir = args[i];
+                    break;
+                case "--txt":
+                    extension = ".txt";
+                    break;
+                default: commands.add(args[i]);
+            }
+        }
 
+        NodetoolHelpGenerator generator = new NodetoolHelpGenerator(dir, extension);
         if (commands.isEmpty())
-            new NodetoolHelpGenerator().writeCommandsHelpOutput();
+            generator.writeCommandsHelpOutput();
         else
-            new NodetoolHelpGenerator().writer(commands);
+            generator.writer(commands);
     }
 
     public void writeCommandsHelpOutput()
     {
-        List<String> roots = find(() -> ToolRunner.invoke(ENV, newArrayList("bin/nodetool", "help")),
+        List<String> roots = find(() -> help(new ArrayList<>()),
                                   NODETOOL_COMMAND_LIST_START_AFTER, NODETOOL_COMMAND_DESCRIPTION_SPACES);
+        writer(new ArrayList<>());
 
         for (String command : roots)
             writeToFileRecursively(newArrayList(command), this::writer);
@@ -93,9 +125,7 @@ public class NodetoolHelpGenerator
 
     private void writeToFileRecursively(List<String> hierarchy, Consumer<List<String>> writer)
     {
-        List<String> subcommands = find(() -> ToolRunner.invoke(ENV, Lists.asList("bin/nodetool",
-                                                                                  "help",
-                                                                                  hierarchy.toArray(new String[0]))),
+        List<String> subcommands = find(() -> help(hierarchy),
                                         NODETOOL_SUBCOMMAND_LIST_START_AFTER, NODETOOL_SUBCOMMAND_DESCRIPTION_SPACES);
         for (String subcommand : subcommands)
         {
@@ -109,13 +139,12 @@ public class NodetoolHelpGenerator
 
     public void writer(List<String> fullCommand)
     {
-        ToolRunner.ToolResult result = ToolRunner.invoke(ENV, Lists.asList("bin/nodetool", "help",
-                                                                           fullCommand.toArray(new String[0])));
-        result.assertOnCleanExit();
+        String stdout = help(fullCommand);
+        String name = fullCommand.isEmpty() ? ROOT_COMMAND_FILE : String.join(COMMAND_FULL_NAME_SEPARATOR, fullCommand);
 
         try
         {
-            File commandHelpOut = new File(NODETOOL_COMMAND_HELP_WRITE_DIR, String.join(COMMAND_FULL_NAME_SEPARATOR, fullCommand)); //checkstyle: permit this instantiation
+            File commandHelpOut = new File(writeDir, name + extension); //checkstyle: permit this instantiation
             boolean created = commandHelpOut.getParentFile().mkdirs();
             if (created)
                 logger.debug("Created directory: {}", commandHelpOut.getParentFile().getAbsolutePath());
@@ -126,7 +155,7 @@ public class NodetoolHelpGenerator
 
             try (FileWriter fw = new FileWriter(commandHelpOut))
             {
-                fw.write(result.getStdout().trim());
+                fw.write(stdout.trim());
                 fw.write("\n");
             }
             logger.info("The help is written for '{}' to '{}'", fullCommand, commandHelpOut.getAbsolutePath());
@@ -137,11 +166,30 @@ public class NodetoolHelpGenerator
         }
     }
 
-    private static List<String> find(Supplier<ToolRunner.ToolResult> cmdResult, String afterLine, Pattern commandPattern)
+    private static String help(List<String> command)
     {
-        ToolRunner.ToolResult result = cmdResult.get();
-        result.assertOnCleanExit();
-        String[] lines = result.getStdout().split("\n");
+        List<String> args = new ArrayList<>();
+        if (!command.isEmpty())
+        {
+            args.add("help");
+            args.addAll(command);
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        PrintStream outStream = new PrintStream(out, true, StandardCharsets.UTF_8);
+        PrintStream errStream = new PrintStream(err, true, StandardCharsets.UTF_8);
+        int rc = new NodeTool(NO_PROBE, new Output(outStream, errStream)).execute(args.toArray(new String[0]));
+        outStream.flush();
+        errStream.flush();
+        if (rc != 0)
+            throw new RuntimeException("nodetool help " + String.join(" ", command) + " failed (rc=" + rc + "): "
+                                       + err.toString(StandardCharsets.UTF_8));
+        return out.toString(StandardCharsets.UTF_8);
+    }
+
+    private static List<String> find(Supplier<String> stdout, String afterLine, Pattern commandPattern)
+    {
+        String[] lines = stdout.get().split("\n");
         List<String> commands = new ArrayList<>();
         boolean start = false;
         for (String line : lines)

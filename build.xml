@@ -605,7 +605,29 @@
         </wikitext-to-html>
     </target>
 
-    <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar" unless="ant.gen-doc.skip">
+    <target name="gen-nodetool-text" description="Generate nodetool command help text files consumed by the docs" depends="jar" unless="ant.gen-doc.skip">
+        <property name="nodetool.help.outdir" location="${doc.dir}/modules/cassandra/examples/TEXT/NODETOOL"/>
+        <property name="nodetool.help.classes" location="${build.dir}/nodetool-helpgen"/>
+        <mkdir dir="${nodetool.help.outdir}"/>
+        <mkdir dir="${nodetool.help.classes}"/>
+        <javac srcdir="${test.unit.src}" includes="org/apache/cassandra/tools/nodetool/NodetoolHelpGenerator.java"
+               destdir="${nodetool.help.classes}" includeantruntime="false" classpathref="cassandra.classpath"/>
+        <java classname="org.apache.cassandra.tools.nodetool.NodetoolHelpGenerator" fork="true" failonerror="true">
+            <classpath>
+                <pathelement location="${nodetool.help.classes}"/>
+                <pathelement location="${basedir}/conf"/>
+                <path refid="cassandra.classpath"/>
+            </classpath>
+            <jvmarg line="${java-jvmargs}"/>
+            <sysproperty key="logback.configurationFile" value="logback-tools.xml"/>
+            <sysproperty key="cassandra.cli.layout" value="airline"/>
+            <arg value="--dir"/>
+            <arg value="${nodetool.help.outdir}"/>
+            <arg value="--txt"/>
+        </java>
+    </target>
+
+    <target name="gen-asciidoc" description="Generate dynamic asciidoc pages" depends="jar,gen-nodetool-text" unless="ant.gen-doc.skip">
         <exec executable="make" osfamily="unix" dir="${doc.dir}" failonerror="true">
             <arg value="gen-asciidoc"/>
         </exec>
