@@ -52,7 +52,8 @@ def parse_spec_file(path: Path) -> dict:
     idx = _skip_blank(lines, idx)
 
     # Titles
-    if idx >= len(lines) or not (m := _title_re.match(lines[idx])):
+    m = _title_re.match(lines[idx]) if idx < len(lines) else None
+    if not m:
         sys.exit(f"Parse error: missing or malformed title at line {idx + 1}")
     title = m.group(1)
     idx += 1
@@ -68,7 +69,8 @@ def parse_spec_file(path: Path) -> dict:
     toc = []
     while idx < len(lines) and lines[idx].strip():
         line = lines[idx].strip()
-        if not (m := _toc_entry_re.match(line)):
+        m = _toc_entry_re.match(line)
+        if not m:
             sys.exit(f"Parse error: bad TOC entry at line {idx + 1}")
         toc.append({'number': m.group('number'), 'title': m.group('title')})
         idx += 1
