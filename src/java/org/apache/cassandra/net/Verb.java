@@ -140,6 +140,9 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.FetchCMSLog;
 import org.apache.cassandra.tcm.FetchPeerLog;
 import org.apache.cassandra.tcm.discovery.Discovery;
+import org.apache.cassandra.tcm.discovery.SurveyRequest;
+import org.apache.cassandra.tcm.discovery.SurveyRequestHandler;
+import org.apache.cassandra.tcm.discovery.SurveyResponse;
 import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.migration.CMSInitializationResponse;
 import org.apache.cassandra.tcm.migration.Election;
@@ -318,8 +321,8 @@ public enum Verb
     TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout,      FETCH_METADATA,       () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
     TCM_DISCOVER_PEERS_RSP (820, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                                 ),
     TCM_DISCOVER_PEERS_REQ (821, P0, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_PEERS_RSP),
-    TCM_DISCOVER_SURVEY_RSP(822, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.nodeIdSerializer,                   () -> ResponseVerbHandler.instance                                 ),
-    TCM_DISCOVER_SURVEY_REQ(823, P0, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_SURVEY_RSP),
+    TCM_DISCOVER_SURVEY_RSP(822, P0, rpcTimeout,      INTERNAL_METADATA,    () -> SurveyResponse.serializer,                    () -> ResponseVerbHandler.instance                                 ),
+    TCM_DISCOVER_SURVEY_REQ(823, P0, rpcTimeout,      INTERNAL_METADATA,    () -> SurveyRequest.serializer,                     () -> SurveyRequestHandler.instance(),      TCM_DISCOVER_SURVEY_RSP),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             RESPONSE_HANDLER                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),
