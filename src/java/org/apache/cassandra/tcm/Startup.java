@@ -56,7 +56,6 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -66,6 +65,8 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.discovery.Discovery;
+import org.apache.cassandra.tcm.discovery.SurveyRequest;
+import org.apache.cassandra.tcm.discovery.SurveyResponse;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
@@ -159,7 +160,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                         while (replayed.cmsLookup.isActive())
                         {
                             logger.info("Waiting for pending CMS address changes to complete {}", replayed.cmsLookup);
-                            TimeUnit.MILLISECONDS.sleep(1000);  // TODO make configurable?
+                            TimeUnit.MILLISECONDS.sleep(1000);
                             replayed = ClusterMetadata.current();
                         }
                         logger.info("In flight CMS address changes have been processed, current epoch is {}", replayed.epoch.getEpoch());
@@ -312,16 +313,25 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         while (confirmedCMS.size() < quorum && currentRound < rounds)
         {
             logger.info("In round {} sending survey to {}", currentRound, candidates);
-            Collection<Pair<InetAddressAndPort, NodeId>> surveyed = MessageDelivery.fanoutAndWait(MessagingService.instance(),
-                                                                                                  candidates,
-                                                                                                  Verb.TCM_DISCOVER_SURVEY_REQ,
-                                                                                                  NoPayload.noPayload,
-                                                                                                  roundTimeNanos,
-                                                                                                  TimeUnit.NANOSECONDS);
+            SurveyRequest request = new SurveyRequest(replayed.metadataIdentifier);
+            Collection<Pair<InetAddressAndPort, SurveyResponse>> surveyed = MessageDelivery.fanoutAndWait(MessagingService.instance(),
+                                                                                                          candidates,
+                                                                                                          Verb.TCM_DISCOVER_SURVEY_REQ,
+                                                                                                          request,
+                                                                                                          roundTimeNanos,
+                                                                                                          TimeUnit.NANOSECONDS);
             logger.info("Survey of {} discovered {}", candidates, surveyed);
             surveyed.forEach(pair -> {
-                if (previousCMS.containsKey(pair.right))
-                    confirmedCMS.put(pair.right, pair.left);
+                SurveyResponse response = pair.right;
+                if (response.metadataId == replayed.metadataIdentifier)
+                {
+                    if (previousCMS.containsKey(response.nodeId))
+                        confirmedCMS.put(response.nodeId, pair.left);
+                }
+                else
+                {
+                    logger.info("Mismatching metadata id in survey response from {}, ignoring ({}/{})", pair.left, replayed.metadataIdentifier, response.metadataId);
+                }
             });
 
             logger.info("Confirmed CMS members {}", confirmedCMS);

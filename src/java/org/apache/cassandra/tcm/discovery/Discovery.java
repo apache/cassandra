@@ -36,7 +36,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -50,7 +49,6 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -67,28 +65,6 @@ public class Discovery
 
     public static final Discovery instance = new Discovery();
     public static final Serializer serializer = new Serializer();
-    // TODO add this to MessageSerializers properly or define a real response format
-    public static final IVersionedSerializer<NodeId> nodeIdSerializer = new IVersionedSerializer<>()
-    {
-        @Override
-        public void serialize(NodeId t, DataOutputPlus out, int version) throws IOException
-        {
-            out.writeUnsignedVInt32(t.id());
-        }
-
-        @Override
-        public NodeId deserialize(DataInputPlus in, int version) throws IOException
-        {
-            int id = in.readUnsignedVInt32();
-            return new NodeId(id);
-        }
-
-        @Override
-        public long serializedSize(NodeId t, int version)
-        {
-            return TypeSizes.sizeofUnsignedVInt(t.id());
-        }
-    };
 
     public final IVerbHandler<NoPayload> requestHandler;
     private final Set<InetAddressAndPort> discovered = new ConcurrentSkipListSet<>();
@@ -194,6 +170,11 @@ public class Discovery
         return new DiscoveredNodes(discovered, DiscoveredNodes.Kind.KNOWN_PEERS);
     }
 
+    public void discovered(InetAddressAndPort peer)
+    {
+        discovered.add(peer);
+    }
+
     private final class DiscoveryRequestHandler implements IVerbHandler<NoPayload>
     {
         final Supplier<MessageDelivery> messaging;
@@ -207,7 +188,8 @@ public class Discovery
         public void doVerb(Message<NoPayload> message)
         {
             discovered.add(message.from());
-            Set<InetAddressAndPort> cms = ClusterMetadata.current().fullCMSMembers();
+            ClusterMetadata metadata = ClusterMetadata.current();
+            Set<InetAddressAndPort> cms = metadata.fullCMSMembers();
             DiscoveredNodes discoveredNodes;
             switch (message.verb())
             {
@@ -242,14 +224,9 @@ public class Discovery
                     messaging.get().send(message.responseWith(discoveredNodes), message.from());
                     break;
                 case TCM_DISCOVER_PEERS_REQ:
-                    logger.trace("Responding to {} request from {}", message.verb(), message.from());
+                    logger.info("Responding to {} request from {}", message.verb(), message.from());
                     discoveredNodes = new DiscoveredNodes(new HashSet<>(discovered), DiscoveredNodes.Kind.KNOWN_PEERS);
                     messaging.get().send(message.responseWith(discoveredNodes), message.from());
-                    break;
-                case TCM_DISCOVER_SURVEY_REQ:
-                    logger.trace("Responding to {} request from {}", message.verb(), message.from());
-                    NodeId id = NodeId.fromUUID(SystemKeyspace.getLocalHostId());
-                    messaging.get().send(message.responseWith(id), message.from());
                     break;
             }
         }
