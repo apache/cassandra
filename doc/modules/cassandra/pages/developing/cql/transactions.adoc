@@ -79,275 +79,7 @@ UPDATE users SET balance = 50.00 WHERE id = 123e4567-e89b-12d3-a456-426614174000
 DELETE FROM users WHERE id = 123e4567-e89b-12d3-a456-426614174000;
 ----
 
-Each statement executes as an individual Accord transaction, providing linearizability, consistency, and durability. Migrating to Accord can be as simple as enabling `transactional_mode='full'` on your tables.
-
-=== Your First Explicit Transaction
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  SELECT id, email, balance FROM users WHERE id = 123e4567-e89b-12d3-a456-426614174000;
-COMMIT TRANSACTION
-----
-
-This simple transaction reads a single row with full ACID guarantees.
-
-== Transaction Syntax
-
-=== Basic Structure
-
-All transactions follow this pattern:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  [LET assignments]
-  [SELECT statements]
-  [IF conditions THEN]
-  [modification statements]
-  [END IF]
-COMMIT TRANSACTION
-----
-
-=== LET Assignments
-
-LET statements read data and bind it to variables for use later in the transaction:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET user_data = (SELECT id, balance FROM users WHERE id = ?);
-  LET account_data = (SELECT account_type FROM accounts WHERE user_id = ?);
-
-  IF user_data.balance > 100 AND account_data.account_type = 'premium' THEN
-    UPDATE users SET balance = balance - 50 WHERE id = ?;
-  END IF
-COMMIT TRANSACTION
-----
-
-**LET Requirements:**
-
-* Each LET must specify a unique variable name
-* SELECT must return exactly one row (use `LIMIT 1` if needed)
-* All partition key columns must be specified with equality operators
-* Cannot use `ORDER BY`, `GROUP BY`, or aggregation functions
-* Cannot use range queries or multi-partition operations
-
-**Valid LET Examples:**
-[source,cql]
-----
-LET user_data = (SELECT balance, status FROM users WHERE id = ?);
-LET order_info = (SELECT total, shipping_fee FROM orders WHERE id = ? LIMIT 1);
-LET static_config = (SELECT max_attempts FROM config WHERE setting_type = 'retry');
-----
-
-**Invalid LET Examples:**
-[source,cql]
-----
--- Missing LIMIT 1 with potential multiple results
-LET users = (SELECT * FROM users WHERE status = 'active');
-
--- Range query not allowed
-LET recent = (SELECT * FROM events WHERE id > ? AND id < ?);
-
--- Aggregation not supported
-LET total = (SELECT COUNT(*) FROM orders WHERE user_id = ?);
-----
-
-=== Row References
-
-Access fields from LET variables using dot notation:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET current_user = (SELECT balance, status FROM users WHERE id = ?);
-
-  -- Access fields with dot notation
-  SELECT current_user.balance, current_user.status;
-
-  -- Use in conditions
-  IF current_user.balance > 0 AND current_user.status = 'active' THEN
-    UPDATE users SET balance = balance - 25 WHERE id = ?;
-  END IF
-COMMIT TRANSACTION
-----
-
-[[row-reference-limitations]]
-**Row Reference Limitations:**
-
-Row reference arithmetic in SET clauses and row references in VALUES are not currently supported. Pass values as parameters instead. See xref:developing/cql/transactions-limitations.adoc[Transaction Limitations] for complete details on unsupported syntax and workarounds.
-
-[source,cql]
-----
--- Application code computes values, passes as parameters
-BEGIN TRANSACTION
-  LET user_data = (SELECT balance FROM users WHERE id = ?);
-
-  IF user_data.balance >= ? THEN  -- Pass order_total as parameter
-    UPDATE users SET balance = balance - ? WHERE id = ?;  -- Pass order_total
-  END IF
-COMMIT TRANSACTION
-----
-
-=== Conditional Logic
-
-Add conditional logic to transactions with IF blocks:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET sender = (SELECT balance FROM accounts WHERE user_id = ?);
-
-  IF sender.balance >= 100 THEN
-    UPDATE accounts SET balance = balance - 100 WHERE user_id = ?;
-    UPDATE accounts SET balance = balance + 100 WHERE user_id = ?;
-  END IF
-COMMIT TRANSACTION
-----
-
-**Supported Operators:**
-
-* Comparison: `=`, `<`, `<=`, `>`, `>=`, `!=`
-* Null checks: `IS NULL`, `IS NOT NULL`
-* Logical: `AND` (only - `OR` is not supported)
-
-**Complex Condition Examples:**
-[source,cql]
-----
--- Multiple conditions with AND
-IF user_data.balance >= 100 AND user_data.status = 'active'
-   AND user_data.credit_limit > 150 THEN
-  -- statements
-END IF
-
--- Null checking
-IF account_info IS NOT NULL AND account_info.balance > 0 THEN
-  -- statements
-END IF
-----
-
-**Important Notes:**
-
-* Only `AND` is supported, not `OR`
-* Null handling is strict (any null comparison returns false)
-* All modification statements must be inside the IF block when using conditions
-
-=== Returning Results
-
-Return data from transactions using SELECT statements that appear before any modifications. You can use either row reference values or a normal single-partition SELECT:
-
-==== Using Row References
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET user_data = (SELECT balance, status FROM users WHERE id = ?);
-
-  -- Return row reference values (must come before UPDATE)
-  SELECT user_data.balance, user_data.status;
-
-  UPDATE users SET balance = balance - 50 WHERE id = ?;
-COMMIT TRANSACTION
-----
-
-==== Using a Normal SELECT
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET user_data = (SELECT balance FROM users WHERE id = ?);
-
-  -- Return data directly from table (must come before UPDATE)
-  SELECT balance, status, email FROM users WHERE id = ?;
-
-  IF user_data.balance >= 50 THEN
-    UPDATE users SET balance = balance - 50 WHERE id = ?;
-  END IF
-COMMIT TRANSACTION
-----
-
-**Important:** SELECT statements must appear before any UPDATE, INSERT, or DELETE statements. To retrieve updated values, query outside the transaction after it commits.
-
-== Common Patterns
-
-=== Read-Modify-Write
-
-Check a condition before making changes:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET sender_account = (SELECT balance FROM accounts WHERE id = ?);
-
-  IF sender_account.balance >= ? THEN
-    UPDATE accounts SET balance = balance - ? WHERE id = ?;
-    UPDATE accounts SET balance = balance + ? WHERE id = ?;
-
-    INSERT INTO transactions (id, from_account, to_account, amount, timestamp)
-    VALUES (?, ?, ?, ?, toTimestamp(now()));
-  END IF
-COMMIT TRANSACTION
-----
-
-=== Conditional Insert
-
-Prevent duplicate records:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET existing_user = (SELECT user_id FROM email_index WHERE email = ? LIMIT 1);
-
-  IF existing_user IS NULL THEN
-    INSERT INTO users (id, email, created_at, status)
-    VALUES (?, ?, toTimestamp(now()), 'active');
-
-    INSERT INTO email_index (email, user_id) VALUES (?, ?);
-
-    INSERT INTO user_profiles (user_id, display_name)
-    VALUES (?, ?);
-  END IF
-COMMIT TRANSACTION
-----
-
-=== Multi-Table Updates
-
-Maintain referential integrity across tables:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  UPDATE users SET status = 'suspended', suspended_at = toTimestamp(now())
-  WHERE id = ?;
-
-  UPDATE orders SET status = 'cancelled'
-  WHERE order_id = ?;
-
-  INSERT INTO audit_log (id, user_id, action, timestamp)
-  VALUES (?, ?, 'user_suspended', toTimestamp(now()));
-COMMIT TRANSACTION
-----
-
-=== Cross-Partition Transactions
-
-Coordinate updates across different partitions (see <<row-reference-limitations>> for parameter passing):
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET user_data = (SELECT balance, status FROM users WHERE id = ?);
-
-  IF user_data.status = 'active' AND user_data.balance >= ? THEN
-    UPDATE users SET balance = balance - ? WHERE id = ?;
-
-    INSERT INTO orders (id, user_id, total, status, created_at)
-    VALUES (?, ?, ?, 'confirmed', toTimestamp(now()));
-
-    UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?;
-  END IF
-COMMIT TRANSACTION
-----
+Each statement executes as an individual Accord transaction, providing linearizability, consistency, and durability. Migrating to Accord can be as simple as enabling `transactional_mode='full'` on your tables. See <<transactional-modes>> for all available modes.
 
 [[transactional-modes]]
 == Transactional Modes
@@ -420,342 +152,196 @@ CREATE TABLE tbl (...)
 WITH transactional_mode = 'full';
 ----
 
-== Migration Guide
+== Transaction Syntax
 
-=== From Light Weight Transactions (LWT)
+=== Basic Structure
 
-==== IF EXISTS
+All transactions follow this pattern:
 
-**Before (LWT):**
-[source,cql]
-----
-UPDATE accounts SET balance = balance - 100
-WHERE user_id = 12345
-IF EXISTS;
-----
-
-**After (Accord):**
 [source,cql]
 ----
 BEGIN TRANSACTION
-  LET account_data = (SELECT balance FROM accounts WHERE user_id = 12345);
+  [LET assignments]
+  [SELECT statements]
+  [IF conditions THEN]
+    [modification statements]
+  [END IF]
+COMMIT TRANSACTION
+----
 
-  IF account_data IS NOT NULL THEN
-    UPDATE accounts SET balance = balance - 100 WHERE user_id = 12345;
+=== LET Assignments
+
+LET statements read data and bind it to variables for use later in the transaction:
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT id, balance FROM users WHERE id = ?);
+  LET account_data = (SELECT account_type FROM accounts WHERE user_id = ?);
+
+  IF user_data.balance > 100 AND account_data.account_type = 'premium' THEN
+    UPDATE users SET balance = balance - 50 WHERE id = ?;
   END IF
 COMMIT TRANSACTION
 ----
 
-==== IF NOT EXISTS
+**LET Requirements:**
 
-**Before (LWT):**
+* Each LET must specify a unique variable name
+* SELECT must return exactly one row (use `LIMIT 1` if needed)
+* All partition key columns must be specified with equality operators
+* Cannot use `ORDER BY`, `GROUP BY`, or aggregation functions
+* Cannot use range queries or multi-partition operations
+
+**Valid LET Examples:**
 [source,cql]
 ----
-INSERT INTO users (id, email, status)
-VALUES (?, ?, 'active')
-IF NOT EXISTS;
+LET user_data = (SELECT balance, status FROM users WHERE id = ?);
+LET order_info = (SELECT total, shipping_fee FROM orders WHERE id = ? LIMIT 1);
+LET static_config = (SELECT max_attempts FROM config WHERE setting_type = 'retry');
 ----
 
-**After (Accord):**
+**Invalid LET Examples:**
+[source,cql]
+----
+-- Missing LIMIT 1 with potential multiple results
+LET users = (SELECT * FROM users WHERE status = 'active');
+
+-- Range query not allowed
+LET recent = (SELECT * FROM events WHERE id > ? AND id < ?);
+
+-- Aggregation not supported
+LET total = (SELECT COUNT(*) FROM orders WHERE user_id = ?);
+----
+
+=== Row References
+
+Access fields from LET variables using dot notation:
+
 [source,cql]
 ----
 BEGIN TRANSACTION
-  LET existing_user = (SELECT id FROM users WHERE id = ? LIMIT 1);
+  LET current_user = (SELECT balance, status FROM users WHERE id = ?);
 
-  IF existing_user IS NULL THEN
-    INSERT INTO users (id, email, status) VALUES (?, ?, 'active');
+  -- Access fields with dot notation
+  SELECT current_user.balance, current_user.status;
+COMMIT TRANSACTION
+----
+
+[[row-reference-limitations]]
+**Row Reference Limitations:**
+
+Row reference arithmetic in SET clauses and row references in VALUES are not currently supported. Pass values as parameters instead.
+
+[source,cql]
+----
+-- Application code computes values, passes as parameters
+BEGIN TRANSACTION
+  LET user_data = (SELECT balance FROM users WHERE id = ?);
+
+  IF user_data.balance >= ? THEN  -- Pass order_total as parameter
+    UPDATE users SET balance = balance - ? WHERE id = ?;  -- Pass order_total
   END IF
 COMMIT TRANSACTION
 ----
 
-==== IF column = null (NULL Comparison)
+=== Returning Results
 
-[IMPORTANT]
-====
-LWT and Accord handle `IF column = null` differently. See <<Null Handling>> for complete details.
-====
+Return data from transactions using SELECT statements that appear before any modifications. You can use either row reference values or a normal single-partition SELECT.
 
-LWT treats `column = null` as "column is null," but Accord follows SQL semantics where `column = null` is always FALSE.
+NOTE: If no SELECT statement is present, the transaction returns an empty result set regardless of whether the IF condition was satisfied. Use a SELECT before modifications to observe transaction state.
 
-**Before (LWT):**
-[source,cql]
-----
--- LWT: Matches when email is null/missing
-UPDATE users SET email = 'default@example.com'
-WHERE id = ?
-IF email = null;
-----
+==== Using Row References
 
-**After (Accord):**
 [source,cql]
 ----
 BEGIN TRANSACTION
-  LET user_data = (SELECT email FROM users WHERE id = ?);
+  LET user_data = (SELECT balance, status FROM users WHERE id = ?);
 
-  -- Must use IS NULL, not = null
-  IF user_data IS NOT NULL AND user_data.email IS NULL THEN
-    UPDATE users SET email = 'default@example.com' WHERE id = ?;
-  END IF
+  -- Return row reference values (must come before UPDATE)
+  SELECT user_data.balance, user_data.status;
+
+  UPDATE users SET balance = balance - 50 WHERE id = ?;
 COMMIT TRANSACTION
 ----
 
-==== Complex CAS with Multiple Operations
+==== Using a Normal SELECT
 
-**Before (Multiple LWT operations with race condition risk):**
-[source,cql]
-----
-UPDATE accounts SET balance = balance - 50
-WHERE user_id = 12345 AND balance >= 50
-IF balance >= 50;
-
--- Separate operation (not atomic with above)
-INSERT INTO transaction_log (id, user_id, amount, timestamp)
-VALUES (?, 12345, -50, toTimestamp(now()));
-----
-
-**After (Single atomic transaction):**
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET account = (SELECT balance FROM accounts WHERE user_id = 12345);
-
-  IF account.balance >= 50 THEN
-    UPDATE accounts SET balance = balance - 50 WHERE user_id = 12345;
-
-    INSERT INTO transaction_log (id, user_id, amount, timestamp)
-    VALUES (?, 12345, -50, toTimestamp(now()));
-  END IF
-COMMIT TRANSACTION
-----
-
-=== From BATCH Statements
-
-BATCH provides atomicity but not consistency checks. Transactions add conditional logic:
-
-**Before (BATCH - no condition checking):**
-[source,cql]
-----
-BEGIN BATCH
-  UPDATE users SET balance = balance - 100 WHERE id = ?;
-  INSERT INTO orders (id, user_id, amount) VALUES (?, ?, 100);
-APPLY BATCH;
--- Problem: Can't check if balance is sufficient!
-----
-
-**After (Transaction with condition):**
 [source,cql]
 ----
 BEGIN TRANSACTION
   LET user_data = (SELECT balance FROM users WHERE id = ?);
 
-  IF user_data.balance >= 100 THEN
-    UPDATE users SET balance = balance - 100 WHERE id = ?;
-    INSERT INTO orders (id, user_id, amount) VALUES (?, ?, 100);
+  -- Return data directly from table (must come before UPDATE)
+  SELECT balance, status, email FROM users WHERE id = ?;
+
+  IF user_data.balance >= 50 THEN
+    UPDATE users SET balance = balance - 50 WHERE id = ?;
   END IF
 COMMIT TRANSACTION
 ----
 
-For simple LOGGED BATCH without conditions, transactions provide stronger guarantees:
+**Important:** SELECT statements must appear before any UPDATE, INSERT, or DELETE statements. To retrieve updated values, query outside the transaction after it commits.
+
+=== Conditional Logic
+
+Add conditional logic to transactions with IF blocks:
 
 [source,cql]
 ----
 BEGIN TRANSACTION
-  UPDATE user_profiles SET last_active = toTimestamp(now()) WHERE user_id = ?;
-  INSERT INTO user_activity (user_id, activity, timestamp) VALUES (?, 'login', toTimestamp(now()));
-  UPDATE user_stats SET login_count = login_count + 1 WHERE user_id = ?;
-COMMIT TRANSACTION
-----
+  LET sender = (SELECT balance FROM accounts WHERE user_id = ?);
 
-=== From Multiple Separate Statements
-
-**Before (Race condition risk):**
-[source,cql]
-----
--- Step 1: Check inventory
-SELECT quantity FROM inventory WHERE product_id = ?;
--- Step 2: Application checks quantity
--- Step 3: Update (but quantity might have changed!)
-UPDATE inventory SET quantity = quantity - 1 WHERE product_id = ?;
-UPDATE orders SET status = 'confirmed' WHERE id = ?;
-----
-
-**After (Atomic with condition):**
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET inventory_check = (SELECT quantity FROM inventory WHERE product_id = ?);
-
-  IF inventory_check.quantity > 0 THEN
-    UPDATE inventory SET quantity = quantity - 1 WHERE product_id = ?;
-    UPDATE orders SET status = 'confirmed' WHERE id = ?;
-  END IF
-COMMIT TRANSACTION
-----
-
-== Advanced Features
-
-=== Null Handling
-
-[IMPORTANT]
-====
-Accord transactions follow SQL standard null semantics, which differ from LWT (Paxos) behavior. This is a critical difference when migrating from LWT to Accord.
-====
-
-==== LWT vs Accord: NULL Comparison Behavior
-
-|===
-| Condition | Column Value | LWT (Paxos) Result | Accord Result
-
-| `IF column = null`
-| Column is NULL/missing
-| **TRUE** (matches)
-| **FALSE** (never matches)
-
-| `IF column = null`
-| Column has a value
-| FALSE
-| FALSE
-
-| `IF column IS NULL`
-| Column is NULL/missing
-| TRUE
-| TRUE
-
-| `IF column != null`
-| Column is NULL/missing
-| FALSE
-| **FALSE** (null comparisons always false)
-
-| `IF column != null`
-| Column has a value
-| TRUE
-| TRUE
-|===
-
-==== Why the Difference?
-
-**LWT (Paxos) behavior:** LWT treats `column = null` as a special case meaning "column is null or missing." This is a Cassandra-specific convenience that deviates from SQL standards.
-
-**Accord behavior:** Accord follows SQL standard semantics where `NULL` represents an unknown value. Comparing anything to `NULL` using `=`, `!=`, `<`, `>`, etc. always returns `FALSE` (or more precisely, `UNKNOWN`, which is treated as `FALSE` in conditionals). This is because you cannot know if an unknown value equals another value.
-
-==== Migration from LWT
-
-If your LWT code uses `IF column = null`, you must update it when migrating to Accord transaction syntax.
-
-NOTE: This does not affect LWT statements executed on Accord-enabled tables. Those statements retain their original LWT null semantics.
-
-**Before (LWT):**
-[source,cql]
-----
--- LWT: This returns TRUE when balance is null/missing
-UPDATE users SET balance = 100 WHERE id = ? IF balance = null;
-----
-
-**After (Accord):**
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET user_data = (SELECT balance FROM users WHERE id = ?);
-
-  -- Use IS NULL for null checks
-  IF user_data IS NOT NULL AND user_data.balance IS NULL THEN
-    UPDATE users SET balance = 100 WHERE id = ?;
-  END IF
-COMMIT TRANSACTION
-----
-
-TIP: Null checks are recursive. If `user_data` is null (row doesn't exist), then `user_data.balance` is also null. So `IF user_data.balance IS NULL` will be true both when the row doesn't exist AND when the row exists but the column is null. Use `user_data IS NOT NULL` first only if you need to distinguish between these cases.
-
-==== Common Patterns
-
-**Check if a column is null (row missing OR column unset):**
-[source,cql]
-----
-IF user_data.balance IS NULL THEN
-  -- Either row doesn't exist, OR row exists but balance is null
-END IF
-----
-
-**Check if a row exists (regardless of column value):**
-[source,cql]
-----
-IF user_data IS NOT NULL THEN
-  -- Row exists (balance could be null or have a value)
-END IF
-----
-
-**Check if a column is null but row exists:**
-[source,cql]
-----
-IF user_data IS NOT NULL AND user_data.balance IS NULL THEN
-  -- Row exists AND balance is null (distinguishes from missing row)
-END IF
-----
-
-**Check if a column has a specific value:**
-[source,cql]
-----
-IF user_data IS NOT NULL AND user_data.balance = 100 THEN
-  -- Row exists AND balance equals 100
-END IF
-----
-
-**Check if a row does not exist:**
-[source,cql]
-----
-IF user_data IS NULL THEN
-  -- Row does not exist
-END IF
-----
-
-==== Null Propagation Rules
-
-* Any comparison with null using `=`, `!=`, `<`, `>`, `<=`, `>=` returns **FALSE**
-* Only `IS NULL` and `IS NOT NULL` can meaningfully test for null
-* Arithmetic operations with null return null
-* Null columns in row references return null (not errors)
-* Accessing a field on a null row reference (e.g., `missing_row.column`) returns null
-
-=== Multi-Partition Coordination
-
-Cross-partition transactions add coordination overhead:
-
-[source,cql]
-----
-BEGIN TRANSACTION
-  LET user1 = (SELECT balance FROM accounts WHERE user_id = ?);
-  LET user2 = (SELECT balance FROM accounts WHERE user_id = ?);
-
-  IF user1.balance >= 100 THEN
+  IF sender.balance >= 100 THEN
     UPDATE accounts SET balance = balance - 100 WHERE user_id = ?;
     UPDATE accounts SET balance = balance + 100 WHERE user_id = ?;
   END IF
 COMMIT TRANSACTION
 ----
 
-**Performance Impact:**
+**Supported Operators:**
 
-* Same-partition transactions: Low overhead
-* Cross-partition transactions: Moderate overhead
-* More partitions = higher coordination cost
+* Comparison: `=`, `<`, `<=`, `>`, `>=`, `!=`
+* Null checks: `IS NULL`, `IS NOT NULL`
+* Logical: `AND` only
 
-**Optimization:** Minimize cross-partition operations; consider data model changes to reduce cross-partition transactions.
-
-=== Automatic Read Generation
-
-When UPDATE statements reference current column values, Accord automatically reads the current state:
-
+**Complex Condition Examples:**
 [source,cql]
 ----
-BEGIN TRANSACTION
-  -- This UPDATE automatically reads current balance
-  UPDATE users SET balance = balance + ? WHERE id = ?;
-COMMIT TRANSACTION
+-- Multiple conditions with AND
+IF user_data.balance >= 100 AND user_data.status = 'active'
+   AND user_data.credit_limit > 150 THEN
+  -- statements
+END IF
+
+-- Null checking
+IF account_info IS NOT NULL AND account_info.balance > 0 THEN
+  -- statements
+END IF
 ----
 
-**Triggers:**
+**Important Notes:**
 
-* SET clauses that reference current column values
+* Null handling is strict (any null comparison returns false)
+* All modification statements must be inside the IF block when using conditions
+
+== Restrictions
+
+The following features cannot be used within `BEGIN TRANSACTION ... COMMIT TRANSACTION` blocks:
+
+* **Counter tables** and counter operations
+* **Aggregation functions** (COUNT, SUM, AVG, etc.)
+* **ORDER BY** and **GROUP BY** clauses
+* **Custom TTL** and **timestamp** specifications (transaction manages timestamps)
+* **Range DELETE** operations (must specify complete primary key)
+* **Non-equality partition key** restrictions in LET/SELECT
+* **Individual statement conditions** (use transaction-level IF blocks instead)
+
+=== Schema Requirements
+
+* Accord must be enabled in `cassandra.yaml`
+* Tables must have a `transactional_mode` other than `'off'`
+* Tables being dropped cannot participate in transactions
 
 == Syntax Reference
 
@@ -792,125 +378,52 @@ UPDATE table SET assignments WHERE conditions;
 DELETE [columns] FROM table WHERE conditions;
 ----
 
-**Restrictions:**
+== Multi-Partition Coordination
 
-* Cannot specify IF conditions (use transaction IF blocks)
-* Cannot specify custom TTL
-* Cannot use USING TIMESTAMP
-* Must target single partitions (no range operations)
+Cross-partition transactions add coordination overhead:
 
-== Restrictions & Limitations for BEGIN TRANSACTION
-
-NOTE: For detailed information about common syntax that doesn't work and practical workarounds, see xref:developing/cql/transactions-limitations.adoc[Transaction Limitations].
-
-=== Schema Restrictions
-
-* `Accord transactions are disabled`: Enable in cassandra.yaml
-* `Accord transactions are disabled on table`: Set transactional_mode on table
-* `table is being dropped`: Wait for drop to complete
-
-=== Syntax Restrictions
-
-* `Updates may not specify their own conditions`: Use transaction IF blocks
-* `Updates may not specify custom timestamps`: Transaction manages timestamps
-* `Updates may not specify custom ttls`: TTL not supported in transactions
-* `Counter columns cannot be accessed`: Use regular columns instead
-* `No aggregation functions allowed`: COUNT, SUM, AVG not supported
-* `No ORDER BY clause allowed`: Remove ORDER BY from SELECTs
-* `No GROUP BY clause allowed`: Remove GROUP BY from SELECTs
-
-=== Query Restrictions
-
-* `SELECT must specify all partition key elements`: Use equality operators for all partition key columns
-* `Range queries are not allowed`: Use equality operators only
-* `Partition key in IN clause with LIMIT not supported`: Avoid this combination
-
-=== Feature Incompatibilities
-
-**Cannot Be Used in Transactions:**
-
-* Counter tables and counter operations
-* Aggregation functions (COUNT, SUM, AVG, etc.)
-* ORDER BY and GROUP BY clauses
-* Custom TTL and timestamp specifications
-* Range DELETE operations
-* Non-equality partition key restrictions
-
-== Best Practices
-
-=== Keep Transactions Focused
-
-**Do:** Single business operation
 [source,cql]
 ----
 BEGIN TRANSACTION
-  LET account = (SELECT balance FROM accounts WHERE user_id = ?);
+  LET user1 = (SELECT balance FROM accounts WHERE user_id = ?);
+  LET user2 = (SELECT balance FROM accounts WHERE user_id = ?);
 
-  IF account.balance >= ? THEN
-    UPDATE accounts SET balance = balance - ? WHERE user_id = ?;
-    INSERT INTO transactions (id, user_id, amount) VALUES (?, ?, ?);
+  IF user1.balance >= 100 THEN
+    UPDATE accounts SET balance = balance - 100 WHERE user_id = ?;
+    UPDATE accounts SET balance = balance + 100 WHERE user_id = ?;
   END IF
 COMMIT TRANSACTION
 ----
 
-**Don't:** Combine unrelated operations in one transaction.
+**Performance Impact:**
 
-=== Minimize Cross-Partition Operations
+* Same-partition transactions: Low overhead
+* Cross-partition transactions: Moderate overhead
+* More partitions = higher coordination cost
 
-**Do:** Same partition when possible
+**Optimization:** Minimize cross-partition operations; consider data model changes to reduce cross-partition transactions.
+
+== Automatic Read Generation
+
+When UPDATE statements reference current column values, Accord automatically reads the current state:
+
 [source,cql]
 ----
 BEGIN TRANSACTION
-  LET user_data = (SELECT balance, status FROM users WHERE id = ?);
-
-  IF user_data.balance > 100 AND user_data.status = 'active' THEN
-    UPDATE users SET balance = balance - 50 WHERE id = ?;
-    INSERT INTO user_history (user_id, action, amount) VALUES (?, 'debit', 50);
-  END IF
+  -- This UPDATE automatically reads current balance
+  UPDATE users SET balance = balance + ? WHERE id = ?;
 COMMIT TRANSACTION
 ----
 
-**Don't:** Read from partitions you don't use.
+**Triggers:**
 
-=== Transaction Sizing Guidelines
-
-* 1-5 LET statements per transaction
-* 1-10 modification statements per transaction
-* Target 2-3 partitions maximum
-
-=== Anti-Patterns to Avoid
-
-**Unnecessary transaction overhead:**
-[source,cql]
-----
--- Bad: Simple insert doesn't need explicit transaction
-BEGIN TRANSACTION
-  INSERT INTO simple_log (id, message, timestamp) VALUES (?, ?, ?);
-COMMIT TRANSACTION
-
--- Good: Use regular CQL (still transactional with transactional_mode='full')
-INSERT INTO simple_log (id, message, timestamp) VALUES (?, ?, ?);
-----
-
-**Reading unused data:**
-[source,cql]
-----
--- Bad: account_data is never used
-BEGIN TRANSACTION
-  LET user_data = (SELECT balance FROM users WHERE id = ?);
-  LET account_data = (SELECT balance FROM accounts WHERE user_id = ?); -- unused
-
-  IF user_data.balance > 100 THEN
-    UPDATE users SET balance = balance - 50 WHERE id = ?;
-  END IF
-COMMIT TRANSACTION
-----
+* SET clauses that reference current column values
 
 == Troubleshooting
 
 === Configuration Errors
 
-**`Accord transactions are disabled`**
+**Accord transactions are disabled**
 
 Enable in cassandra.yaml:
 [source,yaml]
@@ -919,7 +432,7 @@ accord:
   enabled: true
 ----
 
-**`Accord transactions are disabled on table`**
+**Accord transactions are disabled on table**
 
 Enable on table:
 [source,cql]
@@ -929,7 +442,7 @@ ALTER TABLE tbl WITH transactional_mode = 'full';
 
 === Syntax Errors
 
-**`The name 'variable_name' has already been used`**
+**Duplicate variable names**
 
 Use unique variable names:
 [source,cql]
@@ -947,7 +460,7 @@ LET receiver_data = (SELECT balance FROM accounts WHERE user_id = 2);
 
 **High latency investigation:**
 
-. Check transaction complexity (LET count < 5, partitions < 3)footnote:[These are suggested starting points, not empirically derived limits.]
+. Check transaction complexity (LET count, partition count)footnote:[Keep LET statements under 5 and partitions under 3 as a starting point. These are suggested guidelines, not empirically derived limits.]
 . Monitor cross-datacenter operations
 . Check for high contention on specific keys
 

@@ -1,9 +1,89 @@
 = Accord Transaction Design Patterns
 :page-nav-title: Transaction Patterns
 
-This page provides advanced design patterns for Accord transactions. These patterns solve common distributed system challenges that were difficult or impossible to address with eventual consistency.
+This page provides common patterns and advanced design patterns for Accord transactions. These patterns solve common distributed system challenges that were difficult or impossible to address with eventual consistency.
 
-For basic syntax, getting started, and migration guides, see xref:developing/cql/transactions.adoc[Accord Transactions].
+For basic syntax and getting started, see xref:developing/cql/transactions.adoc[Accord Transactions]. For migration from LWT/BATCH, see xref:developing/cql/transactions-migration.adoc[Transaction Migration].
+
+== Common Patterns
+
+=== Read-Modify-Write
+
+The fundamental transaction pattern: read current state, check a condition, then write. This covers conditional updates, conditional inserts, and any operation that must validate preconditions.
+
+**Conditional update (e.g., sufficient balance):**
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET sender_account = (SELECT balance FROM accounts WHERE id = ?);
+
+  IF sender_account.balance >= ? THEN
+    UPDATE accounts SET balance = balance - ? WHERE id = ?;
+    UPDATE accounts SET balance = balance + ? WHERE id = ?;
+
+    INSERT INTO transactions (id, from_account, to_account, amount, timestamp)
+    VALUES (?, ?, ?, ?, toTimestamp(now()));
+  END IF
+COMMIT TRANSACTION
+----
+
+**Conditional insert (e.g., prevent duplicates):**
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET existing_user = (SELECT user_id FROM email_index WHERE email = ? LIMIT 1);
+
+  IF existing_user IS NULL THEN
+    INSERT INTO users (id, email, created_at, status)
+    VALUES (?, ?, toTimestamp(now()), 'active');
+
+    INSERT INTO email_index (email, user_id) VALUES (?, ?);
+
+    INSERT INTO user_profiles (user_id, display_name)
+    VALUES (?, ?);
+  END IF
+COMMIT TRANSACTION
+----
+
+=== Multi-Table Updates
+
+Maintain referential integrity across tables:
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  UPDATE users SET status = 'suspended', suspended_at = toTimestamp(now())
+  WHERE id = ?;
+
+  UPDATE orders SET status = 'cancelled'
+  WHERE order_id = ?;
+
+  INSERT INTO audit_log (id, user_id, action, timestamp)
+  VALUES (?, ?, 'user_suspended', toTimestamp(now()));
+COMMIT TRANSACTION
+----
+
+=== Cross-Partition Transactions
+
+Coordinate updates across different partitions (see xref:developing/cql/transactions.adoc#row-reference-limitations[row reference limitations] for parameter passing):
+
+[source,cql]
+----
+BEGIN TRANSACTION
+  LET user_data = (SELECT balance, status FROM users WHERE id = ?);
+
+  IF user_data.status = 'active' AND user_data.balance >= ? THEN
+    UPDATE users SET balance = balance - ? WHERE id = ?;
+
+    INSERT INTO orders (id, user_id, total, status, created_at)
+    VALUES (?, ?, ?, 'confirmed', toTimestamp(now()));
+
+    UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?;
+  END IF
+COMMIT TRANSACTION
+----
 
 == Pattern: Synchronous Unique Constraints
 
@@ -29,7 +109,7 @@ CREATE TABLE users (
   created_at timestamp
 ) WITH transactional_mode = 'full';
 
--- Sidecar tables for uniqueness enforcement
+-- Lookup tables for uniqueness enforcement
 CREATE TABLE username_index (
   username text PRIMARY KEY,
   user_id uuid
@@ -59,7 +139,7 @@ BEGIN TRANSACTION
 COMMIT TRANSACTION
 ----
 
-=== Changing a Username (The Hard Part)
+=== Changing a Username
 
 Renaming requires atomically: (1) verifying the new name is available, (2) deleting the old index entry, and (3) inserting the new one. Without transactions, a crash between steps could leave orphaned index entries or allow duplicates.
 
@@ -97,7 +177,7 @@ Many business objects follow a lifecycle with strict state transitions. An order
 * Prevent race conditions between competing operations
 * Maintain audit trail of transitions
 
-NOTE: The `IN` and `OR` operators are not currently supported in transaction `IF` conditions. To check multiple valid states, use **numeric status codes** with range comparisons (e.g., `status_code < 30` to mean "any state before SHIPPED"). See xref:developing/cql/transactions-limitations.adoc#_in_and_or_in_if_conditions[Transaction Limitations] for details.
+NOTE: The `IN` and `OR` operators are not currently supported in transaction `IF` conditions. To check multiple valid states, use **numeric status codes** with range comparisons (e.g., `status_code < 30` to mean "any state before SHIPPED").
 
 === Schema
 
@@ -393,7 +473,7 @@ These patterns demonstrate how Accord transactions solve problems that were prev
 
 | Synchronous Unique Constraints
 | Non-primary-key uniqueness
-| Sidecar index tables with atomic swap
+| Lookup index tables with atomic swap
 
 | Distributed State Machine
 | Race conditions in status changes
@@ -414,5 +494,3 @@ All patterns share common principles:
 * **Guard with IF**: Validate preconditions before modifications
 * **Atomic updates**: All changes succeed or fail together
 * **Pass computed values as parameters**: Row-reference arithmetic in SET/VALUES is not supported
-
-For syntax that is not yet supported and how to work around it, see xref:developing/cql/transactions-limitations.adoc[Transaction Limitations].
