@@ -115,13 +115,13 @@ If the bug requires 2 instances (distributed coordination), keep 2. If it requir
 
 Before declaring the repro final:
 
-- [ ] Test fails with the expected exception or wrong value (not a test setup error)
-- [ ] Test passes after the bug fix is applied (confirms it's a true repro, not a pre-existing failure)
-- [ ] Removing any single setup step makes the test pass (confirms minimality)
-- [ ] Test name/description references the issue tracker ticket
-- [ ] Documentation states: expected behavior, actual (buggy) behavior
-- [ ] No `sleep()` unless truly necessary (prefer fake clocks or polling helpers)
-- [ ] No hardcoded ports, paths, or machine-specific values
+-  Test fails with the expected exception or wrong value (not a test setup error)
+-  Test passes after the bug fix is applied (confirms it's a true repro, not a pre-existing failure)
+-  Removing any single setup step makes the test pass (confirms minimality)
+-  Test name/description references the issue tracker ticket
+-  Documentation states: expected behavior, actual (buggy) behavior
+-  No `sleep()` unless truly necessary (prefer fake clocks or polling helpers)
+-  No hardcoded ports, paths, or machine-specific values
 
 ---
 

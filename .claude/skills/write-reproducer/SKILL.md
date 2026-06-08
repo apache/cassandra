@@ -1,6 +1,7 @@
 ---
 name: write-reproducer
-description: Write minimal, reliable bug reproducers (repros) for any project. Use when: (1) a bug report or issue needs a test that reliably demonstrates the failure, (2) converting a described failure scenario into runnable code, (3) minimizing an existing complex test to its essential trigger conditions. Covers the full repro workflow: failure characterization, scope selection, writing the repro, verifying it fails for the right reason, and minimizing to the smallest possible trigger.
+version: "1.0.0"
+description: "Write minimal, reliable bug reproducers (repros) for any project. Use when: (1) a bug report or issue needs a test that reliably demonstrates the failure, (2) converting a described failure scenario into runnable code, (3) minimizing an existing complex test to its essential trigger conditions. Covers the full repro workflow: failure characterization, scope selection, writing the repro, verifying it fails for the right reason, and minimizing to the smallest possible trigger."
 ---
 
 # Write Bug Reproducer

@@ -4,12 +4,12 @@ Use this checklist after every shrinking step to prevent over-minimization — s
 
 ## After each removal, verify ALL of the following
 
-- [ ] **Same failure criterion**: the failure matches the Phase 2 failure criterion verbatim
-- [ ] **Same exception type**: if the oracle is an exception, it's the same class (not a different exception from broken test setup)
-- [ ] **Same assertion message fragment**: the assertion failure message contains the same key words
-- [ ] **Same exit code**: if the oracle is an exit code, it hasn't changed
-- [ ] **Same log line**: if the oracle is a log grep, the same line still appears
-- [ ] **Same stack trace root**: the deepest application frame in the stack trace is the same (test framework frames above it may differ)
+-  **Same failure criterion**: the failure matches the Phase 2 failure criterion verbatim
+-  **Same exception type**: if the oracle is an exception, it's the same class (not a different exception from broken test setup)
+-  **Same assertion message fragment**: the assertion failure message contains the same key words
+-  **Same exit code**: if the oracle is an exit code, it hasn't changed
+-  **Same log line**: if the oracle is a log grep, the same line still appears
+-  **Same stack trace root**: the deepest application frame in the stack trace is the same (test framework frames above it may differ)
 
 If ANY answer is "no", **revert the last shrinking step**. That element was load-bearing.
 

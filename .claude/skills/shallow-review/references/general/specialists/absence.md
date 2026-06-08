@@ -36,6 +36,14 @@ For each event in the diff, add an item to your search list:
 - (o) **Missing buffer unwrap**: pool buffer returned as slice/view instead of original allocation
 - (p) **Missing wrapper usage**: reads/writes bypass tee/counting/checked wrapper stream
 - (q) **Missing scope check**: code moved to new scope where variables no longer guaranteed non-null
+- (r) **Missing config propagation**: value parsed or accepted by an outer layer but never threaded into the builder / constructor / factory that actually applies it — the setting silently falls back to its default
+- (s) **Missing rollback on failure**: counter/collection populated on success path with no symmetric decrement/clear in the cancel, reject, throw, or timeout paths
+- (t) **Missing retained reference**: object passed into a registry inside a factory/builder without being stored on `this` → the shutdown path has nothing to deregister
+- (u) **Missing idempotency guard**: init/close/register can fire twice (schema reload, listener callback, reset path) without a has-run / already-closed flag
+- (v) **Missing version/runtime fallback**: new wire field, protocol feature, or reflective JVM access has no branch for older peers / older JDKs / missing native library
+- (w) **Missing drain on early exit**: checksum suffix, record footer, or remaining-items not consumed when an error / limit / break returns early from a framed stream
+- (x) **Missing metric on sibling branch**: metric-record or state-propagation call present on one if/switch branch but absent from the symmetric branch or the cache-hit fast path
+- (y) **Missing directory/fsync before dependent step**: deletion, listing, or cross-file rename proceeds without first fsyncing the directory or flushing sibling buffered writers
 
 ---
 
@@ -74,6 +82,7 @@ When reviewing a **bug-fix** (not a feature), flip the question:
 
 ### Missing Callers
 - Changed method signature: do all callers pass new parameter?
+- Parameter parsed or validated but never forwarded: trace every hop from parse → store → builder → constructor → downstream factory
 - New required field: do all constructors include it?
 - New abstract method: do all subclasses implement it?
 
@@ -86,3 +95,4 @@ When reviewing a **bug-fix** (not a feature), flip the question:
 - Early return in checksummed read: still consume trailing checksum bytes?
 - Every `catch` block mirrors the full exception wrapping chain?
 - Error path that skips content: still advance position-tracking state?
+- Rollback / counter decrement / cache eviction: symmetric on every failure path (cancel, reject, throw, timeout)?

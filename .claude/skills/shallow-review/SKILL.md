@@ -1,5 +1,6 @@
 ---
 name: shallow-review
+version: "1.0.0"
 description: >
   Shallow (quick) ensemble bug-finding review using 6 specialist agents in parallel. Each
   specialist reviews the same patch through a different lens: Logic & Types, Boundaries &
@@ -81,7 +82,7 @@ Read the patch: `{PATCH_PATH}`
 
 PHASE 1 — Apply checklist:
 Read your checklist: `{SKILL_DIR}/references/general/specialists/logic.md`
-Apply questions that match your hypotheses and code shapes. Check all 20 items
+Apply questions that match your hypotheses and code shapes. Check all 30 items
 against the patch but spend the most effort where your hypotheses pointed.
 
 Report ALL findings above a noise floor. For each: Location, Confidence
@@ -107,7 +108,7 @@ Read the patch: `{PATCH_PATH}`
 
 PHASE 1 — Apply checklist:
 Read your checklist: `{SKILL_DIR}/references/general/specialists/boundary.md`
-Apply questions that match your hypotheses and code shapes. Check all 15 items
+Apply questions that match your hypotheses and code shapes. Check all 22 items
 against the patch but spend the most effort where your hypotheses pointed.
 
 Report ALL findings above a noise floor. For each: Location, Confidence
@@ -133,7 +134,7 @@ Read the patch: `{PATCH_PATH}`
 
 PHASE 1 — Apply checklist:
 Read your checklist: `{SKILL_DIR}/references/general/specialists/concurrency.md`
-Apply questions that match your hypotheses and code shapes. Check all 16 items
+Apply questions that match your hypotheses and code shapes. Check all 24 items
 against the patch but spend the most effort where your hypotheses pointed.
 
 Report ALL findings above a noise floor. For each: Location, Confidence
@@ -159,7 +160,7 @@ Read the patch: `{PATCH_PATH}`
 
 PHASE 1 — Apply checklist:
 Read your checklist: `{SKILL_DIR}/references/general/specialists/resources.md`
-Apply questions that match your hypotheses and code shapes. Check all 18 items
+Apply questions that match your hypotheses and code shapes. Check all 26 items
 against the patch but spend the most effort where your hypotheses pointed.
 
 Report ALL findings above a noise floor. For each: Location, Confidence
@@ -216,7 +217,7 @@ Read the patch: `{PATCH_PATH}`
 
 PHASE 1 — Apply checklist:
 Read your checklist: `{SKILL_DIR}/references/general/specialists/completeness.md`
-Apply questions that match your hypotheses and code shapes. Check all 15 items
+Apply questions that match your hypotheses and code shapes. Check all 22 items
 against the patch but spend the most effort where your hypotheses pointed.
 
 Report ALL findings above a noise floor. For each: Location, Confidence
@@ -306,9 +307,9 @@ After all specialists report:
 ## Reference Files
 
 ### Specialist checklists (trimmed, ensemble mode)
-- `references/general/specialists/logic.md` — 20 items, Logic specialist
-- `references/general/specialists/boundary.md` — 15 items, Boundary specialist
-- `references/general/specialists/concurrency.md` — 16 items, Concurrency specialist
-- `references/general/specialists/resources.md` — 18 items, Resources specialist
+- `references/general/specialists/logic.md` — 30 items, Logic specialist
+- `references/general/specialists/boundary.md` — 22 items, Boundary specialist
+- `references/general/specialists/concurrency.md` — 24 items, Concurrency specialist
+- `references/general/specialists/resources.md` — 26 items, Resources specialist
 - `references/general/specialists/absence.md` — Phase 1/2 search patterns, Absence specialist
-- `references/general/specialists/completeness.md` — 15 items, Completeness specialist
+- `references/general/specialists/completeness.md` — 22 items, Completeness specialist

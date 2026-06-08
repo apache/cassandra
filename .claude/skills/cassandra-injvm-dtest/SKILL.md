@@ -1,5 +1,6 @@
 ---
 name: cassandra-injvm-dtest
+version: "1.0.0"
 description: Comprehensive guide for writing Apache Cassandra in-JVM distributed tests (dtests). Use when creating tests that simulate multi-node Cassandra clusters within a single JVM for faster integration testing. Covers cluster creation (single-node, multi-node, multi-datacenter), configuration (all cassandra.yaml parameters, features, network topology), instance lifecycle (startup/shutdown/restart), query execution, message filtering for failure scenarios, running code on instances, ClusterUtils utilities, and debugging classloader-related issues (serialization failures, same-class-different-classloader problems).
 ---
 

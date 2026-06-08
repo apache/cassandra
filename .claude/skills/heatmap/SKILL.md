@@ -1,5 +1,6 @@
 ---
-name: heatmap-review
+name: heatmap
+version: "1.0.0"
 description: Use git heatmap analysis to identify high-churn files and lines as candidates for thorough review or bug hunting. Works for PR reviews, security audits, bug hunts, or any code analysis task.
 ---
 

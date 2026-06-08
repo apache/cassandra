@@ -1,9 +1,10 @@
 ---
 name: deep-review
+version: "1.0.0"
 description: >
   Deep file-focused code review for correctness bugs. Unlike shallow-review which runs 6
   specialists in parallel across the entire patch, deep-review focuses on user-specified
-  files with full pattern catalogs (444 patterns), codebase investigation, and source-level
+  files with full pattern catalogs (500+ patterns), codebase investigation, and source-level
   context gathering. Use when: the user specifies particular files for focused review, a
   shallow review flagged areas that need deeper investigation, reviewing critical-path code
   changes, examining complex serialization/lifecycle/state-machine changes. The user
@@ -12,7 +13,7 @@ description: >
 
 # Deep Code Review
 
-Focused, thorough review of user-specified files using the full 444-pattern catalog.
+Focused, thorough review of user-specified files using the full 500+ pattern catalog.
 Each file is reviewed with context gathering (reading source, not just diff), codebase
 searches, and cross-referencing against the complete pattern database.
 
@@ -77,9 +78,12 @@ For this file, gather:
 1. CLASS HIERARCHY: What does it extend? What interfaces? Read the parent class/interface.
 2. SIBLING CLASSES: Are there parallel implementations? Read at least one sibling.
 3. CALLERS: Who calls the modified methods? How do they use return values? (grep + read)
-4. LIFECYCLE: When is this object created, used, destroyed? What state transitions?
-5. INVARIANTS: Read Javadoc, assertions, and any test files for this class.
-6. SERIALIZATION: If it serializes — read serialize, deserialize, serializedSize together.
+4. LIFECYCLE: When is this object created, used, destroyed?
+5. STATE MACHINE (if applicable): Map every state and every transition. What events are handled
+   in each state? What events are *not* handled (missing transitions)? What states are never
+   reached? Where is this state enum pattern-matched — are all states covered at every match site?
+6. INVARIANTS: Read Javadoc, assertions, and any test files for this class.
+7. SERIALIZATION: If it serializes — read serialize, deserialize, serializedSize together.
 
 Output a structured context summary for use by the deep review phases.
 ```
@@ -268,18 +272,6 @@ Review findings across all focus files for cross-file patterns:
 ```
 
 ---
-
-## When to Use Deep Review vs Shallow Review
-
-| Criterion | Shallow (edge-case-explorer) | Deep (this skill) |
-|---|---|---|
-| Scope | Entire patch | User-specified files |
-| Checklist depth | 15-20 items per domain | 80-190 items per domain |
-| Source reading | Diff only | Full file + callers + siblings |
-| Codebase search | Absence specialist only | All domains |
-| Context gathering | Phase 0 hypotheses only | Full class hierarchy + lifecycle |
-| Best for | Quick triage, first pass | Critical code, complex changes |
-| Time budget | Minutes | Extended (user directs) |
 
 ## Reference Files
 

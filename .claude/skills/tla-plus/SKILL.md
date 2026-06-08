@@ -1,5 +1,6 @@
 ---
 name: tla-plus
+version: "1.0.0"
 description: Create, run, and verify TLA+ and PlusCal formal specifications. Use for modeling distributed systems, protocols, concurrent algorithms, state machines. Can compose specs from code, find divergences between spec and implementation, spot concurrency bugs and invariant violations. Use when asked to "write a TLA+ spec", "model check", "verify protocol", "find race conditions", or "formal verification".
 ---
 

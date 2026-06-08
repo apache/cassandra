@@ -15,6 +15,71 @@ Use a fuzz harness as the repro when the bug involves parsing, deserialization, 
 - The bug is about business logic, not input processing
 - The input structure is too complex for byte-level fuzzing and no structure-aware fuzzer exists
 
+---
+
+## Choose a technique
+
+Answer these questions in order to pick the right harness type:
+
+```
+1. Does the input have a well-defined structure (JSON, XML, SQL, a protocol)?
+   YES → Grammar-based / structured fuzzing (use Arbitrary, autofuzz, or a grammar mutator)
+   NO  → continue ↓
+
+2. Do you have a corpus of valid sample inputs?
+   YES → Mutation + coverage-guided fuzzing (AFL++, libFuzzer, Jazzer)
+   NO  → continue ↓
+
+3. Is the target a small function with complex conditionals (math, parsers)?
+   YES → Concolic / symbolic execution
+   NO  → continue ↓
+
+4. Quick regression baseline only?
+   → Random / byte-mutation fuzzing (simplest harness, weakest coverage)
+```
+
+**Most practical choice:** mutation fuzzing on a seed corpus, with structure-aware input generation if the format is known.
+
+---
+
+## Harness anatomy
+
+Every fuzz harness has three responsibilities:
+
+```
+function fuzz_target(data: bytes):
+    try:
+        parsed = parse(data)          // TRIGGER: bytes → your type
+        result = function_under_test(parsed)
+        assert_invariants(result)     // ORACLE: check your property
+    catch ExpectedError:
+        return                        // normal; fuzzer continues
+    catch UnexpectedError:
+        CRASH / re-raise              // fuzzer records this input
+```
+
+Rules:
+- Accept raw bytes (or a structured type from a framework like `Arbitrary`)
+- Never exit on expected / graceful errors — only crash on unexpected ones
+- Keep it fast: no I/O, no network, no sleeps
+
+---
+
+## Oracle types
+
+Choose the oracle that matches the bug class:
+
+| Oracle | Use when |
+|--------|----------|
+| **Crash** | Any panic / exception / segfault is the bug |
+| **Assertion** | An `assert` or invariant inside the code should fire |
+| **Differential** | Compare output against a reference implementation |
+| **Invariant** | `decode(encode(x)) == x`, monotonicity, commutativity, etc. |
+
+The crash oracle is implicit in most frameworks (any panic = finding). For correctness bugs, you must write the assertion explicitly.
+
+---
+
 ## Frameworks by language
 
 | Language | Framework | Coverage-guided | Structure-aware |
@@ -26,6 +91,8 @@ Use a fuzz harness as the repro when the bug involves parsing, deserialization, 
 | Java | Jazzer | Yes | Yes (via autofuzz + @FuzzTest) |
 | Python | Atheris | Yes | No |
 | Go | go-fuzz / native `testing.F` | Yes | No |
+
+---
 
 ## Packaging a fuzz repro
 
@@ -112,6 +179,19 @@ Replay:
 go test -run FuzzParse/testdata/fuzz/FuzzParse/<crash-file>
 ```
 
+---
+
+## Seeds
+
+Better seeds → faster coverage and more realistic mutations.
+
+- Use real inputs from production logs, test fixtures, or existing unit tests
+- Include both valid and near-invalid examples
+- Keep seeds small (< 1 KB each when possible)
+- Store seeds in a corpus directory that persists across runs for regression coverage
+
+---
+
 ## Distilling a fuzz finding into a plain test
 
 Sometimes a fuzz finding should be converted into a plain unit test for clarity:
@@ -138,6 +218,8 @@ Keep the fuzz harness when:
 - The input is large or opaque
 - You want continued fuzzing to find related bugs
 - The crashing input is one of many interesting nearby inputs
+
+---
 
 ## Test-case reduction for fuzz findings
 

@@ -1,5 +1,6 @@
 ---
 name: bug-archaeology
+version: "1.0.0"
 description: >
   Mine bug patterns from any git repository. Discovers bug-fix commits via git log
   heuristics, analyzes each in parallel with subagents, writes individual analysis files,
@@ -106,3 +107,20 @@ After all analysis is complete, produce `PATTERNS.md`. Read `references/synthesi
 |------|-----------|---------|
 | `references/per-bug-format.md` | Subagents (Phase 2) | Per-bug output template and field guidelines |
 | `references/synthesis-format.md` | Orchestrator (Phase 3) | PATTERNS.md structure and generalization rules |
+
+## Evaluating the Skill
+
+Full instructions are in `references/EVAL-PROMPT.md`. Summary:
+
+1. **Pick a bug** from the archaeology output and trace its introducing commit via `git blame`.
+2. **Extract the patch** with `git diff ${INTRO}~1 $INTRO`.
+3. **Choose a review skill** — the user must specify one:
+   - `/shallow-review` — quick 6-specialist parallel scan, any patch size
+   - `/deep-review` — focused on specific files, complex logic
+   - `/targeted-review` — findings-driven, medium-to-large patches
+   - `/mega-review` — large feature branches or 1000+ LOC diffs
+4. **Run the chosen skill** against the extracted patch.
+5. **Score** the output: Exact / Partial / Different bug / Miss.
+6. **Prod misses** — tell the skill what it missed and ask which checklist item would have caught it; use the answer to improve that skill's reference files.
+
+Target: >90% hit rate (exact + partial), <5% miss rate across a batch of N bugs.

@@ -1,5 +1,6 @@
 ---
 name: patch-explainer
+version: "1.0.0"
 description: Deep code analysis with ASCII visualizations showing structure, flow, and state transitions. Use when analyzing patches/diffs, explaining classes or subsystems, understanding code architecture, reviewing changes for inconsistencies, or when asked to visualize how code works. Provides before/after diagrams, data/control flow, concurrency analysis, assumptions, and failure modes. Triggers on explain this patch/code/class, how does X work, show me the flow, visualize this change, code review requests, or proactive analysis during PR reviews.
 ---
 

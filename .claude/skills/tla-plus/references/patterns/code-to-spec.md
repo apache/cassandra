@@ -125,25 +125,25 @@ end algorithm; *)
 ## Verification Checklist
 
 ### State Mapping
-- [ ] Variable X in spec → field Y in code
-- [ ] Type constraints match (spec range ⊆ code type range)
+-  Variable X in spec → field Y in code
+-  Type constraints match (spec range ⊆ code type range)
 
 ### Action Mapping
-- [ ] Action A in spec → method M in code
-  - [ ] Precondition (await/guard) correctly checked
-  - [ ] State update matches
-  - [ ] Atomicity level matches
-  - [ ] All UNCHANGED variables truly unchanged
+-  Action A in spec → method M in code
+  -  Precondition (await/guard) correctly checked
+  -  State update matches
+  -  Atomicity level matches
+  -  All UNCHANGED variables truly unchanged
 
 ### Invariant Mapping
-- [ ] TypeInvariant → type system + assertions
-- [ ] SafetyInvariant → defensive checks / tests
-- [ ] Liveness → timeout / retry / monitoring
+-  TypeInvariant → type system + assertions
+-  SafetyInvariant → defensive checks / tests
+-  Liveness → timeout / retry / monitoring
 
 ### Edge Cases
-- [ ] Empty collections handled (spec: `\A x \in {}: TRUE`)
-- [ ] Concurrent access protected
-- [ ] Error/exception paths modeled
+-  Empty collections handled (spec: `\A x \in {}: TRUE`)
+-  Concurrent access protected
+-  Error/exception paths modeled
 ```
 
 ## Spotting Bugs in Code Using a Spec

@@ -160,29 +160,29 @@ Adjust depth based on scope:
 When analyzing concurrent code:
 
 ### Data Race Detection
-- [ ] Identify all shared mutable state
-- [ ] Check for unsynchronized access
-- [ ] Verify read/write ordering
-- [ ] Look for missing memory barriers
+-  Identify all shared mutable state
+-  Check for unsynchronized access
+-  Verify read/write ordering
+-  Look for missing memory barriers
 
 ### Deadlock Detection
-- [ ] Identify all lock acquisitions
-- [ ] Check for lock ordering violations
-- [ ] Look for circular dependencies
-- [ ] Verify timeout mechanisms
+-  Identify all lock acquisitions
+-  Check for lock ordering violations
+-  Look for circular dependencies
+-  Verify timeout mechanisms
 
 ### Thread Safety Patterns
-- [ ] Immutability: Are objects immutable?
-- [ ] Synchronization: Are critical sections protected?
-- [ ] Lock-free: Are atomic operations used correctly?
-- [ ] Thread-local: Is state properly isolated?
-- [ ] Message passing: Are channels/queues used safely?
+-  Immutability: Are objects immutable?
+-  Synchronization: Are critical sections protected?
+-  Lock-free: Are atomic operations used correctly?
+-  Thread-local: Is state properly isolated?
+-  Message passing: Are channels/queues used safely?
 
 ### Async/Await Analysis
-- [ ] Understand execution context switches
-- [ ] Identify blocking operations in async code
-- [ ] Check for proper error propagation
-- [ ] Verify cancellation handling
+-  Understand execution context switches
+-  Identify blocking operations in async code
+-  Check for proper error propagation
+-  Verify cancellation handling
 
 ## Assumption Identification Patterns
 

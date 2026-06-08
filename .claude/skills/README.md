@@ -44,8 +44,72 @@ Volume & signal-to-noise
   - <popular open source skill> only: 2 bugs 
 ```
 
-For writing repros, you will often times have to guide the model and suppress its attempts to go deep into internals to conjure up a repro that does exactly 
-what it wants but does not reveal the real issue. Introduce guidelines and close the loop by setting strict and clear exit criteria. 
+Original "archaeology" later got split into shallow- and deep- review skills, which helped to get consistently high score on larger patches, too. 
+New(er) targeted-review is an experiment that came after trying (and failing) to generalize existing bugs/issues into semgrep scripts: essentially, 
+patterns were at first too noisy, and later were catching only very specific permutations of issues, so this approach allows to do "semantic" checks
+by allowing the model to make a checklist of most probable patterns and then going through the patch once again. Evals for this one are somewhat
+more difficult to quantify, as they are designed to trigger only for specific issues (which they do). 
+
+A `mega-review` patch is a final iteration that chunks up larger patches and performs multiple steps/iterations over each one of them based on a 
+set of rules.
+
+For writing repros, you will often have to guide the model and suppress its attempts to go deep into internals to conjure up a repro that does exactly 
+what it wants but does not reveal the real issue. Introduce guidelines and close the loop by setting strict and clear exit criteria.
+
+## Quickstart
+
+Clone the repository:
+
+```bash
+git clone https://github.com/ifesdjeen/cassandra-skills.git
+```
+
+These skills follow the [Agent Skills standard](https://agentskills.io/specification) and work with any compatible harness. Pick the setup that matches yours:
+
+**pi**
+
+Add the cloned directory to your global or project settings (`~/.pi/settings.json` or `.pi/settings.json`):
+
+```json
+{
+  "skills": ["/path/to/cassandra-skills"]
+}
+```
+
+Or symlink individual skills into your skills directory:
+
+```bash
+ln -s /path/to/cassandra-skills/shallow-review ~/.pi/agent/skills/shallow-review
+ln -s /path/to/cassandra-skills/deep-review    ~/.pi/agent/skills/deep-review
+# ... etc
+```
+
+Unfortunately, if you are using containers, symlinks won't get picked up/resolved, so it's best if you just copy the files. 
+
+**Claude Code**
+
+Symlink individual skills into your Claude skills directory:
+
+```bash
+ln -s /path/to/cassandra-skills/shallow-review ~/.claude/skills/shallow-review
+ln -s /path/to/cassandra-skills/deep-review    ~/.claude/skills/deep-review
+# ... etc
+```
+
+**Example prompt**
+
+Once the skills are installed, try this multi-pass review workflow on a subsystem or commit SHA:
+
+> Review all the code related to \<subsystem\> (or just give it an SHA). Do the first pass
+> using `/shallow-review`. Then analyze the code using `/patch-explainer`, identify core
+> components that might be most prone to critical mistakes, and use `/deep-review` skill on
+> the files related to these components. Do a third `/deep-review` pass from the files
+> identified as "hot" using `/heatmap` skill, and a final pass of `/targeted-review` for the
+> files that contain the most tricky logic. 
+
+This chains four skills — broad scan, structural understanding, targeted deep review, and
+churn-guided deep review — to progressively narrow focus onto the code most likely to
+contain correctness bugs.
 
 ## Where Do I Start?
 
@@ -53,7 +117,9 @@ Pick your entry point based on what you're looking at right now:
 
 | You have…                        | Start with                              |
 |----------------------------------|-----------------------------------------|
-| A patch or diff to review        | [shallow-review](#shallow-review), then [deep-review](#deep-review) for flagged areas |
+| A small patch to review          | [shallow-review](#shallow-review), then [deep-review](#deep-review) for flagged areas |
+| A medium-to-large patch (50-1000 LOC) | [targeted-review](#targeted-review) |
+| A large patch or feature branch (1000+ LOC) | [mega-review](#mega-review)  |
 | A bug report to reproduce        | [write-reproducer](#write-reproducer)   |
 | Code you don't understand yet    | [patch-explainer](#patch-explainer)     |
 | A protocol or algorithm to verify| [tla-plus](#tla-plus)                   |
@@ -74,6 +140,18 @@ Quick, broad bug scan. Six specialist agents review the same patch in parallel, 
 Focused, thorough review of specific files using the full 444-pattern catalog. Starts with a heatmap pass to identify the highest-churn files and lines, then concentrates review effort there — reading source (not just diffs), searching the codebase for context, and cross-referencing against the complete pattern database. Use it when shallow-review flags something worth digging into, or when reviewing critical-path code changes.
 
 → `deep-review/`
+
+### targeted-review
+
+Findings-driven review for medium-to-large patches (50–1000 LOC). Runs patch-explainer and codebase-analysis in parallel to ground the review, then makes 3–5 independent passes over the bug-pattern catalog to pick only the categories whose diff signals match. Items selected across multiple passes are promoted; the result is grouped by review focus and dispatched to parallel subagents — each with a tight, evidence-selected checklist rather than a fixed set of lenses. Higher signal-to-noise than shallow-review on complex changes, less exhaustive than deep-review on large ones.
+
+→ `targeted-review/`
+
+### mega-review
+
+Multi-pass deep review for large patches (1000+ LOC) or feature branches. Decomposes the patch into HIGH/MEDIUM/LOW-risk files and commits, then runs deep-review per file, targeted-review across the high-risk scope, and shallow-review per commit — all in parallel. A cross-cut phase follows to amplify patterns found across files, verify fix correctness, and check cross-subsystem consistency. A coverage gate ensures every file was reviewed before findings are merged. Use when a single-pass review would spread attention too thin.
+
+→ `mega-review/`
 
 ### write-reproducer
 
@@ -117,6 +195,12 @@ Guide for writing Apache Cassandra in-JVM distributed tests. Covers cluster crea
 
 **Reviewing a patch for correctness:**
 heatmap → patch-explainer → shallow-review → deep-review (on hot files)
+
+**Reviewing a medium-to-large patch:**
+targeted-review → deep-review (on files flagged HIGH)
+
+**Reviewing a large patch or feature branch:**
+mega-review (orchestrates targeted-review, shallow-review, and deep-review automatically)
 
 **Investigating a bug report:**
 patch-explainer (understand the area) → write-reproducer → shallow-review (on the fix)

@@ -1,12 +1,7 @@
 # Deep Logic & Types — Extended Checklist
-
-Full-depth checklist for deep review. Extends the shallow 20-item specialist checklist with
-all 115+ logic patterns from the catalog. Use when the reviewer has identified specific files
-for deep investigation.
-
 ---
 
-## Phase 0: Context Gathering (REQUIRED)
+## Context Gathering (REQUIRED)
 
 Before applying the checklist, read the TARGET FILES (not just the diff) to understand:
 
@@ -18,566 +13,361 @@ Before applying the checklist, read the TARGET FILES (not just the diff) to unde
 
 ---
 
-## Condition & Comparison Depth
+## Condition & Comparison
 
-### Type-mismatch in equals/contains (7 known bugs)
-- [ ] For every `equals()` or `contains()` call: do BOTH sides have the same runtime type? Check for `InetAddressAndPort` vs `InetAddress`, `String.toString()` vs domain accessor, `ByteBuffer.equals` vs `isEmpty()`.
-- [ ] For map lookups: does the key type match the map's key type exactly? `ColumnIdentifier` vs `ByteBuffer` mismatch causes silent lookup miss.
-- [ ] Does `Arrays.asList()` wrap an already-List, creating `List<List<T>>`? `contains()` then compares wrong element type.
+### Type-mismatch in equals/contains (weight: high)
+-  For every `equals()` or `contains()` call: do BOTH sides have the same runtime type? Check for subtype vs supertype, wrapper vs unwrapped form, domain object vs its key.
+-  For map lookups: does the key type match the map's key type exactly? A type mismatch causes a silent lookup miss.
+-  Does `Arrays.asList()` wrap an already-List, creating `List<List<T>>`? `contains()` then compares wrong element type.
 
-### Composite/compound names (6 known bugs)
-- [ ] Does this code use a full composite byte buffer where a single component is expected? Check column-definition lookup, restriction array access, comparator selection, partition key EOC markers.
-- [ ] After decomposing a composite: is the correct component index used?
+### else-if mutual exclusion (weight: medium)
+-  For every `else if`: can BOTH conditions be true simultaneously? If yes, the second is silently skipped.
+-  Does `continue` in a multi-concern loop body suppress unrelated work?
 
-### Catch clause scope (5 known bugs)
-- [ ] Is the catch clause too broad? `catch (Exception)` that swallows errors making retry loops infinite.
-- [ ] Is it too narrow? `catch (AssertionError)` missing `LinkageError` from class loading.
-- [ ] Does `Futures.getUnchecked()` conflate cancellation with failure?
+### Map lookup direction (weight: medium)
+-  Is the map queried with value where key is expected (or vice versa)?
 
-### else-if mutual exclusion (3 known bugs)
-- [ ] For every `else if`: can BOTH conditions be true simultaneously? If yes, the second is silently skipped.
-- [ ] Does `continue` in a multi-concern loop body suppress unrelated work?
+### Catch clause scope (weight: medium)
+-  Is the catch clause too broad? `catch (Exception)` that swallows errors making retry loops infinite.
+-  Is it too narrow, missing a related exception subtype?
 
-### Map lookup direction (3 known bugs)
-- [ ] Is the map queried with value where key is expected (or vice versa)?
-- [ ] Does a permission check use the wrong scope (column-family name instead of keyspace)?
+### Conditional counting (weight: low)
+-  Is a counter incremented per item in a collection that may contain duplicates?
+-  Is a "remaining" counter passed as "completed" to a progress API expecting monotonically increasing values?
 
-### Conditional counting (2 known bugs)
-- [ ] Is a counter incremented per item in a collection that may contain duplicates?
-- [ ] Is a "remaining" counter passed as "completed" to a progress API expecting monotonically increasing values?
-
-### Dead code / unused accumulation (2 known bugs)
-- [ ] Does a collector accumulate state but no code reads the result?
-- [ ] Does a predicate always return a hard-coded constant instead of computing from fields?
+### Dead code / unused accumulation (weight: low)
+-  Does a collector accumulate state but no code reads the result?
+-  Does a predicate always return a hard-coded constant instead of computing from fields?
 
 ---
 
-## Constant & Default Depth
+## Sentinel & Default Values
 
-### Sentinel values (6 known bugs)
-- [ ] Does `Long.MIN_VALUE` for "unknown maxTimestamp" cause data skipping?
-- [ ] Does `Integer.MAX_VALUE` for gcBefore delete live hints?
-- [ ] Is Murmur3 MINIMUM set to 0 instead of `Long.MIN_VALUE`?
-- [ ] Does `Map.getOrDefault` return a default that matches absent-key semantics?
-- [ ] Does a sentinel value treated as normal data enter arithmetic without a guard?
-- [ ] Does `AlwaysPresentFilter` break callers treating return as real negative?
+### Sentinel flows into arithmetic without guard (weight: high)
+-  Does a sentinel value (`Long.MIN_VALUE`, `Integer.MAX_VALUE`, `-1`, `0`) flow into arithmetic or comparison without a guard?
+-  Does `Map.getOrDefault` return a zero/empty default that is then treated as real data?
+-  Does a "always-present" filter break callers who rely on genuine negative results?
 
-### Config default divergence (5 known bugs)
-- [ ] Does the Java `Config` initializer default match the YAML template?
-- [ ] Is a derived default read before the field it depends on is set?
-- [ ] Does a hardcoded literal after config parsing override file-based configuration?
-
-### Digest computation (4 known bugs)
-- [ ] Does digest computation diverge across replicas due to differing read limits?
-- [ ] Does memtable vs SSTable value-replacement differ for fetched-but-not-queried columns?
-- [ ] Does Merkle tree include GC-able sentinel data?
-
-### Time unit mismatches (4 known bugs)
-- [ ] Internal timestamps (microseconds) compared against `Date.getTime()` (milliseconds)?
-- [ ] `SimpleDateFormat` used for pre-1582 dates where `java.time.Instant` needed?
+### Hardcoded value where caller context should flow (weight: medium)
+-  Is a hardcoded constant (timeout, mode, level) used where the caller's context should be forwarded?
+-  Is a derived default computed before the field it depends on is set?
 
 ---
 
-## Variable & Operand Depth
+## Variable & Operand
 
-### Error messages (13 known bugs)
-- [ ] Format string references wrong variable or swaps `%s` argument order?
-- [ ] Error message names wrong flag/column or uses full object instead of `.name`?
-- [ ] Timeout error embeds wrong consistency level?
+### Wrong variable, field, or argument (weight: high)
+-  Does comparison or operation use a field from outer scope instead of the loop variable?
+-  Does code use source buffer instead of destination?
+-  Does getter read derived state from child instead of authoritative field?
+-  Does a constructor or factory argument end up in the wrong slot? Read the call as a sentence to verify each argument matches its role.
 
-### Logger class (7 known bugs)
-- [ ] Is `LoggerFactory.getLogger()` passing the correct enclosing class, not copy-pasted from another file?
+### Error messages reference wrong object (weight: high)
+-  Format string references wrong variable or swaps argument order?
+-  Error message names wrong flag/field or uses full object instead of `.name`?
 
-### Constructor overloads (7 known bugs)
-- [ ] Does subclass delegate to wrong parent overload (parameter meanings swapped)?
-- [ ] Is a required parameter not forwarded after signature change?
-- [ ] Does overload resolution ambiguity from class hierarchy cause wrong binding?
+### Logger class copy-pasted (weight: high)
+-  Is `LoggerFactory.getLogger()` passing the correct enclosing class, not copy-pasted from another file?
 
-### Copy-paste in parallel registration (5 known bugs)
-- [ ] When registering similar items: does one entry duplicate a neighbor's argument?
-- [ ] In adjacent metric registrations: are name/supplier pairs swapped?
+### Constructor overload resolution (weight: high)
+-  Does subclass delegate to wrong parent overload (parameter meanings swapped)?
+-  Is a required parameter not forwarded after signature change?
+-  Does overload resolution ambiguity from class hierarchy cause wrong binding?
+
+### Copy-paste in parallel registrations (weight: medium)
+-  When registering similar items in sequence: does one entry duplicate a neighbor's argument?
+-  In adjacent metric registrations: are name/supplier pairs swapped?
+
+### add() vs addAll() after collection type change (weight: low)
+When a map value type changes from a single element to a `Collection`, callers still using `add(entry.getValue())` add the entire collection as one element.
+
+### Boolean parameter conflates two orthogonal concerns (weight: low)
+A boolean parameter is repurposed as a proxy for a different concern, so a caller needing different values for each has no valid representation.
 
 ---
 
-## Iterator & Loop Depth
+## Iterator & Loop
 
-### Sub-iterator advancement (4 known bugs)
-- [ ] Does chained sub-iterator use `if` instead of `while` to skip empties?
-- [ ] Is a shared iterator consumed across multiple input items?
-- [ ] Is a loop counter bounded by the collection's size?
+### Sub-iterator advancement (weight: medium)
+-  Does chained sub-iterator use `if` instead of `while` to skip empties?
+-  Is a shared iterator consumed across multiple input items?
 
-### Separator logic (2 known bugs)
-- [ ] Is "skip separator on first element" pattern applied when separator is a terminator?
-- [ ] Is the wrong iterator checked for `hasNext()` when two parallel iterators run?
+### Separator logic (weight: low)
+-  Is "skip separator on first element" pattern applied when separator is actually a terminator?
+-  Is the wrong iterator checked for `hasNext()` when two parallel iterators run?
 
-### Mutable iterator in lambda (1 known bug)
-- [ ] Is `.next()` called inside a lambda passed to `forEach`, advancing past unintended elements?
+### Mutable iterator in lambda (weight: low)
+-  Is `.next()` called inside a lambda passed to `forEach`, advancing past unintended elements?
+
+### Parallel data structure loop bounded by wrong size (weight: low)
+When iterating two parallel arrays, using only one's length as the bound silently over- or under-processes the other.
+
+### Loop guard evaluates outer-container field instead of loop variable (weight: low)
+Inside a loop, a null-check or sentinel-guard references a field of the outer container, evaluating the same way every iteration. Common after rename where outer variable was renamed but inner references were missed.
 
 ---
 
 ## Refactoring Artifacts
 
-### Stale identifier after rename (13 known bugs)
-- [ ] After a rename: have ALL references been updated — string literals, JMX names, error messages, scripts, `Class.forName()` string-typed names?
+### Stale identifier after rename (weight: high)
+After a rename: have ALL references been updated — string literals, error messages, scripts, `Class.forName()` string-typed names?
 
-### Wrong variable / wrong field (12 known bugs)
-- [ ] Does comparison use a field from outer scope instead of loop variable?
-- [ ] Does code use source buffer instead of destination?
-- [ ] Does getter read derived state from child instead of authoritative field?
+### Merge artifacts (weight: high)
+After merge/rebase: is the resolution semantically correct (not just syntactically)? Does merge leave wrong variable name, wrong import, wrong constant, duplicate declaration, inverted condition, or dead code from the other branch?
 
-### Merge artifacts (16 known bugs)
-- [ ] After merge/rebase: is the resolution semantically correct (not just syntactically)?
-- [ ] Does merge leave wrong variable name, wrong import, wrong constant, duplicate declaration, inverted condition, or dead code from the other branch?
+### Refactored guard moved to wrong scope (weight: medium)
+Moving a guard during refactoring places it in a utility method that fires for all callers, not just the intended one.
 
----
+### Helper extracted to utility loses caller-specific empty-input guard (weight: low)
+When a utility is extracted from one caller and reused by others: does it still depend on a guard that only the original caller applied at its call site?
 
-## Filtering & Query Result Depth
-
-### Inverted boolean (24 known bugs)
-- [ ] For EVERY boolean guard: read aloud as a sentence. Does the polarity match the intent?
-- [ ] Is `!` where there should be none? `<` instead of `>=`? `==` instead of `!=`?
-
-### Missing guard for empty input (13 known bugs)
-- [ ] What happens when the collection/iterator has zero elements?
-- [ ] PK-only table? Zero SSTables? Empty credentials? Empty filtered result?
-
-### Secondary index routing (12 known bugs)
-- [ ] Does index selection use correct method for membership testing?
-- [ ] CONTAINS KEY vs VALUES distinction correct?
-- [ ] IN treated as single-valued equality?
-
-### Static row handling (8 known bugs)
-- [ ] Are static rows handled differently from regular rows for LIMIT, DISTINCT, paging, index lookup, writetime/ttl?
-
-### Result column order (8 known bugs)
-- [ ] Is column ordering driven by the authoritative ordered list, not `Map.values()` or `Map.keySet()`?
-
-### ReversedType unwrapping (7 known bugs)
-- [ ] Is `instanceof`, `isUDT()`, `compareForCQL()` called on a type that might be wrapped in `ReversedType`?
-- [ ] Are DESC clustering columns unwrapped before comparison?
-
-### LIMIT granularity (6 known bugs)
-- [ ] Does LIMIT count CQL rows vs internal columns vs partitions correctly for the table type?
-- [ ] Are static rows counted the same as regular rows in clustering-filtered queries?
-
----
-
-## Distributed Systems Logic
-
-### Tombstone handling (12 known bugs)
-- [ ] Are tombstones stripped by filters before reconciliation needs them?
-- [ ] Do range tombstones survive type-unaware cell discard loops?
-- [ ] Do tombstoned partitions consume LIMIT slots?
-- [ ] Does compaction lose row tombstones via container `clear()`?
-
-### Schema operations (3 known bugs)
-- [ ] Does shared code path serve INSERT and UPDATE without type-specific guard?
-- [ ] Is validation logic shared between local and remote mutation paths?
-
-### Feature flags (2 known bugs)
-- [ ] Does feature flag guard the main operation but not setup, teardown, or secondary paths?
-
----
-
-## Performance Anti-Patterns (detectable in review)
-
-### Hot-path re-derivation (2 known bugs)
-- [ ] Does a method called in an inner loop delegate to an expensive operation on every invocation instead of caching?
-
-### Unnecessary auto-boxing (2 known bugs)
-- [ ] Does a tracker parameterized with `Long`/`Integer` auto-box on every comparison in a tight loop?
-
-### O(n) in hot path (2 known bugs)
-- [ ] Does a method called in a hot path iterate a collection where a reverse lookup map gives O(1)?
-
----
-
-## Missing from Baseline §1: Logic Errors — Specific Patterns
-
-### Eager evaluation in disabled log/debug path (5 known bugs)
-A log statement's arguments include method calls (collection formatting, type serialization, String.format) that are evaluated even when the log level is disabled, or SLF4J `{}` and `+` concatenation are mixed. Spot by checking log calls with non-trivial arguments for an `isXxxEnabled()` guard.
-
-### SLF4J `{}` vs printf `%s`/`%d` mismatch (4 known bugs)
-A logger call uses printf placeholders instead of SLF4J `{}`, or has more tokens than arguments, or a logback pattern uses `%caller` producing unexpected multi-line output.
-
-### Wrong timeout or verb category for the operation (4 known bugs)
-Read-repair bounded by write timeout, repair verbs using generic RPC timeout, CAS messages using wrong expiring-map timeout, or batchlog/hint delivery that should not produce new hints on failure.
-
-### Bits-vs-bytes or megabits-vs-megabytes unit label or conversion factor wrong (4 known bugs)
-Throughput display or throttle confuses bits and bytes, or the unit label says "MB/s" when the value is in "Mb/s".
-
-### Compressed vs uncompressed size used for file-split/threshold decisions (4 known bugs)
-When enforcing file-size limits or computing compaction estimates for compressed SSTables, code uses the uncompressed logical file pointer instead of the actual on-disk (compressed) byte count, causing premature splits or wildly wrong estimates.
-
-### Tombstone purge in partial compaction resurrects shadowed data (3 known bugs)
-When `removeDeleted()` or `isEmpty()` purges tombstones based on `gcBefore` without checking `shouldPurge()` to verify all versions of the row are in the compaction set, tombstones are removed while shadowed data remains in uncompacted SSTables.
-
-### One-time batch operation triggers per-item side-effect (3 known bugs)
-When multiple items are added in a batch operation and each item addition triggers a side-effect (like scheduling compaction), the result is N identical side-effects instead of one batched operation.
-
-### Unconditional wait after stream initiation hangs when transfer has zero files (3 known bugs)
-When a streaming session sends an initiation message and then unconditionally waits for completion, sessions with zero files never signal completion, causing an indefinite hang.
-
-### Hardcoded IPv4 literal or IPv6 characters breaking structured names (5 known bugs)
-`"127.0.0.1"` used where a configurable address is needed, `.toString()` produces leading slash breaking comparisons, or IPv6 colons break URI parsing and JMX ObjectName syntax.
-
-### Typo or misspelling in user-facing string (5 known bugs)
-An error message, log line, or CLI output contains a misspelled word, duplicate word, or wrong technical term that misleads operators.
-
-### Comparator argument order / receiver-argument inversion (2 known bugs)
-Arguments to a comparator, compatibility predicate, or constructor are transposed (keyspace in the columnfamily slot, dividend in the divisor slot). Spot by reading the method as a sentence and confirming each argument matches its role.
-
-### Deduplication / visited-set populated from wrong source (2 known bugs)
-When merging two data sources with deduplication, the "already-seen" set is populated from the wrong source. Spot by confirming the visited set tracks the secondary source.
-
-### float-to-double widening before BigDecimal construction loses precision (2 known bugs)
-Widening a `float` to `double` or passing through floating-point as an intermediate step introduces spurious digits or truncates large values.
-
-### Ephemeral / internal entity accessible through user-facing path (2 known bugs)
-A new internal property (ephemeral snapshots) is not checked by the user-facing deletion path, or a table-level operation accidentally affects entities belonging to other column families sharing the same scope.
-
-### Purge / drop decision made before all contributing data is consumed (2 known bugs)
-A tombstone purge decision is made using metadata from a partial subset of SSTables at construction time, before all contributing data has been iterated, potentially purging data that is still live.
-
-### Tool exits 0 on failure / error swallowed silently (2 known bugs)
-A CLI tool logs an error but returns exit code 0, or native I/O errors are logged and swallowed instead of propagated.
-
-### Compressed vs uncompressed byte count mismatch in progress reporting (2 known bugs)
-Progress numerator counts compressed bytes while denominator uses uncompressed (or vice versa), or scanner position compared against wrong byte count type.
-
-### BigDecimal precision silently truncated or OOM from unbounded toPlainString() (2 known bugs)
-`MathContext.DECIMAL128` silently truncates wider values, or `toPlainString()` with user-controlled exponent allocates a multi-gigabyte string.
-
-### Scheduling or throttling at wrong granularity (2 known bugs)
-A global recurring task scheduled once per column-family-store creating N copies, or I/O throttle firing on row counts rather than at the byte-transfer layer.
-
-### Address string reused across protocols without port stripping or IPv6 escaping (2 known bugs)
-Address strings gathered for CQL (with port) reused for JMX, or IPv6 address assembled by concatenation without bracket escaping.
-
-### Schema Flags / Options Rebuilt From Scratch, Dropping Some (2 known bugs)
-A schema-altering operation rebuilds a flags or options set wholesale instead of toggling individual members, silently dropping flags (like COUNTER) that the table previously carried.
-
-### Operation Reads from Global Singleton During Sequential Replay (2 known bugs)
-Code that reads from a global singleton (Schema.instance, ClusterMetadata.current()) during a sequential replay or migration phase observes state that is ahead of or behind the point being reconstructed.
-
-### Blacklisted/suspect entries cause infinite loop in candidate selection (2 known bugs)
-When a compaction or scheduling strategy iterates candidates and must skip blacklisted/suspect entries, the iteration does not properly wrap around or terminate, causing a busy-loop.
-
-### Retry/inflation mechanism leaks inflated count into user-visible results (2 known bugs)
-When a retry mechanism inflates a request count for short-read protection, the inflated count is propagated as the `originalCount` of further retries, silently growing the user-visible result.
-
-### Assertion assumes exactly one output from operation that can produce zero (2 known bugs)
-When a compaction helper asserts `size(output) == 1`, operations like cleanup or scrub that legitimately produce zero output files violate the assertion.
-
-### Tie-breaking logic for equal-timestamp columns inconsistent across two code paths (2 known bugs)
-When timestamp tie-breaking logic is duplicated between a `comparePriority` method and a reconciler, the authoritative path may fall through without checking for tombstones.
-
-### add() used instead of addAll() when collection type changes (2 known bugs)
-When a map value type changes from a single element to a `Collection`, callers that still use `add(entry.getValue())` add the entire collection as one element.
-
-### Data structure selected unconditionally when modes need different semantics (2 known bugs)
-A data structure (map type, collection type, comparator) is chosen without checking the mode or variant, but different modes require different semantics.
-
-### Mixed-concern flag overloaded for two independent properties (1 known bug)
-A single boolean controls two orthogonal properties, so a new use case that needs different values for each has no valid representation.
-
-### Schema-derived property re-computed instead of stored, drifts after DDL (1 known bug)
-A structural property (column layout) is inferred from the current column set rather than stored at creation time, so it changes after schema alterations.
-
-### CAS operation treats [applied]=false as error without inspecting returned row (1 known bug)
-A LWT that returns `[applied] = false` is immediately converted to an exception without checking whether the existing row already has the desired state.
-
-### Delegating setter creates infinite recursion when target is self (1 known bug)
-A setter that propagates to a sibling object's same setter does not guard against the case where the sibling is `this`.
-
-### Assertion in base-class constructor fires for valid subclass usage (1 known bug)
-An assertion in a base-class constructor enforces a constraint only valid for a subset of callers.
-
-### Security policy checked on only one side of connection (1 known bug)
-TLS enforcement is checked outbound but not inbound, allowing unencrypted connections when encryption is required.
-
-### Cross-constraint satisfiability not checked at definition time (1 known bug)
-Compound declarative predicates are validated individually but not cross-checked for contradictions or redundancies.
-
-### Base set used after augmented set was constructed (1 known bug)
-Code builds an "all" set by augmenting a base set, then subsequent operations use the base set instead of the augmented one.
-
-### Streaming protocol missing ACK or drain on failure (1 known bug)
-A request/reply protocol does not send the ACK on one side or does not drain the input stream before connection reuse on failure.
-
-### Passive liveness detection (one-directional) in asymmetric network (1 known bug)
-A node is marked alive based on received traffic without confirming two-way reachability, producing false-positive liveness behind firewalls.
-
-### Scheduling loop misses re-arm on one branch (1 known bug)
-A periodic task's scheduling loop misses re-arming the next scheduled event on the "work done" branch, causing the task to stop running.
-
-### Inner worker void return hides failure from dispatch loop (1 known bug)
-A `void` helper inside a dispatch loop cannot communicate failure back to the loop controller, so the loop continues past failures.
-
-### Unconditional resource acquisition before mode/config check (1 known bug)
-A connection or resource is acquired unconditionally before a branch that checks whether it is needed, failing on environments where the unused protocol is disabled.
-
-### Mutable state overwritten between evaluation sites (1 known bug)
-An object carries mutable state and evaluation logic called from multiple sites, so a later call's state overwrites the earlier one.
-
-### Feature removal leaves leftover conditional references (1 known bug)
-After removing a feature, leftover references to the removed concept in conditional guards invert or short-circuit important logic.
-
-### Async future wrapping conflates cancellation with failure (1 known bug)
-`Futures.getUnchecked()` converts both `CancellationException` and `ExecutionException` into `UncheckedExecutionException`.
-
-### Resource name delimiter conflicts with user-supplied identifier content (1 known bug)
-Function resource names parsed using delimiter that can appear inside function names.
-
-### Feature predicate distributed across subclasses with stub implementations (1 known bug)
-Prepared statement invalidation requires boolean predicate on every node in object graph, but stubs return hardcoded `false`.
-
-### Multi-column restriction dispatch based only on first element type (1 known bug)
-Dispatch branches on type of first restriction only, failing when collection contains mixed types.
-
-### Point-wise vs span-wise overlap test (1 known bug)
-L0 overlap test checks individual SSTable overlap instead of collective span coverage.
-
-### SSTable metadata from foreign node trusted for local decisions (1 known bug)
-SSTables streamed from other nodes carry metadata valid only for source node; local replay trusts it for truncation decisions.
-
-### Missing sizeof(byte) overload causes silent widening to sizeof(int) (1 known bug)
-Absent byte overload in TypeSizes causes compiler to widen to int, returning 4 instead of 1.
-
-### Zero-copy buffer optimization violates parent class independence contract (1 known bug)
-Overriding extractFrame returns zero-copy slice when parent requires independent buffer, causing data corruption.
-
-### Return type mismatch in polymorphic Object-typed handle (1 known bug)
-createPreparedStatement returns Object; paired execute casts to wrong concrete type.
-
-### Mutable collection shared via copy() without defensive copy (1 known bug)
-copy() passes EnumSet/HashSet by reference, causing mutations to propagate back to original.
-
-### Negative Delta Passed to Non-Negative Allocation Tracker (1 known bug)
-A before/after size difference that can be negative is passed to a memory-tracking primitive that asserts non-negative size.
-
-### Boolean Parameter Conflates Two Orthogonal Concerns (1 known bug)
-A boolean parameter (like `offline`) is repurposed as a proxy for a different concern (`keepOriginals`).
-
-### Partition-to-Bucket Loop Re-reads Source from Beginning (1 known bug)
-A collection is partitioned into output buckets inside a loop, but the source is iterated from the beginning for each bucket, duplicating elements.
-
-### Parallel data structure loop bounded by wrong structure's size (1 known bug)
-When iterating over two parallel arrays using only one's length as the loop bound, the other may have fewer elements.
-
-### Lambda comparator argument order reversed (ascending vs descending) (1 known bug)
-Comparators intended for descending order that use `(o1, o2)` instead of `(o2, o1)` silently sort in the wrong direction.
-
-### Capacity check uses element count instead of element count times element size (1 known bug)
-An upper-bound check expressed in count units rather than byte units allows the structure to exceed its byte-capacity limit.
-
-### Conditional decrement chain across multiple if/else branches miscounts (1 known bug)
-Computing an index by starting from a base and applying conditional decrements across branching logic applies the wrong number of adjustments.
-
-### Float arithmetic on 64-bit token space loses precision (1 known bug)
-Token-space arithmetic on Murmur3Partitioner using `float` or `double` loses precision; `BigInteger`/`BigDecimal` must be used.
-
-### Mutable data structure returns construction-time constant instead of current state (1 known bug)
-A method that should reflect the current state of a mutable structure instead returns a schema-level or construction-time constant.
-
-### Subclass carries additional semantic identity not tested in type-check method (1 known bug)
-When a subclass represents a semantically distinct variant, type-check methods on the parent that do not account for the subclass identity misclassify instances.
-
-### Composite-object scan missing check at intermediate nesting level (1 known bug)
-A scan that handles the outermost and innermost levels but skips the middle level (row tombstone) silently misses propagation of row-level deletions.
-
-### Deprecated API delegates to new builder but drops some parameters (1 known bug)
+### Deprecated API drops parameters when delegating to new form (weight: low)
 When a deprecated API path forwards to a shared builder, any option the old path accepted but does not forward causes a silent no-op.
 
-### Method has multiple execution paths but only some fulfill a shared postcondition (1 known bug)
-When all branches of a method must meter or track a resource but only some branches contain the tracking call, the others silently skip it.
+---
 
-### Paired min/max configuration fields but only one is forwarded (1 known bug)
-When a class has parallel min/max config fields, forwarding only one silently drops the other setting.
+## Inverted / Negated Conditions
 
-### Method return value silently ignored by caller who assumes in-place mutation (1 known bug)
-When a method both mutates an argument and returns a value, callers that ignore the return value silently lose data.
+### Inverted boolean guard (weight: high)
+-  For EVERY boolean guard: read aloud as a sentence. Does the polarity match the intent?
+-  Is `!` where there should be none? `<` instead of `>=`? `==` instead of `!=`?
 
-### Elapsed time computed as `now - (now - timestamp)` which equals `timestamp` (1 known bug)
-The expression simplifies to `timestamp` itself (not elapsed time), causing duration comparisons to produce nonsensical results.
-
-### Hadoop predicate emptiness check uses wrong boolean operator (&& vs ||) (1 known bug)
-Using `&&` (both absent) instead of `||` (either absent) means a one-sided range is incorrectly treated as non-empty.
-
-### Response handler uses wrong contains() due to byte-array vs address type mismatch (1 known bug)
-When checking `waitList.contains(message.getFrom())`, list type and address representation must match.
-
-### Two-pass algorithm uses different reference time for each pass (1 known bug)
-When a two-pass algorithm calls `System.currentTimeMillis()` independently in each pass, TTL expiry decisions can differ between passes.
-
-### JMX MBean method name does not follow JavaBean naming convention (1 known bug)
-Non-conforming names make the attribute invisible to JMX clients.
-
-### Two different size metrics conflated (file bytes vs wire bytes) (1 known bug)
-A function returning "bytes read from file" is used as "bytes sent over network" but the two differ.
-
-### Two code paths for same operation diverge — one omits a required step (1 known bug)
-When parallel code paths exist (NIO vs non-NIO, streaming vs local), one path omits a step that the other performs.
-
-### Direct field access in compareTo/equals breaks subclasses and mocks (1 known bug)
-A comparison implementation that reads final fields directly instead of through accessor methods cannot be overridden.
+### Short-circuit loop semantics inverted (weight: low)
+Early-return on negative match with default true flips semantics, silently producing wrong results.
 
 ---
 
-## Inverted / Negated Conditions (§2)
+## Filtering & Selection
 
-### Short-circuit loop semantics inverted (OR vs NOT-AND) (1 known bug)
-Early-return on negative match with default true flips semantics, silently producing wrong IN-clause results.
+### Missing guard for empty input (weight: high)
+-  What happens when the collection/iterator has zero elements?
+-  Does empty credentials, config, or options cause a different (broken) code path?
+
+### Result ordering driven by wrong source (weight: high)
+-  Is ordering driven by an authoritative ordered list, not `Map.values()` or `Map.keySet()`?
+
+### Missing or overly broad filter conflates enablement with fast-path (weight: medium)
+A single boolean guard used for both "should this subsystem activate" and "should the inner fast path short-circuit".
+
+### Scope or namespace not included in cache key or identifier resolution (weight: medium)
+A cache is keyed on a local name without its owning namespace, allowing collisions across namespaces.
+
+### Wrong collection queried for lookup (weight: medium)
+Code looks up a value in the wrong map (e.g., primary-key set instead of regular-attribute map).
+
+### Assertion used where defensive check needed for legitimate runtime state (weight: medium)
+An `assert` guards against a state that legitimately arises at runtime, causing crashes in production.
+
+### Mutable shared object passed to multiple consumers without copy (weight: medium)
+A stateful object with mutable counters/cursors/flags is constructed once and passed to multiple independent consumers in a loop.
+
+### Transformation / pipeline stage ordering error (weight: medium)
+In a chained iterator pipeline, stages are applied in the wrong order so a dependent stage misses events from an extension it requires.
+
+### Aggregate returns wrong result on empty input (weight: low)
+An aggregate function fails to return a row on empty input, violating expected semantics.
+
+### Filter predicate applied to one branch of union but not both (weight: low)
+A canonical view is built by merging two collections with a filtering step on only one.
+
+### Boolean predicate named for one context misused in another (weight: low)
+A predicate named for context A is used in context B where its boolean sense inverts.
+
+### Mutable object from cache modified in-place, affecting all holders (weight: low)
+A mutable object retrieved from a cache or factory is modified in-place by one consumer, affecting all other consumers sharing the same reference.
 
 ---
 
-## Wrong Variable, Field, or Operand — Additional (§3)
+## Type Dispatch & Enum Coverage
 
-### Data structure or identifier misused: wrong backing collection type, wrong map key type, or CQL case mismatch (3 known bugs)
-`ArrayBackedSortedColumns` with unsorted insertion, ColumnIdentifier-vs-ByteBuffer map key mismatch causes silent lookup miss, or mixed-case CQL identifiers silently disagree with server.
+### Incomplete switch / enum dispatch — missing case (weight: medium)
+A switch statement or if-chain over an enum does not cover a newly added or uncommon value, causing fallthrough or skipping the needed action.
 
-### Password hash comparison hashes the wrong operand (1 known bug)
-The code hashes the stored value and compares it to the raw plaintext instead of hashing the supplied plaintext and comparing to the stored hash.
+### Wrong type returned by fallback/default in type-dispatch (weight: medium)
+A switch on type ends with a hardcoded fallback type that is wrong for the uncommon case.
 
----
-
-## Incomplete Dispatch (§5)
-
-### Incomplete switch / enum dispatch — missing case (4 known bugs)
-A switch statement or if-chain over an enum does not cover a newly added or uncommon value (`die`, `PREPARED`, counter verb, duplicate `case` label), causing fallthrough to default or skipping the needed action.
-
-### Wrong type returned by fallback/default in type-dispatch method (3 known bugs)
-A switch on table type ends with a hardcoded fallback type wrong for the uncommon case: UTF8 for static compact tables, wrong dense/sparse flag, or wrong cellNameType for super columns.
-
-### Non-exhaustive switch on enum lacks default case for new or rare values (1 known bug)
+### Non-exhaustive switch lacks meaningful default (weight: low)
 A `switch` on an enum without exhaustive cases or a meaningful `default` crashes or falls through silently.
 
 ---
 
-## Type Mismatches and Unsafe Casts (§6)
+## Arithmetic & Units
 
-### Missing unwrap of ReversedType before type check (10 known bugs)
-Code performs `instanceof`, `isCollection()`, `isMap()`, or similar type-identity checks on a column's AbstractType without first calling `unwrap()` or peeling `ReversedType`. DESC clustering columns always wrap the real type in ReversedType, so direct checks silently fail.
+### Unit mismatch in time / size arithmetic (weight: high)
+A duration, timestamp, or size is computed by mixing incompatible units (nanoseconds added to milliseconds, int packed into long without widening) without explicit conversion.
 
-### Frozen vs non-frozen collection conflated (5 known bugs)
-Code checks `isCollection()` when it should check `isMultiCell()`, or vice versa. Frozen collections are stored as opaque blobs, not as multiple cells, so treating them like non-frozen ones corrupts serialization.
+### Unit-conversion factor applied in wrong direction (weight: medium)
+-  Does the multiply/divide direction match the source→target units? `bytes * 1024` instead of `bytes / 1024` produces a result 2^10 too high.
 
----
+### Progress / ratio uses mismatched numerator and denominator (weight: medium)
+-  Does progress report values in different units for numerator vs denominator?
+-  Are `bytesRead` / `totalBytes` swapped, producing inverted completion percentage?
 
-## Wrong Constants and Default Values (§21)
+### Bits-vs-bytes unit label or conversion factor wrong (weight: medium)
+Throughput display or throttle confuses bits and bytes, or the unit label says "MB/s" when the value is in "Mb/s".
 
-### Bad merge leaves wrong symbol, class name, import, or logic (16 known bugs)
-After a merge or rebase, conflict markers are gone but the resolution left the wrong variable name, wrong import, wrong constant, duplicate declaration, inverted condition, or dead code from the other branch.
+### Comparator / ordering logic incorrect (weight: high)
+A custom comparator is asymmetric, uses subtraction instead of `Integer.compare()`, handles sentinel values inconsistently, or does not cover all three cases.
 
-### Unit mismatch in time / size arithmetic (9 known bugs)
-A duration, timestamp, or size is computed by mixing incompatible units (nanoseconds added to milliseconds, int packed into long without widening, bit-field reconstruction losing high bits) without explicit conversion.
+### Lambda comparator argument order reversed (weight: low)
+Comparators intended for descending order that use `(o1, o2)` instead of `(o2, o1)` silently sort in the wrong direction.
 
-### Comparator / ordering logic incorrect (9 known bugs)
-A custom comparator is asymmetric, uses subtraction instead of `Integer.compare()`, handles sentinel values inconsistently, does not cover all three cases, or bypasses `Cell.reconcile()` with hand-rolled LWW logic.
+### Capacity check uses element count instead of byte count (weight: low)
+An upper-bound check expressed in count units rather than byte units allows the structure to exceed its byte-capacity limit.
 
-### Consistency level or sentinel value hardcoded where caller's context should be forwarded (2 known bugs)
-A commit path hardcodes `QUORUM` instead of using caller's `LOCAL_SERIAL`, or CAS timeout exceptions carry hard-coded sentinel counts instead of computed values.
+### Conditional decrement chain miscounts across branches (weight: low)
+Computing an index by starting from a base and applying conditional decrements across branching logic applies the wrong number of adjustments.
 
----
+### Elapsed time computed as `now - (now - timestamp)` = timestamp (weight: low)
+The expression simplifies to `timestamp` itself (not elapsed duration), causing duration comparisons to produce nonsensical results.
 
-## Incorrect Filtering and Query Results (§22)
+### Two different size metrics conflated (weight: low)
+A value returned as "bytes read from file" is used as "bytes sent over network" — the two differ for compressed or encoded content.
 
-### Secondary index query routes to wrong index, wrong column, or wrong operator (12 known bugs)
-Index selection uses a method whose contract is broader than membership testing, CONTAINS KEY routed as VALUES, IN treated as single-valued equality, non-primary-key columns silently accepted for IN, composite index inserts skip non-primary columns, SASI range comparison hardcodes literal mode.
+### float/double loses precision before BigDecimal construction (weight: low)
+Widening a `float` to `double` or passing through floating-point as an intermediate step introduces spurious digits or truncates large values.
 
-### Guard condition correct for one mode but wrong for another (8 known bugs)
-A guard like `isNormal()`, `isCQLTable()`, or version-equality is correct for the common mode but becomes a false positive or negative for an alternative mode (gossip-only member, reversed query, COMPACT STORAGE, rolling upgrade, SuperColumn table).
-
-### Static row/column handling inconsistent with regular row logic (8 known bugs)
-Static rows occupy a different position in the clustering order and have different semantics for LIMIT counting, DISTINCT deduplication, paging boundaries, partition existence checks, index lookups, writetime/ttl.
-
-### Result column order or identity derived from wrong source (8 known bugs)
-Column ordering driven by `Map.values()` or `Map.keySet()` instead of the authoritative ordered column list, ORDER BY resolved from schema metadata instead of SELECT list, result metadata built from deduplicating map.
-
-### LIMIT or row-count applied at wrong granularity (6 known bugs)
-LIMIT counts internal storage columns instead of CQL rows, counts rows instead of partitions for compact static tables, counts static rows the same as regular rows for clustering-filtered queries, or SELECT COUNT with LIMIT scans only LIMIT rows.
-
-### Legacy or upgrade format reader does not handle all structural variants (6 known bugs)
-Legacy SSTable reader missing static-name branch, super column upgrade hits MarshalException, comparator mismatch between old index entries and query names, Thrift-to-CQL range tombstone routing bypasses LegacyLayout.
-
-### Scope or namespace not included in cache key, authorization check, or identifier resolution (4 known bugs)
-Prepared statement cache keyed by query text alone without keyspace, BATCH authorization deduplicates by table name alone, UDF/UDA identifiers not validated against statement keyspace.
-
-### Wrong collection or map queried for lookup (3 known bugs)
-Code looks up a value in the wrong map (primary-key columns instead of regular-columns, internal strategy index instead of disk boundaries).
-
-### Transformation / pipeline stage ordering error (3 known bugs)
-In a chained iterator pipeline, stages are applied in the wrong order so a dependent stage misses events from the extension it depends on.
-
-### Assertion used where defensive check is needed for legitimate runtime state (3 known bugs)
-An `assert` guards against a state that legitimately arises: tombstone expiry during compaction, empty cell names with heap buffers.
-
-### Missing or overly broad filter guard conflates enablement with fast-path (3 known bugs)
-A single boolean guard used for both "should this subsystem activate" and "should the inner fast path short-circuit".
-
-### Counter cell or commutative type needs special decode/digest path (3 known bugs)
-Counter cells hashed as raw encoded bytes with per-replica shards instead of using type-aware normalizer, counter update cell misidentified as pre-2.1 local shard.
-
-### Mutable Shared Object Passed to Multiple Consumers Without Copy (3 known bugs)
-A stateful object (filter, query descriptor, message, ByteBuffer) with mutable counters/cursors/flags is constructed once and passed to multiple independent consumers in a loop.
-
-### Wrong String.format / CQL bind-marker usage (2 known bugs)
-A CQL query uses `%s` format specifiers with `executeInternal(query, values)` which expects `?` bind markers.
-
-### Seek / rewind in format-aware iterator does not account for already-consumed data (2 known bugs)
-A reader that consumes data during construction leaves the cursor past that data, but a subsequent seek/rewind goes back to a position that re-reads the already-consumed data.
-
-### Wrong return value or outcome constant for the failed condition (2 known bugs)
-IMH acquireCapacity returns wrong outcome on endpoint-reserve exhaustion, or DESCRIBE statement uses original collection instead of filtered copy.
-
-### Bloom filter or index pre-computation wrong (2 known bugs)
-Bloom filter sized from sum of all partitions instead of per-SSTable count, or batch-mode placeholder assigned before initializer that later overwrites it.
-
-### Mixed-version or rolling upgrade counting/filtering divergence (2 known bugs)
-Limit counts rows instead of partitions because older node wire representation differs, or LegacyLayout over-trims by counting tombstones same as live cells.
-
-### Mutable Shared Object Modified by Cached/Shared Reference (2 known bugs)
-A mutable object retrieved from a cache or factory is modified in-place by one consumer, affecting all other consumers sharing the same reference.
-
-### Wrapping token range fed to interval query without unwrap check (2 known bugs)
-Code that passes a `Range<Token>` directly to an overlap or contains query without checking `strictlyWrapsAround` silently misses SSTables.
-
-### Boolean predicate named for one context used with inverted meaning in another (2 known bugs)
-A predicate named for context A is used in context B where its boolean sense inverts.
-
-### Timezone offset derived from current time instead of timestamp being converted (1 known bug)
-A helper derives a timezone offset from `time.time()` instead of the timestamp being converted.
-
-### Filter predicate applied to one branch of union but not both (1 known bug)
-A canonical view is built by merging two collections with a filtering step on only one.
-
-### nowInSec computed multiple times or propagated inconsistently (1 known bug)
-`nowInSec` computed late or in multiple places, allowing divergence between QueryOptions and ReadQuery.
-
-### Aggregate function returns wrong result on empty input (1 known bug)
-Aggregate function fails to return a row on empty table, violating SQL semantics.
-
-### Schema filtering excludes marked-for-delete rows that have live columns (1 known bug)
-Using OR logic (`isMarkedForDelete() || isEmpty()`) instead of AND incorrectly excludes re-created entities.
+### Timezone offset derived from current time instead of timestamp being converted (weight: low)
+A helper derives a timezone offset from `now` instead of the timestamp being converted.
 
 ---
 
-## State Cleanup — Logic-Domain Patterns (§19)
+## Control Flow & Dispatch
 
-### Stale identifier after rename/refactor (13 known bugs)
-A rename leaves behind references to the old name in callers, log messages, string literals, tool registrations, example code, or string-typed class names that survive because `Class.forName()` is not checked at compile time.
+### Two code paths for same operation diverge (weight: low)
+When parallel code paths exist (NIO vs non-NIO, streaming vs local), one path omits a required step that the other performs.
 
-### Wrong variable / wrong field used in comparison (12 known bugs)
-The code compares or operates on the wrong variable — a field from the outer scope instead of the loop variable, the source buffer instead of the destination, a stale local instead of the freshly-fetched value, or the getter reads derived state from child objects instead of the authoritative field.
+### Scheduling loop misses re-arm on one branch (weight: low)
+A periodic task's scheduling loop misses re-arming the next event on the "work done" branch, causing the task to stop running.
 
-### Tombstone or deletion incorrectly discarded, not counted, or not propagated (12 known bugs)
-Filters strip tombstones before reconciliation needs them, range tombstones dropped by type-unaware cell discard loops, partition-level deletions not recognized as completing a row for early-exit, tombstoned partitions consume LIMIT slots, tombstone counters over-count, compaction loses row tombstones via container clear(), deletion timestamp sourced from wrong object, or reverse-query iteration fails to preserve metadata-before-data ordering.
+### Inner worker void return hides failure from dispatch loop (weight: low)
+A `void` helper inside a dispatch loop cannot communicate failure back to the loop controller, so the loop continues past failures.
 
-### Reference equality (==) used instead of value equality (.equals) (4 known bugs)
-Code uses `==` to compare Strings, TableMetadata, or other value objects that may not be the same instance. After any refactoring that changes object lifecycle, identity checks break silently.
+### Unconditional resource acquisition before mode/config check (weight: low)
+A connection or resource is acquired unconditionally before a branch that checks whether it is needed, failing on environments where the unused mode is disabled.
 
-### Documentation, help text, or feature list not updated for new or renamed feature (4 known bugs)
+### Mutable state overwritten between evaluation sites (weight: low)
+An object carries mutable evaluation state and is called from multiple sites; a later call's state overwrites the earlier one.
+
+### Feature removal leaves leftover conditional references (weight: low)
+After removing a feature, leftover references to the removed concept in conditional guards invert or short-circuit important logic.
+
+---
+
+## Logging & Diagnostics
+
+### Eager evaluation in disabled log/debug path (weight: medium)
+A log statement's arguments include method calls (collection formatting, type serialization, `String.format`) that are evaluated even when the log level is disabled.
+
+### SLF4J `{}` vs printf `%s`/`%d` mismatch (weight: medium)
+A logger call uses printf placeholders instead of SLF4J `{}`, or has more tokens than arguments.
+
+### Tool exits 0 on failure / error swallowed silently (weight: low)
+A CLI tool logs an error but returns exit code 0, or I/O errors are logged and swallowed instead of propagated.
+
+### Typo or misspelling in user-facing string (weight: low)
+An error message, log line, or CLI output contains a misspelled word, duplicate word, or wrong technical term.
+
+### Documentation or help text not updated for new/renamed feature (weight: medium)
 When a feature is added, renamed, or removed, its documentation — help strings, CLI usage text, example commands — is not updated.
 
-### DDL type stored as String, causing broken instanceof checks and double-parse (1 known bug)
-When column type information is stored as a `String` and re-parsed at multiple use sites, `instanceof` checks against the String value silently fail.
+---
+
+## Performance (detectable in review)
+
+### Hot-path re-derivation (weight: low)
+A method called in an inner loop delegates to an expensive operation on every invocation instead of caching.
+
+### Unnecessary auto-boxing (weight: low)
+A generic container parameterized with boxed types auto-boxes on every comparison in a tight loop.
+
+### O(n) in hot path (weight: low)
+A method called in a hot path iterates a collection where a reverse lookup map would give O(1).
+
+### Scheduling at wrong granularity (weight: low)
+A recurring task that should run once globally is scheduled per-item, creating N copies. Or a throttle fires on logical units instead of at the byte-transfer layer.
+
+---
+
+## Structural Patterns from Multi-Project Corpus
+
+### Assertion guards only one variant of several that legitimately reach the site (weight: medium)
+-  For every `assert` on state / subtype: enumerate every valid value that legitimately reaches this call site.
+-  Alternative modes, concurrent-not-found, zero-output paths, and edge-mode subclasses all fire spurious `AssertionError` when only one variant was considered.
+
+### ByteBuffer position-advancing read without duplicate (weight: medium)
+-  For every relative `get()` / `put()` / `read()` on a shared or caller-supplied buffer: is it preceded by `.duplicate()` / `.slice()`?
+-  Position advances silently corrupt subsequent reads; singleton/cached buffers are permanently exhausted.
+-  Is `rewind()` used where `flip()` was intended? `rewind()` leaves limit at capacity, exposing uninitialized tail bytes.
+
+### Reversed-iteration bound inclusion flipped (weight: medium)
+-  For every bound-inclusion check on a reversed-iteration path: is the LOGICAL bound reversed to match iteration direction? Exclusivity applied to the wrong endpoint silently returns wrong rows.
+-  For direction-sensitive skip guards in a reverse context: is the comparator's sense flipped? Guards fire when they shouldn't, re-emitting already-seen items on subsequent pages.
+
+### CAS / retry loop reuses already-mutated source (weight: medium)
+-  Does a CAS retry pass the SOURCE object to a mutating merge? First iteration mutates it; subsequent retries operate on altered data.
+-  Does a distribution loop iterate a shared collection without removing consumed entries, so every consumer receives the full set instead of a disjoint subset?
+
+### Unit-conversion factor in wrong direction (weight: medium)
+-  Does the multiply/divide direction match the source→target units? `bytes * 1024` instead of `bytes / 1024` produces a result 2^10 too high.
+
+### Progress ratio uses mismatched numerator and denominator (weight: medium)
+-  Does a ratio sample numerator and denominator at different moments, allowing negative or >100% aggregate values?
+
+### In-flight counter incremented without matching decrement on error path (weight: medium)
+-  Is the counter incremented before work is submitted, and does the rejection / cancel / exception path decrement?
+-  Does a metric counter stay permanently divergent from actual state after a failed async write?
+
+### Equal-bounds degenerate case skipped in range predicate (weight: medium)
+-  When `min == max == value`, can a range predicate prove exclusion or match? Many "might match" defaults never prune the provably-disjoint single-value case.
+
+### Derived cache not refreshed after configuration reload (weight: low)
+-  Is a derived cache populated at startup but never invalidated when its source configuration is reloaded?
+-  Is a setup-time configuration resolved before the per-target entity is known, freezing settings at global defaults?
+
+### Inline field initializer survives constructor / setter (weight: low)
+-  When a field has a hardcoded inline initializer and the constructor is supposed to overwrite it, does the assignment actually fire on all code paths?
+-  Does a copy constructor propagate a time-sensitive field (expiry, timestamp) unchanged when the new object represents a distinct lifetime?
+
+### Unconditional defensive-wrap chain grows on each rebuild (weight: low)
+-  Does a constructor/rebuild path wrap its input in an unmodifiable / defensive wrapper without first checking whether the input is already wrapped?
+-  Repeated rebuilds build a linearly-growing delegation chain that overflows the stack on iteration.
+
+### Version / threshold string compared lexicographically (weight: low)
+-  For every version or threshold comparison: is it numeric-aware? String compare silently admits `"9" > "11"`.
+
+### Mutable data structure returns construction-time constant instead of current state (weight: low)
+A method that should reflect current state instead returns a construction-time constant.
+
+### Subclass identity not tested in type-check method (weight: low)
+When a subclass represents a semantically distinct variant, type-check methods on the parent that ignore the subclass identity misclassify instances.
+
+### Base set used after augmented set was constructed (weight: low)
+Code builds an "all" set by augmenting a base set, then subsequent operations use the base set instead of the augmented one.
+
+### Reference equality used instead of value equality (weight: medium)
+Code uses `==` to compare Strings or other value objects that may not be the same instance. After any refactoring that changes object lifecycle, identity checks break silently.
+
+### Two-pass algorithm uses different reference time per pass (weight: low)
+When a two-pass algorithm calls `currentTimeMillis()` independently in each pass, time-sensitive decisions can differ between passes.
+
+### Cross-constraint satisfiability not checked at definition time (weight: low)
+Compound declarative predicates are validated individually but not cross-checked for contradictions or redundancies.
+
+### Method has multiple paths but only some fulfill a shared postcondition (weight: low)
+When all branches of a method must meter or track a resource but only some branches contain the tracking call, the others silently skip it.
+
+### Paired min/max config fields but only one forwarded (weight: low)
+When a class has parallel min/max config fields, forwarding only one silently drops the other setting.
+
+### Method return value ignored by caller assuming in-place mutation (weight: low)
+When a method both mutates an argument and returns a value, callers that ignore the return value silently lose data.
+
+### Direct field access in compareTo/equals breaks subclasses (weight: low)
+A comparison implementation that reads final fields directly instead of through accessor methods cannot be overridden.
+
+### Async future wrapping conflates cancellation with execution failure (weight: low)
+An async future wrapper converts both `CancellationException` and execution failures into the same exception type.
+
+### Deduplication / visited-set populated from wrong source (weight: low)
+When merging two data sources with deduplication, the "already-seen" set is populated from the wrong source.
