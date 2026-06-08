@@ -27,12 +27,20 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.TopologyListener;
+import accord.primitives.Ranges;
+import accord.topology.ActiveEpoch;
 import accord.topology.EpochReady;
+import accord.topology.Topology;
+import accord.topology.TopologyManager;
+import accord.topology.TopologyManager.RegainingEpochRange;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -54,6 +62,7 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.topology.AccordTopology;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -75,10 +84,13 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static accord.primitives.AbstractRanges.UnionMode.MERGE_ADJACENT;
+import static accord.primitives.Routables.Slice.Minimal;
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.tcm.MultiStepOperation.Kind.MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_MOVE;
@@ -86,6 +98,7 @@ import static org.apache.cassandra.tcm.Transformation.Kind.MID_MOVE;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_MOVE;
 import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class Move extends MultiStepOperation<Epoch>
 {
@@ -196,6 +209,44 @@ public class Move extends MultiStepOperation<Epoch>
         return applyMultipleTransformations(metadata, next, of(startMove, midMove, finishMove));
     }
 
+    static class WaitForEpochAndRangeRetirement implements TopologyListener
+    {
+        final Condition condition = newOneTimeCondition();
+        final long waitingForEpoch;
+        final Ranges waitingForRanges;
+        Ranges retiredRanges;
+
+        public WaitForEpochAndRangeRetirement(long waitingForEpoch, Ranges waitingForRanges)
+        {
+            this.waitingForEpoch = waitingForEpoch;
+            this.waitingForRanges = waitingForRanges;
+            this.retiredRanges = Ranges.EMPTY;
+        }
+
+        synchronized void updateRetiredRanges(Ranges ranges)
+        {
+            ranges = ranges.slice(waitingForRanges, Minimal).without(retiredRanges);
+            if (!ranges.isEmpty())
+            {
+                retiredRanges = retiredRanges.union(MERGE_ADJACENT, ranges);
+                if (retiredRanges.containsAll(waitingForRanges))
+                    condition.signal();
+            }
+        }
+
+        @Override
+        public synchronized void onEpochRetired(Ranges ranges, long epoch, @Nullable Topology topology)
+        {
+            if (epoch >= waitingForEpoch)
+                updateRetiredRanges(ranges);
+        }
+
+        public void waitForRetirement()
+        {
+            condition.awaitThrowUncheckedOnInterrupt();
+        }
+    }
+
     @Override
     public Set<NodeId> affectedPeers(Directory directory)
     {
@@ -212,9 +263,38 @@ public class Move extends MultiStepOperation<Epoch>
         switch (next)
         {
             case START_MOVE:
+                WaitForEpochAndRangeRetirement wait = null;
+
                 try
                 {
                     ClusterMetadata metadata = ClusterMetadata.current();
+                    if (AccordService.isStarted() && metadata.schema.hasAccordKeyspaces())
+                    {
+                        TopologyManager topologyManager = AccordService.instance().topology();
+                        AccordService.toFuture(topologyManager.await(metadata.epoch.getEpoch(), null))
+                                     .awaitThrowUncheckedOnInterrupt().rethrowIfFailed();
+                        Topology current = topologyManager.active().globalForEpoch(metadata.epoch.getEpoch());
+                        RegainingEpochRange regaining = topologyManager.computeRegaining(current, AccordTopology.createAccordTopology(applyTo(metadata).success().metadata));
+
+                        if (regaining != null)
+                        {
+                            wait = new WaitForEpochAndRangeRetirement(regaining.epoch(), regaining.ranges());
+                            topologyManager.addListener(wait);
+                            ActiveEpoch e = topologyManager.active().ifExists(regaining.epoch());
+
+                            // We have already checked that our activeEpochs is caught up to metadata.epoch.getEpoch()
+                            // which is greater than regaining.epoch() so if e == null then the only case we can fall
+                            // in is that regaining.epoch() is already retired
+                            if (e != null)
+                            {
+                                wait.updateRetiredRanges(e.retired());
+                                logger.info("Waiting for previous ownership of ranges {} to retire before regaining", regaining.ranges());
+                                wait.waitForRetirement();
+                                logger.info("Previously owned ranges {} now retired", regaining.ranges());
+                            }
+                        }
+                    }
+
                     logger.info("Moving {} from {} to {}.",
                                 metadata.directory.endpoint(startMove.nodeId()),
                                 metadata.tokenMap.tokens(startMove.nodeId()),
@@ -225,6 +305,11 @@ public class Move extends MultiStepOperation<Epoch>
                 {
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
+                }
+                finally
+                {
+                    if (wait != null)
+                        AccordService.instance().topology().removeListener(wait);
                 }
                 break;
             case MID_MOVE:

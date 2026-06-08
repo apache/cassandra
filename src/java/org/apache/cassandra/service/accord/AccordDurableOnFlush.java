@@ -127,7 +127,9 @@ class AccordDurableOnFlush implements BiConsumer<Long, TableMetadata>
         for (Map.Entry<Integer, ReportDurable> e : notify.entrySet())
         {
             ReportDurable durable = e.getValue();
-            notifyInOrder(memtableId, metadata, commandStores.forId(e.getKey()), durable);
+            CommandStore commandStore = commandStores.forId(e.getKey());
+            if (commandStore != null)
+                notifyInOrder(memtableId, metadata, commandStore, durable);
         }
     }
 

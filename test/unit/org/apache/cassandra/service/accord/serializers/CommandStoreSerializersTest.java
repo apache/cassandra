@@ -127,6 +127,27 @@ public class CommandStoreSerializersTest
         };
     }
 
+    public static Gen<CommandStores.PreviouslyOwned> previouslyOwnedGen(Gen<Ranges> rangesGen)
+    {
+        Gen.IntGen sizeGen = Gens.ints().between(0, 10);
+        Gen.LongGen epochGen = AccordGens.epochs();
+        return rs -> {
+            int size = sizeGen.nextInt(rs);
+            if (size == 0)
+                return CommandStores.PreviouslyOwned.EMPTY;
+            long maxEpoch = 0;
+            long[] epochs = new long[size];
+            Ranges[] ranges = new Ranges[size];
+            for (int i = 0; i < size; i++)
+            {
+                epochs[i] = epochGen.nextLong(rs);
+                ranges[i] = rangesGen.next(rs);
+                maxEpoch = Math.max(maxEpoch, epochs[i]);
+            }
+            return new CommandStores.PreviouslyOwned(maxEpoch, epochs, ranges);
+        };
+    }
+
     private void maybeUpdatePartitioner(CommandStores.RangesForEpoch expected)
     {
         if (expected.size() > 0)

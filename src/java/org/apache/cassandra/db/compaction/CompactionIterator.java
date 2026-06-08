@@ -1008,9 +1008,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (read.kind() == Repeat && !hasWritten)
             {
                 Invariants.require(lastImage != null);
-                write = new TopologyImage(read.epoch(), Image, lastImage.getUpdate());
+                write = new TopologyImage(read.epoch(), Image, lastImage.update());
             }
-            else if (hasWritten && read.kind() == Repeat && lastImage.getUpdate().isEquivalent(read.getUpdate()))
+            else if (hasWritten && read.kind() == Repeat && lastImage.update().isEquivalent(read.update()))
             {
                 write = read.asRepeat();
             }
