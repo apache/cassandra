@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Generate native-protocol HTML and asciidoc summary from .spec files."""
 
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,7 +17,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse, sys, re, html, io
+import argparse
+import sys
+import re
+import html
+import io
 from pathlib import Path
 from typing import List
 
@@ -26,7 +31,7 @@ _title_re = re.compile(r'^\s+(.*)\s*$')
 _heading_re = re.compile(r'^(?P<indent>\s*)(?P<number>\d+(?:\.\d+)*)\.?\s+(?P<title>[A-Za-z_].+)$')
 _toc_entry_re = re.compile(r'^(?P<number>\d+(?:\.\d+)*)\.?\s+(?P<title>.+)$')
 _url_re = re.compile(r'(https?://[^\s)]+)')
-_url_trailing_punct = '.,;:!?'
+_URL_TRAILING_PUNCT = '.,;:!?'
 _protocol_filename_re = re.compile(r'^native_protocol_v(\d+)\.(?:spec|html)$')
 
 
@@ -37,6 +42,7 @@ def _skip_blank(lines: List[str], idx: int) -> int:
 
 
 def parse_spec_file(path: Path) -> dict:
+    """Parse a native_protocol_v*.spec file into license, title, TOC, and sections."""
     text = path.read_text(encoding='utf-8')
     lines = text.splitlines()
     idx = 0
@@ -104,6 +110,7 @@ def parse_spec_file(path: Path) -> dict:
 
 
 def build_toc_tree(entries, nums):
+    """Build a nested TOC tree from flat entries; mark which numbers exist as sections."""
     root = {'children': []}
     stack = [root]
     for e in entries:
@@ -138,13 +145,14 @@ def _linkify_section_refs(text: str) -> str:
 def _linkify_url(m):
     url = m.group(1)
     trailing = ''
-    while url and url[-1] in _url_trailing_punct:
+    while url and url[-1] in _URL_TRAILING_PUNCT:
         trailing = url[-1] + trailing
         url = url[:-1]
     return f'<a href="{url}">{url}</a>{trailing}'
 
 
 def format_body(lines):
+    """Render section body lines as escaped HTML with URL and section-ref linkification."""
     text = "\n".join(lines)
     if text.startswith('\n'):
         text = text[1:]
@@ -157,6 +165,7 @@ def format_body(lines):
 
 
 def build_sections(secs):
+    """Convert raw parsed sections into render-ready dicts with HTML body and heading level."""
     return [{
         'number': s['number'],
         'title': s['title'],
@@ -184,6 +193,7 @@ def _render_toc(nodes, out, indent):
 
 
 def render_html(title, license_lines, toc_tree, sections):
+    """Render the full HTML document for a single protocol version."""
     out = io.StringIO()
     t_esc = html.escape(title)
     out.write('<!DOCTYPE html>\n')
@@ -219,7 +229,8 @@ def render_html(title, license_lines, toc_tree, sections):
     return out.getvalue()
 
 
-def main():
+def main():  # pylint: disable=too-many-locals
+    """CLI entrypoint: render one HTML page per spec file plus an asciidoc summary."""
     parser = argparse.ArgumentParser(
         description="Generate native-protocol HTML and asciidoc summary from .spec files."
     )
@@ -249,7 +260,8 @@ def main():
     summary_adoc.parent.mkdir(parents=True, exist_ok=True)
 
     specs = sorted(
-        (p for p in spec_dir.glob('native_protocol_v*.spec') if _protocol_filename_re.match(p.name)),
+        (p for p in spec_dir.glob('native_protocol_v*.spec')
+         if _protocol_filename_re.match(p.name)),
         key=lambda p: int(_protocol_filename_re.match(p.name).group(1)),
         reverse=True,
     )
@@ -313,7 +325,8 @@ def main():
 """
 
     html_files = sorted(
-        (p for p in attach_dir.glob('native_protocol_v*.html') if _protocol_filename_re.match(p.name)),
+        (p for p in attach_dir.glob('native_protocol_v*.html')
+         if _protocol_filename_re.match(p.name)),
         key=lambda p: int(_protocol_filename_re.match(p.name).group(1)),
         reverse=True,
     )
