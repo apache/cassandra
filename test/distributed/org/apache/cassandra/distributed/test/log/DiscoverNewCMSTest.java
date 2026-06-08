@@ -70,7 +70,8 @@ public class DiscoverNewCMSTest extends TestBaseImpl
     public void singleNodeCMSAddressChangeTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = builder().withNodes(3)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                    .set("progress_barrier_backoff", "50ms"))
                                         .createWithoutStarting())
         {
             test(cluster, 1);
@@ -82,7 +83,8 @@ public class DiscoverNewCMSTest extends TestBaseImpl
     {
 
         try (Cluster cluster = builder().withNodes(3)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                    .set("progress_barrier_backoff", "50ms"))
                                         .createWithoutStarting())
         {
             test(cluster, 3);
@@ -93,7 +95,8 @@ public class DiscoverNewCMSTest extends TestBaseImpl
     public void multiNodeCMSAllAddressesChangeTest() throws IOException, ExecutionException, InterruptedException
     {
         try (Cluster cluster = builder().withNodes(6)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                    .set("progress_barrier_backoff", "50ms"))
                                         .createWithoutStarting())
         {
             test(cluster, 3);
