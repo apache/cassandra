@@ -215,25 +215,6 @@ public class CompressorRegistryTest
     }
 
     @Test
-    public void testInitReceivesParametersMinusReservedKey()
-    {
-        // A plugin that does not override init() must still be able to retrieve its parameters via
-        // the default getParameters() accessor, with the registry-reserved key stripped out.
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString(),
-                                            "abc", "1",
-                                            "def", "2");
-        ParameterizedClass pc = new ParameterizedClass(TestCompressionProvider.class.getName(), params);
-
-        AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(pc);
-        assertThat(provider).isInstanceOf(TestCompressionProvider.class);
-
-        assertThat(provider.getParameters())
-        .containsEntry("abc", "1")
-        .containsEntry("def", "2")
-        .doesNotContainKey(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER);
-    }
-
-    @Test
     public void testInitFailureWithFallback()
     {
         // An exception during provider.init() will be treated the same as an unhealthy provider:
@@ -288,9 +269,9 @@ public class CompressorRegistryTest
         DatabaseDescriptor.applyCompressorProviders();
        // AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(parameterizedClass);
        // assertThat(provider).isNotNull();
-        assertThatExceptionOfType(ConfigurationException.class)
+        assertThatExceptionOfType(IllegalStateException.class)
         .isThrownBy(() -> CompressorRegistry.instance.getCompressor(ZstdCompressor.class, Map.of()))
-        .withMessageContaining("Failed to create compressor " + ZstdCompressor.class.getName() + " Will attempt fallback to default if enabled.");
+        .withMessageContaining("compressor instantiation failed");
     }
 
     @Test

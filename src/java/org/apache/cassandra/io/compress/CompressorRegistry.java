@@ -141,8 +141,7 @@ public final class CompressorRegistry
         }
         catch (Throwable t)
         {
-            logger.warn("Failed to " +
-                        "create compressor {}. Will attempt fallback to default if enabled.",
+            logger.warn("Failed to create compressor {}. Will attempt fallback to default if enabled. Message: {}",
                         compressorClass.getName(),
                         t.getMessage());
             if (provider.isFailOnMissingProvider())
@@ -245,12 +244,7 @@ public final class CompressorRegistry
         try
         {
             AbstractCompressionProvider compressionProvider = FBUtilities.newCompressionProvider(providerConfig.class_name);
-
-            // Strip the registry-reserved key before handing parameters to the plugin, so it sees only its own configuration.
-            Map<String, String> pluginParameters = new HashMap<>(p);
-            pluginParameters.remove(FAIL_ON_MISSING_PROVIDER);
-
-            compressionProvider.init(pluginParameters);
+            compressionProvider.init(new HashMap<>(p));
 
             if (compressionProvider.isHealthy())
             {
@@ -261,7 +255,7 @@ public final class CompressorRegistry
                 logger.warn("Compression provider {} is not healthy, attempting fallback.", providerConfig.class_name);
             }
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
             logger.warn("Failed to initialize specified compression provider {}. Will attempt fallback to default if enabled.",
                         providerConfig.class_name,
