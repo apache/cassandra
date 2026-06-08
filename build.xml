@@ -980,7 +980,7 @@
           <include name="tools/bin/*"/>
           <exclude name="tools/bin/*.in.sh" />
           <include name=".build/**/*.sh"/>
-          <include name="doc/scripts/process-native-protocol-specs-in-docker.sh"/>
+          <include name="doc/scripts/gen-native-protocol-docs.sh"/>
         </tarfileset>
       </tar>
 
@@ -1330,7 +1330,7 @@
           <fileset file="${test.conf}/cassandra.yaml"/>
           <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
         </concat>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" 
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="oa">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>

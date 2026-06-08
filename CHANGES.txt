@@ -1,4 +1,5 @@
 5.0.9
+ * Remove golang dependency in gen-doc and replace with python implementation (CASSANDRA-21432)
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
  * Ensure SAI sends range tombstones to the coordinator for queries on static columns (CASSANDRA-21332)
