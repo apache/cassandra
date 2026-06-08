@@ -1135,7 +1135,7 @@
           <exclude name="tools/bin/*.in.sh" />
           <include name=".build/**/*.sh"/>
           <include name="${accord.dir}/gradlew" />
-          <include name="doc/scripts/process-native-protocol-specs-in-docker.sh"/>
+          <include name="doc/scripts/gen-native-protocol-docs.sh"/>
         </tarfileset>
       </tar>
 
