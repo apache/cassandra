@@ -3,6 +3,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * SEPExecutor.maybeExecuteImmediately does not always execute tasks immediately despite available worker capacity (CASSANDRA-21429)
  * Safely regain ranges and delete retired command stores (CASSANDRA-21212)
  * Reduce memory allocations in miscellaneous places along read path (CASSANDRA-21360)
  * Avoid ByteBuffer wrapping in cql3.selection.Selector.InputRow to reduce memory allocation rate (CASSANDRA-21362)

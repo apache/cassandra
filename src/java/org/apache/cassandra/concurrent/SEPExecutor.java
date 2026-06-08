@@ -123,18 +123,9 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
         // we add to the queue first, so that when a worker takes a task permit it can be certain there is a task available
         // this permits us to schedule threads non-spuriously; it also means work is serviced fairly
         tasks.add(task);
-        int taskPermits;
-        while (true)
-        {
-            long current = permits.get();
-            taskPermits = taskPermits(current);
-            // because there is no difference in practical terms between the work permit being added or not (the work is already in existence)
-            // we always add our permit, but block after the fact if we breached the queue limit
-            if (permits.compareAndSet(current, updateTaskPermits(current, taskPermits + 1)))
-                break;
-        }
 
-        if (taskPermits == 0)
+        long prev = permits.getAndAdd(updateTaskPermits(0, 1));
+        if (taskPermits(prev) == 0)
         {
             // we only need to schedule a thread if there are no tasks already waiting to be processed, as
             // the original enqueue will have started a thread to service its work which will have itself
@@ -193,11 +184,11 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
         while (true)
         {
             long current = permits.get();
-            int workPermits = workPermits(current);
-            int taskPermits = taskPermits(current);
-            if (workPermits <= 0 || taskPermits == 0)
+            int newWorkPermits = workPermits(current) - 1;
+            int newTaskPermits = taskPermits(current) - taskDelta;
+            if (newWorkPermits < 0 || newTaskPermits < 0)
                 return false;
-            if (permits.compareAndSet(current, combine(taskPermits - taskDelta, workPermits - 1)))
+            if (permits.compareAndSet(current, combine(newTaskPermits, newWorkPermits)))
             {
                 return true;
             }
@@ -207,13 +198,7 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
     // gives up a work permit
     void returnWorkPermit()
     {
-        while (true)
-        {
-            long current = permits.get();
-            int workPermits = workPermits(current);
-            if (permits.compareAndSet(current, updateWorkPermits(current, workPermits + 1)))
-                return;
-        }
+        permits.addAndGet(updateWorkPermits(0, 1));
     }
 
     @Override
