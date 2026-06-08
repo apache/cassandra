@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
@@ -146,8 +148,7 @@ public class CompressorProviderTest extends TestBaseImpl
             // read. getClass() on the rebuilt instance would just yield MySnappyCompressor again
             // because the plugin replays its substitution during CompressionMetadata.open.
             String onDiskSerializedAs = cluster.get(1).callOnInstance((SerializableCallable<String>) () -> {
-                org.apache.cassandra.db.ColumnFamilyStore cfs = org.apache.cassandra.db.Keyspace.open(KEYSPACE)
-                                                                                                .getColumnFamilyStore("plugin_snappy");
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("plugin_snappy");
                 SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
                 try (CompressionMetadata metadata = CompressionInfoComponent.loadIfExists(sstable.descriptor, null))
                 {
@@ -159,6 +160,226 @@ public class CompressorProviderTest extends TestBaseImpl
                          "what the plugin advertises for portability - not the wrapper",
                          SnappyCompressor.class.getName(), onDiskSerializedAs);
         }
+    }
+
+    @Test
+    public void testCompressWithCustomProviderAndDecompressWithDefault() throws Throwable
+    {
+        //This test will simulate a scenario where data is compressed with a custom provider and then read on a node which does not have the provider configured,
+        // In the initial phase the test does write/read checks like testCustomProviderRegisteredAndUsedForTableCompression then it brings down the cluster,
+        // restarts with DefaultCompressionProvider for SnappyCompressor, and checks that the data can still be read.
+        Map<String, Object> snappyProviderOptions = new HashMap<>();
+        snappyProviderOptions.put("class_name", HealthyTestProvider.class.getName());
+        snappyProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+
+        Map<String, Object> providers = new HashMap<>();
+        providers.put(SnappyCompressor.class.getSimpleName(), snappyProviderOptions);
+
+        try (Cluster cluster = init(Cluster.build(1)
+                                           .withConfig(config -> config.set("compressor_providers", providers))
+                                           .start()))
+        {
+            // Mae sure registry holds the custom provider for SnappyCompressor
+            cluster.get(1).runOnInstance(() -> {
+                AbstractCompressionProvider snappy = CompressorRegistry.instance.getProvider(SnappyCompressor.class);
+                assertNotNull(snappy);
+                assertEquals(HealthyTestProvider.class.getName(), snappy.getClass().getName());
+            });
+
+            // Reset the counter so the assertion below only sees calls produced by this test's DDL/writes.
+            cluster.get(1).runOnInstance(() -> HealthyTestProvider.CREATE_CALLS.set(0));
+
+            // End-to-end: create a table that uses Snappy compression
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".plugin_snappy (k int PRIMARY KEY, v text) " +
+                                 "WITH compression = {'class': 'SnappyCompressor', 'chunk_length_in_kb': '4'}");
+
+            for (int i = 0; i < 100; i++)
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".plugin_snappy (k, v) VALUES (?, ?)",
+                                               ConsistencyLevel.ONE, i, "value-" + i);
+
+            cluster.get(1).flush(KEYSPACE);
+
+            Object[][] rows = cluster.coordinator(1).execute("SELECT count(*) FROM " + KEYSPACE + ".plugin_snappy",
+                                                             ConsistencyLevel.ONE);
+            assertEquals(100L, rows[0][0]);
+
+            int creates = cluster.get(1).callOnInstance((SerializableCallable<Integer>) () -> HealthyTestProvider.CREATE_CALLS.get());
+            assertTrue("HealthyTestProvider.createCompressor should have been invoked for table compression, was " + creates,
+                       creates > 0);
+
+            int createsSnappy = cluster.get(1).callOnInstance((SerializableCallable<Integer>) () -> HealthyTestProvider.CREATE_SNAPPY_CALLS.get());
+            assertTrue("HealthyTestProvider.createCompressor should have been invoked for table compression, was " + createsSnappy,
+                       createsSnappy > 0);
+
+            // Ensure schema records the *concrete* compressor class, not the provider
+            Object[][] schemaRows = cluster.coordinator(1).execute(
+            "SELECT compression FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?",
+            ConsistencyLevel.ONE, KEYSPACE, "plugin_snappy");
+            @SuppressWarnings("unchecked")
+            Map<String, String> compressionOptions = (Map<String, String>) schemaRows[0][0];
+            assertEquals("system_schema.tables.compression must record the concrete compressor class, not the provider",
+                         SnappyCompressor.class.getName(), compressionOptions.get("class"));
+
+            // Reconstruct CompressionMetadata from the flushed SSTable on disk and check the
+            // rebuilt compressor's serializedAs()
+            String onDiskSerializedAs = cluster.get(1).callOnInstance((SerializableCallable<String>) () -> {
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("plugin_snappy");
+                SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+                try (CompressionMetadata metadata = CompressionInfoComponent.loadIfExists(sstable.descriptor, null))
+                {
+                    Assert.assertNotNull(metadata);
+                    return metadata.parameters.getSstableCompressor().serializedAs().getName();
+                }
+            });
+            assertEquals("Rebuilt CompressionMetadata.serializedAs() must yield the underlying compressor - " +
+                         "what the plugin advertises for portability - not the wrapper",
+                         SnappyCompressor.class.getName(), onDiskSerializedAs);
+
+            // Simulate a node which does not have plugin configured
+            // Shut down the cluster, change provider class name to default, and restart. It should be able to use the Default provider for SnappyCompressor,
+            // and be able to read the existing data.
+            cluster.get(1).shutdown().get();
+            snappyProviderOptions = new HashMap<>();
+            snappyProviderOptions.put("class_name", DefaultCompressionProvider.class.getName());
+            snappyProviderOptions.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+            providers.clear();
+            providers.put(SnappyCompressor.class.getSimpleName(), snappyProviderOptions);
+            cluster.get(1).config().set("compressor_providers", providers);
+            cluster.get(1).startup();
+            cluster.get(1).runOnInstance(() -> {
+                AbstractCompressionProvider snappy = CompressorRegistry.instance.getProvider(SnappyCompressor.class);
+                assertNotNull(snappy);
+                assertEquals(DefaultCompressionProvider.class.getName(), snappy.getClass().getName());
+            });
+
+            //The node should be able to decompress the SSTables
+            // that were written by the plugin node, because serializedAs() ensured the
+            // on-disk CompressionInfo.db recorded SnappyCompressor (not MySnappyCompressor).
+            Object[][] rowsOnNewNode = cluster.coordinator(1).execute(
+            "SELECT count(*) FROM " + KEYSPACE + ".plugin_snappy", ConsistencyLevel.ONE);
+            assertEquals("The new node which does not have the plugin must read all rows written by the plugin node",
+                         100L, rowsOnNewNode[0][0]);
+
+        }
+    }
+
+    @Test
+    public void testCompressOn2NodesWithAndWithoutCustomProvider() throws Throwable
+    {
+        // This test will simulate a scenario with a cluster containing 2 nodes, one with custom provider configured and another with default provider.
+        // A table is created with Snappy compression on the first node with a custom provider, writes data and flushes to disk. Data is then read from both nodes
+        // to verify that both can read the data regardless of the provider they have configured.
+        Map<String, Object> snappyProviderOptionsCustom = new HashMap<>();
+        snappyProviderOptionsCustom.put("class_name", HealthyTestProvider.class.getName());
+        snappyProviderOptionsCustom.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+
+        Map<String, Object> snappyProviderOptionsDefault = new HashMap<>();
+        snappyProviderOptionsDefault.put("class_name", DefaultCompressionProvider.class.getName());
+        snappyProviderOptionsDefault.put("parameters", Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString()));
+
+        Map<String, Object> firstNodeProvider = new HashMap<>();
+        firstNodeProvider.put(SnappyCompressor.class.getSimpleName(), snappyProviderOptionsCustom);
+        Map<String, Object> secondNodeProvider = new HashMap<>();
+        secondNodeProvider.put(SnappyCompressor.class.getSimpleName(), snappyProviderOptionsDefault);
+
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withConfig(config -> {
+                                               if (config.num() == 1)
+                                                   config.set("compressor_providers", firstNodeProvider);   // custom HealthyTestProvider
+                                               else
+                                                   config.set("compressor_providers", secondNodeProvider);  // DefaultCompressionProvider
+                                               config.set("accord.enabled", false); // disable accord to avoid schema disagreement during startup due to different compressor providers
+                                           })
+                                           .start()))
+        {
+            // First node must use HealthyTestProvider for SnappyCompressor,
+            // Second node must use DefaultCompressionProvider for SnappyCompressor
+            cluster.get(1).runOnInstance(() -> {
+                AbstractCompressionProvider snappy = CompressorRegistry.instance.getProvider(SnappyCompressor.class);
+                assertNotNull(snappy);
+                assertEquals(HealthyTestProvider.class.getName(), snappy.getClass().getName());
+            });
+            cluster.get(2).runOnInstance(() -> {
+                AbstractCompressionProvider snappy = CompressorRegistry.instance.getProvider(SnappyCompressor.class);
+                assertNotNull(snappy);
+                assertEquals(DefaultCompressionProvider.class.getName(), snappy.getClass().getName());
+            });
+
+
+            // Reset the counter so the assertion below only sees calls produced by this test's DDL/writes.
+            cluster.get(1).runOnInstance(() -> HealthyTestProvider.CREATE_CALLS.set(0));
+
+            // End-to-end: create a table that uses Snappy compression.
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".plugin_snappy (k int PRIMARY KEY, v text) " +
+                                 "WITH compression = {'class': 'SnappyCompressor', 'chunk_length_in_kb': '4'}");
+
+            for (int i = 0; i < 100; i++)
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".plugin_snappy (k, v) VALUES (?, ?)",
+                                               ConsistencyLevel.ALL, i, "value-" + i);
+
+            cluster.get(1).flush(KEYSPACE);
+            cluster.get(2).flush(KEYSPACE);
+
+            // Read from node 1
+            Object[][] rowsFromNode1 = cluster.coordinator(1).execute("SELECT count(*) FROM " + KEYSPACE + ".plugin_snappy",
+                                                                      ConsistencyLevel.ONE);
+            assertEquals(100L, rowsFromNode1[0][0]);
+
+            // Read from node 2
+            Object[][] rowsFromNode2 = cluster.coordinator(2).execute("SELECT count(*) FROM " + KEYSPACE + ".plugin_snappy",
+                                                                      ConsistencyLevel.ONE);
+            assertEquals(100L, rowsFromNode2[0][0]);
+
+            int creates = cluster.get(1).callOnInstance((SerializableCallable<Integer>) () -> HealthyTestProvider.CREATE_CALLS.get());
+            assertTrue("HealthyTestProvider.createCompressor should have been invoked for table compression, was " + creates,
+                       creates > 0);
+
+            int createsSnappy = cluster.get(1).callOnInstance((SerializableCallable<Integer>) () -> HealthyTestProvider.CREATE_SNAPPY_CALLS.get());
+            assertTrue("HealthyTestProvider.createCompressor should have been invoked for table compression, was " + createsSnappy,
+                       createsSnappy > 0);
+
+            // The schema must record the *concrete* compressor class, not the provider — this is what
+            // peers and future restarts use to rebuild the compression chain.
+            Object[][] schemaRows = cluster.coordinator(1).execute(
+            "SELECT compression FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?",
+            ConsistencyLevel.ALL, KEYSPACE, "plugin_snappy");
+            @SuppressWarnings("unchecked")
+            Map<String, String> compressionOptions = (Map<String, String>) schemaRows[0][0];
+            assertEquals("system_schema.tables.compression must record the concrete compressor class, not the provider",
+                         SnappyCompressor.class.getName(), compressionOptions.get("class"));
+
+            // Reconstruct CompressionMetadata from the flushed SSTable on disk and check the
+            // rebuilt compressor's serializedAs()
+            String onDiskSerializedAsNode1 = cluster.get(1).callOnInstance((SerializableCallable<String>) () -> {
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE)
+                                                .getColumnFamilyStore("plugin_snappy");
+                SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+                try (CompressionMetadata metadata = CompressionInfoComponent.loadIfExists(sstable.descriptor, null))
+                {
+                    Assert.assertNotNull(metadata);
+                    return metadata.parameters.getSstableCompressor().serializedAs().getName();
+                }
+            });
+            assertEquals("Rebuilt CompressionMetadata.serializedAs() must yield the underlying compressor - " +
+                         "what the plugin advertises for portability - not the wrapper",
+                         SnappyCompressor.class.getName(), onDiskSerializedAsNode1);
+
+            // Node 2 (DefaultCompressionProvider): also verify the on-disk SSTable is readable and
+            // records SnappyCompressor — confirming it can decompress without the plugin.
+            String onDiskSerializedAsNode2 = cluster.get(2).callOnInstance((SerializableCallable<String>) () -> {
+                ColumnFamilyStore cfs = Keyspace.open(KEYSPACE)
+                                                .getColumnFamilyStore("plugin_snappy");
+                SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+                try (CompressionMetadata metadata = CompressionInfoComponent.loadIfExists(sstable.descriptor, null))
+                {
+                    Assert.assertNotNull(metadata);
+                    return metadata.parameters.getSstableCompressor().serializedAs().getName();
+                }
+            });
+            assertEquals("Node 2 (DefaultCompressionProvider): on-disk serializedAs() must also yield the concrete compressor class",
+                         SnappyCompressor.class.getName(), onDiskSerializedAsNode2);
+        }
+
     }
 
     @Test
