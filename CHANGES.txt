@@ -32,6 +32,7 @@ Merged from 6.0:
  * Introduce minimum_threshold for data resurrection startup check (CASSANDRA-21293)
  * Synchronously publish changes to local gossip state following metadata updates (CASSANDRA-21239)
 Merged from 5.0:
+ * Remove golang dependency in gen-doc and replace with python implementation (CASSANDRA-21432)
  * Use estimated compressed size for tables to check if there is enough free space for a compaction (CASSANDRA-21245)
  * Fix failing select on system_views.settings for non-string keys (CASSANDRA-21348)
 Merged from 4.0:
