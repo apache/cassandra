@@ -63,6 +63,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -656,6 +657,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private void evictFromMembership(InetAddressAndPort endpoint)
     {
         checkProperThreadForStateMutation();
+        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         endpointStateMap.remove(endpoint);
         expireTimeEndpointMap.remove(endpoint);
@@ -1396,13 +1398,30 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
             logger.trace("Sending ECHO_REQ to {}", addr);
-            RequestCallback echoHandler = msg ->
+            RequestCallback echoHandler = new RequestCallback()
             {
-                runInGossipStageBlocking(() -> {
-                    EndpointState epState = inflightEcho.remove(addr);
-                    if (epState != null)
-                        realMarkAlive(addr, epState);
-                });
+                @Override
+                public void onResponse(Message msg)
+                {
+                    runInGossipStageBlocking(() -> {
+                        EndpointState epState = inflightEcho.remove(addr);
+                        if (epState != null)
+                            realMarkAlive(addr, epState);
+                    });
+                }
+
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+
+                @Override
+                public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                {
+                    logger.trace("ECHO_REQ to {} failed ({})", addr, failureReason);
+                    inflightEcho.remove(addr);
+                }
             };
             MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
         }
