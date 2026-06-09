@@ -98,7 +98,11 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                                                             "--truststore", validTrustStorePath,
                                                             "--truststore-password", validTrustStorePassword,
                                                             "--conf-path", "test/conf/sstableloader_with_encryption.yaml",
-                                                            "--ssl-ciphers", "TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA",
+                                                            // TLS_RSA_* ciphers are disabled by default in JDK 11.0.20+ (jdk.tls.disabledAlgorithms);
+                                                            // ECDHE variants are appended so the handshake succeeds on modern JDKs while
+                                                            // preserving the original intent of exercising explicit cipher-suite negotiation.
+                                                            "--ssl-ciphers", "TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA," +
+                                                                             "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
                                                             sstables_to_upload.absolutePath());
         tool.assertOnCleanExit();
         assertTrue(tool.getStdout().contains("Summary statistics"));
