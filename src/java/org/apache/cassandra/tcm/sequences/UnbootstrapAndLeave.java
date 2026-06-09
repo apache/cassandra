@@ -92,12 +92,12 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
      */
     @VisibleForTesting
     UnbootstrapAndLeave(Epoch latestModification,
-                               LockedRanges.Key lockKey,
-                               Transformation.Kind next,
-                               PrepareLeave.StartLeave startLeave,
-                               PrepareLeave.MidLeave midLeave,
-                               PrepareLeave.FinishLeave finishLeave,
-                               LeaveStreams streams)
+                        LockedRanges.Key lockKey,
+                        Transformation.Kind next,
+                        PrepareLeave.StartLeave startLeave,
+                        PrepareLeave.MidLeave midLeave,
+                        PrepareLeave.FinishLeave finishLeave,
+                        LeaveStreams streams)
     {
         super(nextToIndex(next), latestModification);
         this.lockKey = lockKey;
@@ -198,7 +198,8 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
                 }
                 catch (ExecutionException e)
                 {
-                    StorageService.instance.markDecommissionFailed();
+                    if (startLeave.nodeId().equals(ClusterMetadata.current().myNodeId()))
+                        StorageService.instance.markDecommissionFailed();
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.error("Error while decommissioning node: {}", e.getCause().getMessage());
                     throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());

@@ -1663,15 +1663,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void abortBootstrap(String nodeStr, String endpointStr)
     {
-        logger.debug("Aborting bootstrap for {}/{}", nodeStr, endpointStr);
+        logger.info("Aborting bootstrap for {}", StringUtils.isEmpty(nodeStr) ? endpointStr : nodeStr);
         ClusterMetadata metadata = ClusterMetadata.current();
-        NodeId nodeId;
-        if (!StringUtils.isEmpty(nodeStr))
-            nodeId = NodeId.fromString(nodeStr);
-        else
-            nodeId = metadata.directory.peerId(InetAddressAndPort.getByNameUnchecked(endpointStr));
-
+        NodeId nodeId = parseNodeIdOrEndpoint(metadata, nodeStr, endpointStr);
         InetAddressAndPort endpoint = metadata.directory.endpoint(nodeId);
+        if (endpoint == null)
+            throw new IllegalArgumentException("Can't abort bootstrap for " + nodeId + " - it does not exist in cluster metadata");
         if (Gossiper.instance.isKnownEndpoint(endpoint) && FailureDetector.instance.isAlive(endpoint))
             throw new RuntimeException("Can't abort bootstrap for " + nodeId + " - it is alive");
         NodeState nodeState = metadata.directory.peerState(nodeId);
@@ -1692,6 +1689,47 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             default:
                 throw new RuntimeException("Can't abort bootstrap for node " + nodeId + " since the state is " + nodeState);
         }
+    }
+
+    private static NodeId parseNodeIdOrEndpoint(ClusterMetadata metadata, String nodeStr, String endpointStr)
+    {
+        NodeId nodeId;
+        if (!StringUtils.isEmpty(nodeStr))
+        {
+            try
+            {
+                nodeId = NodeId.fromString(nodeStr);
+            }
+            catch (IllegalArgumentException | UnsupportedOperationException e)
+            {
+                String msg = "Unable to parse node id string " + nodeStr;
+                logger.warn("{}", msg, e);
+                throw new IllegalArgumentException(msg, e);
+            }
+        }
+        else
+        {
+            InetAddressAndPort endpoint;
+            try
+            {
+                endpoint = InetAddressAndPort.getByName(endpointStr);
+            }
+            catch (UnknownHostException e)
+            {
+                String msg = "Unable to look up endpoint " + endpointStr;
+                logger.warn("{}", msg, e);
+                throw new IllegalArgumentException(msg, e);
+            }
+
+            nodeId = metadata.directory.peerId(endpoint);
+            if (nodeId == null)
+            {
+                String msg = "Unknown endpoint: " + endpoint;
+                logger.warn(msg);
+                throw new IllegalArgumentException(msg);
+            }
+        }
+        return nodeId;
     }
 
     @Override
@@ -2010,7 +2048,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getLocalHostId()
     {
-        return getLocalHostUUID().toString();
+        UUID localHostId = getLocalHostUUID();
+        return localHostId != null ? localHostId.toString() : "UNKNOWN";
     }
 
     public UUID getLocalHostUUID()

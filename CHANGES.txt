@@ -3,6 +3,12 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Don’t leave autocompaction disabled during bootstrap and replace (CASSANDRA-21236)
+ * Make nodetool abortbootstrap more robust (CASSANDRA-21235)
+ * Don't clear prepared statement cache on nodetool cms initialize (CASSANDRA-21234)
+ * Improve performance when deserializing cluster metadata  (CASSANDRA-21224)
+ * Minor TokenMap performance improvement (CASSANDRA-21223)
+ * Handle lost response when committing PrepareMove (CASSANDRA-21222)
  * SEPExecutor.maybeExecuteImmediately does not always execute tasks immediately despite available worker capacity (CASSANDRA-21429)
  * Safely regain ranges and delete retired command stores (CASSANDRA-21212)
  * Reduce memory allocations in miscellaneous places along read path (CASSANDRA-21360)
