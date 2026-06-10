@@ -97,7 +97,7 @@ pytest --junitxml=${BUILD_DIR}/test/output/cqlshlib.xml
 RETURN="$?"
 
 # remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
-sed -r "s/<[\/]?testsuites>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
+sed -r "s/<[\/]?testsuites[^>]*>//g" ${BUILD_DIR}/test/output/cqlshlib.xml > /tmp/cqlshlib.xml
 cat /tmp/cqlshlib.xml > ${BUILD_DIR}/test/output/cqlshlib.xml
 
 # don't do inline sed for linux+mac compat
