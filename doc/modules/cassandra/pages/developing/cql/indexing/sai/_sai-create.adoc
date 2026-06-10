@@ -76,4 +76,4 @@ include::cassandra:example$CQL/sai/index-sai-similarity-function.cql[]
 '''
 Other resources
 
-See xref:developing/cql/indexing/create-custom-index.adoc[CREATE CUSTOM INDEX] for more information about creating SAI indexes.
+See xref:cassandra:developing/cql/create-custom-index.adoc[CREATE CUSTOM INDEX] for more information about creating SAI indexes.

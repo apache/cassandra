@@ -119,7 +119,7 @@ Also refer xref:cassandra:developing/cql/indexing/sai/sai-query.adoc[Examine SAI
 === SAI collection map examples with keys, values, and entries
 
 The following examples demonstrate using collection maps of multiple types (`keys`, `values`, `entries`) in SAI indexes.
-For related information, see xref:cassandra:developing/collections/collection-create.adoc[Creating collections] and xref:cassandra:developing/collections/map.adoc[Using map type].
+For related information, see xref:cassandra:developing/cql/collections/collection-create.adoc[Creating collections] and xref:cassandra:developing/cql/collections/map.adoc[Using map type].
 
 Also refer to the SAI collection examples of type xref:#saiCreateCustomIndexCollectionsListAndSetExamples[list and set] in this topic.
 
@@ -293,9 +293,9 @@ Remember that in CQL queries using SAI indexes, the `CONTAINS` clauses are suppo
 These examples demonstrate using collections with the `list` and `set` types in SAI indexes.
 For related information, see:
 
-* xref:cassandra:developing/collections/collection-create.adoc[Creating collections]
-* xref:cassandra:developing/collections/list.adoc[Using list type]
-* xref:cassandra:developing/collections/set.adoc[Using set type]
+* xref:cassandra:developing/cql/collections/collection-create.adoc[Creating collections]
+* xref:cassandra:developing/cql/collections/list.adoc[Using list type]
+* xref:cassandra:developing/cql/collections/set.adoc[Using set type]
 
 [source,language-cql]
 ----
