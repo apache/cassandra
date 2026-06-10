@@ -128,6 +128,6 @@ exhaust significant CPU capacitity with a "single" query.
 
 Once you have narrowed down the problem as much as possible (datacenter,
 rack , node), login to one of the nodes using SSH and proceed to debug
-using xref:reading_logs.adoc[`logs`], xref:use_nodetooladoc[`nodetool`], and
-xref:use_tools.adoc[`os tools`]. 
+using xref:cassandra:troubleshooting/reading_logs.adoc[`logs`], xref:cassandra:troubleshooting/use_nodetool.adoc[`nodetool`], and
+xref:cassandra:troubleshooting/use_tools.adoc[`os tools`]. 
 If you are not able to login you may still have access to `logs` and `nodetool` remotely.
