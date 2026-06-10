@@ -279,4 +279,4 @@ include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 
 == Further installation info
 
-For help with installation issues, see the xref:cassandra:troubleshooting/index.html[Troubleshooting] section.
+For help with installation issues, see the xref:cassandra:troubleshooting/index.adoc[Troubleshooting] section.

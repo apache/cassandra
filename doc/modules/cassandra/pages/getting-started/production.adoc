@@ -118,7 +118,7 @@ https://thelastpickle.com/blog/2018/08/08/compression_performance.html[The Last 
 
 == Compaction
 
-There are different xref:compaction/index.adoc[compaction] strategies available
+There are different xref:cassandra:managing/operating/compaction/index.adoc[compaction] strategies available
 for different workloads.
 We recommend reading about the different strategies to understand which is the
 best for your environment.

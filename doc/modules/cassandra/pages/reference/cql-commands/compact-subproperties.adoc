@@ -235,7 +235,7 @@ Default: `160`
 ==== 
 The default value, 160 MB, may be inefficient and negatively impact database indexing and the queries that rely on indexes.
 For example, consider the benefit of using higher values for sstable_size_in_mb in tables that use (SAI) indexes.
-For related information, see xref:developing:indexing/sai/configuring.adoc#saiConfigure__saiCompactionStrategies[Compaction strategies].
+For related information, see xref:cassandra:developing/cql/indexing/sai/operations/configuring.adoc#saiConfigure__saiCompactionStrategies[Compaction strategies].
 ====
 
 fanout_size::

@@ -22,7 +22,7 @@ include::cassandra:example$BASH/cqlsh_localhost.sh[]
 ----
 include::cassandra:example$RESULTS/cqlsh_localhost.result[]
 ----
-If the command is used without specifying a node, `localhost` is the default. See the xref:tools/cqlsh.adoc[`cqlsh` section] for full documentation.
+If the command is used without specifying a node, `localhost` is the default. See the xref:cassandra:managing/tools/cqlsh.adoc[`cqlsh` section] for full documentation.
 
 == Client drivers
 

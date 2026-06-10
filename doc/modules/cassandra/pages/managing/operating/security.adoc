@@ -411,7 +411,7 @@ If enabling remote connections, it is recommended to also use
 xref:cassandra:managing/operating/security.adoc#jmx-with-ssl[`SSL`] connections.
 
 Finally, after enabling auth and/or SSL, ensure that tools which use
-JMX, such as xref:tools/nodetool/nodetools.adoc[`nodetool`] are correctly configured and working
+JMX, such as xref:cassandra:managing/tools/nodetool/nodetool.adoc[`nodetool`] are correctly configured and working
 as expected.
 
 === Standard JMX Auth
