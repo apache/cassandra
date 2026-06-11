@@ -273,7 +273,7 @@ public class CoordinatorLogOffsetsTest
         ClusterMetadataTestHelper.commit(new AlterSchema(SchemaTransformations.addTable(tableMetadata, false)));
 
         CommitLog.instance.start();
-        MutationTrackingService.start(metadata);
+        MutationTrackingService.start(unused -> metadata);
 
         // Eventually, will also run perturbations before checking isReconciled (like log truncation, durability, etc.)
         // to ensure that we don't prune data required to check what's been reconciled

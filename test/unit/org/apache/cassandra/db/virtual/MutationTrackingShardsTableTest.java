@@ -36,7 +36,6 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationTrackingService;
-import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,7 +56,7 @@ public class MutationTrackingShardsTableTest extends CQLTester
     {
         // Start required services for mutation tracking
         MutationJournal.start();
-        MutationTrackingService.start(ClusterMetadata.current());
+        MutationTrackingService.start();
 
         // Create a tracked keyspace
         schemaChange("CREATE KEYSPACE IF NOT EXISTS tracked_ks WITH replication = " +

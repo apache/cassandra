@@ -842,7 +842,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 AccordService.localStartup(self);
 
             if ((Boolean) config.get("mutation_tracking.enabled"))
+            {
+                MutationTrackingService.start();
                 MutationJournal.instance().replayStaticSegments();
+            }
         }
         catch (IOException e)
         {

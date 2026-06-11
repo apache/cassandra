@@ -33,6 +33,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.NormalizedRanges;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
@@ -44,6 +45,7 @@ import static org.apache.cassandra.cql3.CQLTester.schemaChange;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Tests for AlterSchema auto-starting mutation tracking migration when replication type changes.
@@ -371,5 +373,69 @@ public class AlterSchemaMutationTrackingTest
             KeyspaceMigrationInfo actualInfo = actual.getKeyspaceInfo(keyspace);
             assertEquals(expectedInfo, actualInfo);
         }
+    }
+
+    /**
+     * The mutation journal can't be disabled for tracked replication, so attempting to set durable_writes=false
+     * on tracked keyspaces needs to fail validation
+     */
+    @Test
+    public void testRejectDurableWritesFalseOnTrackedKeyspace()
+    {
+        // CREATE: tracked + durable_writes=false should be rejected
+        String createKs = nextKsName();
+        Throwable createFailure = expectFailure(() ->
+            schemaChange("CREATE KEYSPACE " + createKs +
+                         " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                         " AND replication_type = 'tracked'" +
+                         " AND durable_writes = false")
+        );
+        assertTrue("Expected ConfigurationException root cause, got: " + createFailure,
+                   rootCause(createFailure) instanceof ConfigurationException);
+
+        // ALTER existing tracked keyspace to set durable_writes=false should be rejected
+        String alterKs = nextKsName();
+        schemaChange("CREATE KEYSPACE " + alterKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                     " AND replication_type = 'tracked'");
+        Throwable alterTrackedFailure = expectFailure(() ->
+            schemaChange("ALTER KEYSPACE " + alterKs + " WITH durable_writes = false")
+        );
+        assertTrue("Expected ConfigurationException root cause, got: " + alterTrackedFailure,
+                   rootCause(alterTrackedFailure) instanceof ConfigurationException);
+
+        // ALTER untracked keyspace with durable_writes=false to switch replication_type=tracked should be rejected
+        String migratedKs = nextKsName();
+        schemaChange("CREATE KEYSPACE " + migratedKs +
+                     " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                     " AND replication_type = 'untracked'" +
+                     " AND durable_writes = false");
+        Throwable alterToTrackedFailure = expectFailure(() ->
+            schemaChange("ALTER KEYSPACE " + migratedKs + " WITH replication_type = 'tracked'")
+        );
+        assertTrue("Expected ConfigurationException root cause, got: " + alterToTrackedFailure,
+                   rootCause(alterToTrackedFailure) instanceof ConfigurationException);
+    }
+
+    private static Throwable expectFailure(Runnable r)
+    {
+        try
+        {
+            r.run();
+        }
+        catch (Throwable t)
+        {
+            return t;
+        }
+        fail("Expected exception but none was thrown");
+        return null;
+    }
+
+    private static Throwable rootCause(Throwable t)
+    {
+        Throwable cause = t;
+        while (cause.getCause() != null && cause.getCause() != cause)
+            cause = cause.getCause();
+        return cause;
     }
 }

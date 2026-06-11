@@ -33,6 +33,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.HintsService;
@@ -40,6 +41,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.CoordinatorLogId;
+import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.replication.MutationSummary;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.Offsets;
@@ -103,6 +105,260 @@ public class MutationTrackingTest extends TestBaseImpl
                 CoordinatorLogId logId = getOnlyLogId(summary);
                 Offsets summaryIds = summaryIdSpace(summary.get(logId));
                 assertEquals(1, summaryIds.offsetCount());
+            });
+        }
+    }
+
+    private static int getOffsetCount(IInvokableInstance node, String keyspaceName, String tableName, int key)
+    {
+        return node.callOnInstance(() -> {
+            TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
+            DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
+            MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
+            if (summary.isEmpty())
+                return 0;
+            CoordinatorLogId logId = getOnlyLogId(summary);
+            return summaryIdSpace(summary.get(logId)).offsetCount();
+        });
+
+    }
+
+    private static int getOffsetCount(IInvokableInstance node, String keyspaceName, int key)
+    {
+        return getOffsetCount(node, keyspaceName, "tbl", key);
+    }
+
+    /**
+     * Writes tracked mutations, deliberately doesn't flush so the writes live only in the
+     * commit log the node, and asserts MTS witness state on boot reflects the unflushed writes. Confirm they're
+     * reconstructed on journal playback
+     */
+    @Test
+    public void testWitnessSurvivesBounceWithoutFlush() throws Throwable
+    {
+        final int key = 1;
+        final int writes = 10;
+
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 1} " +
+                                              "AND replication_type='tracked';"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int);"));
+
+            // Pause the persister so writes never reach system.coordinator_logs SSTables —
+            // the only durable record of the witnesses on disk lives in the commit log.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            for (int i = 0; i < writes; i++)
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (?, ?)"),
+                                                ConsistencyLevel.QUORUM, key, i);
+
+            String keyspaceName = KEYSPACE;
+            int preBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+            assertEquals("Pre-bounce witness count must equal write count", writes, preBounceOffsetCount);
+
+            // Bounce without flushing. Witnesses live only in the commit log + journal segments
+            // (still active, needsReplay=true). On the way back up, MTS.start must run after
+            // CommitLog.recoverSegmentsOnDisk() so the journal replay path repopulates witnesses
+            // before any consumer queries MTS state.
+            ClusterUtils.stopUnchecked(cluster.get(1));
+            cluster.get(1).startup();
+
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            int postBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+
+            assertEquals("Witness state must survive bounce-without-flush: post-bounce offsets must match pre-bounce",
+                         preBounceOffsetCount, postBounceOffsetCount);
+        }
+    }
+
+    /**
+     * Regression test for the lost-witness-marker race (CASSANDRA-21443).
+     *
+     * When a memtable flush + segment close fires before the periodic LogStatePersister
+     * has written witnessed offsets to system.coordinator_logs, the segment metadata can be
+     * durably marked needsReplay=false while the witnesses for its mutations are still only
+     * in memory. A crash in this window leaves the node with data in SSTables but with
+     * witness state missing on restart, breaking mutation summaries and journal sync barrier
+     * guarantees.
+     *
+     * The test pauses the persister, writes a known set of mutations, forces flush and
+     * segment close (triggering maybeCleanupStaticSegment), bounces the node, and asserts
+     * that the post-restart witness state matches the pre-bounce snapshot.
+     */
+    @Test
+    public void testWitnessSurvivesCrashAfterFlushAndSegmentClose() throws Throwable
+    {
+        final int key = 1;
+        final int writes = 10;
+
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 1} " +
+                                              "AND replication_type='tracked';"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int);"));
+
+            // Pause the persister so no witness state escapes to system.coordinator_logs
+            // for the duration of the test window. This mirrors the in-production hazard
+            // between persister ticks (currently 1s, planned 60s).
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            for (int i = 0; i < writes; i++)
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (?, ?)"),
+                                                ConsistencyLevel.QUORUM, key, i);
+
+            String keyspaceName = KEYSPACE;
+            int preBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+            assertEquals("Pre-bounce witness count must equal write count", writes, preBounceOffsetCount);
+
+            // Flush so notifyFlushed marks the active segment's interval clean.
+            cluster.get(1).nodetoolResult("flush", KEYSPACE).asserts().success();
+
+            // Roll the active segment to static. The cleanup callback fires
+            // (maybeCleanupStaticSegment) and — in the broken code — durably clears
+            // needsReplay=false even though witnesses are not persisted.
+            cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
+
+            // Bounce without running the persister.
+            ClusterUtils.stopUnchecked(cluster.get(1));
+            cluster.get(1).startup();
+
+            // Re-pause on the freshly-restarted instance so any first persister tick
+            // cannot accidentally normalize state before we sample it.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            int postBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+
+            assertEquals("Witness state must survive crash: post-bounce offsets must match pre-bounce",
+                         preBounceOffsetCount, postBounceOffsetCount);
+        }
+    }
+
+    /**
+     * Companion to {@link #testWitnessSurvivesCrashAfterFlushAndSegmentClose}: confirms
+     * that the deferred-cleanup fix did not break segment cleanup itself. After a flush
+     * and segment close, the segment should sit in {@code pendingCleanup} (not yet
+     * needsReplay=false on disk), and the next persister tick should drain it.
+     *
+     * If this test fails while the witness-survival test passes, it means we have
+     * accidentally turned segment cleanup into a no-op - segments would never be eligible
+     * for journal compaction, and disk would grow unbounded.
+     */
+    @Test
+    public void testPersisterDrainsPendingSegmentCleanup() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 1} " +
+                                              "AND replication_type='tracked';"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int);"));
+
+            // Pause the scheduled persister so the only persister run in this test is the
+            // explicit one below — otherwise the periodic tick could drain mid-assert.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            for (int i = 0; i < 10; i++)
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (?, ?)"),
+                                                ConsistencyLevel.QUORUM, 1, i);
+
+            cluster.get(1).nodetoolResult("flush", KEYSPACE).asserts().success();
+            cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
+
+            // After flush + close, the segment should be queued for cleanup but not yet
+            // marked needsReplay=false on disk.
+            cluster.get(1).runOnInstance(() -> {
+                assertTrue("Expected at least one segment queued for cleanup after flush + close",
+                           !MutationJournal.instance().pendingCleanupForTesting().isEmpty());
+            });
+
+            // Run an explicit persister tick: writes coordinator_logs, drains the snapshot.
+            // Use the boolean variant to bypass the isPaused check.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().persistLogStateForTesting(true));
+
+            // After the persister tick, the queue should be drained.
+            cluster.get(1).runOnInstance(() -> {
+                assertTrue("Expected pendingCleanup to be empty after persister tick",
+                           MutationJournal.instance().pendingCleanupForTesting().isEmpty());
+            });
+        }
+    }
+
+    /**
+     * Validates the clean-shutdown drain path (CASSANDRA-21443).
+     *
+     * Test setup pauses the periodic persister so that the only persister run is the
+     * shutdown-drain one. After a clean bounce, witnesses must survive and there must be no
+     * static segments on disk, (they're truncated on drain).
+     */
+    @Test
+    public void testCleanShutdownDrainsPendingCleanup() throws Throwable
+    {
+        final int key = 1;
+        final int writes = 10;
+
+        try (Cluster cluster = Cluster.build(1)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK).with(Feature.GOSSIP))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 1} " +
+                                              "AND replication_type='tracked';"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int);"));
+
+            // Pause the periodic persister so the only run is the shutdown final tick.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            for (int i = 0; i < writes; i++)
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (?, ?)"),
+                                                ConsistencyLevel.QUORUM, key, i);
+
+            String keyspaceName = KEYSPACE;
+            int preBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+            assertEquals("Pre-bounce witness count must equal write count", writes, preBounceOffsetCount);
+
+            // Flush and close the active segment so it becomes static and enters pendingCleanup.
+            cluster.get(1).nodetoolResult("flush", KEYSPACE).asserts().success();
+            cluster.get(1).runOnInstance(() -> MutationJournal.instance().closeCurrentSegmentForTestingIfNonEmpty());
+
+            // Confirm pendingCleanup is non-empty before shutdown — this is the state the
+            // final tick is supposed to drain.
+            cluster.get(1).runOnInstance(() -> {
+                assertTrue("Expected at least one segment queued for cleanup before shutdown",
+                           !MutationJournal.instance().pendingCleanupForTesting().isEmpty());
+            });
+
+            // Clean (graceful) shutdown — runs MutationTrackingService.shutdownBlocking which
+            // performs the final persister tick.
+            ClusterUtils.stopUnchecked(cluster.get(1));
+            cluster.get(1).startup();
+
+            // Re-pause so any first periodic tick post-restart cannot rewrite state before
+            // we sample.
+            cluster.get(1).runOnInstance(() -> MutationTrackingService.instance().pauseOffsetsPersisterForTesting());
+
+            // Assertion 1: witness count survived. The final tick wrote coordinator_logs,
+            // so MTS.start's loadFromSystemTables on the next boot saw the witnesses.
+            int postBounceOffsetCount = getOffsetCount(cluster.get(1), keyspaceName, key);
+            assertEquals("Witness state must survive clean shutdown via the final-tick path",
+                         preBounceOffsetCount, postBounceOffsetCount);
+
+            // Assertion 2: no static segments on disk. The final tick's truncation step
+            // dropped the fully-reconciled segments. Without the final tick, the segment would
+            // still be present (replay reconstitutes witnesses but doesn't drop the segment).
+            cluster.get(1).runOnInstance(() -> {
+                int staticSegments = MutationJournal.instance().countStaticSegmentsForTesting();
+                assertEquals("Expected zero static segments after clean shutdown final tick",
+                             0, staticSegments);
             });
         }
     }

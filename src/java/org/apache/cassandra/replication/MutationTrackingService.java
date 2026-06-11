@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import javax.annotation.Nonnull;
@@ -147,11 +148,22 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             throw new IllegalStateException(DISABLED_MESSAGE);
     }
 
-    public static void start(ClusterMetadata metadata)
+    public static ClusterMetadata register(ChangeListener listener)
+    {
+        ClusterMetadataService.instance().log().addListener(listener);
+        return ClusterMetadata.current();
+    }
+
+    public static void start(Function<ChangeListener, ClusterMetadata> register)
     {
         if (!isEnabled())
             return;
-        instance().startInternal(metadata);
+        instance().startInternal(register);
+    }
+
+    public static void start()
+    {
+        start(MutationTrackingService::register);
     }
 
     public static void shutdown() throws InterruptedException
@@ -177,6 +189,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     private ConcurrentHashMap<String, KeyspaceShards> keyspaceShards = new ConcurrentHashMap<>();
     private ConcurrentHashMap<CoordinatorLogId, Shard> log2ShardMap = new ConcurrentHashMap<>();
     private final ChangeListener tcmListener;
+
+    // The highest TCM epoch we have applied to keyspaceShards via onNewClusterMetadata.
+    // Updates with next.epoch <= this value are skipped. Protects against state going
+    // backwards in time when events are delivered out of order
+    private volatile Epoch lastAppliedEpoch = Epoch.EMPTY;
 
     // prevents a race between topology changes (shard recreation) and coordinator log creation.
     //
@@ -218,7 +235,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         };
     }
 
-    private synchronized void startInternal(ClusterMetadata metadata)
+    private synchronized void startInternal(Function<ChangeListener, ClusterMetadata> register)
     {
         if (started)
             return;
@@ -226,6 +243,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         prevHostLogId = loadHostLogIdFromSystemTable();
 
         logger.info("Starting mutation tracking service. Previous host log id: {}", prevHostLogId);
+
+        ClusterMetadata metadata = register.apply(tcmListener);
 
         if (metadata.myNodeId() != null)
             for (KeyspaceShards ks : KeyspaceShards.loadFromSystemTables(metadata, this::nextLogId, this::onNewLog))
@@ -307,11 +326,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return builder.build();
     }
 
-    public void registerMetadataListener()
-    {
-        ClusterMetadataService.instance().log().addListener(tcmListener);
-    }
-
     public synchronized boolean isStarted()
     {
         return started;
@@ -322,7 +336,13 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         ClusterMetadataService.instance().log().removeListener(tcmListener);
         activeReconciler.shutdownBlocking();
         executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.MINUTES);
+        if (!executor.awaitTermination(1, TimeUnit.MINUTES))
+            logger.warn("Mutation tracking executor did not terminate within 1 minute; forcing shutdown");
+
+        // attempt to persist offsets and mark segments as
+        // not needing replay one last time before shutdown
+        if (isStarted())
+            offsetsPersister.run(true);
         ExpiredStatePurger.instance.shutdownBlocking();
     }
 
@@ -883,11 +903,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    private void onNewClusterMetadata(@Nullable ClusterMetadata prev, ClusterMetadata next)
+    private synchronized void onNewClusterMetadata(@Nullable ClusterMetadata prev, ClusterMetadata next)
     {
         if (logger.isTraceEnabled())
             logger.trace("Processing cluster metadata change - epoch {} -> {}",
                         prev != null ? prev.epoch : "none", next.epoch);
+
+        if (!next.epoch.isAfter(lastAppliedEpoch))
+            return;
 
         shardLock.readLock().lock();
         try
@@ -905,6 +928,9 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         ConcurrentHashMap<String, KeyspaceShards> originalKeyspaceShards = keyspaceShards;
         try
         {
+            if (!next.epoch.isAfter(lastAppliedEpoch))
+                return;
+
             if (!shardUpdateNeeded(keyspaceShards, prev, next))
                 return;
 
@@ -919,6 +945,8 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 if (!newKeyspaces.isEmpty())
                     logBackgroundReconciliationDisabledWarning(newKeyspaces);
             }
+
+            lastAppliedEpoch = next.epoch;
         }
         catch (Throwable t)
         {
@@ -1576,6 +1604,35 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
+    /**
+     * Persists per-log witnessed offsets, and durably marks needsReplay=false on any segments that have become eligible
+     * for it since the most recent run of this class. These 2 operations need to performed in a specific sequence to avoid
+     * correctness problems.
+     *
+     * For background, mutation tracking needs to keep a record of every mutation id it's written locally. For correctness
+     * purposes, a nodes view of mutation ids it's written locally needs to exactly match the data it has on disk.
+     * Having data on disk you dont have an id for, or thinking you have ids on disk that you don't breaks the mutation
+     * tracking consistency mechanism.
+     *
+     * To improve startup, we periodically save our view of mutation ids that we've witnessed to disk as part of this
+     * class. Any ids witnessed since the last time this class was run are reconstructed by replaying the journal.
+     *
+     * However, if an sstable is flushed after the most recent LogStatePersister run, AND it marks a segment as no
+     * longer needing replay, AND the node is stopped before the next LogStatePersister, then the offsets witnessed
+     * between the LogStatePersister and sstable flush will be forgotten on startup.
+     *
+     * This is a correctness problem for mutation tracking because it means that we will be returning data in reads that
+     * are not included in our mutation summaries, which breaks reconciliation and read monotonicity.
+     *
+     * To prevent this, witnessed offsets are flushed and segments are marked as not needing replay together in 3 steps.
+     *
+     * 1. Snapshot the set of journal segments that have been marked as needing their need replay flag set to false (but not yet updated on disk)
+     * 2. Flush per-log witnessed offsets to the system table
+     * 3. Durably mark the snapshotted segments as not needing replay
+     *
+     * This guarantees that, on startup, we will always replay all segments that may contain offsets not persisted to
+     * system.coordinator_logs
+     */
     private static class LogStatePersister implements Runnable
     {
         // TODO (expected): consider a different interval
@@ -1583,20 +1640,46 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         // private static final long PERSIST_INTERVAL_MILLIS = 60_000;
         private static final long PERSIST_INTERVAL_MILLIS = 1_000;
 
+        private volatile boolean isPaused = false;
+
         void start()
         {
             executor.scheduleWithFixedDelay(this, PERSIST_INTERVAL_MILLIS, PERSIST_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
         }
 
+        void pauseForTesting(boolean pause)
+        {
+            isPaused = pause;
+        }
+
         @Override
         public void run()
         {
+            if (isPaused)
+                return;
             run(true);
         }
 
         private void run(boolean dropSegments)
         {
-            MutationTrackingService.instance().forEachKeyspace(this::run);
+
+            MutationJournal.PendingClearReplay toDrain = MutationJournal.instance().snapshotPendingClearReplay();
+
+            boolean writesOk;
+            try
+            {
+                MutationTrackingService.instance().forEachKeyspace(this::run);
+                writesOk = true;
+            }
+            catch (Throwable t)
+            {
+                writesOk = false;
+                logger.error("LogStatePersister write to system.coordinator_logs failed; deferring segment cleanup drain to next tick", t);
+            }
+
+            if (writesOk)
+                MutationJournal.instance().drainCleanup(toDrain);
+
             if (dropSegments)
                 MutationTrackingService.instance().truncateMutationJournal();
         }
@@ -1641,6 +1724,18 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     public void resumeActiveReconciler()
     {
         activeReconciler.resumeForTesting();
+    }
+
+    @VisibleForTesting
+    public void pauseOffsetsPersisterForTesting()
+    {
+        offsetsPersister.pauseForTesting(true);
+    }
+
+    @VisibleForTesting
+    public void resumeOffsetsPersisterForTesting()
+    {
+        offsetsPersister.pauseForTesting(false);
     }
 
     /**

@@ -41,8 +41,12 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
 
             MigrationRouter.validateTrackedMutation(mutation);
 
-            Tracing.trace("Appending to mutation journal");
-            CommitLogPosition pointer = MutationJournal.instance().write(mutation.id(), mutation);
+            CommitLogPosition pointer = null;
+            if (makeDurable)
+            {
+                Tracing.trace("Appending to mutation journal");
+                pointer = MutationJournal.instance().write(mutation.id(), mutation);
+            }
 
             return new CassandraWriteContext(group, pointer);
         }

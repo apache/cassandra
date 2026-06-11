@@ -410,7 +410,7 @@ public class Keyspace
         if (mutation.id().isNone())
             return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
         else
-            return applyInternalTracked(mutation, new AsyncPromise<>());
+            return applyInternalTracked(mutation, false, new AsyncPromise<>());
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -441,7 +441,10 @@ public class Keyspace
                       boolean isDroppable)
     {
         if (MigrationRouter.isFullyTracked(mutation))
-            applyInternalTracked(mutation, null);
+        {
+            // makeDurable is ignored for tracked mutations, the mutation journal is required for replication
+            applyInternalTracked(mutation, false, null);
+        }
         else
             applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
     }
@@ -613,9 +616,22 @@ public class Keyspace
     }
 
     /**
+     * Apply a tracked mutation read from the {@link org.apache.cassandra.replication.MutationJournal}
+     * during static-segment replay on startup.
+     *
+     * Compared to the normal write apply path, this skips the journal append (since we're replaying from it)
+     * and always writes to the memtable, even when {@link MutationTrackingService#startWriting} reports the offset
+     * as already witnessed.
+     */
+    public void applyForReplay(Mutation mutation)
+    {
+        applyInternalTracked(mutation, true, null);
+    }
+
+    /**
      * Append the mutation to the mutation journal, then update memtables and indexes.
      */
-    private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
+    private Future<?> applyInternalTracked(Mutation mutation, boolean isReplay, Promise<?> future)
     {
         MutationTrackingService.ensureEnabled();
         if (!MigrationRouter.isFullyTracked(mutation) || mutation.id().isNone())
@@ -628,11 +644,11 @@ public class Keyspace
             throw new RuntimeException("Testing write failures");
 
         boolean started;
-        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
+        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, !isReplay))
         {
             started = MutationTrackingService.instance().startWriting(mutation);
 
-            if (started)
+            if (started || isReplay)
             {
                 for (PartitionUpdate upd : mutation.getPartitionUpdates())
                 {
