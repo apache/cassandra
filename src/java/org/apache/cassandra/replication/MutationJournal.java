@@ -20,7 +20,10 @@ package org.apache.cassandra.replication;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -30,10 +33,13 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
 import org.agrona.collections.Long2LongHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.jctools.maps.NonBlockingHashMapLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 
@@ -79,10 +85,26 @@ import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 // TODO (required): handle table truncations
 public class MutationJournal
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationJournal.class);
+
+    // opaque / immutable list of segments that we should clear the needs-replay flag on
+    public static class PendingClearReplay
+    {
+        private ImmutableSet<Long> segments;
+
+        public PendingClearReplay(ImmutableSet<Long> segments)
+        {
+            this.segments = segments;
+        }
+    }
+
     private static final MutationJournal instance = DatabaseDescriptor.getMutationTrackingEnabled() ? new MutationJournal() : null;
 
     private final Journal<ShortMutationId, Mutation> journal;
     private final Map<Long, SegmentStateTracker> segmentStateTrackers;
+
+    // Static segments awaiting durable cleanup of their needsReplay=false metadata.
+    private final Set<Long> pendingClearReplay = ConcurrentHashMap.newKeySet();
 
     // Most of the time during write, we will notify last known segment, so we optimistically cache last segment tracker,
     // without imposing any visibility guarantees. If we do not see the right segment in this field, we will look it up
@@ -176,18 +198,67 @@ public class MutationJournal
     }
 
     // If all Memtables associated with given segment were flushed by the time we have closed active segment
-    // and opened it as static, mark its metadata to indicate it does not need replay. It may happen that we
-    // crash before persisting this metadata, in which case we will unnecessarily replay the segment, which
-    // has no correctness implications.
+    // and opened it as static, the segment is eligible to be marked as not needing replay. The actual durable
+    // recording of needsReplay=false is deferred — we record the segment in pendingClearReplay and let the
+    // LogStatePersister drain the queue after it has written witnessed offsets to system.coordinator_logs.
+    //
+    // See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
     private void maybeCleanupStaticSegment(Segment<ShortMutationId, Mutation> segment)
     {
         Invariants.require(segment.isStatic());
         SegmentStateTracker tracker = segmentStateTrackers.get(segment.id());
         if (tracker != null && tracker.removeCleanFromDirty())
+            pendingClearReplay.add(segment.id());
+    }
+
+    /**
+     * Snapshot the current set of segments awaiting clearing of their needs replay flag.
+     */
+    public PendingClearReplay snapshotPendingClearReplay()
+    {
+        return new PendingClearReplay(ImmutableSet.copyOf(pendingClearReplay));
+    }
+
+    /**
+     * Mark the given PendingClearReplay as not needing replay
+     *
+     * See the comment in LogStatePersister or CASSANDRA-21443 for an explanation of why we do this
+     */
+    public void drainCleanup(PendingClearReplay toDrain)
+    {
+        for (long segId : toDrain.segments)
         {
-            segment.metadata().clearNeedsReplay();
-            segment.persistMetadata();
+            List<Segment<ShortMutationId, Mutation>> found = journal.getSegments(segId, segId);
+            if (found.isEmpty())
+            {
+                // segment was dropped between enqueue and drain — nothing to persist.
+                pendingClearReplay.remove(segId);
+                continue;
+            }
+            Segment<ShortMutationId, Mutation> segment = found.get(0);
+            try
+            {
+                segment.metadata().clearNeedsReplay();
+                segment.persistMetadata();
+                pendingClearReplay.remove(segId);
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Deferred cleanup failed for segment {}; will retry next persister tick", segId, t);
+                // leave in live queue
+            }
         }
+    }
+
+    @VisibleForTesting
+    public Set<Long> pendingCleanupForTesting()
+    {
+        return pendingClearReplay;
+    }
+
+    public int pendingClearReplaySize()
+    {
+        return pendingClearReplay.size();
     }
 
     void startInternal()

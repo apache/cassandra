@@ -48,6 +48,7 @@ public class MutationTrackingMetrics
     public final Histogram readSummarySize; // Read summary sizes
     public final Gauge<Long> unreconciledMutationCount; // Number of unreconciled mutations
     public final Gauge<Long> journalDiskSpaceUsed; // Size of MutationJournal on disk
+    public final Gauge<Integer> pendingClearReplaySize; // Static segments awaiting clearNeedsReplay
 
     @SuppressWarnings("Convert2MethodRef")
     private MutationTrackingMetrics()
@@ -62,6 +63,10 @@ public class MutationTrackingMetrics
         journalDiskSpaceUsed = Metrics.register(
                 factory.createMetricName("JournalDiskSpaceUsed"),
                 () -> MutationJournal.instance().getDiskSpaceUsed()
+        );
+        pendingClearReplaySize = Metrics.register(
+                factory.createMetricName("PendingClearReplaySize"),
+                () -> MutationJournal.instance().pendingClearReplaySize()
         );
     }
 }
