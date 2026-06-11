@@ -21,6 +21,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -30,6 +32,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,6 +70,9 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
+import org.apache.cassandra.io.compress.CompressorRegistry;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.util.File;
@@ -131,6 +137,7 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkLegacyAuthTables,
                                                                       checkKernelParamsForAsyncProfiler,
+								      checkCustomCompressionProviders,
                                                                       new DataResurrectionCheck());
 
     public List<StartupCheck> getChecks()
@@ -350,6 +357,95 @@ public class StartupChecks
             }
         }
     };
+
+    public static final StartupCheck checkCustomCompressionProviders = new StartupCheck()
+    {
+        @Override
+        public String name()
+        {
+            return "custom_compression_providers";
+        }
+
+        @Override
+        public void execute(StartupChecksConfiguration configuration) throws StartupException
+        {
+            if (configuration.isDisabled(name()))
+                return;
+
+            List<String> failedProviders = new ArrayList<>();
+            Map<Class<?>, AbstractCompressionProvider> customRegisteredProviders =
+                CompressorRegistry.instance.getProviders(e -> e.getValue() != CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
+
+            for (Map.Entry<Class<?>, AbstractCompressionProvider> entry : customRegisteredProviders.entrySet())
+            {
+                AbstractCompressionProvider provider = entry.getValue();
+                Class<? > compressorClass = entry.getKey();
+                try
+                {
+                    byte[]  testPayload = "Cassandra custom compression provider smoke test - perform round-trip compress/decompress!".getBytes(StandardCharsets.UTF_8);
+                    ICompressor customCompressor = provider.createCompressor(compressorClass, Collections.emptyMap());
+                    ICompressor defaultCompressor = CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER.createCompressor(customCompressor.serializedAs(), Collections.emptyMap());
+
+                    // Test both ways, compress with custom, decompress with Default provider and vice versa,
+                    // to make sure the compressed format is compatible with the default provider.
+                    // Step 1: Compress with custom provider, decompress with default provider
+                    ByteBuffer input = ByteBuffer.allocateDirect(testPayload.length);
+                    input.put(testPayload);
+                    input.flip();
+                    ByteBuffer customCompressed = ByteBuffer.allocateDirect(
+                    customCompressor.initialCompressedBufferLength(testPayload.length));
+                    customCompressor.compress(input, customCompressed);
+                    customCompressed.flip();
+
+                    ByteBuffer defaultDecompressed = ByteBuffer.allocateDirect(testPayload.length);
+                    defaultCompressor.uncompress(customCompressed, defaultDecompressed);
+                    defaultDecompressed.flip();
+
+                    byte[] defaultResult = new byte[defaultDecompressed.remaining()];
+                    defaultDecompressed.get(defaultResult);
+
+                    if (!Arrays.equals(testPayload, defaultResult))
+                        throw new IllegalStateException(
+                        "Step 1 mismatch (custom compressed, default decompressed) for provider:"
+                        + provider.getClass().getName());
+
+                    // 2) Compress with default provider, decompress with custom provider
+                    input.flip();
+                    ByteBuffer defaultCompressed  = ByteBuffer.allocateDirect(
+                    defaultCompressor.initialCompressedBufferLength(testPayload.length));
+                    defaultCompressor.compress(input, defaultCompressed);
+                    defaultCompressed.flip();
+
+                    ByteBuffer customDecompressed = ByteBuffer.allocateDirect(testPayload.length);
+                    customCompressor.uncompress(defaultCompressed, customDecompressed);
+                    customDecompressed.flip();
+
+                    byte[] customResult = new byte[customDecompressed.remaining()];
+                    customDecompressed.get(customResult);
+
+                    if (!Arrays.equals(testPayload, customResult))
+                        throw new IllegalStateException(
+                        "Step 2 mismatch (default compressed, custom decompressed) for provider: "
+                        + provider.getClass().getName());
+                    logger.info("Smoke test passed for custom compression provider {}.",
+                                provider.getClass().getName());
+                }
+                catch (Exception e)
+                {
+                    failedProviders.add(compressorClass.getSimpleName());
+                }
+            }
+
+            if (!failedProviders.isEmpty())
+            {
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
+                                           String.format("The following custom compression providers failed smoke test: %s. " +
+                                                         "Please ensure they are compatible with in-built compressor.",
+                                                         Joiner.on(", ").join(failedProviders)));
+            }
+        }
+    };
+
 
     public static final StartupCheck checkValidLaunchDate = new StartupCheck()
     {

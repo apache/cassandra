@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -120,7 +122,30 @@ public final class CompressorRegistry
     {
         return compressionProviders.getOrDefault(compressorClass.getName(), DEFAULT_COMPRESSION_PROVIDER);
     }
-
+    
+    /**
+     * Returns a filtered view of the registered compression providers, with key as compressor class.
+     * Only entries satisfying the given predicate are included in the result.
+     * <p>
+     * Note that this method triggers classloading for each compressor entry that passes the filter,
+     * as the internal FQN string keys are resolved to {@code Class<?>} via {@link FBUtilities#classForName}.
+     * Call this method only after the server has fully initialised (e.g. from startup checks),
+     * not at tool or client init time.
+     *
+     * @param filter predicate applied to each {@code Map.Entry<String, AbstractCompressionProvider>}
+     *               in the registry, where the key is the compressor's fully-qualified class name
+     * @return map of compressor {@link Class} to their registered providers for entries matching
+     *         the filter; never {@code null}
+     */
+    public Map<Class<?>, AbstractCompressionProvider> getProviders(Predicate<Map.Entry<String, AbstractCompressionProvider>> filter)
+    {
+        return compressionProviders.entrySet()
+                                   .stream()
+                                   .filter(filter)
+                                   .collect(Collectors.toMap(e -> FBUtilities.classForName(e.getKey(), "compressor"),
+                                   Map.Entry::getValue));
+    }
+    
     /**
      * Creates a compressor. Firstly, we get a provider for this compressor class, or we use default compressor provider
      * if there is not such a mapping. Then we try to use that provider to instantiate a compressor with given parameters.

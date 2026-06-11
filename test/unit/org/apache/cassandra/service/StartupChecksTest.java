@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -51,11 +52,16 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.StartupChecksConfiguration;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.compress.AbstractCompressionProvider;
+import org.apache.cassandra.io.compress.CompressorRegistry;
+import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystemProvider;
 import org.apache.cassandra.io.filesystem.ForwardingPath;
@@ -582,5 +588,119 @@ public class StartupChecksTest
         List<String> unsupported = StartupChecks.findDirectIOUnsupportedLocations(
             new String[] { "/this/path/does/not/exist/for/testing" });
         assertThat(unsupported).isEmpty();
+    }
+
+    @Test
+    public void testCompatibleCompressionProvider() throws Exception
+    {
+        // This test will go through the smoke test verifing with a valid custom provider,
+        // providing a compressor compatible with Snappy
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
+        Map<String, ParameterizedClass> providerOptions = Map.of(
+			SnappyCompressor.class.getSimpleName(),
+			new ParameterizedClass(CompatibleCompressionProvider.class.getName(), params));
+
+        CompressorRegistry.instance.reset();
+        CompressorRegistry.instance.registerProviders(providerOptions);
+        try
+        {
+            StartupChecks.checkCustomCompressionProviders.execute(options);
+        }
+        catch (Throwable t)
+        {
+            fail("This exception should not be thrown since the provider is compatible " +
+                 "with the compressor it is supposed to create: " + t.getMessage());
+        }
+	finally
+        {
+            CompressorRegistry.instance.reset(); // only registry state touched — safe to reset
+        }
+    }
+
+    @Test
+    public void testIncompatibleCompressionProvider() throws Exception
+    {
+        // This test is trying to simulate a failure scenario by providing a custom provider which is not compatible
+        // with the compressor it is supposed to create. In this case, we are providing a compressor which is compatible
+        // with Snappy, but we are registering it as provider for NoopCompressor.
+        // The smoke test should fail and throw an exception alerting that using this provider may lead to data corruption.
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
+        Map<String, ParameterizedClass> providerOptions = Map.of(
+			SnappyCompressor.class.getSimpleName(),
+			new ParameterizedClass(IncompatibleCompressionProvider.class.getName(), params));
+
+        CompressorRegistry.instance.reset();
+        CompressorRegistry.instance.registerProviders(providerOptions);
+
+        try
+        {
+            StartupChecks.checkCustomCompressionProviders.execute(options);
+            fail("Expected an exception due to incompatible compression provider, but none was thrown");
+        }
+        catch (Throwable t)
+        {
+            assertThat(t.getMessage()).contains("The following custom compression providers failed smoke test");
+        }
+	finally
+	{
+	    CompressorRegistry.instance.reset();
+        }
+    }
+
+
+    public static class CompatibleCompressionProvider extends AbstractCompressionProvider
+    {
+        @Override
+        public boolean isHealthy()
+        {
+            return true;
+        }
+
+        @Override
+        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options)
+        {
+            return new MySnappyCompressor();
+        }
+    }
+
+    public static class MySnappyCompressor extends SnappyCompressor
+    {
+        @Override
+        public Class<? extends ICompressor> serializedAs()
+        {
+            return SnappyCompressor.class;
+        }
+    }
+
+    public static class IncompatibleCompressionProvider extends AbstractCompressionProvider
+    {
+        @Override
+        public boolean isHealthy()
+        {
+            return true;
+        }
+
+        @Override
+        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options)
+        {
+            return new MyIncompatibleSnappyCompressor();
+        }
+
+        public static class MyIncompatibleSnappyCompressor extends SnappyCompressor
+        {
+            @Override
+            public Class<? extends ICompressor> serializedAs()
+            {
+                return SnappyCompressor.class;
+            }
+            @Override
+            public void compress(ByteBuffer src, ByteBuffer dest)
+            {
+                // Write raw uncompressed bytes instead of a valid Snappy stream.
+                // Snappy will not be be able to decompress
+                // This is what the smoke test's step 1 cross-check is designed to catch.
+                dest.put(src);
+            }
+        }
     }
 }
