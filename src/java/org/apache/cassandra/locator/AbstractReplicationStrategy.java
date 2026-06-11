@@ -40,8 +40,8 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -62,7 +62,6 @@ import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.reads.ReadCoordinator;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -71,6 +70,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.locator.ReplicaLayout.forTokenWriteLiveAndDown;
 
