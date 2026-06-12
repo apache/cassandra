@@ -78,6 +78,7 @@ import static org.apache.cassandra.io.util.FileUtils.createTempFile;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
@@ -154,7 +155,8 @@ public class StartupChecksTest
         new File(sstableDir).deleteRecursive();
         Path snapshotDir = sstableDir.resolve("snapshots");
         Files.createDirectories(snapshotDir);
-        copyInvalidLegacySSTables(snapshotDir); startupChecks.verify(options);
+        copyInvalidLegacySSTables(snapshotDir);
+        startupChecks.verify(options);
 
         // and in a backups directory
         new File(sstableDir).deleteRecursive();
@@ -221,16 +223,17 @@ public class StartupChecksTest
         Path legacySSTableRoot = Paths.get(TEST_INVALID_LEGACY_SSTABLE_ROOT.getString(),
                                            "Keyspace1",
                                            "Standard1");
-        for (String filename : new String[]{"Keyspace1-Standard1-ic-0-TOC.txt",
-                                            "Keyspace1-Standard1-ic-0-Digest.sha1",
-                                            "legacyleveled.json"})
+        for (String filename : new String[]{ "Keyspace1-Standard1-ic-0-TOC.txt",
+                                             "Keyspace1-Standard1-ic-0-Digest.sha1",
+                                             "legacyleveled.json" })
             Files.copy(Paths.get(legacySSTableRoot.toString(), filename), targetDir.resolve(filename));
     }
 
     @Test
     public void testDataResurrectionCheck() throws Exception
     {
-        DataResurrectionCheck check = new DataResurrectionCheck() {
+        DataResurrectionCheck check = new DataResurrectionCheck()
+        {
             @Override
             List<String> getKeyspaces()
             {
@@ -257,7 +260,8 @@ public class StartupChecksTest
     @Test
     public void testDataResurrectionCheckLastModifiedFallback() throws Exception
     {
-        DataResurrectionCheck check = new DataResurrectionCheck() {
+        DataResurrectionCheck check = new DataResurrectionCheck()
+        {
             @Override
             List<String> getKeyspaces()
             {
@@ -290,7 +294,8 @@ public class StartupChecksTest
         }
     }
 
-    private void verifySuccess(StartupChecks tests) {
+    private void verifySuccess(StartupChecks tests)
+    {
         try
         {
             tests.verify(options);
@@ -347,7 +352,8 @@ public class StartupChecksTest
 
         ServiceLoader<StartupCheck> loader = mock(ServiceLoader.class);
         doReturn(List.of(externalCheck).iterator()).when(loader).iterator();
-        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class))
+        {
             serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
 
             StartupChecks checks = new StartupChecks().withDefaultTests().withServiceLoaderTests();
@@ -397,7 +403,8 @@ public class StartupChecksTest
         // two times! We model loading of two checks with same name
         doReturn(List.of(externalCheck, externalCheck).iterator()).when(loader).iterator();
 
-        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class))
+        {
             serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
 
             try
@@ -449,7 +456,8 @@ public class StartupChecksTest
         // two times! We model loading of two checks with same name
         doReturn(List.of(externalCheck, externalCheck).iterator()).when(loader).iterator();
 
-        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class)) {
+        try (MockedStatic<ServiceLoader> serviceLoader = Mockito.mockStatic(ServiceLoader.class))
+        {
             serviceLoader.when(() -> ServiceLoader.load(StartupCheck.class)).thenReturn(loader);
 
             try
@@ -565,7 +573,6 @@ public class StartupChecksTest
                                                     "Standard1"));
         for (File f : legacySSTableRoot.tryList())
             Files.copy(f.toPath(), targetDir.resolve(f.name()));
-
     }
 
     private void verifyFailure(StartupChecks tests, String message)
@@ -586,19 +593,19 @@ public class StartupChecksTest
     {
         // Non-existent directories should be skipped, not added to unsupported list
         List<String> unsupported = StartupChecks.findDirectIOUnsupportedLocations(
-            new String[] { "/this/path/does/not/exist/for/testing" });
+        new String[]{ "/this/path/does/not/exist/for/testing" });
         assertThat(unsupported).isEmpty();
     }
 
     @Test
-    public void testCompatibleCompressionProvider() throws Exception
+    public void testCompatibleCompressionProvider()
     {
         // This test will go through the smoke test verifing with a valid custom provider,
         // providing a compressor compatible with Snappy
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString());
         Map<String, ParameterizedClass> providerOptions = Map.of(
-			SnappyCompressor.class.getSimpleName(),
-			new ParameterizedClass(CompatibleCompressionProvider.class.getName(), params));
+        SnappyCompressor.class.getSimpleName(),
+        new ParameterizedClass(CompatibleCompressionProvider.class.getName(), params));
 
         CompressorRegistry.instance.reset();
         CompressorRegistry.instance.registerProviders(providerOptions);
@@ -611,39 +618,36 @@ public class StartupChecksTest
             fail("This exception should not be thrown since the provider is compatible " +
                  "with the compressor it is supposed to create: " + t.getMessage());
         }
-	finally
+        finally
         {
             CompressorRegistry.instance.reset(); // only registry state touched — safe to reset
         }
     }
 
     @Test
-    public void testIncompatibleCompressionProvider() throws Exception
+    public void testIncompatibleCompressionProvider()
     {
         // This test is trying to simulate a failure scenario by providing a custom provider which is not compatible
         // with the compressor it is supposed to create. In this case, we are providing a compressor which is compatible
         // with Snappy, but we are registering it as provider for NoopCompressor.
         // The smoke test should fail and throw an exception alerting that using this provider may lead to data corruption.
-        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
+        Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString());
         Map<String, ParameterizedClass> providerOptions = Map.of(
-			SnappyCompressor.class.getSimpleName(),
-			new ParameterizedClass(IncompatibleCompressionProvider.class.getName(), params));
+        SnappyCompressor.class.getSimpleName(),
+        new ParameterizedClass(IncompatibleCompressionProvider.class.getName(), params));
 
         CompressorRegistry.instance.reset();
         CompressorRegistry.instance.registerProviders(providerOptions);
 
         try
         {
-            StartupChecks.checkCustomCompressionProviders.execute(options);
-            fail("Expected an exception due to incompatible compression provider, but none was thrown");
+            assertThatThrownBy(() -> StartupChecks.checkCustomCompressionProviders.execute(options))
+            .isInstanceOf(StartupException.class)
+            .hasMessageContaining("The following custom compression providers failed smoke test");
         }
-        catch (Throwable t)
+        finally
         {
-            assertThat(t.getMessage()).contains("The following custom compression providers failed smoke test");
-        }
-	finally
-	{
-	    CompressorRegistry.instance.reset();
+            CompressorRegistry.instance.reset();
         }
     }
 
@@ -693,6 +697,7 @@ public class StartupChecksTest
             {
                 return SnappyCompressor.class;
             }
+
             @Override
             public void compress(ByteBuffer src, ByteBuffer dest)
             {

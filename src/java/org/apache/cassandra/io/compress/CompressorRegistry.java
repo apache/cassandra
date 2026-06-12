@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -122,37 +121,34 @@ public final class CompressorRegistry
     {
         return compressionProviders.getOrDefault(compressorClass.getName(), DEFAULT_COMPRESSION_PROVIDER);
     }
-    
+
     /**
-     * Returns a filtered view of the registered compression providers, with key as compressor class.
-     * Only entries satisfying the given predicate are included in the result.
+     * Returns a filtered view of the registered custom compression providers, with key as compressor class.
      * <p>
      * Note that this method triggers classloading for each compressor entry that passes the filter,
      * as the internal FQN string keys are resolved to {@code Class<?>} via {@link FBUtilities#classForName}.
      * Call this method only after the server has fully initialised (e.g. from startup checks),
      * not at tool or client init time.
-     *
-     * @param filter predicate applied to each {@code Map.Entry<String, AbstractCompressionProvider>}
-     *               in the registry, where the key is the compressor's fully-qualified class name
+
      * @return map of compressor {@link Class} to their registered providers for entries matching
-     *         the filter; never {@code null}
+     * the filter; never {@code null}
      */
-    public Map<Class<?>, AbstractCompressionProvider> getProviders(Predicate<Map.Entry<String, AbstractCompressionProvider>> filter)
+    public Map<Class<?>, AbstractCompressionProvider> getCustomProviders()
     {
         return compressionProviders.entrySet()
                                    .stream()
-                                   .filter(filter)
+                                   .filter(e -> e.getValue() != CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER)
                                    .collect(Collectors.toMap(e -> FBUtilities.classForName(e.getKey(), "compressor"),
-                                   Map.Entry::getValue));
+                                                             Map.Entry::getValue));
     }
-    
+
     /**
      * Creates a compressor. Firstly, we get a provider for this compressor class, or we use default compressor provider
      * if there is not such a mapping. Then we try to use that provider to instantiate a compressor with given parameters.
      * When the construction of a compressor fails, if a provider is configured is not configured to fallback,
      * an exception is thrown, otherwise a compressor by a default compressor provider is created.
      *
-     * @param compressorClass compressor class to create a compressor of
+     * @param compressorClass    compressor class to create a compressor of
      * @param compressionOptions compressor options
      * @return an instance of a given compressor class
      */
@@ -166,36 +162,48 @@ public final class CompressorRegistry
         }
         catch (Throwable t)
         {
+            if (provider == DEFAULT_COMPRESSION_PROVIDER)
+                throw t;
+
             logger.warn("Failed to create compressor {}. Will attempt fallback to default if enabled. Message: {}",
                         compressorClass.getName(),
                         t.getMessage());
+
             if (provider.isFailOnMissingProvider())
-            {
-                // TODO refine the type of thrown exception
                 throw t;
-            }
-            else
-            {
-                return DEFAULT_COMPRESSION_PROVIDER.createCompressor(compressorClass, compressionOptions);
-            }
+
+            compressor = DEFAULT_COMPRESSION_PROVIDER.createCompressor(compressorClass, compressionOptions);
         }
-        if (compressor.serializedAs() != compressorClass)
-        {
-            // TODO refine the type of thrown exception
-            throw new RuntimeException(String.format("The result of ICompressor.serializedAs(), %s, of a compressor object created " +
-                                                     "by a compressor provider %s does not match the compressor class to get a compressor for. " +
-                                                     "You need to override serializedAs() method of your custom compressor and return " +
-                                                     "base compressor class it is the substitute for.",
-                                                     compressor.serializedAs(),
-                                                     provider.getClass()));
-        }
+
+        // Validate the masquerade target for both the provider and the fallback path: whatever is
+        // returned must serialize as exactly the compressor class that was requested, otherwise the
+        // schema / on-disk format would record a name that cannot be resolved on peers and restarts.
+        Class<? extends ICompressor> serializedAs = compressor.serializedAs();
+        if (serializedAs == null || serializedAs.getSimpleName().isEmpty())
+            throw new ConfigurationException(String.format("ICompressor.serializedAs() of a compressor created by provider %s returned %s. " +
+                                                           "It must return a non-anonymous built-in compressor class in package " +
+                                                           "org.apache.cassandra.io.compress.",
+                                                           provider.getClass(),
+                                                           serializedAs));
+        if (serializedAs != compressorClass)
+            throw new ConfigurationException(String.format("The result of ICompressor.serializedAs(), %s, of a compressor object created " +
+                                                           "by a compressor provider %s does not match the compressor class to get a compressor for. " +
+                                                           "You need to override serializedAs() method of your custom compressor and return " +
+                                                           "base compressor class it is the substitute for.",
+                                                           serializedAs,
+                                                           provider.getClass()));
         return compressor;
-     }
+    }
 
     /**
      * Populates the registry with compression providers specified in the configuration.
-     * Should be called during initialization to ensure providers are registered and available for use.
-     * If a provider fails to initialize and fallback is enabled, the default provider is used.
+     * Should be called once during initialization to ensure providers are registered and available
+     * for use. If a provider fails to initialize and fallback is enabled, the default provider is used.
+     * <p>
+     * Each invocation constructs fresh provider instances and re-runs {@link AbstractCompressionProvider#init}
+     * without tearing down any previously registered instance, so a custom provider that acquires
+     * resources (native memory, threads, handles) in {@code init()} must tolerate being discarded if
+     * this is called more than once (as tests do via {@link #reset()}).
      *
      * @param providerOptions map of compressor names to their configuration
      * @throws ConfigurationException if a provider fails to initialize and fallback is not enabled

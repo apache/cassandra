@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -42,6 +41,7 @@ import java.util.Optional;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -373,16 +373,19 @@ public class StartupChecks
                 return;
 
             List<String> failedProviders = new ArrayList<>();
-            Map<Class<?>, AbstractCompressionProvider> customRegisteredProviders =
-                CompressorRegistry.instance.getProviders(e -> e.getValue() != CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER);
+            Map<Class<?>, AbstractCompressionProvider> providers = CompressorRegistry.instance.getCustomProviders();
 
-            for (Map.Entry<Class<?>, AbstractCompressionProvider> entry : customRegisteredProviders.entrySet())
+            byte[] testPayload = null;
+
+            for (Map.Entry<Class<?>, AbstractCompressionProvider> entry : providers.entrySet())
             {
                 AbstractCompressionProvider provider = entry.getValue();
                 Class<? > compressorClass = entry.getKey();
+                if (testPayload == null)
+                    testPayload = getTestPayload();
+
                 try
                 {
-                    byte[]  testPayload = "Cassandra custom compression provider smoke test - perform round-trip compress/decompress!".getBytes(StandardCharsets.UTF_8);
                     ICompressor customCompressor = provider.createCompressor(compressorClass, Collections.emptyMap());
                     ICompressor defaultCompressor = CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER.createCompressor(customCompressor.serializedAs(), Collections.emptyMap());
 
@@ -392,8 +395,7 @@ public class StartupChecks
                     ByteBuffer input = ByteBuffer.allocateDirect(testPayload.length);
                     input.put(testPayload);
                     input.flip();
-                    ByteBuffer customCompressed = ByteBuffer.allocateDirect(
-                    customCompressor.initialCompressedBufferLength(testPayload.length));
+                    ByteBuffer customCompressed = ByteBuffer.allocateDirect(customCompressor.initialCompressedBufferLength(testPayload.length));
                     customCompressor.compress(input, customCompressed);
                     customCompressed.flip();
 
@@ -427,8 +429,8 @@ public class StartupChecks
                         throw new IllegalStateException(
                         "Step 2 mismatch (default compressed, custom decompressed) for provider: "
                         + provider.getClass().getName());
-                    logger.info("Smoke test passed for custom compression provider {}.",
-                                provider.getClass().getName());
+
+                    logger.info("Smoke test passed for custom compression provider {}.", provider.getClass().getName());
                 }
                 catch (Exception e)
                 {
@@ -443,6 +445,18 @@ public class StartupChecks
                                                          "Please ensure they are compatible with in-built compressor.",
                                                          Joiner.on(", ").join(failedProviders)));
             }
+        }
+
+        private byte[] getTestPayload()
+        {
+            // 4 KiB payload: the first half zeros (highly compressible, exercises the real compression
+            // path), the second half random (incompressible, exercises the compressor's worst-case
+            // output sizing via initialCompressedBufferLength).
+            byte[] testPayload = new byte[4 * 1024];
+            byte[] randomHalf = new byte[testPayload.length / 2];
+            ThreadLocalRandom.current().nextBytes(randomHalf);
+            System.arraycopy(randomHalf, 0, testPayload, testPayload.length / 2, randomHalf.length);
+            return testPayload;
         }
     };
 

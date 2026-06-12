@@ -61,9 +61,13 @@ public abstract class AbstractCompressionProvider
     /**
      * Initialises this provider with the {@code parameters} block from its
      * {@code compressor_providers} entry in cassandra.yaml. Called by {@link CompressorRegistry}
-     * exactly once, after no-arg construction and before {@link #isHealthy()}. The map never
-     * contains the registry-reserved key {@link #FAIL_ON_MISSING_PROVIDER} — that one is
-     * consumed by the registry itself. May be empty but is never null.
+     * exactly once, after no-arg construction and before {@link #isHealthy()}. May be empty but is
+     * never null.
+     * <p>
+     * The map still contains the registry-reserved key {@link #FAIL_ON_MISSING_PROVIDER} when set:
+     * the registry leaves it in place so that the default {@link #isFailOnMissingProvider()} (which
+     * reads it back out of the stored parameters) reflects the configured value at compressor-creation
+     * time. Subclasses should ignore that key when interpreting their own options.
      * <p>
      * The default implementation stores the map so subclasses can retrieve it via
      * {@link #getParameters()}. Subclasses that override this method must call

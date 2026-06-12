@@ -47,7 +47,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 
-
 import static java.lang.String.format;
 
 public final class CompressionParams

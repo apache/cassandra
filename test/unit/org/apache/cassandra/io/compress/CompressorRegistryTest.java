@@ -313,7 +313,7 @@ public class CompressorRegistryTest
     public static class TestCompressionProvider extends AbstractCompressionProvider
     {
         // ParameterizedClass.parameters are used to pass different test scenarios .
-        // resolveProvider() only strips FAIL_ON_MISSING_PROVIDER, so get to init().
+        // The full parameters map (including FAIL_ON_MISSING_PROVIDER) is passed through to init().
         public static final String FAIL_INIT             = "fail_init";
         public static final String FAIL_HEALTH           = "fail_health";
         public static final String FAIL_HEALTH_EXCEPTION = "fail_health_exception";
