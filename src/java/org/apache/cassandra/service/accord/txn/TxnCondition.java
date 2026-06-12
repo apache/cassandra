@@ -104,39 +104,39 @@ public abstract class TxnCondition
         long serializedSize(T condition, TableMetadatas tables);
     }
 
+    // For enums with a REF suffixed, we are performing a comparison of two LET variables
+    // otherwise EQUAL, NOT_EQUAL, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL
+    // are used for comparisions between a LET variable and a value
     public enum Kind
     {
-        NONE("n/a", null, null),
-        AND("AND", null, null),
-        OR("OR", null, null),
-        IS_NOT_NULL("IS NOT NULL", null, null),
-        IS_NULL("IS NULL", null, null),
-        EQUAL("=", Operator.EQ, false),
-        NOT_EQUAL("!=", Operator.NEQ, false),
-        GREATER_THAN(">", Operator.GT, false),
-        GREATER_THAN_OR_EQUAL(">=", Operator.GTE, false),
-        LESS_THAN("<", Operator.LT, false),
-        LESS_THAN_OR_EQUAL("<=", Operator.LTE, false),
-        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null, false),
-        EQUAL_REF("=", Operator.EQ, true),
-        NOT_EQUAL_REF("!=", Operator.NEQ, true),
-        GREATER_THAN_REF(">", Operator.GT, true),
-        GREATER_THAN_OR_EQUAL_REF(">=", Operator.GTE, true),
-        LESS_THAN_REF("<", Operator.LT, true),
-        LESS_THAN_OR_EQUAL_REF("<=", Operator.LTE, true);
+        NONE("n/a", null),
+        AND("AND", null),
+        OR("OR", null),
+        IS_NOT_NULL("IS NOT NULL", null),
+        IS_NULL("IS NULL", null),
+        EQUAL("=", Operator.EQ),
+        NOT_EQUAL("!=", Operator.NEQ),
+        GREATER_THAN(">", Operator.GT),
+        GREATER_THAN_OR_EQUAL(">=", Operator.GTE),
+        LESS_THAN("<", Operator.LT),
+        LESS_THAN_OR_EQUAL("<=", Operator.LTE),
+        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null),
+        EQUAL_REF("=", Operator.EQ),
+        NOT_EQUAL_REF("!=", Operator.NEQ),
+        GREATER_THAN_REF(">", Operator.GT),
+        GREATER_THAN_OR_EQUAL_REF(">=", Operator.GTE),
+        LESS_THAN_REF("<", Operator.LT),
+        LESS_THAN_OR_EQUAL_REF("<=", Operator.LTE);
 
         @Nonnull
         private final String symbol;
         @Nullable
         private final Operator operator;
-        @Nullable
-        private final Boolean isReference;
 
-        Kind(String symbol, Operator operator, Boolean isReference)
+        Kind(String symbol, Operator operator)
         {
             this.symbol = symbol;
             this.operator = operator;
-            this.isReference = isReference;
         }
 
         @SuppressWarnings("rawtypes")
