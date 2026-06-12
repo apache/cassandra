@@ -40,8 +40,14 @@ public class ConditionStatement
         GT(TxnCondition.Kind.GREATER_THAN, TxnCondition.Kind.LESS_THAN),
         GTE(TxnCondition.Kind.GREATER_THAN_OR_EQUAL, TxnCondition.Kind.LESS_THAN_OR_EQUAL),
         LT(TxnCondition.Kind.LESS_THAN, TxnCondition.Kind.GREATER_THAN),
-        LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL, TxnCondition.Kind.GREATER_THAN_OR_EQUAL);
-        
+        LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL, TxnCondition.Kind.GREATER_THAN_OR_EQUAL),
+        EQ_REF(TxnCondition.Kind.EQUAL_REF, TxnCondition.Kind.EQUAL_REF),
+        NEQ_REF(TxnCondition.Kind.NOT_EQUAL_REF, TxnCondition.Kind.NOT_EQUAL_REF),
+        GT_REF(TxnCondition.Kind.GREATER_THAN_REF, TxnCondition.Kind.LESS_THAN_REF),
+        GTE_REF(TxnCondition.Kind.GREATER_THAN_OR_EQUAL_REF, TxnCondition.Kind.LESS_THAN_OR_EQUAL_REF),
+        LT_REF(TxnCondition.Kind.LESS_THAN_REF, TxnCondition.Kind.GREATER_THAN_REF),
+        LTE_REF(TxnCondition.Kind.LESS_THAN_OR_EQUAL_REF, TxnCondition.Kind.GREATER_THAN_OR_EQUAL_REF);
+
         // TODO: Support for IN, CONTAINS, CONTAINS KEY
 
         private final TxnCondition.Kind kind;
@@ -100,8 +106,13 @@ public class ConditionStatement
             RowDataReference reference;
             Term value;
             boolean reversed = false;
-            
-            if (lhs instanceof RowDataReference.Raw)
+
+            if (lhs instanceof RowDataReference.Raw && rhs instanceof RowDataReference.Raw)
+            {
+                reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
+                value = ((RowDataReference.Raw) rhs).prepareAsReceiver();
+            }
+            else if (lhs instanceof RowDataReference.Raw)
             {
                 if (((RowDataReference.Raw) lhs).column() == null)
                     throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
@@ -143,13 +154,31 @@ public class ConditionStatement
             case GTE:
             case LT:
             case LTE:
-                // TODO: Support for references on LHS and RHS
-                TxnReference ref = reference.toTxnReference(options);
-                checkTrue(ref.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, ref.kind);
-                return new TxnCondition.Value(ref.asColumn(),
+            {
+                TxnReference refLHS = reference.toTxnReference(options);
+                checkTrue(refLHS.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, refLHS.kind);
+
+                return new TxnCondition.Value(refLHS.asColumn(),
                                               kind.toTxnKind(reversed),
                                               value.bindAndGet(options),
                                               options.getProtocolVersion());
+            }
+            case EQ_REF:
+            case NEQ_REF:
+            case GT_REF:
+            case GTE_REF:
+            case LT_REF:
+            case LTE_REF:
+            {
+                TxnReference refLHS = reference.toTxnReference(options);
+                checkTrue(refLHS.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, refLHS.kind);
+                TxnReference refRHS = ((RowDataReference) value).toTxnReference(options);
+                checkTrue(refRHS.kind == TxnReference.Kind.COLUMN, "Condition %s requires COLUMN reference but given %s", kind, refRHS.kind);
+                return new TxnCondition.Reference(refLHS.asColumn(),
+                                                  kind.toTxnKind(reversed),
+                                                  refRHS.asColumn(),
+                                                  options.getProtocolVersion());
+            }
             default:
                 throw new IllegalStateException();
         }

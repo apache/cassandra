@@ -106,28 +106,37 @@ public abstract class TxnCondition
 
     public enum Kind
     {
-        NONE("n/a", null),
-        AND("AND", null),
-        OR("OR", null),
-        IS_NOT_NULL("IS NOT NULL", null),
-        IS_NULL("IS NULL", null),
-        EQUAL("=", Operator.EQ),
-        NOT_EQUAL("!=", Operator.NEQ),
-        GREATER_THAN(">", Operator.GT),
-        GREATER_THAN_OR_EQUAL(">=", Operator.GTE),
-        LESS_THAN("<", Operator.LT),
-        LESS_THAN_OR_EQUAL("<=", Operator.LTE),
-        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null);
+        NONE("n/a", null, null),
+        AND("AND", null, null),
+        OR("OR", null, null),
+        IS_NOT_NULL("IS NOT NULL", null, null),
+        IS_NULL("IS NULL", null, null),
+        EQUAL("=", Operator.EQ, false),
+        NOT_EQUAL("!=", Operator.NEQ, false),
+        GREATER_THAN(">", Operator.GT, false),
+        GREATER_THAN_OR_EQUAL(">=", Operator.GTE, false),
+        LESS_THAN("<", Operator.LT, false),
+        LESS_THAN_OR_EQUAL("<=", Operator.LTE, false),
+        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null, false),
+        EQUAL_REF("=", Operator.EQ, true),
+        NOT_EQUAL_REF("!=", Operator.NEQ, true),
+        GREATER_THAN_REF(">", Operator.GT, true),
+        GREATER_THAN_OR_EQUAL_REF(">=", Operator.GTE, true),
+        LESS_THAN_REF("<", Operator.LT, true),
+        LESS_THAN_OR_EQUAL_REF("<=", Operator.LTE, true);
 
         @Nonnull
         private final String symbol;
         @Nullable
         private final Operator operator;
+        @Nullable
+        private final Boolean isReference;
 
-        Kind(String symbol, Operator operator)
+        Kind(String symbol, Operator operator, Boolean isReference)
         {
             this.symbol = symbol;
             this.operator = operator;
+            this.isReference = isReference;
         }
 
         @SuppressWarnings("rawtypes")
@@ -145,6 +154,13 @@ public abstract class TxnCondition
                 case GREATER_THAN:
                 case GREATER_THAN_OR_EQUAL:
                     return Value.serializer;
+                case EQUAL_REF:
+                case NOT_EQUAL_REF:
+                case LESS_THAN_REF:
+                case LESS_THAN_OR_EQUAL_REF:
+                case GREATER_THAN_REF:
+                case GREATER_THAN_OR_EQUAL_REF:
+                    return Reference.serializer;
                 case AND:
                 case OR:
                     return BooleanGroup.serializer;
@@ -612,6 +628,107 @@ public abstract class TxnCondition
                 long size = 0;
                 size += TxnReference.serializer.serializedSize(condition.reference, tables);
                 size += ByteBufferUtil.serializedSizeWithVIntLength(condition.value);
+                size += TypeSizes.sizeof(condition.version.name());
+                return size;
+            }
+        };
+    }
+
+    public static class Reference extends TxnCondition
+    {
+        private static final EnumSet<Kind> KINDS = EnumSet.of(Kind.EQUAL_REF, Kind.NOT_EQUAL_REF,
+                                                              Kind.GREATER_THAN_REF, Kind.GREATER_THAN_OR_EQUAL_REF,
+                                                              Kind.LESS_THAN_REF, Kind.LESS_THAN_OR_EQUAL_REF);
+
+        private final TxnReference.ColumnReference referenceLHS;
+        private final TxnReference.ColumnReference referenceRHS;
+        private final ProtocolVersion version;
+
+        public Reference(TxnReference.ColumnReference referenceLHS, Kind kind, TxnReference.ColumnReference referenceRHS, ProtocolVersion version)
+        {
+            super(kind);
+            Invariants.requireArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a value condition");
+            this.referenceLHS = referenceLHS;
+            this.referenceRHS = referenceRHS;
+            this.version = version;
+        }
+
+        public static EnumSet<Kind> supported()
+        {
+            return EnumSet.copyOf(KINDS);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            Reference reference1 = (Reference) o;
+            return referenceLHS.equals(reference1.referenceLHS) && referenceRHS.equals(reference1.referenceRHS);
+        }
+
+        @Override
+        public void collect(TableMetadatas.Collector collector)
+        {
+            referenceLHS.collect(collector);
+            referenceRHS.collect(collector);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(super.hashCode(), referenceLHS, referenceRHS);
+        }
+
+        @Override
+        public String toString()
+        {
+            return referenceLHS.toString() + ' ' + kind.symbol + ' ' + referenceRHS.toString();
+        }
+
+        @Override
+        public boolean applies(TxnData data)
+        {
+            ColumnMetadata columnLHS = referenceLHS.column();
+            ColumnMetadata columnRHS = referenceRHS.column();
+
+            Preconditions.checkArgument(columnLHS.type.equals(columnRHS.type), columnLHS.type + " != " + columnRHS.type);
+
+            ByteBuffer lhs = referenceLHS.toByteBuffer(data, columnLHS.type);
+            ByteBuffer rhs = referenceRHS.toByteBuffer(data, columnRHS.type);
+
+            if (lhs == null || rhs == null)
+                return false;
+
+            return kind.operator.isSatisfiedBy(columnLHS.type, lhs, rhs);
+        }
+
+        private static final ConditionSerializer<Reference> serializer = new ConditionSerializer<>()
+        {
+            @Override
+            public void serialize(Reference condition, TableMetadatas tables, DataOutputPlus out) throws IOException
+            {
+                TxnReference.serializer.serialize(condition.referenceLHS, tables, out);
+                TxnReference.serializer.serialize(condition.referenceRHS, tables, out);
+                out.writeUTF(condition.version.name());
+            }
+
+            @Override
+            public Reference deserialize(TableMetadatas tables, DataInputPlus in, Kind kind) throws IOException
+            {
+                TxnReference.ColumnReference referenceLHS = TxnReference.serializer.deserialize(tables, in).asColumn();
+                TxnReference.ColumnReference referenceRHS = TxnReference.serializer.deserialize(tables, in).asColumn();
+                ProtocolVersion protocolVersion = ProtocolVersion.valueOf(in.readUTF());
+                return new Reference(referenceLHS, kind, referenceRHS, protocolVersion);
+            }
+
+            @Override
+            public long serializedSize(Reference condition, TableMetadatas tables)
+            {
+                long size = 0;
+                size += TxnReference.serializer.serializedSize(condition.referenceLHS, tables);
+                size += TxnReference.serializer.serializedSize(condition.referenceRHS, tables);
                 size += TypeSizes.sizeof(condition.version.name());
                 return size;
             }
