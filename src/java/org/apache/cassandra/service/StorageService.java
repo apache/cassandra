@@ -1761,6 +1761,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return pojoMapToString(snapshotAsMap, format);
     }
 
+    @Override
+    public String getCmsCommitMemberPreferencePolicy()
+    {
+        return DatabaseDescriptor.getCmsCommitMemberPreferencePolicy().name();
+    }
+
+    @Override
+    public void setCmsCommitMemberPreferencePolicy(String policy)
+    {
+        DatabaseDescriptor.setCmsCommitMemberPreferencePolicy(policy);
+        logger.info("Set cms_commit_member_preference_policy to {}", policy);
+    }
+
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
     {
         Stream<Stage> stageStream = stageNames.isEmpty() ? stream(Stage.values()) : stageNames.stream().map(Stage::fromPoolName);
