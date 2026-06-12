@@ -3629,6 +3629,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             String read = "BEGIN TRANSACTION\n" +
                            "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
                            "COMMIT TRANSACTION";
+
             SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
             assertThat(result).hasSize(1).contains(1, 10);
         });

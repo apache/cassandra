@@ -520,11 +520,12 @@ public class TxnConditionTest
                         partitionLHS.clear().addEmptyAndLive(clusteringLHS);
                         partitionRHS.clear().addEmptyAndLive(clusteringRHS);
 
-                        TxnData data = TxnData.of(0, new TxnDataKeyValue(partitionLHS.filtered())).merge(TxnData.of(1, new TxnDataKeyValue(partitionRHS.filtered())));
+                        TxnData dataLHS = TxnData.of(0, new TxnDataKeyValue(partitionLHS.filtered()));
+                        TxnData data = dataLHS.merge(TxnData.of(1, new TxnDataKeyValue(partitionRHS.filtered())));
 
                         Assertions.assertThat(condition.applies(data))
                                   .describedAs("column=%s, type=%s, kind=%s", column.name, type.asCQL3Type(), kind.name())
-                                  .isEqualTo(value.applies(data));
+                                  .isEqualTo(value.applies(dataLHS));
 
                         if (column.isPrimaryKeyColumn()) continue;
 
@@ -554,11 +555,12 @@ public class TxnConditionTest
                                         .build();
                         }
 
-                        data = TxnData.of(0, new TxnDataKeyValue(partitionLHS.filtered())).merge(TxnData.of(1, new TxnDataKeyValue(partitionRHS.filtered())));
+                        dataLHS = TxnData.of(0, new TxnDataKeyValue(partitionLHS.filtered()));
+                        data = dataLHS.merge(TxnData.of(1, new TxnDataKeyValue(partitionRHS.filtered())));
 
                         Assertions.assertThat(condition.applies(data))
                                   .describedAs("column=%s, type=%s, kind=%s", column.name, type.asCQL3Type(), kind.name())
-                                  .isEqualTo(value.applies(data));
+                                  .isEqualTo(value.applies(dataLHS));
                     }
                 }
             }
