@@ -31,16 +31,19 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.codahale.metrics.Timer;
+import com.google.common.annotations.VisibleForTesting;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Locator;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
@@ -52,6 +55,7 @@ import org.apache.cassandra.tcm.Discovery.DiscoveredNodes;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -128,9 +132,77 @@ public final class RemoteProcessor implements Processor
             }
         }
 
-        Collections.shuffle(candidates);
+        sortCandidates(candidates);
 
         return candidates;
+    }
+
+    private static void sortCandidates(List<InetAddressAndPort> candidates)
+    {
+        Config.CMSCommitMemberPreferencePolicy policy = DatabaseDescriptor.getCmsCommitMemberPreferencePolicy();
+        sortCandidates(candidates, policy, DatabaseDescriptor.getLocator());
+    }
+
+    @VisibleForTesting
+    static void sortCandidates(List<InetAddressAndPort> candidates,
+                               Config.CMSCommitMemberPreferencePolicy policy,
+                               Locator locator)
+    {
+        switch (policy)
+        {
+            case random:
+                Collections.shuffle(candidates);
+                break;
+            case local_random:
+                shuffleLocalDcFirstThenShuffleRest(candidates, locator);
+                break;
+            case deterministic:
+                Collections.sort(candidates);
+                break;
+            case local_deterministic:
+                sortLocalDcFirstThenByAddress(candidates, locator);
+                break;
+            default:
+                throw new IllegalStateException(policy.toString());
+        }
+    }
+
+    @VisibleForTesting
+    static void shuffleLocalDcFirstThenShuffleRest(List<InetAddressAndPort> candidates, Locator locator)
+    {
+        Location local = locator.local();
+
+        List<InetAddressAndPort> localDc = new ArrayList<>();
+        List<InetAddressAndPort> remoteDc = new ArrayList<>();
+
+        for (InetAddressAndPort ep : candidates)
+        {
+            if (local.sameDatacenter(locator.location(ep)))
+                localDc.add(ep);
+            else
+                remoteDc.add(ep);
+        }
+
+        Collections.shuffle(localDc);
+        Collections.shuffle(remoteDc);
+
+        candidates.clear();
+        candidates.addAll(localDc);
+        candidates.addAll(remoteDc);
+    }
+
+    @VisibleForTesting
+    static void sortLocalDcFirstThenByAddress(List<InetAddressAndPort> candidates, Locator locator)
+    {
+        Location local = locator.local();
+
+        candidates.sort((a, b) -> {
+            boolean aLocal = local.sameDatacenter(locator.location(a));
+            boolean bLocal = local.sameDatacenter(locator.location(b));
+            if (aLocal != bLocal)
+                return aLocal ? -1 : 1;
+            return a.compareTo(b);
+        });
     }
 
     @Override

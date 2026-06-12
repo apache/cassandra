@@ -175,6 +175,7 @@ import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.journal.Params.FlushMode.PERIODIC;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class DatabaseDescriptor
 {
@@ -6090,6 +6091,21 @@ public class DatabaseDescriptor
     public static DurationSpec getCmsAwaitTimeout()
     {
         return conf.cms_await_timeout;
+    }
+
+    public static Config.CMSCommitMemberPreferencePolicy getCmsCommitMemberPreferencePolicy()
+    {
+        return conf.cms_commit_member_preference_policy;
+    }
+
+    public static void setCmsCommitMemberPreferencePolicy(Config.CMSCommitMemberPreferencePolicy policy)
+    {
+        conf.cms_commit_member_preference_policy = policy;
+    }
+
+    public static void setCmsCommitMemberPreferencePolicy(String policy)
+    {
+        setCmsCommitMemberPreferencePolicy(Config.CMSCommitMemberPreferencePolicy.valueOf(toLowerCaseLocalized(policy)));
     }
 
     public static int getEpochAwareDebounceInFlightTrackerMaxSize()
