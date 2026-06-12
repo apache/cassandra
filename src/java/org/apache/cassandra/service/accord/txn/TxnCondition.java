@@ -693,8 +693,6 @@ public abstract class TxnCondition
             ColumnMetadata columnLHS = referenceLHS.column();
             ColumnMetadata columnRHS = referenceRHS.column();
 
-            Preconditions.checkArgument(columnLHS.type.equals(columnRHS.type), columnLHS.type + " != " + columnRHS.type);
-
             ByteBuffer lhs = referenceLHS.toByteBuffer(data, columnLHS.type);
             ByteBuffer rhs = referenceRHS.toByteBuffer(data, columnRHS.type);
 
