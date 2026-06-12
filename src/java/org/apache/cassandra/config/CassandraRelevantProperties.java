@@ -606,6 +606,14 @@ public enum CassandraRelevantProperties
     // transactional cluster metadata relevant properties
     // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
     //       but it makes sense to group logically related properties together
+    /**
+     * Route TCM_COMMIT_REQ messages and local CMS commits through a dedicated single-threaded
+     * CMS_COMMIT stage rather than INTERNAL_METADATA, serializing concurrent commit attempts
+     * to eliminate LWT retry amplification. Also if enabled, move log fetching to the INTERNAL_METADATA pool
+     * rather than serializing.
+     * Default false (disabled) until qualified.
+     */
+    TCM_SERIALIZE_CMS_COMMITS("cassandra.tcm.serialize_cms_commits", "false"),
     TCM_SHADOW_ROUND_MAX_ATTEMPTS("cassandra.shadow_round_max_attempts", "3"),
     TCM_SHADOW_ROUND_TIMEOUT("cassandra.shadow_round_timeout_millis", "15000"),
     /**

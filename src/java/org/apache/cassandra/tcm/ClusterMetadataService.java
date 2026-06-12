@@ -26,6 +26,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,6 +41,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
@@ -921,6 +924,8 @@ public class ClusterMetadataService
     @VisibleForTesting
     public static class SwitchableProcessor implements Processor
     {
+        private static final boolean SERIALIZE_CMS_COMMITS = CassandraRelevantProperties.TCM_SERIALIZE_CMS_COMMITS.getBoolean();
+
         private final Processor local;
         private final RemoteProcessor remote;
         private final GossipProcessor gossip;
@@ -970,10 +975,38 @@ public class ClusterMetadataService
                 try
                 {
                     Pair<State, Processor> delegate = delegateInternal();
-                    Commit.Result result = delegate.right.commit(entryId, transform, lastKnown, retryPolicy);
+                    Commit.Result result;
                     ClusterMetadataService.State state = delegate.left;
-                    if (state == LOCAL || state == RESET)
+                    if ((state == LOCAL || state == RESET) && SERIALIZE_CMS_COMMITS)
+                    {
+                        try
+                        {
+                            result = Stage.CMS_COMMIT.executor().submit(
+                                () -> delegate.right.commit(entryId, transform, lastKnown, retryPolicy)).get();
+                        }
+                        catch (ExecutionException e)
+                        {
+                            Throwable cause = e.getCause();
+                            if (cause instanceof NotCMSException) throw (NotCMSException) cause;
+                            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+                            throw new RuntimeException(cause);
+                        }
+                        catch (CancellationException e)
+                        {
+                            return Commit.Result.failed(ExceptionCode.SERVER_ERROR, "CMS commit executor shut down");
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new RuntimeException("Interrupted waiting for CMS commit", e);
+                        }
                         replicator.send(result, null);
+                    }
+                    else
+                    {
+                        result = delegate.right.commit(entryId, transform, lastKnown, retryPolicy);
+                        if (state == LOCAL || state == RESET)
+                            replicator.send(result, null);
+                    }
                     return result;
                 }
                 catch (NotCMSException e)

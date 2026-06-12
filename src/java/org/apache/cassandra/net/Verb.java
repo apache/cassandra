@@ -31,6 +31,7 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchRemoveVerbHandler;
 import org.apache.cassandra.batchlog.BatchStoreVerbHandler;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.CounterMutationVerbHandler;
@@ -152,6 +153,7 @@ import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.ANTI_ENTROPY;
+import static org.apache.cassandra.concurrent.Stage.CMS_COMMIT;
 import static org.apache.cassandra.concurrent.Stage.COUNTER_MUTATION;
 import static org.apache.cassandra.concurrent.Stage.FETCH_METADATA;
 import static org.apache.cassandra.concurrent.Stage.GOSSIP;
@@ -301,9 +303,10 @@ public enum Verb
 
     // transactional cluster metadata
     TCM_COMMIT_RSP         (801, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         RESPONSE_HANDLER                                 ),
-    TCM_COMMIT_REQ         (802, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
-    TCM_FETCH_CMS_LOG_RSP  (803, P0, shortTimeout,    FETCH_METADATA,       MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
-    TCM_FETCH_CMS_LOG_REQ  (804, P0, rpcTimeout,      FETCH_METADATA,       () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
+    TCM_COMMIT_REQ         (802, P0, rpcTimeout,      cmsCommitStage(),     MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
+    // Received log entries should always be processed serially on the log fetcher thread
+    TCM_FETCH_CMS_LOG_RSP  (803, P0, shortTimeout,    FETCH_METADATA,            MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
+    TCM_FETCH_CMS_LOG_REQ  (804, P0, rpcTimeout,      cmsFetchLogStage(),   () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
     TCM_REPLICATION        (805, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> replicationHandler()                                         ),
     TCM_NOTIFY_RSP         (806, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      RESPONSE_HANDLER                                 ),
     TCM_NOTIFY_REQ         (807, P0, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
@@ -313,8 +316,9 @@ public enum Verb
     TCM_ABORT_MIG          (811, P0, rpcTimeout,      INTERNAL_METADATA,    () -> CMSInitializationRequest.Initiator.serializer,() -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
     TCM_DISCOVER_RSP       (812, P0, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         RESPONSE_HANDLER                                 ),
     TCM_DISCOVER_REQ       (813, P0, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
+    // Received log entries should always be processed serially on the log fetcher thread
     TCM_FETCH_PEER_LOG_RSP (818, P0, shortTimeout,    FETCH_METADATA,       MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
-    TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout,      FETCH_METADATA,       () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
+    TCM_FETCH_PEER_LOG_REQ (819, P0, rpcTimeout,      cmsFetchLogStage(),   () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
 
     INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             RESPONSE_HANDLER                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),
@@ -579,6 +583,23 @@ public enum Verb
     // Sanity check for the custom verb ids - avoids someone mistakenly adding a custom verb id close to the normal verbs which
     // could cause a conflict later when new normal verbs are added.
     private static final int MAX_CUSTOM_VERB_ID = 1000;
+
+    /** Selects the stage for TCM_COMMIT_REQ at class-load time based on the serialize_cms_commits property. */
+    private static Stage cmsCommitStage()
+    {
+        return CassandraRelevantProperties.TCM_SERIALIZE_CMS_COMMITS.getBoolean() ? CMS_COMMIT : INTERNAL_METADATA;
+    }
+
+    /**
+     * Selects the stage for fetch-log verbs at class-load time based on the serialize_cms_commits property.
+     * When commit serialization is enabled, commits are off INTERNAL_METADATA so fetch-log handlers can
+     * safely share it. When disabled, fetch-log keeps its own dedicated thread to avoid starvation from
+     * concurrent commit retry loops on INTERNAL_METADATA.
+     */
+    private static Stage cmsFetchLogStage()
+    {
+        return CassandraRelevantProperties.TCM_SERIALIZE_CMS_COMMITS.getBoolean() ? INTERNAL_METADATA : FETCH_METADATA;
+    }
 
     private static final Verb[] idToVerbMap;
     private static final Verb[] idToCustomVerbMap;
