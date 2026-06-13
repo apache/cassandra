@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -60,7 +59,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.compress.AbstractCompressionProvider;
 import org.apache.cassandra.io.compress.CompressorRegistry;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystemProvider;
@@ -69,6 +67,8 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CompressionProviderHelper.CompatibleSnappyProvider;
+import org.apache.cassandra.utils.CompressionProviderHelper.IncompatibleSnappyProvider;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SystemInfo;
 
@@ -605,7 +605,7 @@ public class StartupChecksTest
         Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString());
         Map<String, ParameterizedClass> providerOptions = Map.of(
         SnappyCompressor.class.getSimpleName(),
-        new ParameterizedClass(CompatibleCompressionProvider.class.getName(), params));
+        new ParameterizedClass(CompatibleSnappyProvider.class.getName(), params));
 
         CompressorRegistry.instance.reset();
         CompressorRegistry.instance.registerProviders(providerOptions);
@@ -634,11 +634,10 @@ public class StartupChecksTest
         Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString());
         Map<String, ParameterizedClass> providerOptions = Map.of(
         SnappyCompressor.class.getSimpleName(),
-        new ParameterizedClass(IncompatibleCompressionProvider.class.getName(), params));
+        new ParameterizedClass(IncompatibleSnappyProvider.class.getName(), params));
 
         CompressorRegistry.instance.reset();
         CompressorRegistry.instance.registerProviders(providerOptions);
-
         try
         {
             assertThatThrownBy(() -> StartupChecks.checkCustomCompressionProviders.execute(options))
@@ -648,64 +647,6 @@ public class StartupChecksTest
         finally
         {
             CompressorRegistry.instance.reset();
-        }
-    }
-
-
-    public static class CompatibleCompressionProvider extends AbstractCompressionProvider
-    {
-        @Override
-        public boolean isHealthy()
-        {
-            return true;
-        }
-
-        @Override
-        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options)
-        {
-            return new MySnappyCompressor();
-        }
-    }
-
-    public static class MySnappyCompressor extends SnappyCompressor
-    {
-        @Override
-        public Class<? extends ICompressor> serializedAs()
-        {
-            return SnappyCompressor.class;
-        }
-    }
-
-    public static class IncompatibleCompressionProvider extends AbstractCompressionProvider
-    {
-        @Override
-        public boolean isHealthy()
-        {
-            return true;
-        }
-
-        @Override
-        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options)
-        {
-            return new MyIncompatibleSnappyCompressor();
-        }
-
-        public static class MyIncompatibleSnappyCompressor extends SnappyCompressor
-        {
-            @Override
-            public Class<? extends ICompressor> serializedAs()
-            {
-                return SnappyCompressor.class;
-            }
-
-            @Override
-            public void compress(ByteBuffer src, ByteBuffer dest)
-            {
-                // Write raw uncompressed bytes instead of a valid Snappy stream.
-                // Snappy will not be be able to decompress
-                // This is what the smoke test's step 1 cross-check is designed to catch.
-                dest.put(src);
-            }
         }
     }
 }

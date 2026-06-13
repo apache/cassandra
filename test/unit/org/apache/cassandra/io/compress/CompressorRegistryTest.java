@@ -18,12 +18,8 @@
 
 package org.apache.cassandra.io.compress;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
@@ -33,6 +29,8 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.CompressionProviderHelper.SerializedTestCompressor;
+import org.apache.cassandra.utils.CompressionProviderHelper.TestCompressionProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
@@ -51,6 +49,8 @@ public class CompressorRegistryTest
     public void tearDown()
     {
         CompressorRegistry.instance.reset();
+        config.compressor_providers.clear();
+        DatabaseDescriptor.setConfig(config);
     }
 
     @Test
@@ -248,12 +248,12 @@ public class CompressorRegistryTest
         // if fallback is enabled, the registry should still return a compressor from the default provider instead of failing the request.
         Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString(),
                                             TestCompressionProvider.FAIL_CREATE, "true");
-        config.compressor_providers.put(ZstdCompressor.class.getSimpleName(), new ParameterizedClass(TestCompressionProvider.class.getName(), params));
+        config.compressor_providers.put(SnappyCompressor.class.getSimpleName(), new ParameterizedClass(TestCompressionProvider.class.getName(), params));
 
         DatabaseDescriptor.setConfig(config);
         DatabaseDescriptor.applyCompressorProviders();
-        ICompressor compressor = CompressorRegistry.instance.getCompressor(ZstdCompressor.class, Map.of());
-        assertThat(compressor).isInstanceOf(ZstdCompressor.class);
+        ICompressor compressor = CompressorRegistry.instance.getCompressor(SnappyCompressor.class, Map.of());
+        assertThat(compressor).isInstanceOf(SnappyCompressor.class);
     }
 
     @Test
@@ -263,14 +263,13 @@ public class CompressorRegistryTest
         Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString(),
                                             TestCompressionProvider.FAIL_CREATE, "true");
         ParameterizedClass parameterizedClass = new ParameterizedClass(TestCompressionProvider.class.getName(), params);
-        config.compressor_providers.put(ZstdCompressor.class.getSimpleName(), parameterizedClass);
+        config.compressor_providers.put(SnappyCompressor.class.getSimpleName(), parameterizedClass);
 
         DatabaseDescriptor.setConfig(config);
         DatabaseDescriptor.applyCompressorProviders();
-       // AbstractCompressionProvider provider = CompressorRegistry.instance.resolveProvider(parameterizedClass);
-       // assertThat(provider).isNotNull();
+
         assertThatExceptionOfType(IllegalStateException.class)
-        .isThrownBy(() -> CompressorRegistry.instance.getCompressor(ZstdCompressor.class, Map.of()))
+        .isThrownBy(() -> CompressorRegistry.instance.getCompressor(SnappyCompressor.class, Map.of()))
         .withMessageContaining("compressor instantiation failed");
     }
 
@@ -278,16 +277,16 @@ public class CompressorRegistryTest
     public void testCustomProviderAndCompressorWithSerializedAs() throws Exception
     {
         Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.FALSE.toString());
-        config.compressor_providers.put(ZstdCompressor.class.getSimpleName(), new ParameterizedClass(TestCompressionProvider.class.getName(), params));
+        config.compressor_providers.put(SnappyCompressor.class.getSimpleName(), new ParameterizedClass(TestCompressionProvider.class.getName(), params));
 
         DatabaseDescriptor.setConfig(config);
         DatabaseDescriptor.applyCompressorProviders();
 
-        AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(ZstdCompressor.class);
+        AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(SnappyCompressor.class);
         assertThat(provider).isNotNull();
         assertThat(provider.isHealthy()).isTrue();
-        ICompressor compressor = CompressorRegistry.instance.getCompressor(ZstdCompressor.class, Map.of());
-        assertThat(compressor.getClass()).isEqualTo(CustomTestCompressor.SerializedTestCompressor.class);
+        ICompressor compressor = CompressorRegistry.instance.getCompressor(SnappyCompressor.class, Map.of());
+        assertThat(compressor.getClass()).isEqualTo(SerializedTestCompressor.class);
     }
 
     @Test
@@ -295,129 +294,18 @@ public class CompressorRegistryTest
     {
         Map<String, String> params = Map.of(AbstractCompressionProvider.FAIL_ON_MISSING_PROVIDER, Boolean.TRUE.toString(),
                                             TestCompressionProvider.FAIL_SERIALIZED_AS, "true");
-        config.compressor_providers.put(ZstdCompressor.class.getSimpleName(), new ParameterizedClass(TestCompressionProvider.class.getName(), params));
+        config.compressor_providers.put(SnappyCompressor.class.getSimpleName(), new ParameterizedClass(TestCompressionProvider.class.getName(), params));
 
         DatabaseDescriptor.setConfig(config);
         DatabaseDescriptor.applyCompressorProviders();
 
-        AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(ZstdCompressor.class);
+        AbstractCompressionProvider provider = CompressorRegistry.instance.getProvider(SnappyCompressor.class);
         assertThat(provider).isNotNull();
         assertThat(provider.isHealthy()).isTrue();
         assertThatExceptionOfType(RuntimeException.class)
-        .isThrownBy(() -> CompressorRegistry.instance.getCompressor(ZstdCompressor.class, Map.of()))
+        .isThrownBy(() -> CompressorRegistry.instance.getCompressor(SnappyCompressor.class, Map.of()))
         .withMessageContaining("You need to override serializedAs() method of your custom compressor and return " +
                                "base compressor class it is the substitute for.");
     }
 
-    // Test compression provider for testing various edge cases around initialization, health checks, and compressor creation.
-    public static class TestCompressionProvider extends AbstractCompressionProvider
-    {
-        // ParameterizedClass.parameters are used to pass different test scenarios .
-        // The full parameters map (including FAIL_ON_MISSING_PROVIDER) is passed through to init().
-        public static final String FAIL_INIT             = "fail_init";
-        public static final String FAIL_HEALTH           = "fail_health";
-        public static final String FAIL_HEALTH_EXCEPTION = "fail_health_exception";
-        public static final String FAIL_CREATE           = "fail_create";
-        public static final String FAIL_SERIALIZED_AS    = "fail_serialized_as";
-
-        private boolean flag(String key)
-        {
-            return Boolean.parseBoolean(getParameters().getOrDefault(key, "false"));
-        }
-
-        @Override
-        public void init(Map<String, String> parameters)
-        {
-            super.init(parameters);          //use this to store and provide test variants
-            if (flag(FAIL_INIT))
-                throw new RuntimeException("init failed: something went wrong with startup");
-        }
-        @Override
-        public ICompressor createCompressor(Class<?> compressorClass, Map<String, String> options) throws IllegalStateException
-        {
-            if (flag(FAIL_CREATE))
-            {
-                throw new IllegalStateException("compressor instantiation failed");
-            }
-            return flag(FAIL_SERIALIZED_AS)
-                   ? CustomTestCompressor.PlainTestCompressor.create(options)
-                   : CustomTestCompressor.SerializedTestCompressor.create(options);
-        }
-
-        @Override
-        public boolean isHealthy()
-        {
-            if (flag(FAIL_HEALTH_EXCEPTION))
-                throw new RuntimeException("health check failed");
-            if (flag(FAIL_HEALTH)) return false;
-            return true;
-        }
-    }
-
-    abstract static class CustomTestCompressor implements ICompressor
-    {
-        @Override
-        public int initialCompressedBufferLength(int chunkLength)
-        {
-            return chunkLength;
-        }
-
-        @Override
-        public int uncompress(byte[] in, int io, int il, byte[] out, int oo) throws IOException
-        {
-            return 0;
-        }
-
-        @Override
-        public void compress(ByteBuffer in, ByteBuffer out) throws IOException
-        {
-        }
-
-        @Override
-        public void uncompress(ByteBuffer in, ByteBuffer out) throws IOException
-        {
-        }
-
-        @Override
-        public BufferType preferredBufferType()
-        {
-            return BufferType.OFF_HEAP;
-        }
-
-        @Override
-        public boolean supports(BufferType bufferType)
-        {
-            return true;
-        }
-
-        @Override
-        public Set<String> supportedOptions()
-        {
-            return Collections.emptySet();
-        }
-
-        // This test compressor does not override serializedAs(). serialized call should return PlainTestCompressor.class
-        public static class PlainTestCompressor extends CustomTestCompressor
-        {
-            public static PlainTestCompressor create(Map<String, String> options)
-            {
-                return new PlainTestCompressor();
-            }
-        }
-
-        // This test compressor overrides serializedAs(), this custom compressor will be compatible with ZstdCompressor
-        public static class SerializedTestCompressor extends CustomTestCompressor
-        {
-            public static SerializedTestCompressor create(Map<String, String> options)
-            {
-                return new SerializedTestCompressor();
-            }
-
-            @Override
-            public Class<? extends ICompressor> serializedAs()
-            {
-                return ZstdCompressor.class;
-            }
-        }
-    }
 }
