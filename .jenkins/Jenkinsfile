@@ -216,9 +216,9 @@ def tasks() {
     'dtest-upgrade-novnode': [splits: 160, size: 'large'],
     'dtest-upgrade-large': [splits: 40, size: 'large'],
     'dtest-upgrade-large-novnode': [splits: 40, size: 'large'],
-    'microbench-test': [splits: 1, size: 'large', timeout_hours: 2], // TODO implement splits
+    'microbench-test': [splits: 4, size: 'large', timeout_hours: 2],
     // performance tests need 'cassandra-*large-dedicated' nodes
-    'microbench': [splits: 1, size: 'large', timeout_hours: 6, benchmark: true],
+    'microbench': [splits: 4, size: 'large', timeout_hours: 6, benchmark: true],
   ]
   testSteps.each() {
     it.value.put('type', 'test')
@@ -470,8 +470,8 @@ def test(command, cell) {
                   find test/output -type f -name "*.xml" -print0 | xargs -0 -r -n1 -P"\$(nproc)" xz -f
                   echo "test result files compressed"; find test/output -type f -name "*.xml.xz" | wc -l
                 """
-              archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/jmh-result.json", fingerprint: true
-              copyToNightlies("${logfile}, test/logs/**", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
+              archiveArtifacts artifacts: "test/logs/**,test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json", fingerprint: true
+              copyToNightlies("${logfile},test/logs/**,test/**/jmh-result.json", "${cell.step}/${cell.arch}/jdk${cell.jdk}/python${cell.python}/cython_${cell.cython}/" + "split_${cell.split}_${splits}".replace("/", "_"))
             }
           } finally {
             cleanAgent(cell.step)
@@ -619,9 +619,10 @@ def generateTestReports() {
           unzip -x -d build/test -q output.zip ) ${teeSuffix}
          """
     } else {
-      copyArtifacts filter: 'test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/jmh-result.json', fingerprintArtifacts: true, projectName: env.JOB_NAME, selector: specific(env.BUILD_NUMBER), target: "build/", optional: true
+      copyArtifacts filter: 'test/**/TEST-*.xml.xz,test/**/cqlshlib*.xml.xz,test/**/nosetests*.xml.xz,test/**/jmh-result.json', fingerprintArtifacts: true, projectName: env.JOB_NAME, selector: specific(env.BUILD_NUMBER), target: "build/", optional: true
     }
-    if (fileExists('build/test/output')) {
+    // merge and summarise test reports
+    if (fileExists('build/test/output') && sh(script: 'test -n "$(find build/test/output -type f -name "*.xml.xz" -print -quit)"', returnStatus: true) == 0) {
       // merge splits for each target's test report, other axes are kept separate
       //   TODO parallelised for loop
       //   TODO results_details.tar.xz needs to include all logs for failed tests
@@ -647,11 +648,31 @@ def generateTestReports() {
 
       dir('build/') {
         archiveArtifacts artifacts: "ci_summary.html,results_details.tar.xz,${logfile}", fingerprint: true
-        copyToNightlies('ci_summary.html,results_details.tar.xz,${logfile},test/jmh-result.json')
+        copyToNightlies('ci_summary.html,results_details.tar.xz,${logfile}')
       }
     }
-    if (fileExists('build/test/jmh-result.json')) {
-      jmhReport('build/test/jmh-result.json')
+    processJmhReports()
+  }
+}
+
+def processJmhReports() {
+  if (fileExists('build/test/output') && sh(script: 'test -n "$(find build/test/output -type f -name jmh-result.json -print -quit)"', returnStatus: true) == 0) {
+    sh ''' python3 -c "
+import glob,json
+m=[]
+for f in glob.glob('build/test/output/**/jmh-result.json',recursive=True):
+  d=json.load(open(f))
+  m.extend(d if isinstance(d,list) else [d])
+o=open('build/test/output/combined-result.json','w')
+json.dump(m,o)
+o.close()
+print(f'combined {len(m)} results')
+"
+  '''
+    jmhReport('build/test/output/combined-result.json')
+    dir('build/') {
+      archiveArtifacts artifacts: "test/output/combined-result.json", fingerprint: true
+      copyToNightlies('test/output/combined-result.json')
     }
   }
 }

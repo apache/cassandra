@@ -55,6 +55,8 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
+// FIXME – rewrite to jmh bench classes
+// https://issues.apache.org/jira/browse/CASSANDRA-17964?focusedCommentId=17680480&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-17680480
 public class CachingBenchTest extends CQLTester
 {
     private static final String STRATEGY = "LeveledCompactionStrategy";
