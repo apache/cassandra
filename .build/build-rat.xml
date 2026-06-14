@@ -89,6 +89,7 @@
                  <!-- legal files -->
                  <exclude NAME="NOTICE.txt"/>
                  <exclude NAME="LICENSE.txt"/>
+                 <exclude NAME="SECURITY.md"/>
                  <!-- AI agent instruction files -->
                  <exclude NAME="AGENTS.md"/>
                  <exclude NAME="CLAUDE.md"/>
