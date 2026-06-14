@@ -67,3 +67,15 @@ General style conventions:
 - 🚫 Never run the full test suite — it takes hours. Run targeted tests only.
 - 🚫 Never bypass Checkstyle violations without a suppression comment explaining why.
 - ⚠️ Ask before modifying the CQL grammar (`src/antlr/Cql.g`) — changes cascade widely.
+
+## Security
+
+Security model: [SECURITY.md](./SECURITY.md), which links to the project's
+security model at
+[doc/modules/cassandra/pages/reference/security-model.adoc](./doc/modules/cassandra/pages/reference/security-model.adoc).
+
+Automated agents (security scanners, code analyzers) that scan this
+repository should consult that security model for the project's in-scope /
+out-of-scope declarations, trust boundaries, the security properties
+Cassandra provides and disclaims, and how findings are triaged, before
+reporting issues.
