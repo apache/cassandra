@@ -797,10 +797,14 @@ public abstract class TxnCondition
 
     public static final ParameterisedUnversionedSerializer<TxnCondition, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
-        // TOP_BIT is used to differentiate between Value.Serializer and Reference.Serialzer.
-        // This is so done to preserve upgrade compatibility with the prior serializer.
-        // Nodes that are not yet upgraded can still deserialize all values modulo those that are
-        // of Reference type and upgraded nodes can deserialize all values from older nodes.
+        // TOP_BIT is used to differentiate between Value.Serializer and Reference.Serialzer,
+        // in order to implement comparison between LET variables.
+        // The reason we use TOP_BIT is to support users who have been deploying off trunk
+        // to upgrade nodes without breaking them. Upgrading is safe under the following assumptions:
+        // 1) `ref op ref` feature is only used after all nodes have been upgraded
+        // 2) cluster can be mixed mode as long as `ref op ref` is not used
+        // If a user tries to use `ref op ref` in a mixed mode this will lead to undefined errors,
+        // where the only recovery process is to force older nodes to upgrade
         // See CASSANDRA-21458
         private static final int TOP_BIT = 0x40000000;
 
