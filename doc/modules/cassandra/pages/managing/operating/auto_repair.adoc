@@ -66,11 +66,11 @@ xref:#repair-token-range-splitter[RepairTokenRangeSplitter] includes a default c
 migrate to incremental repair over time, failure to take proper precaution could overwhelm the cluster with
 xref:managing/operating/compaction/overview.adoc#anticompaction[anticompactions].
 
-This happens because incremental repair must move the repaired ranges out of the SSTables that were unrepaired when
-the repair started. After the repair finishes streaming differences, Cassandra runs
-xref:managing/operating/compaction/overview.adoc#anticompaction[anticompaction] to rewrite the participating SSTables
-and split the repaired data from the still-unrepaired data. On a cluster with large SSTables or many overlapping
-partitions, that rewrite can touch a large amount of data and create substantial extra disk and I/O load.
+This happens because incremental repair must separate the ranges participating in repair from the rest of the
+unrepaired SSTables. Cassandra uses xref:managing/operating/compaction/overview.adoc#anticompaction[anticompaction] to
+rewrite the participating SSTables, separating data that belongs to the repair session from data that remains
+unrepaired. On a cluster with large SSTables or many overlapping partitions, that rewrite can touch a large amount of
+data and create substantial extra disk and I/O load.
 
 No matter how one goes about enabling and running incremental repair, it is recommended to run a cycle of full repairs
 for the entire cluster as a pre-flight step to running incremental repair. This will put the cluster into a more
@@ -87,10 +87,9 @@ incremental repair against it.  Consult
 xref:#incremental-repair-defaults[RepairTokenRangeSplitter's Incremental repair defaults].
 
 The first incremental repair on an existing cluster still has to compare and repair the entire unrepaired data set, so
-its repair scope can look similar to a full repair. The difference is what happens afterward: a full repair leaves the
-data in the unrepaired set, while an incremental repair also marks the repaired ranges and triggers
-xref:managing/operating/compaction/overview.adoc#anticompaction[anticompaction] so that later incremental repairs can
-focus only on newly written unrepaired data.
+its repair scope can look similar to a full repair. The difference is what happens afterward: a full repair does not
+update the incremental repair state, while an incremental repair records the repaired ranges so that later incremental
+repairs can focus only on newly written unrepaired data.
 
 In particular one should be mindful of the xref:managing/operating/compaction/overview.adoc[compaction strategy]
 you use for your tables and how it might impact incremental repair before running incremental repair for the first
