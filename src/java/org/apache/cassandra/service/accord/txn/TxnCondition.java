@@ -104,9 +104,6 @@ public abstract class TxnCondition
         long serializedSize(T condition, TableMetadatas tables);
     }
 
-    // For enums with a REF suffixed, we are performing a comparison of two LET variables
-    // otherwise EQUAL, NOT_EQUAL, GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL
-    // are used for comparisions between a LET variable and a value
     public enum Kind
     {
         NONE("n/a", null),
@@ -120,13 +117,7 @@ public abstract class TxnCondition
         GREATER_THAN_OR_EQUAL(">=", Operator.GTE),
         LESS_THAN("<", Operator.LT),
         LESS_THAN_OR_EQUAL("<=", Operator.LTE),
-        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null),
-        EQUAL_REF("=", Operator.EQ),
-        NOT_EQUAL_REF("!=", Operator.NEQ),
-        GREATER_THAN_REF(">", Operator.GT),
-        GREATER_THAN_OR_EQUAL_REF(">=", Operator.GTE),
-        LESS_THAN_REF("<", Operator.LT),
-        LESS_THAN_OR_EQUAL_REF("<=", Operator.LTE);
+        COLUMN_CONDITIONS("COLUMN_CONDITIONS", null);
 
         @Nonnull
         private final String symbol;
@@ -154,13 +145,6 @@ public abstract class TxnCondition
                 case GREATER_THAN:
                 case GREATER_THAN_OR_EQUAL:
                     return Value.serializer;
-                case EQUAL_REF:
-                case NOT_EQUAL_REF:
-                case LESS_THAN_REF:
-                case LESS_THAN_OR_EQUAL_REF:
-                case GREATER_THAN_REF:
-                case GREATER_THAN_OR_EQUAL_REF:
-                    return Reference.serializer;
                 case AND:
                 case OR:
                     return BooleanGroup.serializer;
@@ -636,9 +620,9 @@ public abstract class TxnCondition
 
     public static class Reference extends TxnCondition
     {
-        private static final EnumSet<Kind> KINDS = EnumSet.of(Kind.EQUAL_REF, Kind.NOT_EQUAL_REF,
-                                                              Kind.GREATER_THAN_REF, Kind.GREATER_THAN_OR_EQUAL_REF,
-                                                              Kind.LESS_THAN_REF, Kind.LESS_THAN_OR_EQUAL_REF);
+        private static final EnumSet<Kind> KINDS = EnumSet.of(Kind.EQUAL, Kind.NOT_EQUAL,
+                                                              Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
+                                                              Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
 
         private final TxnReference.ColumnReference referenceLHS;
         private final TxnReference.ColumnReference referenceRHS;
@@ -813,27 +797,60 @@ public abstract class TxnCondition
 
     public static final ParameterisedUnversionedSerializer<TxnCondition, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
+        // TOP_BIT is used to differentiate between Value.Serializer and Reference.Serialzer.
+        // This is so done to preserve upgrade compatibility with the prior serializer.
+        // Nodes that are not yet upgraded can still deserialize all values modulo those that are
+        // of Reference type and upgraded nodes can deserialize all values from older nodes.
+        // See CASSANDRA-21458
+        private static final int TOP_BIT = 0x40000000;
+
         @SuppressWarnings("unchecked")
         @Override
         public void serialize(TxnCondition condition, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt32(condition.kind.ordinal());
-            condition.kind.serializer().serialize(condition, tables, out);
+            if (condition instanceof Reference)
+            {
+                out.writeUnsignedVInt32(condition.kind.ordinal() | TOP_BIT);
+                Reference.serializer.serialize((Reference) condition, tables, out);
+            }
+            else
+            {
+                out.writeUnsignedVInt32(condition.kind.ordinal());
+                condition.kind.serializer().serialize(condition, tables, out);
+            }
         }
 
         @Override
         public TxnCondition deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
-            Kind kind = Kind.values()[in.readUnsignedVInt32()];
-            return kind.serializer().deserialize(tables, in, kind);
+            int flag = in.readUnsignedVInt32();
+            if ((flag & TOP_BIT) != 0)
+            {
+                Kind kind = Kind.values()[flag ^ TOP_BIT];
+                return Reference.serializer.deserialize(tables, in, kind);
+            }
+            else
+            {
+                Kind kind = Kind.values()[flag];
+                return kind.serializer().deserialize(tables, in, kind);
+            }
         }
 
         @SuppressWarnings("unchecked")
         @Override
         public long serializedSize(TxnCondition condition, TableMetadatas tables)
         {
-            long size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal());
-            size += condition.kind.serializer().serializedSize(condition, tables);
+            long size;
+            if (condition instanceof Reference)
+            {
+                size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal() | TOP_BIT);
+                size += Reference.serializer.serializedSize((Reference) condition, tables);
+            }
+            else
+            {
+                size = TypeSizes.sizeofUnsignedVInt(condition.kind.ordinal());
+                size += condition.kind.serializer().serializedSize(condition, tables);
+            }
             return size;
         }
     };

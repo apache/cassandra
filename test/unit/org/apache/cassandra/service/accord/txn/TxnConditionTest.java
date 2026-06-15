@@ -68,12 +68,6 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.service.accord.txn.TxnCondition.Kind.EQUAL_REF;
-import static org.apache.cassandra.service.accord.txn.TxnCondition.Kind.GREATER_THAN_OR_EQUAL_REF;
-import static org.apache.cassandra.service.accord.txn.TxnCondition.Kind.GREATER_THAN_REF;
-import static org.apache.cassandra.service.accord.txn.TxnCondition.Kind.LESS_THAN_OR_EQUAL_REF;
-import static org.apache.cassandra.service.accord.txn.TxnCondition.Kind.LESS_THAN_REF;
-import static org.apache.cassandra.service.accord.txn.TxnCondition.Kind.NOT_EQUAL_REF;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.Generators.toGen;
 
@@ -153,9 +147,6 @@ public class TxnConditionTest
     private static Gen<TxnCondition.Kind> VALUE_KIND_GEN = Gens.pick(TxnCondition.Kind.EQUAL, TxnCondition.Kind.NOT_EQUAL,
                                                                      TxnCondition.Kind.GREATER_THAN, TxnCondition.Kind.GREATER_THAN_OR_EQUAL,
                                                                      TxnCondition.Kind.LESS_THAN, TxnCondition.Kind.LESS_THAN_OR_EQUAL);
-    private static Gen<TxnCondition.Kind> VALUE_KIND_REF_GEN = Gens.pick(EQUAL_REF, NOT_EQUAL_REF,
-                                                                         TxnCondition.Kind.GREATER_THAN_REF, TxnCondition.Kind.GREATER_THAN_OR_EQUAL_REF,
-                                                                         TxnCondition.Kind.LESS_THAN_REF, TxnCondition.Kind.LESS_THAN_OR_EQUAL_REF);
     private static Gen<ProtocolVersion> PROTOCOL_VERSION_GEN = Gens.enums().all(ProtocolVersion.class);
     private static Gen<ColumnMetadata> COLUM_METADATA_GEN = toGen(CassandraGenerators.columnMetadataGen()).map(cm -> {
         SCHEMA.add(cm);
@@ -505,6 +496,7 @@ public class TxnConditionTest
             List<ByteBuffer> complexValueRHS = type.isMultiCell() ? split(type, valueRHS) : null;
             Clustering<?> clusteringRHS = BufferClustering.make(valueRHS);
             SimplePartition partitionRHS = new SimplePartition(metadata, metadata.partitioner.decorateKey(valueRHS));
+
             for (TxnCondition.Kind kind : TxnCondition.Value.supported())
             {
                 for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
@@ -515,7 +507,7 @@ public class TxnConditionTest
                         TxnReference refRHS = TxnReference.column(1, metadata, column);
 
                         TxnCondition.Value value = new TxnCondition.Value(refLHS.asColumn(), kind, valueRHS, version);
-                        TxnCondition.Reference condition = new TxnCondition.Reference(refLHS.asColumn(), convertKindToReferenceKind(kind), refRHS.asColumn(), version);
+                        TxnCondition.Reference condition = new TxnCondition.Reference(refLHS.asColumn(), kind, refRHS.asColumn(), version);
 
                         partitionLHS.clear().addEmptyAndLive(clusteringLHS);
                         partitionRHS.clear().addEmptyAndLive(clusteringRHS);
@@ -595,26 +587,12 @@ public class TxnConditionTest
                 case 0: return TxnCondition.none();
                 case 1: return new TxnCondition.Exists(TXN_REF_GEN.next(rs), EXISTS_KIND_GEN.next(rs));
                 case 2: return new TxnCondition.Value(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), BYTES_GEN.next(rs), PROTOCOL_VERSION_GEN.next(rs));
-                case 3: return new TxnCondition.Reference(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_REF_GEN.next(rs), TXN_REF_GEN.next(rs).asColumn(), PROTOCOL_VERSION_GEN.next(rs));
+                case 3: return new TxnCondition.Reference(TXN_REF_GEN.next(rs).asColumn(), VALUE_KIND_GEN.next(rs), TXN_REF_GEN.next(rs).asColumn(), PROTOCOL_VERSION_GEN.next(rs));
                 case 4: return new TxnCondition.ColumnConditionsAdapter(CLUSTERING_GEN.next(rs), Gens.lists(BOUND_GEN).ofSizeBetween(0, 3).next(rs));
                 case 5: return new TxnCondition.BooleanGroup(BOOLEAN_KIND_GEN.next(rs), Gens.lists(txnConditionGen()).ofSizeBetween(0, 3).next(rs));
                 default: throw new AssertionError();
             }
         };
-    }
-
-    private TxnCondition.Kind convertKindToReferenceKind(TxnCondition.Kind kind)
-    {
-        switch (kind)
-        {
-            case EQUAL: return EQUAL_REF;
-            case NOT_EQUAL: return NOT_EQUAL_REF;
-            case GREATER_THAN: return GREATER_THAN_REF;
-            case GREATER_THAN_OR_EQUAL: return GREATER_THAN_OR_EQUAL_REF;
-            case LESS_THAN: return LESS_THAN_REF;
-            case LESS_THAN_OR_EQUAL: return LESS_THAN_OR_EQUAL_REF;
-            default: throw new UnsupportedOperationException(kind.name());
-        }
     }
 
     private interface IsNullTest // jdk16+ lets this be in-lined with the test method rather than be here

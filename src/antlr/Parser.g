@@ -836,15 +836,6 @@ txnConditionKind returns [ConditionStatement.Kind op]
     | '!=' { $op = ConditionStatement.Kind.NEQ; }
     ;
 
-txnConditionKindRef returns [ConditionStatement.Kind op]
-    : '='  { $op = ConditionStatement.Kind.EQ_REF; }
-    | '<'  { $op = ConditionStatement.Kind.LT_REF; }
-    | '<=' { $op = ConditionStatement.Kind.LTE_REF; }
-    | '>'  { $op = ConditionStatement.Kind.GT_REF; }
-    | '>=' { $op = ConditionStatement.Kind.GTE_REF; }
-    | '!=' { $op = ConditionStatement.Kind.NEQ_REF; }
-    ;
-
 txnColumnCondition[List<ConditionStatement.Raw> conditions]
     : lhs=rowDataReference
       ( 
@@ -854,7 +845,7 @@ txnColumnCondition[List<ConditionStatement.Raw> conditions]
             | K_NULL { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.IS_NULL, null)); }
         )
         | (txnConditionKind term)=> op=txnConditionKind t=term { conditions.add(new ConditionStatement.Raw(lhs, op, t)); }
-        | (txnConditionKindRef rowDataReference)=> op=txnConditionKindRef rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
+        | (txnConditionKind rowDataReference)=> op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
       )
     | lhs=term op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
     ;
