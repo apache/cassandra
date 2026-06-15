@@ -64,7 +64,7 @@ public final class BloomFilterSerializer implements IGenericSerializer<BloomFilt
     @Override
     public long serializedSize(BloomFilter bf)
     {
-        int size = TypeSizes.sizeof(bf.hashCount); // hash count
+        long size = TypeSizes.sizeof(bf.hashCount); // hash count
         size += bf.bitset.serializedSize();
         return size;
     }

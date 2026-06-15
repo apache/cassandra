@@ -138,22 +138,25 @@ public enum RequestFailureReason
         {
         }
 
+        @Override
         public void serialize(RequestFailureReason reason, DataOutputPlus out, int version) throws IOException
         {
             assert version >= VERSION_40;
             out.writeUnsignedVInt32(reason.code);
         }
 
+        @Override
         public RequestFailureReason deserialize(DataInputPlus in, int version) throws IOException
         {
             assert version >= VERSION_40;
             return fromCode(in.readUnsignedVInt32());
         }
 
+        @Override
         public long serializedSize(RequestFailureReason reason, int version)
         {
             assert version >= VERSION_40;
-            return VIntCoding.computeVIntSize(reason.code);
+            return VIntCoding.computeUnsignedVIntSize(reason.code);
         }
     }
 }

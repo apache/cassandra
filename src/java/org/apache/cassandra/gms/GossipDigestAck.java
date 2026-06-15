@@ -60,6 +60,7 @@ public class GossipDigestAck
 
 class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
 {
+    @Override
     public void serialize(GossipDigestAck gDigestAckMessage, DataOutputPlus out, int version) throws IOException
     {
         GossipDigestSerializationHelper.serialize(gDigestAckMessage.gDigestList, out, version);
@@ -72,6 +73,7 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         }
     }
 
+    @Override
     public GossipDigestAck deserialize(DataInputPlus in, int version) throws IOException
     {
         List<GossipDigest> gDigestList = GossipDigestSerializationHelper.deserialize(in, version);
@@ -87,9 +89,10 @@ class GossipDigestAckSerializer implements IVersionedSerializer<GossipDigestAck>
         return new GossipDigestAck(gDigestList, epStateMap);
     }
 
+    @Override
     public long serializedSize(GossipDigestAck ack, int version)
     {
-        int size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
+        long size = GossipDigestSerializationHelper.serializedSize(ack.gDigestList, version);
         size += TypeSizes.sizeof(ack.epStateMap.size());
         for (Map.Entry<InetAddressAndPort, EndpointState> entry : ack.epStateMap.entrySet())
             size += inetAddressAndPortSerializer.serializedSize(entry.getKey(), version)
