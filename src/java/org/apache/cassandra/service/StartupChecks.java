@@ -137,7 +137,7 @@ public class StartupChecks
                                                                       checkSystemKeyspaceState,
                                                                       checkLegacyAuthTables,
                                                                       checkKernelParamsForAsyncProfiler,
-								      checkCustomCompressionProviders,
+                                                                      checkCustomCompressionProviders,
                                                                       new DataResurrectionCheck());
 
     public List<StartupCheck> getChecks()
