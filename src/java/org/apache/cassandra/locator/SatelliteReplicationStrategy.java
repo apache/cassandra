@@ -1840,6 +1840,24 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         return new CoordinationPlan.ForRangeRead(ReplicaPlan.shared(merged), tracker);
     }
 
+    @Override
+    public CoordinationPlan.ForRangeRead planForSingleReplicaRangeRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica, int vnodeCount)
+    {
+        throw new IllegalStateException("planForSingleReplicaRangeRead not supported by SatelliteReplicationStrategy");
+    }
+
+    @Override
+    public CoordinationPlan.ForTokenRead planForSingleReplicaTokenRead(Keyspace keyspace, Token token, Replica replica)
+    {
+        throw new IllegalStateException("planForSingleReplicaTokenRead not supported by SatelliteReplicationStrategy");
+    }
+
+    @Override
+    public CoordinationPlan.ForRangeRead maybeMergeRangeReads(ClusterMetadata metadata, Keyspace keyspace, TableId tableId, ConsistencyLevel consistencyLevel, ReplicaPlan.ForRangeRead left, ReplicaPlan.ForRangeRead right)
+    {
+        return null;
+    }
+
     private String getSatelliteForDC(String dc)
     {
         for (SatelliteInfo sat : satellites.values())
