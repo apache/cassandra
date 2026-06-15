@@ -1520,7 +1520,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
-                   + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
+                   + (version >= MessagingService.VERSION_60 ? Epoch.serializer.serializedSize(command.serializedAtEpoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)
