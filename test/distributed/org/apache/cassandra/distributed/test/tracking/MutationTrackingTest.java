@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.tracking;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import org.junit.Assert;
 import org.junit.Ignore;
@@ -38,6 +39,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.MutationTrackingMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.replication.CoordinatorLogId;
@@ -855,6 +857,127 @@ public class MutationTrackingTest extends TestBaseImpl
 
             // 9. Verify no read reconciliation was involved
             assertEquals(0, numLogReconciliations(cluster.get(3)));
+        }
+    }
+
+    @Test
+    public void testBackgroundReconciliationCooldown() throws Throwable
+    {
+        try (Cluster cluster = Cluster.build(3)
+                                      .withConfig(cfg -> cfg.with(Feature.NETWORK)
+                                                            .with(Feature.GOSSIP)
+                                                            .set("write_request_timeout", "1000ms"))
+                                      .start())
+        {
+            cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = " +
+                                              "{'class': 'SimpleStrategy', 'replication_factor': 3} " +
+                                              "AND replication_type='tracked'"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int)"));
+
+            // 1. Create a missing offset on node 3 using the same recipe as
+            //    testBackgroundPullReconciliation: partition node 3, write at QUORUM, then
+            //    reconnect and broadcast offsets so node 3 learns about the gap.
+            cluster.filters().allVerbs().to(3).drop();
+            cluster.filters().allVerbs().from(3).drop();
+            for (int i = 1; i <= 2; i++)
+                cluster.get(i).runOnInstance(() -> Gossiper.instance.convict(InetAddressAndPort.getByNameUnchecked("127.0.0.3"), Double.MAX_VALUE));
+
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> {
+                    MutationTrackingService.instance().pauseActiveReconciler();
+                    MutationTrackingService.instance().pauseBackgroundReconciler();
+                });
+
+            awaitNodeDead(cluster.get(1), cluster.get(3));
+
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1, 1)"),
+                                           ConsistencyLevel.QUORUM);
+            TimeUnit.SECONDS.sleep(1);
+
+            cluster.filters().reset();
+            awaitNodeAlive(cluster.get(1), cluster.get(3));
+            awaitNodeAlive(cluster.get(3), cluster.get(1));
+
+            for (int i = 1; i <= 3; i++)
+                cluster.get(i).runOnInstance(() -> MutationTrackingService.instance().broadcastOffsetsForTesting());
+
+            // 2. Use a short request cooldown on node 3 so the test is fast, and keep it
+            //    distinct from the schedule interval so the cooldown is actually exercised
+            //    (not aliased onto the scheduling cadence).
+            //
+            //    NOTE: we deliberately leave the active reconciler PAUSED on node 1 (and 2)
+            //    so the pull requests we send from node 3 are never served — the missing
+            //    offsets stay missing across phases, and each reconcileForTesting() that
+            //    isn't suppressed by the cooldown produces a fresh outbound pull request.
+            long cooldownMs = 500;
+            cluster.get(3).runOnInstance(() ->
+                                         MutationTrackingService.instance().setMutationTrackingBackgroundReconciliationRequestCooldownMilliseconds(cooldownMs));
+
+            // 3. Use the BackgroundPullRequestsSent metric on node 3 as the source of truth
+            //    for outbound pull request counts — it's incremented in lock-step with each
+            //    actual send and avoids needing a separate counting message filter.
+            IInvokableInstance node3 = cluster.get(3);
+            LongSupplier sentCount = () ->
+                                     node3.callOnInstance(() -> MutationTrackingMetrics.instance().backgroundPullRequestsSent.getCount());
+
+            // === Phase 1: rapid-fire dedup ===
+            // Two reconcileForTesting calls back-to-back within the cooldown window must
+            // produce only ONE outbound pull request.
+            node3.runOnInstance(() -> {
+                MutationTrackingService.instance().resumeBackgroundReconciler();
+                MutationTrackingService.instance().reconcileForTesting();
+                MutationTrackingService.instance().reconcileForTesting();
+                MutationTrackingService.instance().pauseBackgroundReconciler();
+            });
+            TimeUnit.MILLISECONDS.sleep(200);
+            assertEquals("Rapid-fire dedup: only the first reconcile should send a request",
+                         1L, sentCount.getAsLong());
+            // Verify the suppression code path was actually taken on the second call.
+            long suppressedAfterPhase1 = node3.callOnInstance(() ->
+                                                              MutationTrackingMetrics.instance().backgroundPullRequestsSuppressed.getCount());
+            assertTrue("Cooldown suppression metric should advance when a duplicate reconcile is suppressed",
+                       suppressedAfterPhase1 >= 1);
+
+            // === Phase 2: cooldown expires, allowing a fresh request ===
+            // Sleep longer than the configured cooldown. While paused, the scheduled task
+            // fires and exercises the disable-clear branch (and the time-based removeIf),
+            // so the previous entry is gone by the time we manually reconcile again.
+            TimeUnit.MILLISECONDS.sleep(cooldownMs + 200);
+            node3.runOnInstance(() -> {
+                MutationTrackingService.instance().resumeBackgroundReconciler();
+                MutationTrackingService.instance().reconcileForTesting();
+                MutationTrackingService.instance().pauseBackgroundReconciler();
+            });
+            assertEquals("Post-cooldown: a fresh reconcile should send a request once the cooldown elapses",
+                         2L, sentCount.getAsLong());
+
+            // === Phase 3: disabling reconciliation clears tracked state ===
+            // Phase 2 left a fresh entry in lastRequestedAt. Without sleeping past the
+            // cooldown, invoking run() while disabled takes the disable-clear branch and
+            // wipes the map. The next reconcile (after re-enabling) should then send a
+            // request even though we are still inside Phase 2's cooldown window.
+            node3.runOnInstance(() -> {
+                // Already paused at the end of Phase 2 — explicitly run() to exercise the
+                // disable-clear branch with the entry still inside the cooldown window.
+                MutationTrackingService.instance().reconcileForTesting();
+                MutationTrackingService.instance().resumeBackgroundReconciler();
+                MutationTrackingService.instance().reconcileForTesting();
+                MutationTrackingService.instance().pauseBackgroundReconciler();
+            });
+            TimeUnit.MILLISECONDS.sleep(200);
+            // Without the disable-clear branch, the Phase 2 entry would still be within
+            // its cooldown and would suppress this reconcile.
+            assertEquals("Disabling should clear tracked-request state and allow a fresh send within the cooldown window",
+                         3L, sentCount.getAsLong());
+
+            // Sanity: the happy path should never count a send-layer failure. The callback
+            // we install on each pull request only counts non-TIMEOUT failures (queue overload,
+            // serialization, closed connection); the eventual TIMEOUT for an unanswered one-way
+            // request is benign and must not advance this counter.
+            long failedAtEnd = node3.callOnInstance(() ->
+                                                    MutationTrackingMetrics.instance().backgroundPullRequestsFailed.getCount());
+            assertEquals("Happy-path test should not record any send-layer failures",
+                         0, failedAtEnd);
         }
     }
 }
