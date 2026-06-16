@@ -1366,27 +1366,32 @@ public class ASTGenerators
         {
             Gen<Boolean> boolGen = SourceDSL.booleans().all();
             return rnd -> {
-                var pk = partitionKeyValuesGen.generate(rnd);
-                var mutation = mutationGen(rs, pk).generate(rnd);
+                var pk1 = partitionKeyValuesGen.generate(rnd);
+                var pk2 = partitionKeyValuesGen.generate(rnd);
+                var mutation = mutationGen(rs, pk1).generate(rnd);
 
-                Select select = select(metadata, pk).withLimit(1);
-                var columns = model.columns(select);
+                Select select1 = select(metadata, pk1).withLimit(1);
+                Select select2 = select(metadata, pk2).withLimit(1);
+                var columns = model.columns(select1);
                 Txn.Builder builder = Txn.builder();
-                builder.addLet("r1", select);
-                Reference ref = Reference.of(Symbol.unknownType("r1"));
+                builder.addLet("r1", select1);
+                Reference ref1 = Reference.of(Symbol.unknownType("r1"));
+                builder.addLet("r2", select1);
+                Reference ref2 = Reference.of(Symbol.unknownType("r2"));
 
-                builder.addReturn(select(metadata, pk));
+                builder.addReturn(select(metadata, pk1));
 
                 Conditional.Builder condition = Conditional.builder();
                 for (var col : columns)
                 {
                     if (boolGen.generate(rnd)) continue;
-                    Reference colRef = ref.add(col);
+                    Reference colRef1 = ref1.add(col);
+                    Reference colRef2 = ref2.add(col);
                     if (boolGen.generate(rnd))
-                        condition.is(colRef, SourceDSL.arbitrary().enumValues(Conditional.Is.Kind.class).generate(rnd));
+                        condition.is(colRef1, SourceDSL.arbitrary().enumValues(Conditional.Is.Kind.class).generate(rnd));
                     if (boolGen.generate(rnd))
                     {
-                        Expression lhs = colRef;
+                        Expression lhs = colRef1;
                         Expression rhs = value(rnd, getTypeSupport(lhs.type()).bytesGen().generate(rnd), lhs.type());
                         if (boolGen.generate(rnd))
                         {
@@ -1396,6 +1401,11 @@ public class ASTGenerators
                         }
                         Conditional.Where.Inequality inequality = SourceDSL.arbitrary().enumValues(Conditional.Where.Inequality.class).generate(rnd);
                         condition.where(lhs, inequality, rhs);
+                    }
+                    if (boolGen.generate(rnd))
+                    {
+                        Conditional.Where.Inequality inequality = SourceDSL.arbitrary().enumValues(Conditional.Where.Inequality.class).generate(rnd);
+                        condition.where(colRef1, inequality, colRef2);
                     }
                 }
                 if (condition.isEmpty())

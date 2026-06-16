@@ -3619,7 +3619,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             String query = "BEGIN TRANSACTION\n" +
                            "LET k1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
                            "LET k2 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 2);\n" +
-                           "IF k1.v < k2.v THEN \n" +
+                           "IF k1.v IS NOT NULL AND k1.v < k2.v THEN \n" +
                            "    UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1;\n" +
                            "END IF\n" +
                            "COMMIT TRANSACTION";
