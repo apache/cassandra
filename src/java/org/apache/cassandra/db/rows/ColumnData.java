@@ -183,7 +183,15 @@ public abstract class ColumnData implements IMeasurableMemory
             return removeShadowed(existing, postReconcile);
         }
 
-        private ColumnData removeShadowed(ColumnData existing)
+        /**
+         * Like {@link #retain} but does NOT notify the {@link PostReconciliationFunction} of removed
+         * data. Use this e.g. when filtering shadowed cells out of the UPDATE (incoming) side of a merge:
+         * that data was never allocated to / owned by the memtable, so recording its removal would
+         * make the memtable allocator under-count what it owns and eventually report a negative
+         * release at flush (CASSANDRA-21390). Recording removals (via {@link #retain}) is only correct
+         * for the EXISTING side, whose data the memtable already owns.
+         */
+        public ColumnData removeShadowed(ColumnData existing)
         {
             return removeShadowed(existing, ColumnData.noOp);
         }
