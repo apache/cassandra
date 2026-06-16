@@ -198,6 +198,8 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
+    "org.apache.cassandra.cql3.QueryOptions$DefaultReadThresholds",
+    "org.apache.cassandra.cql3.QueryOptions$ReadThresholds",
     "org.apache.cassandra.db.ConsistencyLevel",
     "org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager",
     "org.apache.cassandra.db.commitlog.CommitLog",
