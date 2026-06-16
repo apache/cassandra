@@ -578,10 +578,16 @@ public class BTreeRow extends AbstractRow
             {
                 if (rowDeletion == existing.deletion())
                 {
-                    updateBtree = BTree.transformAndFilter(updateBtree, reconciler::retain);
+                    // The existing row's deletion shadows part of the update. Filter those cells out of
+                    // the UPDATE (incoming) side, but do NOT record their removal: that data was never
+                    // owned by the memtable, so accounting its removal would drive the allocator's
+                    // ownership negative and crash the next flush (CASSANDRA-21469).
+                    updateBtree = BTree.transformAndFilter(updateBtree, reconciler::removeShadowed);
                 }
                 else
                 {
+                    // The update's deletion shadows part of the existing row. Those cells ARE owned by
+                    // the memtable, so record their removal via retain().
                     existingBtree = BTree.transformAndFilter(existingBtree, reconciler::retain);
                 }
             }
