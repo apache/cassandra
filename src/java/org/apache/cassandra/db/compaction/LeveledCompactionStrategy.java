@@ -405,7 +405,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     // Lazily creates SSTableBoundedScanner for sstable that are assumed to be from the
     // same level (e.g. non overlapping) - see #4142
-    private static class LeveledScanner extends AbstractIterator<UnfilteredRowIterator> implements ISSTableScanner
+    protected static class LeveledScanner extends AbstractIterator<UnfilteredRowIterator> implements ISSTableScanner
     {
         private final TableMetadata metadata;
         private final Collection<Range<Token>> ranges;
@@ -465,8 +465,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 for (SSTableReader sstable : sstables)
                 {
-                    Range<Token> sstableRange = new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken());
-                    if (range == null || sstableRange.intersects(range))
+                    if (range == null || range.intersects(sstable.getBounds()))
                         filtered.add(sstable);
                 }
             }
