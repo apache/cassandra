@@ -24,6 +24,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 
@@ -108,7 +109,7 @@ public class ConditionStatement
                 if (((RowDataReference.Raw) rhs).column() == null)
                     throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
                 if (!((RowDataReference.Raw) lhs).column().type.equals(((RowDataReference.Raw) rhs).column().type))
-                    throw new IllegalStateException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
+                    throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
                 reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
                 value = ((RowDataReference.Raw) rhs).prepareAsReceiver();
             }

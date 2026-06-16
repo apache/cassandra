@@ -3634,4 +3634,30 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             assertThat(result).hasSize(1).contains(1, 10);
         });
     }
+
+    @Test
+    public void testLetComparisonWithDifferentTypesFails() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int, c text) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String query = "BEGIN TRANSACTION\n" +
+                               "LET k1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                               "LET k2 = (SELECT c FROM " + qualifiedAccordTableName + " WHERE k = 2);\n" +
+                               "IF k1.v < k2.c THEN \n" +
+                               "    UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1;\n" +
+                               "END IF\n" +
+                               "COMMIT TRANSACTION";
+
+
+                cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals("Row reference (k1.v) must have the same type as row reference (k2.c)", t.getMessage());
+            }
+        });
+    }
 }
