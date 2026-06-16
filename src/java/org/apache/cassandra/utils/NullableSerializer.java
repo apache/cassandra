@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.UnversionedSerializer;
 import org.apache.cassandra.io.VersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -36,14 +35,6 @@ public class NullableSerializer
         if (value != null)
             serializer.serialize(value, out);
     }
-
-    public static <T, P> void serializeNullable(T value, P param, DataOutputPlus out, ParameterisedUnversionedSerializer<T, P> serializer) throws IOException
-    {
-        out.writeBoolean(value != null);
-        if (value != null)
-            serializer.serialize(value, param, out);
-    }
-
     public static <T> void serializeNullable(T value, DataOutputPlus out, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         out.writeBoolean(value != null);
@@ -63,11 +54,6 @@ public class NullableSerializer
         return in.readBoolean() ? serializer.deserialize(in) : null;
     }
 
-    public static <T, P> T deserializeNullable(DataInputPlus in, P param, ParameterisedUnversionedSerializer<T, P> serializer) throws IOException
-    {
-        return in.readBoolean() ? serializer.deserialize(param, in) : null;
-    }
-
     public static <T> T deserializeNullable(DataInputPlus in, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         return in.readBoolean() ? serializer.deserialize(in, version) : null;
@@ -82,13 +68,6 @@ public class NullableSerializer
     {
         return value != null
                ? TypeSizes.sizeof(true) + serializer.serializedSize(value)
-               : TypeSizes.sizeof(false);
-    }
-
-    public static <T, P> long serializedNullableSize(T value, P param, ParameterisedUnversionedSerializer<T, P> serializer)
-    {
-        return value != null
-               ? TypeSizes.sizeof(true) + serializer.serializedSize(value, param)
                : TypeSizes.sizeof(false);
     }
 
