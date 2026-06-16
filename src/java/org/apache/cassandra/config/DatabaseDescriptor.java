@@ -85,6 +85,7 @@ import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DurationSpec.IntMillisecondsBound;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -271,6 +272,8 @@ public class DatabaseDescriptor
     private static final boolean strictRuntimeChecks = TEST_STRICT_RUNTIME_CHECKS.getBoolean();
 
     public static volatile boolean allowUnlimitedConcurrentValidations = ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getBoolean();
+
+    private static volatile QueryOptions.DefaultReadThresholds defaultReadThresholds;
 
     /**
      * RetryStrategy which provides exponential backoff with full jitter, for use by both CMS and non-CMS members
@@ -5555,6 +5558,14 @@ public class DatabaseDescriptor
         return conf.invalid_legacy_protocol_magic_no_spam_enabled;
     }
 
+    public static QueryOptions.DefaultReadThresholds getDefaultReadThresholds()
+    {
+        if (defaultReadThresholds == null)
+            defaultReadThresholds = new QueryOptions.DefaultReadThresholds(getCoordinatorReadSizeWarnThreshold(),
+                                                                           getCoordinatorReadSizeFailThreshold());
+        return defaultReadThresholds;
+    }
+
     public static boolean getReadThresholdsEnabled()
     {
         return conf.read_thresholds_enabled;
@@ -5579,6 +5590,7 @@ public class DatabaseDescriptor
     {
         logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
         conf.coordinator_read_size_warn_threshold = value;
+        defaultReadThresholds = new QueryOptions.DefaultReadThresholds(value, getCoordinatorReadSizeFailThreshold());
     }
 
     @Nullable
@@ -5591,6 +5603,7 @@ public class DatabaseDescriptor
     {
         logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
         conf.coordinator_read_size_fail_threshold = value;
+        defaultReadThresholds = new QueryOptions.DefaultReadThresholds(getCoordinatorReadSizeWarnThreshold(), value);
     }
 
     @Nullable
