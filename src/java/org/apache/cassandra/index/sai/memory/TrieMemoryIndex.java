@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,7 @@ import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -156,6 +158,12 @@ public class TrieMemoryIndex extends MemoryIndex
                 if (keyCount > MINIMUM_PRIORITY_QUEUE_SIZE)
                     lastPriorityQueueSize.set(keyCount);
                 return keyIterator;
+            case LIKE_PREFIX:
+                KeyRangeIterator prefixIterator = prefixMatch(expression, keyRange);
+                int prefixKeyCount = (int) prefixIterator.getMaxKeys();
+                if (prefixKeyCount > MINIMUM_PRIORITY_QUEUE_SIZE)
+                    lastPriorityQueueSize.set(prefixKeyCount);
+                return prefixIterator;
             default:
                 throw new IllegalArgumentException("Unsupported expression: " + expression);
         }
@@ -358,6 +366,50 @@ public class TrieMemoryIndex extends MemoryIndex
             return KeyRangeIterator.empty();
 
         return new InMemoryKeyRangeIterator(cd.mergedKeys.peek(), cd.maximumKey, cd.mergedKeys);
+    }
+
+    /**
+     * Matches all rows whose indexed term starts with the expression's value, by scanning the trie over the range
+     * {@code [prefix, prefixSuccessor)}. The lower bound is inclusive so a term equal to the prefix is matched too.
+     */
+    private KeyRangeIterator prefixMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    {
+        ByteBuffer prefixBuffer = expression.lower().value.encoded;
+        ByteComparable lowerBound = asComparableBytes(prefixBuffer);
+        ByteBuffer successor = prefixSuccessor(prefixBuffer);
+        ByteComparable upperBound = successor == null ? null : asComparableBytes(successor);
+
+        Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
+        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, true, upperBound, false).valueIterator();
+
+        while (values.hasNext())
+            cd.processContent(values.next());
+
+        if (cd.mergedKeys.isEmpty())
+            return KeyRangeIterator.empty();
+
+        return new InMemoryKeyRangeIterator(cd.mergedKeys.peek(), cd.maximumKey, cd.mergedKeys);
+    }
+
+    /**
+     * Computes the lexicographic successor of the given raw prefix bytes: the byte array with its last non-{@code 0xFF}
+     * byte incremented and any trailing {@code 0xFF} bytes removed. Returns null (an unbounded upper bound) when every
+     * byte is {@code 0xFF}. For order-preserving literal encodings this is the smallest value greater than all values
+     * starting with the prefix.
+     */
+    private static ByteBuffer prefixSuccessor(ByteBuffer prefix)
+    {
+        byte[] bytes = ByteBufferUtil.getArray(prefix);
+        int last = bytes.length - 1;
+        while (last >= 0 && (bytes[last] & 0xFF) == 0xFF)
+            last--;
+
+        if (last < 0)
+            return null;
+
+        byte[] successor = Arrays.copyOf(bytes, last + 1);
+        successor[last]++;
+        return ByteBuffer.wrap(successor);
     }
 
     private static class PrimaryKeysReducer implements InMemoryTrie.UpsertTransformer<PrimaryKeys, PrimaryKey>

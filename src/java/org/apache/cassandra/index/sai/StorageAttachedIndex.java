@@ -157,6 +157,7 @@ public class StorageAttachedIndex implements Index
                                                                      IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH,
                                                                      IndexWriterConfig.SIMILARITY_FUNCTION,
                                                                      IndexWriterConfig.OPTIMIZE_FOR,
+                                                                     IndexWriterConfig.ENABLE_LITERAL_PREFIX_SAI,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
                                                                      NonTokenizingOptions.ASCII);
@@ -278,6 +279,17 @@ public class StorageAttachedIndex implements Index
         IndexTermType indexTermType = IndexTermType.create(target.left, metadata.partitionKeyColumns(), target.right);
         AbstractAnalyzer.fromOptions(indexTermType, analysisOptions);
         IndexWriterConfig config = IndexWriterConfig.fromOptions(null, indexTermType, options);
+
+        if (options.containsKey(IndexWriterConfig.ENABLE_LITERAL_PREFIX_SAI))
+        {
+            String val = options.get(IndexWriterConfig.ENABLE_LITERAL_PREFIX_SAI);
+            if (!"true".equalsIgnoreCase(val) && !"false".equalsIgnoreCase(val))
+                throw new InvalidRequestException(
+                    IndexWriterConfig.ENABLE_LITERAL_PREFIX_SAI + " must be 'true' or 'false', got: " + val);
+            if (!indexTermType.isLiteral())
+                throw new InvalidRequestException(
+                    IndexWriterConfig.ENABLE_LITERAL_PREFIX_SAI + " is only supported on string/literal columns");
+        }
 
         // If we are indexing map entries we need to validate the subtypes
         if (indexTermType.isComposite())
@@ -450,7 +462,16 @@ public class StorageAttachedIndex implements Index
     @Override
     public boolean supportsExpression(ColumnMetadata column, Operator operator)
     {
-        return dependsOn(column) && indexTermType.supports(operator);
+        if (!dependsOn(column))
+            return false;
+
+        // LIKE is initially parsed as the generic operator (the specific variant is resolved from the bound value),
+        // so advertise support for both the generic LIKE and LIKE_PREFIX. Only prefix-enabled literal indexes qualify;
+        // other LIKE variants (suffix/contains/matches) are rejected at execution time.
+        if (operator == Operator.LIKE || operator == Operator.LIKE_PREFIX)
+            return indexTermType.isLiteral() && indexWriterConfig.isLiteralPrefixEnabled();
+
+        return indexTermType.supports(operator);
     }
 
     @Override

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.IntPredicate;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -809,6 +810,17 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
          * @return The combined value to use. Cannot be null.
          */
         T apply(T existing, U update);
+
+        /**
+         * Called when intermediate-node content is applied during a recursive put driven by an insertion policy
+         * (see {@link #putSingleton(ByteComparable, Object, UpsertTransformer, boolean, IntPredicate)}).
+         * The default implementation delegates to {@link #apply(Object, Object)}; transformers that need to
+         * distinguish intermediate (prefix) applications from terminal (exact) ones should override it.
+         */
+        default T applyIntermediate(T existing, U update)
+        {
+            return apply(existing, update);
+        }
     }
 
     /**
@@ -899,6 +911,69 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
             root = newRoot;
     }
 
+    /**
+     * A version of {@link #putSingleton(ByteComparable, Object, UpsertTransformer, boolean)} which, in addition to
+     * applying the value at the terminal node, also applies it as intermediate content at every depth selected by
+     * {@code accumulateIntermediateAtDepth}. Intermediate applications go through
+     * {@link UpsertTransformer#applyIntermediate}, while the terminal application uses {@link UpsertTransformer#apply}.
+     * <p>
+     * Depth is 1-based on the key bytes (the first byte is depth 1); the empty prefix (depth 0, the root) is never
+     * accumulated. A null policy is equivalent to {@link #putSingleton(ByteComparable, Object, UpsertTransformer, boolean)}.
+     */
+    public <R> void putSingleton(ByteComparable key,
+                                 R value,
+                                 UpsertTransformer<T, ? super R> transformer,
+                                 boolean useRecursive,
+                                 IntPredicate accumulateIntermediateAtDepth) throws SpaceExhaustedException
+    {
+        if (accumulateIntermediateAtDepth == null)
+        {
+            putSingleton(key, value, transformer, useRecursive);
+            return;
+        }
+        putRecursiveWithPolicy(key, value, transformer, accumulateIntermediateAtDepth);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <R> void putRecursiveWithPolicy(ByteComparable key,
+                                           R value,
+                                           UpsertTransformer<T, ? super R> transformer,
+                                           IntPredicate accumulateIntermediateAtDepth) throws SpaceExhaustedException
+    {
+        int newRoot = putRecursiveWithPolicy(root, key.asComparableBytes(BYTE_COMPARABLE_VERSION), value,
+                                             (UpsertTransformer<T, R>) transformer, accumulateIntermediateAtDepth, 0);
+        if (newRoot != root)
+            root = newRoot;
+    }
+
+    private <R> int putRecursiveWithPolicy(int node, ByteSource key, R value, final UpsertTransformer<T, R> transformer,
+                                           IntPredicate accumulateIntermediateAtDepth, int depth) throws SpaceExhaustedException
+    {
+        int transition = key.next();
+        if (transition == ByteSource.END_OF_STREAM)
+            return applyContent(node, value, transformer, false);
+
+        boolean appliedHere = false;
+        if (depth >= 1 && accumulateIntermediateAtDepth.test(depth))
+        {
+            node = applyContent(node, value, transformer, true);
+            appliedHere = true;
+        }
+
+        int child = getChild(node, transition);
+
+        int newChild = putRecursiveWithPolicy(child, key, value, transformer, accumulateIntermediateAtDepth, depth + 1);
+        if (newChild == child && !appliedHere)
+            return node;
+
+        int skippedContent = followContentTransition(node);
+        int attachedChild = !isNull(skippedContent)
+                            ? attachChild(skippedContent, transition, newChild)  // Single path, no copying required
+                            : expandOrCreateChainNode(transition, newChild);
+
+        return preserveContent(node, skippedContent, attachedChild);
+    }
+
     private <R> int putRecursive(int node, ByteSource key, R value, final UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
     {
         int transition = key.next();
@@ -921,24 +996,34 @@ public class InMemoryTrie<T> extends InMemoryReadTrie<T>
 
     private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer) throws SpaceExhaustedException
     {
+        return applyContent(node, value, transformer, false);
+    }
+
+    private <R> int applyContent(int node, R value, UpsertTransformer<T, R> transformer, boolean intermediate) throws SpaceExhaustedException
+    {
         if (isNull(node))
-            return ~addContent(transformer.apply(null, value));
+            return ~addContent(combine(transformer, null, value, intermediate));
 
         if (isLeaf(node))
         {
             int contentIndex = ~node;
-            setContent(contentIndex, transformer.apply(getContent(contentIndex), value));
+            setContent(contentIndex, combine(transformer, getContent(contentIndex), value, intermediate));
             return node;
         }
 
         if (offset(node) == PREFIX_OFFSET)
         {
             int contentIndex = getInt(node + PREFIX_CONTENT_OFFSET);
-            setContent(contentIndex, transformer.apply(getContent(contentIndex), value));
+            setContent(contentIndex, combine(transformer, getContent(contentIndex), value, intermediate));
             return node;
         }
         else
-            return createPrefixNode(addContent(transformer.apply(null, value)), node, false);
+            return createPrefixNode(addContent(combine(transformer, null, value, intermediate)), node, false);
+    }
+
+    private <R> T combine(UpsertTransformer<T, R> transformer, T existing, R value, boolean intermediate)
+    {
+        return intermediate ? transformer.applyIntermediate(existing, value) : transformer.apply(existing, value);
     }
 
     /**

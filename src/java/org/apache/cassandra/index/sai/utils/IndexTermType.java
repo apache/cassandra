@@ -671,10 +671,12 @@ public class IndexTermType
     {
         if (operator == Operator.LIKE ||
             operator == Operator.LIKE_CONTAINS ||
-            operator == Operator.LIKE_PREFIX ||
             operator == Operator.LIKE_MATCHES ||
             operator == Operator.LIKE_SUFFIX ||
             operator == Operator.IN) return false;
+
+        if (operator == Operator.LIKE_PREFIX)
+            return isLiteral();
 
         // ANN is only supported against vectors, and vector indexes only support ANN
         if (operator == Operator.ANN)

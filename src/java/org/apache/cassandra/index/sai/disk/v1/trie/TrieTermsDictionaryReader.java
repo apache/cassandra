@@ -25,6 +25,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.cassandra.io.tries.SerializationNode;
 import org.apache.cassandra.io.tries.TrieNode;
 import org.apache.cassandra.io.tries.TrieSerializer;
+import org.apache.cassandra.io.tries.ValueIterator;
 import org.apache.cassandra.io.tries.Walker;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Rebufferer;
@@ -76,6 +77,37 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         // Since we are looking for an exact match we are always expecting the follow
         // to return END_OF_STREAM if the key was found.
         return follow(key) == ByteSource.END_OF_STREAM ? getCurrentPayload() : NOT_FOUND;
+    }
+
+    /**
+     * Iterates the payload offsets of every term in the (inclusive) key range {@code [start, end]}, in ascending
+     * order. Used to collect the postings offsets of all terms sharing a prefix. The encoding-aware
+     * {@link ValueIterator} traversal correctly visits all terms under a prefix (including a term equal to the
+     * prefix and all longer terms), which a raw {@code follow()} cannot do.
+     */
+    public static class PrefixIterator extends ValueIterator<PrefixIterator>
+    {
+        public PrefixIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end)
+        {
+            super(source, root, start, end, true);
+        }
+
+        /** @return the next term's payload offset, or {@link #NOT_FOUND} when the range is exhausted. */
+        public long nextPayload()
+        {
+            long node = nextPayloadedNode();
+            if (node == -1)
+                return NOT_FOUND;
+            go(node);
+            return readPayloadAt(buf, payloadPosition(), payloadFlags());
+        }
+    }
+
+    private static long readPayloadAt(ByteBuffer contents, int payloadPos, int bytes)
+    {
+        if (bytes == 0)
+            return NOT_FOUND;
+        return SizedInts.read(contents, payloadPos, bytes);
     }
 
     private long getCurrentPayload()
