@@ -831,6 +831,6 @@ public abstract class AbstractReplicationStrategy
             }
         }
 
-        return new CompositeTracker(CompositeTracker.all(trackerPerDc.size()), trackerPerDc.values());
+        return new CompositeTracker(trackerPerDc.size(), trackerPerDc.values());
     }
 }

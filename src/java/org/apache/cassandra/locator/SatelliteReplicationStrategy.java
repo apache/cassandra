@@ -1156,7 +1156,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             @Override
             ResponseTracker aggregateTrackers(Map<String, ResponseTracker> dcTrackers)
             {
-                return new CompositeTracker(CompositeTracker.all(dcTrackers.size()), new ArrayList<>(dcTrackers.values()));
+                return new CompositeTracker(dcTrackers.size(), new ArrayList<>(dcTrackers.values()));
             }
         }
     }
@@ -1765,7 +1765,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                                                                        primary.epoch(),
                                                                        readQuorum);
 
-        ResponseTracker tracker = new CompositeTracker(CompositeTracker.all(2), primaryPlan.responses(), previousPlan.responses());
+        ResponseTracker tracker = new CompositeTracker(2, primaryPlan.responses(), previousPlan.responses());
 
         return new CoordinationPlan.ForTokenRead(ReplicaPlan.shared(merged), tracker);
     }
@@ -1835,7 +1835,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                                                                        primary.epoch(),
                                                                        readQuorum);
 
-        ResponseTracker tracker = new CompositeTracker(CompositeTracker.all(2), primaryPlan.responses(), previousPlan.responses());
+        ResponseTracker tracker = new CompositeTracker(2, primaryPlan.responses(), previousPlan.responses());
 
         return new CoordinationPlan.ForRangeRead(ReplicaPlan.shared(merged), tracker);
     }

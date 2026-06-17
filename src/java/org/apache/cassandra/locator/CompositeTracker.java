@@ -53,11 +53,6 @@ public class CompositeTracker implements ResponseTracker
         this(blockFor, children.toArray(ResponseTracker[]::new));
     }
 
-    public static int all(int count)
-    {
-        return count;
-    }
-
     public static int quorum(int count)
     {
         return (count / 2) + 1;

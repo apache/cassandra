@@ -63,14 +63,6 @@ public class CompositeTrackerTest
     }
 
     @Test
-    public void testAllCalculation()
-    {
-        assertEquals(1, CompositeTracker.all(1));
-        assertEquals(3, CompositeTracker.all(3));
-        assertEquals(5, CompositeTracker.all(5));
-    }
-
-    @Test
     public void testQuorumSuccessAndFailure()
     {
         // N=1: quorum=1
@@ -121,7 +113,7 @@ public class CompositeTrackerTest
     public void testAllSuccessAndFailure()
     {
         // All succeed
-        CompositeTracker tracker = new CompositeTracker(CompositeTracker.all(2),
+        CompositeTracker tracker = new CompositeTracker(2,
             createMockTracker(true, true),
             createMockTracker(true, true)
         );
@@ -129,19 +121,19 @@ public class CompositeTrackerTest
         assertTrue(tracker.isComplete());
 
         // First fails
-        assertFalse(new CompositeTracker(CompositeTracker.all(2),
+        assertFalse(new CompositeTracker(2,
             createMockTracker(false, true),
             createMockTracker(true, true)
         ).isSuccessful());
 
         // Second fails
-        assertFalse(new CompositeTracker(CompositeTracker.all(2),
+        assertFalse(new CompositeTracker(2,
             createMockTracker(true, true),
             createMockTracker(false, true)
         ).isSuccessful());
 
         // Both fail
-        tracker = new CompositeTracker(CompositeTracker.all(2),
+        tracker = new CompositeTracker(2,
             createMockTracker(false, true),
             createMockTracker(false, true)
         );
@@ -149,7 +141,7 @@ public class CompositeTrackerTest
         assertTrue(tracker.isComplete());
 
         // Any single failure in N children → overall failure
-        assertFalse(new CompositeTracker(CompositeTracker.all(3),
+        assertFalse(new CompositeTracker(3,
             createMockTracker(true, true),
             createMockTracker(true, true),
             createMockTracker(false, true)
@@ -200,7 +192,7 @@ public class CompositeTrackerTest
     @Test
     public void testAllEarlyCompletionOnAnyFailure()
     {
-        CompositeTracker tracker = new CompositeTracker(CompositeTracker.all(3),
+        CompositeTracker tracker = new CompositeTracker(3,
             createMockTracker(true, true),
             createMockTracker(false, true),   // Failed
             createMockTracker(false, false)    // Still pending
@@ -214,7 +206,7 @@ public class CompositeTrackerTest
     @Test
     public void testAllNotCompleteWhenPending()
     {
-        CompositeTracker tracker = new CompositeTracker(CompositeTracker.all(2),
+        CompositeTracker tracker = new CompositeTracker(2,
             createMockTracker(true, true),
             createMockTracker(false, false)  // Pending, not failed
         );
@@ -247,7 +239,7 @@ public class CompositeTrackerTest
         ResponseTracker c1 = mock(ResponseTracker.class);
         ResponseTracker c2 = mock(ResponseTracker.class);
 
-        CompositeTracker tracker = new CompositeTracker(CompositeTracker.all(3), c0, c1, c2);
+        CompositeTracker tracker = new CompositeTracker(3, c0, c1, c2);
 
         InetAddressAndPort ep = endpoint("127.0.0.1");
         tracker.onFailure(ep, TIMEOUT);
@@ -282,7 +274,7 @@ public class CompositeTrackerTest
         ResponseTracker c2 = mock(ResponseTracker.class);
         when(c2.failures()).thenReturn(0);
 
-        CompositeTracker tracker = new CompositeTracker(CompositeTracker.all(3), c0, c1, c2);
+        CompositeTracker tracker = new CompositeTracker(3, c0, c1, c2);
 
         assertEquals(3, tracker.failures());
     }
@@ -295,7 +287,7 @@ public class CompositeTrackerTest
         ResponseTracker c1 = mock(ResponseTracker.class);
         when(c1.countsTowardQuorum(any())).thenReturn(false);
 
-        CompositeTracker tracker = new CompositeTracker(CompositeTracker.all(2), c0, c1);
+        CompositeTracker tracker = new CompositeTracker(2, c0, c1);
 
         assertTrue(tracker.countsTowardQuorum(endpoint("127.0.0.1")));
     }
@@ -328,7 +320,7 @@ public class CompositeTrackerTest
             createMockTracker(true, true)
         );
 
-        CompositeTracker outer = new CompositeTracker(CompositeTracker.all(2), inner1, inner2);
+        CompositeTracker outer = new CompositeTracker(2, inner1, inner2);
 
         assertTrue(outer.isSuccessful());
         assertTrue(outer.isComplete());
@@ -347,7 +339,7 @@ public class CompositeTrackerTest
             createMockTracker(false, true)
         );
 
-        CompositeTracker outer = new CompositeTracker(CompositeTracker.all(2), inner1, inner2);
+        CompositeTracker outer = new CompositeTracker(2, inner1, inner2);
 
         assertFalse(outer.isSuccessful());
         assertTrue(outer.isComplete());
