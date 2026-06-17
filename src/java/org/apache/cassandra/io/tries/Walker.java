@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
 {
     /** Value used to indicate a branch (e.g. lesser/greaterBranch) does not exist. */
-    public static int NONE = TrieNode.NONE;
+    public static final int NONE = TrieNode.NONE;
 
     private final Rebufferer source;
     protected final long root;

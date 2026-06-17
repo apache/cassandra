@@ -97,6 +97,7 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
         }
         else
         {
+            Reader reader = null;
             boolean shouldCloseFile = file == null;
             try
             {
@@ -119,15 +120,18 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
 
                     // Note that this needs to be called after file != null and after the partitionDeletion has been set, but before readStaticRow
                     // (since it uses it) so we can't move that up (but we'll be able to simplify as soon as we drop support for the old file format).
-                    this.reader = createReader(indexEntry, file, shouldCloseFile);
+                    reader = createReader(indexEntry, file, shouldCloseFile);
                     this.staticRow = readStaticRow(sstable, file, helper, columns.fetchedColumns().statics);
                 }
                 else
                 {
                     this.partitionLevelDeletion = indexEntry.deletionTime();
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
-                    this.reader = createReader(indexEntry, file, shouldCloseFile);
+                    reader = createReader(indexEntry, file, shouldCloseFile);
                 }
+
+                this.reader = reader;
+
                 if (!partitionLevelDeletion.validate())
                     UnfilteredValidation.handleInvalid(metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
@@ -137,9 +141,25 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
                 if (reader == null && file != null && shouldCloseFile)
                     file.close();
             }
-            catch (IOException e)
+            catch (CorruptSSTableException | IOException e)
             {
                 sstable.markSuspect();
+
+                if (reader != null)
+                {
+                    try
+                    {
+                        reader.close();
+                        // reader will close the file internally, so there's no
+                        // need to close it in the next block
+                        shouldCloseFile = false;
+                    }
+                    catch (IOException suppressed)
+                    {
+                        e.addSuppressed(suppressed);
+                    }
+                }
+
                 String filePath = file.getPath();
                 if (shouldCloseFile)
                 {
@@ -152,6 +172,8 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
                         e.addSuppressed(suppressed);
                     }
                 }
+                if (e instanceof CorruptSSTableException)
+                    throw (CorruptSSTableException)e;
                 throw new CorruptSSTableException(e, filePath);
             }
         }
