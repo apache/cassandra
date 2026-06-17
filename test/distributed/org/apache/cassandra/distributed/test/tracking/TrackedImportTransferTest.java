@@ -210,6 +210,7 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
     @Test
     public void importIntervalTreeFalsePositive() throws IOException
     {
+        // See CASSANDRA-21470
         String keyspace = "interval_tree_false_positive";
         cluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3} AND replication_type='tracked';");
         cluster.schemaChange("CREATE TABLE " + tableWithKeyspace(keyspace) + " (k BLOB PRIMARY KEY, v INT)");
@@ -222,10 +223,12 @@ public class TrackedImportTransferTest extends TrackedTransferTestBase
                                                            .inDirectory(file)
                                                            .using("INSERT INTO " + tableWithKeyspace(keyspace) + " (k, v) " + "VALUES (?, ?)");
 
+        // For shard (-3074457345618258603,3074457345618258601], this SSTable
+        // intersects it, but does not contain any values in between the shard.
         try (CQLSSTableWriter writer = builder.build())
         {
-            writer.addRow(KEY_100, 1);
-            writer.addRow(KEY_300, 1);
+            writer.addRow(KEY_100, 1); // -4074457345618258601L
+            writer.addRow(KEY_300, 1); // 3074457345618258602L
         }
 
         // empty
