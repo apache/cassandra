@@ -42,12 +42,16 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -671,19 +675,42 @@ public abstract class TxnCondition
             return referenceLHS.toString() + ' ' + kind.symbol + ' ' + referenceRHS.toString();
         }
 
+        public AbstractType<?> getColumnType(TxnReference.ColumnReference reference)
+        {
+            ColumnMetadata column = reference.column();
+            if (reference.isElementSelection())
+            {
+                if (column.type instanceof ListType)
+                    return ((ListType<?>) column.type).valueComparator();
+                else if (column.type instanceof SetType)
+                    return ((SetType<?>) column.type).nameComparator();
+                else if (column.type instanceof MapType)
+                    return ((MapType<?, ?>) column.type).valueComparator();
+            }
+            else if (reference.isFieldSelection())
+            {
+                return reference.getFieldSelectionType();
+            }
+
+            return column.type;
+        }
+
         @Override
         public boolean applies(TxnData data)
         {
-            ColumnMetadata columnLHS = referenceLHS.column();
-            ColumnMetadata columnRHS = referenceRHS.column();
+            AbstractType<?> typeLHS = getColumnType(referenceLHS);
+            AbstractType<?> typeRHS = getColumnType(referenceRHS);
 
-            ByteBuffer lhs = referenceLHS.toByteBuffer(data, columnLHS.type);
-            ByteBuffer rhs = referenceRHS.toByteBuffer(data, columnRHS.type);
+            if (typeLHS != typeRHS)
+                throw new InvalidRequestException(String.format("Invalid type comparison: cannot compare type %s with type %s", typeLHS.asCQL3Type(), typeRHS.asCQL3Type()));
+
+            ByteBuffer lhs = referenceLHS.toByteBuffer(data, typeLHS);
+            ByteBuffer rhs = referenceRHS.toByteBuffer(data, typeRHS);
 
             if (lhs == null || rhs == null)
                 return false;
 
-            return kind.operator.isSatisfiedBy(columnLHS.type, lhs, rhs);
+            return kind.operator.isSatisfiedBy(typeLHS, lhs, rhs);
         }
 
         private static final ConditionSerializer<Reference> serializer = new ConditionSerializer<>()

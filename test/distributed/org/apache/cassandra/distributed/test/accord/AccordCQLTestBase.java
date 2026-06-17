@@ -3606,6 +3606,34 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
+    public void testLetComparisonWithDifferentTypesFails() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k text PRIMARY KEY, customer person) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                Object personValue = CQLTester.userType("height", 74, "age", 37);
+                ByteBuffer personBuffer = CQLTester.makeByteBuffer(personValue, null);
+                String query = "BEGIN TRANSACTION\n" +
+                               "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 'first');\n" +
+                               "LET k2 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 'second');\n" +
+                               "IF k1.k < k2.customer.height THEN \n" +
+                               "    UPDATE " + qualifiedAccordTableName + " SET customer = ? WHERE k = 'first';\n" +
+                               "END IF\n" +
+                               "COMMIT TRANSACTION";
+
+
+                cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL, personBuffer);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
+                assertEquals("Invalid type comparison: cannot compare type text with type int", t.getMessage());
+            }
+        });
+    }
+
+    @Test
     public void testLetComparisonTransactionStatement() throws Throwable
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int) WITH " + transactionalMode.asCqlParam(), cluster -> {
@@ -3636,28 +3664,72 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testLetComparisonWithDifferentTypesFails() throws Throwable
+    public void testLetComparisonWithDifferentTypes() throws Throwable
     {
-        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v int, c text) WITH " + transactionalMode.asCqlParam(), cluster -> {
-            try
-            {
-                String query = "BEGIN TRANSACTION\n" +
-                               "LET k1 = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
-                               "LET k2 = (SELECT c FROM " + qualifiedAccordTableName + " WHERE k = 2);\n" +
-                               "IF k1.v < k2.c THEN \n" +
-                               "    UPDATE " + qualifiedAccordTableName + " SET v = 10 WHERE k = 1;\n" +
-                               "END IF\n" +
-                               "COMMIT TRANSACTION";
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, customer person) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            Object personValue1 = CQLTester.userType("height", 74, "age", 37);
+            ByteBuffer personBuffer1 = CQLTester.makeByteBuffer(personValue1, null);
 
+            Object personValue2 = CQLTester.userType("height", 74, "age", 38);
+            ByteBuffer personBuffer2 = CQLTester.makeByteBuffer(personValue2, null);
 
-                cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.SERIAL);
-                fail("Expected exception");
-            }
-            catch (Throwable t)
-            {
-                assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
-                assertEquals("Row reference (k1.v) must have the same type as row reference (k2.c)", t.getMessage());
-            }
+            String insert = "BEGIN TRANSACTION\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, customer) VALUES (?, ?);\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, customer) VALUES (?, ?);\n" +
+                            "COMMIT TRANSACTION";
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, personBuffer1, 32, personBuffer2);
+
+            String update = "BEGIN TRANSACTION\n" +
+                            "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0);\n" +
+                            "LET k2 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 32);\n" +
+                            "IF k1.customer.height > k2.k THEN \n" +
+                            "    UPDATE " + qualifiedAccordTableName + " SET customer = ? WHERE k = 32;\n" +
+                            "END IF\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.SERIAL, personBuffer1);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 32;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(32, personBuffer1);
+        });
+    }
+
+    @Test
+    public void testLetComparisonWithUDT() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, customer person) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            Object personValue1 = CQLTester.userType("height", 74, "age", 37);
+            ByteBuffer personBuffer1 = CQLTester.makeByteBuffer(personValue1, null);
+
+            Object personValue2 = CQLTester.userType("height", 74, "age", 38);
+            ByteBuffer personBuffer2 = CQLTester.makeByteBuffer(personValue2, null);
+
+            String insert = "BEGIN TRANSACTION\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, customer) VALUES (?, ?);\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, customer) VALUES (?, ?);\n" +
+                            "COMMIT TRANSACTION";
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY, 0, personBuffer1, 1, personBuffer2);
+
+            String update = "BEGIN TRANSACTION\n" +
+                            "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0);\n" +
+                            "LET k2 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                            "IF k1.customer.height = k2.customer.height THEN \n" +
+                            "    UPDATE " + qualifiedAccordTableName + " SET customer = ? WHERE k = 1;\n" +
+                            "END IF\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.SERIAL, personBuffer1);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, personBuffer1);
         });
     }
 }
