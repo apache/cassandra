@@ -463,10 +463,10 @@ public abstract class AbstractReplicationStrategy
     }
 
     protected CoordinationPlan.ForWrite planForWriteInternal(ClusterMetadata metadata,
-                                                                          Keyspace keyspace,
-                                                                          ConsistencyLevel consistencyLevel,
-                                                                          Function<ClusterMetadata, ReplicaLayout.ForTokenWrite> liveAndDown,
-                                                                          ReplicaPlans.Selector selector)
+                                                             Keyspace keyspace,
+                                                             ConsistencyLevel consistencyLevel,
+                                                             Function<ClusterMetadata, ReplicaLayout.ForTokenWrite> liveAndDown,
+                                                             ReplicaPlans.Selector selector)
     {
         ReplicaPlan.ForWrite plan = ReplicaPlans.forWrite(metadata, keyspace, consistencyLevel, liveAndDown, selector);
         ResponseTracker tracker = createTrackerForWrite(consistencyLevel, plan, plan.pending, metadata);
@@ -651,7 +651,7 @@ public abstract class AbstractReplicationStrategy
     /**
      * Create ResponseTracker for read operation.
      */
-    public <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> ResponseTracker createTrackerForRead(P plan)
+    private  <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> ResponseTracker createTrackerForRead(P plan)
     {
         int blockFor = plan.readQuorum();
 
