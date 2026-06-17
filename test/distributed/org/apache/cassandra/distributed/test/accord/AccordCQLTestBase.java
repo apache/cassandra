@@ -3738,7 +3738,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v map<int, int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
             String insert = "BEGIN TRANSACTION\n" +
-                            "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (0, {1:3});\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (0, {1:3, 2:6});\n" +
                             "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, {0:5});\n" +
                             "COMMIT TRANSACTION";
             cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY);
