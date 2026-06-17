@@ -197,12 +197,6 @@ public class WriteResponseTracker implements ResponseTracker
     }
 
     @Override
-    public int totalRequired()
-    {
-        return total.required();
-    }
-
-    @Override
     public String toString()
     {
         return String.format("WriteResponseTracker[baseBlockFor=%d, totalBlockFor=%d, " +

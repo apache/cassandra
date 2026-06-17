@@ -139,12 +139,6 @@ public class CompositeTracker implements ResponseTracker
     }
 
     @Override
-    public int totalRequired()
-    {
-        return count(ResponseTracker::totalRequired);
-    }
-
-    @Override
     public int totalContacts()
     {
         return count(ResponseTracker::totalContacts);

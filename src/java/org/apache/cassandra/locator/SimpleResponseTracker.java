@@ -147,12 +147,6 @@ public class SimpleResponseTracker implements ResponseTracker
     }
 
     @Override
-    public int totalRequired()
-    {
-        return required();
-    }
-
-    @Override
     public int totalContacts()
     {
         return totalReplicas;

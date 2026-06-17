@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.locator;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.exceptions.RequestFailureReason;
 
 /**
@@ -109,11 +111,13 @@ public interface ResponseTracker
      * @param from endpoint to check
      * @return true if responses from this endpoint count toward quorum
      */
+    @VisibleForTesting
     boolean countsTowardQuorum(InetAddressAndPort from);
 
+    /**
+     * Indicates that the given address is a pending replica. Accepting writes but not reads
+     */
     boolean isPending(InetAddressAndPort from);
-
-    int totalRequired();
 
     int totalContacts();
 

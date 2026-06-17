@@ -289,7 +289,6 @@ public class WriteResponseTrackerTest
         WriteResponseTracker tracker = new WriteResponseTracker(2, 3, 3, 1, isPending);
 
         assertEquals(2, tracker.baseBlockFor());
-        assertEquals(3, tracker.totalRequired());
         assertEquals(3, tracker.required()); // Returns totalBlockFor for error messages
 
         tracker.onResponse(endpoint("127.0.0.1"));
