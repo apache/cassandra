@@ -622,11 +622,25 @@ public class AccordService implements IAccordService, Shutdownable
             {
                 replayJournal(minSegments);
 
-                logger.info("Try to execute pending transactions...");
-                List<AsyncResult<Void>> results = new ArrayList<>();
-                node.commandStores().forAllUnsafe(commandStore -> results.add(commandStore.tryToExecuteListeningTxns(false)));
-                if (!results.isEmpty())
-                    getBlocking(AsyncResults.reduce(results, Reduce.toNull()));
+                if (getAccord().execute_waiting_on_start)
+                {
+                    logger.info("Execute waiting transactions...");
+                    List<AsyncResult<Void>> results = new ArrayList<>();
+                    node.commandStores().forAllUnsafe(commandStore -> results.add(commandStore.tryToExecuteListeningTxns(false)));
+                    if (!results.isEmpty())
+                    {
+                        Future<?> future = toFuture(AsyncResults.reduce(results, Reduce.toNull()));
+                        long timeoutSeconds = getAccord().execute_waiting_on_start_timeout.toSeconds();
+                        if (timeoutSeconds <= 0) future.awaitUninterruptibly().rethrowIfFailed();
+                        else if (!future.awaitUninterruptibly(timeoutSeconds, SECONDS))
+                        {
+                            if (getAccord().execute_waiting_on_start_fail_on_timeout)
+                                throw new RuntimeException("Timeout waiting to exeute waiting transactions");
+                            logger.warn("Timeout waiting to exeute waiting transactions");
+                        }
+                        else future.rethrowIfFailed();
+                    }
+                }
             }
         }
         finally

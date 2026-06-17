@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.journal;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -94,12 +95,18 @@ import org.apache.cassandra.tools.FieldUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
 import static accord.impl.PrefixedIntHashKey.ranges;
+import static accord.primitives.SaveStatus.Erased;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class AccordJournalBurnTest extends BurnTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordJournalBurnTest.class);
+
+    static
+    {
+        Cluster.RandomLoader.CMD_BASE_CHECK_CHANCE = 0.1f;
+    }
 
     public static void setUp() throws Throwable
     {
@@ -331,13 +338,21 @@ public class AccordJournalBurnTest extends BurnTestBase
                                  {
                                      Command b = e.getValue();
                                      Command a = after.get(e.getKey());
+                                     if (b != null && b.saveStatus == Erased) b = null;
+                                     if (a != null && a.saveStatus == Erased) a = null;
                                      Invariants.require(Objects.equals(a, b));
                                  }
                                  if (before.size() != after.size())
                                  {
-                                     for (Map.Entry<JournalKey, Command> e : after.entrySet())
-                                         Invariants.require(null != before.get(e.getKey()));
-                                     Invariants.require(false);
+                                     for (Map<JournalKey, Command> m : Arrays.asList(before, after))
+                                     {
+                                        for (JournalKey k : m.keySet())
+                                        {
+                                            Command b = before.get(k);
+                                            Command a = after.get(k);
+                                            Invariants.require((a == null || a.saveStatus == Erased) == (b == null || b.saveStatus == Erased), "%s != %s", a, b);
+                                        }
+                                     }
                                  }
                                  Invariants.require(!orig.equals(table.getLiveSSTables()));
                              }

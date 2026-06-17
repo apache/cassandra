@@ -192,7 +192,12 @@ public class AccordGenerators
 
     public static Gen<CommandBuilder> commandsBuilder()
     {
-        return commandsBuilder(AccordGens.txnIds(), Gens.bools().all(), Gens.enums().all(RecoveryStatus.class), (rs, txnId, txn) -> AccordGens.depsFor(txnId, txn).next(rs));
+        return commandsBuilder(AccordGens.txnIds());
+    }
+
+    public static Gen<CommandBuilder> commandsBuilder(Gen<TxnId> txnIdGen)
+    {
+        return commandsBuilder(txnIdGen, Gens.bools().all(), Gens.enums().all(RecoveryStatus.class), (rs, txnId, txn) -> AccordGens.depsFor(txnId, txn).next(rs));
     }
 
     public static Gen<CommandBuilder> commandsBuilder(Gen<TxnId> txnIdGen, Gen<Boolean> fastPath, Gen<RecoveryStatus> recover, TriFunction<RandomSource, TxnId, Txn, Deps> depsGen)

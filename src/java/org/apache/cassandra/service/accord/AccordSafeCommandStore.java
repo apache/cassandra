@@ -68,7 +68,6 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         this.task = task;
         this.commandsForRanges = commandsForRanges;
         this.commandStore = commandStore;
-        commandStore.updateRangesForEpoch(this);
     }
 
     @Override

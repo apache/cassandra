@@ -56,7 +56,7 @@ import accord.impl.progresslog.DefaultProgressLog;
 import accord.impl.progresslog.TxnState;
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommandSummaries;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
@@ -234,32 +234,23 @@ public class AccordCommandStore extends CommandStore
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               LocalListeners.Factory listenerFactory,
-                              EpochUpdateHolder epochUpdateHolder,
+                              RangesForEpoch rangesForEpoch,
                               Journal journal,
                               AccordExecutor sharedExecutor)
     {
-        super(id, node, agent, dataStore, progressLogFactory, listenerFactory, epochUpdateHolder);
+        super(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch);
         this.loggingId = String.format("[%s]", id);
         this.journal = journal;
         this.sharedExecutor = sharedExecutor;
         if (this.progressLog instanceof DefaultProgressLog)
             ((DefaultProgressLog)this.progressLog).unsafeSetConfig(DatabaseDescriptor.getAccordProgressLogConfig());
 
+        maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
         maybeLoadRedundantBefore(journal.loadRedundantBefore(id()));
         maybeLoadBootstrapBeganAt(journal.loadBootstrapBeganAt(id()));
         maybeLoadSafeToRead(journal.loadSafeToRead(id()));
-        maybeLoadRangesForEpoch(journal.loadRangesForEpoch(id()));
 
-        CommandStores.RangesForEpoch ranges = this.rangesForEpoch;
-        if (ranges == null || ranges.all().isEmpty())
-        {
-            EpochUpdate update = epochUpdateHolder.get();
-            if (update != null)
-                ranges = update.newRangesForEpoch;
-            Invariants.require(ranges != null, "CommandStore %d created with no ranges", id);
-        }
-
-        tableId = (TableId)ranges.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
+        tableId = (TableId)rangesForEpoch.all().stream().map(r -> r.start().prefix()).reduce((a, b) -> {
             Invariants.require(a.equals(b), "CommandStore created with multiple distinct TableId (%s and %s)", a, b);
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
@@ -610,8 +601,8 @@ public class AccordCommandStore extends CommandStore
         RedundantBefore redundantBefore;
         if (safeRedundantBefore == null) redundantBefore = RedundantBefore.EMPTY;
         else redundantBefore = safeRedundantBefore.redundantBefore;
-        CommandStores.RangesForEpoch ranges = this.rangesForEpoch;
-        if (ranges == null) ranges = CommandStores.RangesForEpoch.EMPTY;
+        RangesForEpoch ranges = this.rangesForEpoch;
+        if (ranges == null) ranges = RangesForEpoch.EMPTY;
         return new AccordCompactionInfo(id, redundantBefore, ranges, tableId);
     }
 
@@ -637,8 +628,8 @@ public class AccordCommandStore extends CommandStore
 
     protected void ensureDurable()
     {
-        RedundantBefore forCommandStore = nonDurable(unsafeGetRedundantBefore(), LOCALLY_DURABLE_TO_COMMAND_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE_ONLY);
-        RedundantBefore forDataStore = nonDurable(unsafeGetRedundantBefore(), LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_DATA_STORE_ONLY);
+        RedundantBefore forCommandStore = nonDurable(safeGetRedundantBefore(), LOCALLY_DURABLE_TO_COMMAND_STORE, LOCALLY_DURABLE_TO_COMMAND_STORE_ONLY);
+        RedundantBefore forDataStore = nonDurable(safeGetRedundantBefore(), LOCALLY_DURABLE_TO_DATA_STORE, LOCALLY_DURABLE_TO_DATA_STORE_ONLY);
         this.ensureDurable(forCommandStore.ranges(Objects::nonNull), forCommandStore);
         dataStore.ensureDurable(this, forDataStore, 0);
     }
@@ -659,7 +650,7 @@ public class AccordCommandStore extends CommandStore
 
     protected void ensureDurable(@Nullable Ranges ranges, ReportDurable onCommandStoreDurable)
     {
-        if (node().isReplaying() && onCommandStoreDurable.flags == 0 && unsafeGetRedundantBefore().isAtLeast(onCommandStoreDurable.redundantBefore))
+        if (node().isReplaying() && onCommandStoreDurable.flags == 0 && safeGetRedundantBefore().isAtLeast(onCommandStoreDurable.redundantBefore))
             return;
 
         long reportId = nextDurabilityLoggingId.incrementAndGet();
@@ -722,13 +713,6 @@ public class AccordCommandStore extends CommandStore
         super.unsafeUpsertRedundantBefore(addRedundantBefore);
     }
 
-    @VisibleForTesting
-    public void unsafeUpdateRangesForEpoch()
-    {
-        super.unsafeUpdateRangesForEpoch();
-        safeRedundantBefore = new SafeRedundantBefore(0, unsafeGetRedundantBefore());
-    }
-
     public static class AccordCommandStoreReplayer extends AbstractReplayer
     {
         private final AccordCommandStore commandStore;
@@ -760,18 +744,16 @@ public class AccordCommandStore extends CommandStore
      * Replay/state reloading
      */
 
-    void maybeLoadRedundantBefore(RedundantBefore redundantBefore)
+    protected void loadRedundantBefore(RedundantBefore redundantBefore)
     {
-        Invariants.require(safeRedundantBefore == null);
-        if (redundantBefore != null)
-        {
+        super.loadRedundantBefore(redundantBefore);
+        safeRedundantBefore = new SafeRedundantBefore(0, redundantBefore);
+    }
+
+    protected void maybeLoadRedundantBefore(RedundantBefore redundantBefore)
+    {
+        if (redundantBefore != null && !redundantBefore.isEmpty())
             loadRedundantBefore(redundantBefore);
-            safeRedundantBefore = new SafeRedundantBefore(0, redundantBefore);
-        }
-        else
-        {
-            safeRedundantBefore = new SafeRedundantBefore(0, this.unsafeGetRedundantBefore());
-        }
     }
 
     void maybeLoadBootstrapBeganAt(NavigableMap<TxnId, Ranges> bootstrapBeganAt)
@@ -786,7 +768,7 @@ public class AccordCommandStore extends CommandStore
             loadSafeToRead(safeToRead);
     }
 
-    void maybeLoadRangesForEpoch(CommandStores.RangesForEpoch rangesForEpoch)
+    void maybeLoadRangesForEpoch(RangesForEpoch rangesForEpoch)
     {
         if (rangesForEpoch != null)
             loadRangesForEpoch(rangesForEpoch);
