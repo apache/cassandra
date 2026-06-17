@@ -1,4 +1,5 @@
 4.0.21
+ * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
  * Fix negative memtable allocator ownership when an update is shadowed by an existing row deletion (CASSANDRA-21469)
  * Consider first token of SSTable when calculating SSTable intersection in LeveledScanner  (CASSANDRA-21369)
  * Remove inFlightEcho entry on ECHO_REQ failure (CASSANDRA-21428)
