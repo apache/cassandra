@@ -3732,4 +3732,33 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             assertThat(result).hasSize(1).contains(1, personBuffer1);
         });
     }
+
+    @Test
+    public void testLetComparisonWithMap() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v map<int, int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            String insert = "BEGIN TRANSACTION\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (0, {1:3});\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, {0:5});\n" +
+                            "COMMIT TRANSACTION";
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY);
+
+            String update = "BEGIN TRANSACTION\n" +
+                            "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0);\n" +
+                            "LET k2 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                            "IF k1.v[1] < k2.v[0] THEN \n" +
+                            "    UPDATE " + qualifiedAccordTableName + " SET v = {1:10} WHERE k = 1;\n" +
+                            "END IF\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT v[1] FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(10);
+        });
+    }
 }
