@@ -92,11 +92,11 @@ public class PeerLogFetcher
         logger.info("Fetching log from {}, at least {}", remote, awaitAtleast);
         try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
         {
-            RemoteProcessor.sendWithCallbackAsync(fetchRes,
-                                                  Verb.TCM_FETCH_PEER_LOG_REQ,
-                                                  new FetchPeerLog(before),
-                                                  new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
-                                                  Retry.untilElapsed(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
+            RemoteProcessor.sendWithRetries(Verb.TCM_FETCH_PEER_LOG_REQ,
+                                            new FetchPeerLog(before),
+                                            fetchRes,
+                                            new RemoteProcessor.CandidateIterator(Collections.singletonList(remote), false),
+                                            Retry.untilElapsed(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS), TCMMetrics.instance.fetchLogRetries));
 
             return fetchRes.map((logState) -> {
                 log.append(logState);

@@ -27,6 +27,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.utils.Invariants;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -281,7 +283,7 @@ public class Commit
                 }
                 else
                 {
-                    assert t instanceof Failure;
+                    Invariants.require(t instanceof Failure);
                     Failure failure = (Failure) t;
                     out.writeByte(failure.rejected ? REJECTED : FAILED);
                     out.writeUnsignedVInt32(failure.code.value);
@@ -327,9 +329,10 @@ public class Commit
                 }
                 else
                 {
-                    assert t instanceof Failure;
-                    size += VIntCoding.computeUnsignedVIntSize(((Failure) t).code.value);
-                    size += TypeSizes.sizeof(((Failure)t).message);
+                    Invariants.require(t instanceof Failure);
+                    Failure failure = (Failure) t;
+                    size += VIntCoding.computeUnsignedVIntSize(failure.code.value);
+                    size += TypeSizes.sizeof(failure.message);
                     size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
                     size += LogState.metadataSerializer.serializedSize(t.logState(), serializationVersion);
                 }
@@ -375,15 +378,9 @@ public class Commit
                 Result.Success success = result.success();
                 replicator.send(success, message.from());
                 logger.info("Responding with full result {} to sender {}", result, message.from());
-                // TODO: this response message can get lost; how do we re-discover this on the other side?
-                // TODO: what if we have holes after replaying?
-                messagingService.accept(message.responseWith(result), message.from());
             }
-            else
-            {
-                Result.Failure failure = result.failure();
-                messagingService.accept(message.responseWith(failure), message.from());
-            }
+
+            messagingService.accept(message.responseWith(result), message.from());
         }
 
         private void checkCMSState()
