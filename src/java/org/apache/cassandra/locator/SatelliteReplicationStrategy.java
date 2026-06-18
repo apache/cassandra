@@ -866,14 +866,12 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         {
             final @Nullable Index.QueryPlan indexQueryPlan;
             final boolean alwaysSpeculate;
-            final boolean throwOnInsufficientLiveReplicas;
 
-            public ForRead(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, L fullLayout, @Nullable Index.QueryPlan indexQueryPlan, boolean alwaysSpeculate, boolean throwOnInsufficientLiveReplicas)
+            public ForRead(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, L fullLayout, @Nullable Index.QueryPlan indexQueryPlan, boolean alwaysSpeculate)
             {
                 super(metadata, keyspace, cl, strategy, primary, fullLayout);
                 this.indexQueryPlan = indexQueryPlan;
                 this.alwaysSpeculate = alwaysSpeculate;
-                this.throwOnInsufficientLiveReplicas = throwOnInsufficientLiveReplicas;
             }
 
             @Override
@@ -964,9 +962,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             final SpeculativeRetryPolicy retry;
             final ReadCoordinator coordinator;
 
-            public ForTokenRead(ClusterMetadata metadata, Keyspace keyspace, Token token, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForTokenRead fullLayout, @Nullable Index.QueryPlan indexQueryPlan, SpeculativeRetryPolicy retry, boolean throwOnInsufficientLiveReplicas, TableId tableId, ReadCoordinator coordinator)
+            public ForTokenRead(ClusterMetadata metadata, Keyspace keyspace, Token token, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForTokenRead fullLayout, @Nullable Index.QueryPlan indexQueryPlan, SpeculativeRetryPolicy retry, TableId tableId, ReadCoordinator coordinator)
             {
-                super(metadata, keyspace, cl, strategy, primary, fullLayout, indexQueryPlan, retry == AlwaysSpeculativeRetryPolicy.INSTANCE, throwOnInsufficientLiveReplicas);
+                super(metadata, keyspace, cl, strategy, primary, fullLayout, indexQueryPlan, retry == AlwaysSpeculativeRetryPolicy.INSTANCE);
                 this.token = token;
                 this.tableId = tableId;
                 this.retry = retry;
@@ -1005,9 +1003,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             final int vnodeCount;
             final TableId tableId;
 
-            public ForRangeRead(ClusterMetadata metadata, Keyspace keyspace, AbstractBounds<PartitionPosition> range, int vnodeCount, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForRangeRead fullLayout, @Nullable Index.QueryPlan indexQueryPlan, boolean throwOnInsufficientLiveReplicas, TableId tableId)
+            public ForRangeRead(ClusterMetadata metadata, Keyspace keyspace, AbstractBounds<PartitionPosition> range, int vnodeCount, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForRangeRead fullLayout, @Nullable Index.QueryPlan indexQueryPlan, TableId tableId)
             {
-                super(metadata, keyspace, cl, strategy, primary, fullLayout, indexQueryPlan, false, throwOnInsufficientLiveReplicas);
+                super(metadata, keyspace, cl, strategy, primary, fullLayout, indexQueryPlan, false);
                 this.range = range;
                 this.vnodeCount = vnodeCount;
                 this.tableId = tableId;
@@ -1310,7 +1308,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 totalContactedDcs++;
             }
 
-            if (planner.throwOnInsufficientLiveReplicas && !haveSufficientLiveNodes(totalContacts, totalContactedDcs))
+            if (!haveSufficientLiveNodes(totalContacts, totalContactedDcs))
             {
                 int fullReplicas = 0;
                 for (String dc : planner.dcs)
@@ -1714,7 +1712,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
     {
         ReplicaLayout.ForTokenRead fullLayout = ReplicaLayout.forTokenReadSorted(metadata, keyspace, this, tableId, token, coordinator);
 
-        CoordinationPlanner.ForTokenRead planner = new CoordinationPlanner.ForTokenRead(metadata, keyspace, token, consistencyLevel, this, primary, fullLayout, indexQueryPlan, retry, true, tableId, coordinator);
+        CoordinationPlanner.ForTokenRead planner = new CoordinationPlanner.ForTokenRead(metadata, keyspace, token, consistencyLevel, this, primary, fullLayout, indexQueryPlan, retry, tableId, coordinator);
 
         return new CoordinationPlan.ForTokenRead(ReplicaPlan.shared(planner.createReplicaPlan()), planner.createResponseTracker());
     }
@@ -1786,7 +1784,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
         ReplicaLayout.ForRangeRead fullLayout = ReplicaLayout.forRangeReadSorted(metadata, keyspace, this, range);
 
-        CoordinationPlanner.ForRangeRead planner = new CoordinationPlanner.ForRangeRead(metadata, keyspace, range, vnodeCount, consistencyLevel, this, primary, fullLayout, indexQueryPlan, true, tableId);
+        CoordinationPlanner.ForRangeRead planner = new CoordinationPlanner.ForRangeRead(metadata, keyspace, range, vnodeCount, consistencyLevel, this, primary, fullLayout, indexQueryPlan, tableId);
 
         return new CoordinationPlan.ForRangeRead(ReplicaPlan.shared(planner.createReplicaPlan()), planner.createResponseTracker());
     }
