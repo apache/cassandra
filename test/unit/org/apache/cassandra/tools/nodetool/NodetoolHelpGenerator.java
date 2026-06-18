@@ -181,9 +181,10 @@ public class NodetoolHelpGenerator
         int rc = new NodeTool(NO_PROBE, new Output(outStream, errStream)).execute(args.toArray(new String[0]));
         outStream.flush();
         errStream.flush();
-        if (rc != 0)
+        String stderr = err.toString(StandardCharsets.UTF_8);
+        if (rc != 0 || !stderr.trim().isEmpty())
             throw new RuntimeException("nodetool help " + String.join(" ", command) + " failed (rc=" + rc + "): "
-                                       + err.toString(StandardCharsets.UTF_8));
+                                       + stderr);
         return out.toString(StandardCharsets.UTF_8);
     }
 
