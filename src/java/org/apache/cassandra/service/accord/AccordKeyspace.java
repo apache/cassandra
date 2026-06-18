@@ -52,6 +52,7 @@ import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -116,6 +117,7 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.AccordConfig.RangeIndexMode.journal_sai;
 import static org.apache.cassandra.db.partitions.PartitionUpdate.singleRowUpdate;
 import static org.apache.cassandra.db.rows.BTreeRow.singleCellRow;
@@ -269,7 +271,7 @@ public class AccordKeyspace
         static CommandsForKey unsafeLoad(CommandsForKeyAccessor accessor, int commandStoreId, TokenKey key)
         {
             long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Global.currentTimeMillis());
-            int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
+            int nowInSeconds = (int) MICROSECONDS.toSeconds(timestampMicros);
 
             SinglePartitionReadCommand command = makeRead(accessor, commandStoreId, key, nowInSeconds);
 
@@ -346,7 +348,9 @@ public class AccordKeyspace
         {
             return singleRowUpdate(CFKAccessor.table,
                                    CommandsForKeyAccessor.makeSystemTableKey(storeId, key),
-                                   singleCellRow(Clustering.EMPTY, BufferCell.live(CFKAccessor.data, timestampMicros, bytes)));
+                                   singleCellRow(Clustering.EMPTY,
+                                                 LivenessInfo.create(timestampMicros),
+                                                 BufferCell.live(CFKAccessor.data, timestampMicros, bytes)));
         }
 
         public static Runnable systemTableUpdater(int storeId, TokenKey key, CommandsForKey update, Object serialized, long timestampMicros)

@@ -235,14 +235,14 @@ public class UnfilteredRowsGenerator
     static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
         final Clustering<?> clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos));
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
     static Row emptyRowAt(int pos, int time, long deletionTime)
     {
         final Clustering<?> clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(time, UnfilteredRowIteratorsMergeTest.nowInSec);
+        final LivenessInfo live = LivenessInfo.create(time);
         final DeletionTime delTime = deletionTime == -1 ? DeletionTime.LIVE : DeletionTime.build(deletionTime, deletionTime);
         return BTreeRow.create(clustering, live, Row.Deletion.regular(delTime), BTree.empty());
     }

@@ -140,7 +140,7 @@ public class EpochSyncTest
     @Test
     public void test()
     {
-        stateful().withSeed(152472217520379L).withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
+        stateful().withExamples(50).withSteps(500).check(commands(() -> Cluster::new)
                 .destroyState(cluster -> {
                     finishPendingWork(cluster);
                     cluster.processAll();

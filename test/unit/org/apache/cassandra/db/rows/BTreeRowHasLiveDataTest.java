@@ -146,7 +146,7 @@ public class BTreeRowHasLiveDataTest
         long ts = timestampMicro(nowInSec);
 
         Row.Builder b = newBuilder();
-        b.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts, nowInSec));
+        b.addPrimaryKeyLivenessInfo(LivenessInfo.create(ts));
         // No cells.
         Row row = b.build();
 

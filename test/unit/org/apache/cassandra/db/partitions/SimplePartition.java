@@ -113,12 +113,12 @@ public class SimplePartition extends AbstractBTreePartition
 
     public SimplePartition addEmptyAndLive(Clustering<?> ck)
     {
-        return addEmptyAndLive(ck, DEFAULT_TIMESTAMP, DEFAULT_TIMESTAMP);
+        return addEmptyAndLive(ck, DEFAULT_TIMESTAMP);
     }
 
-    public SimplePartition addEmptyAndLive(Clustering<?> ck, long timestamp, long nowInSec)
+    public SimplePartition addEmptyAndLive(Clustering<?> ck, long timestamp)
     {
-        return add(ck).liveness(timestamp, nowInSec).build();
+        return add(ck).liveness(timestamp).build();
     }
 
     public RowIterator filtered()
@@ -142,9 +142,9 @@ public class SimplePartition extends AbstractBTreePartition
             return this;
         }
 
-        public RowBuilder liveness(long timestamp, long nowInSec)
+        public RowBuilder liveness(long timestamp)
         {
-            builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, nowInSec));
+            builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp));
             return this;
         }
 

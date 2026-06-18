@@ -116,14 +116,12 @@ public class AccordLoadTest extends AccordTestBase
                   .set("accord.shard_durability_max_splits", "16")
                   .set("accord.shard_durability_cycle", "1m")
                   .set("accord.queue_submission_model", "SIGNAL")
-//                  .set("accord.queue_submission_model", "SEMI_SYNC")
                   .set("accord.command_store_shard_count", "8")
                   .set("accord.queue_thread_count", "4")
                   .set("accord.queue_shard_count", "1")
                   .set("accord.replica_execution", "ALL")
                   .set("accord.send_stable", "TO_ALL_REPLICA_EXECUTABLE_ELSE_FOR_READS")
                   .set("accord.send_minimal", "false")
-//                  .set("accord.permit_fast_quorum_medium_path", "false")
                   .set("accord.catchup_on_start_fail_latency", "2m");
         }), nodeCount);
     }

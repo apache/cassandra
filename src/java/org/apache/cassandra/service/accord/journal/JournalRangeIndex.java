@@ -366,7 +366,7 @@ public class JournalRangeIndex extends SemiSyncIntervalTree<Object[]> implements
 
     public JournalRangeIndex.Loader loader(TxnId primaryTxnId, Timestamp primaryExecuteAt, LoadKeysFor loadKeysFor, Unseekables<?> keysOrRanges)
     {
-        RedundantBefore redundantBefore = commandStore.unsafeGetRedundantBefore();
+        RedundantBefore redundantBefore = commandStore.safeGetRedundantBefore();
         MaxDecidedRX maxDecidedRX = commandStore.unsafeGetMaxDecidedRX();
         return SummaryLoader.loader(redundantBefore, maxDecidedRX, primaryTxnId, primaryExecuteAt, loadKeysFor, keysOrRanges, this::newLoader);
     }

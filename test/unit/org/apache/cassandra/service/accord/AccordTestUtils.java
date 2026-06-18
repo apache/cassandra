@@ -49,7 +49,7 @@ import accord.impl.DefaultLocalListeners;
 import accord.impl.DefaultLocalListeners.NotifySink.NoOpNotifySink;
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.local.CommandStores;
+import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
 import accord.local.Node;
 import accord.local.Node.Id;
@@ -404,15 +404,11 @@ public class AccordTestUtils
         AccordJournal journal = new AccordJournal(spec);
         journal.start(null);
 
-        CommandStore.EpochUpdateHolder holder = new CommandStore.EpochUpdateHolder();
         Ranges ranges = topology.rangesForNode(node);
-        holder.add(1, new CommandStores.RangesForEpoch(1, ranges), ranges);
-        AccordCommandStore result = new AccordCommandStore(0, time, agent, null,
+        return new AccordCommandStore(0, time, agent, null,
                                                            cs -> new NoOpProgressLog(),
                                                            cs -> new DefaultLocalListeners(null, new NoOpRemoteListeners(), new NoOpNotifySink()),
-                                                           holder, journal, executor);
-        result.unsafeUpdateRangesForEpoch();
-        return result;
+                                      new RangesForEpoch(1, ranges), journal, executor);
     }
 
     public static AccordCommandStore createAccordCommandStore(
