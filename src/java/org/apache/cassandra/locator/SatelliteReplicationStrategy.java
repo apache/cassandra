@@ -587,7 +587,6 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         // Paxos consensus operates entirely within the primary DC
         Predicate<Replica> inPrimaryDC = rp -> metadata.locator.location(rp.endpoint()).datacenter.equals(primaryDC);
         ReplicaLayout.ForTokenWrite primaryAll = fullLayout.filter(inPrimaryDC);
-        ReplicaLayout.ForTokenWrite primaryElectorate = primaryAll;
 
         // Satellite/secondary DC endpoints for reads during prepare and writes during commit.
         // Only include the primary DC's satellite and other full DCs — not satellites of other DCs.
@@ -604,14 +603,13 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
         EndpointsForToken live = fullLayout.all().filter(isReplicaAlive);
 
-        Token actualToken = token;
         return new SatellitePaxosParticipants(metadata.epoch,
                                               Keyspace.open(table.keyspace),
                                               consistencyForConsensus,
                                               primaryAll,
-                                              primaryElectorate,
+                                              primaryAll, // DC filtering happens earlier
                                               live,
-                                              (cm) -> Paxos.Participants.get(cm, table, actualToken, consistencyForConsensus),
+                                              (cm) -> Paxos.Participants.get(cm, table, token, consistencyForConsensus),
                                               satelliteEndpoints);
     }
 
@@ -694,7 +692,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
             for (String dc : strategy.fullDCs.keySet())
             {
-                if (dc.equals(primary) || dc.equals(satellite) || strategy.disabledDCs.contains(dc))
+                if (dc.equals(primary) || strategy.disabledDCs.contains(dc))
                     continue;
                 results.add(dc);
             }
@@ -774,9 +772,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 super(metadata, keyspace, cl, strategy, primary, fullLayout);
                 this.selector = selector;
                 if (ADDL_CHECKS_ENABLED)
-                {
                     Preconditions.checkState(!strategy.disabledDCs.contains(primary));
-                }
             }
 
             @Override
