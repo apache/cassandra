@@ -3628,7 +3628,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             catch (Throwable t)
             {
                 assertEquals(InvalidRequestException.class.getName(), t.getClass().getName());
-                assertEquals("Invalid type comparison: cannot compare type text with type int", t.getMessage());
+                assertEquals("Row reference (k1.k) must have the same type as row reference (k2.customer.height)", t.getMessage());
             }
         });
     }

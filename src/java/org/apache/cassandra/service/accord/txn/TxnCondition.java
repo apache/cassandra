@@ -51,7 +51,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.ParameterisedUnversionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -700,9 +699,6 @@ public abstract class TxnCondition
         {
             AbstractType<?> typeLHS = getColumnType(referenceLHS);
             AbstractType<?> typeRHS = getColumnType(referenceRHS);
-
-            if (typeLHS != typeRHS)
-                throw new InvalidRequestException(String.format("Invalid type comparison: cannot compare type %s with type %s", typeLHS.asCQL3Type(), typeRHS.asCQL3Type()));
 
             ByteBuffer lhs = referenceLHS.toByteBuffer(data, typeLHS);
             ByteBuffer rhs = referenceRHS.toByteBuffer(data, typeRHS);
