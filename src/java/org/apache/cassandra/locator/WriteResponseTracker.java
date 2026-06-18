@@ -27,17 +27,17 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
  * <p>
  * Two requirements must be satisfied for success:
  * <ol>
- *   <li>Committed replicas must satisfy base CL: {@code committedSuccesses >= baseBlockFor}</li>
- *   <li>Total replicas (committed + pending) must satisfy: {@code totalSuccesses >= totalBlockFor}</li>
+ *   <li>Committed replicas must satisfy base CL: {@code naturalSuccesses >= baseBlockFor}</li>
+ *   <li>Total replicas (natural + pending) must satisfy: {@code totalSuccesses >= totalBlockFor}</li>
  * </ol>
  * <p>
- * This ensures both consistency (committed replicas have the data) and bootstrap safety
+ * This ensures both consistency (natural replicas have the data) and bootstrap safety
  * (pending replicas also receive the write).
  * <p>
  * Implemented by composing two {@link SimpleResponseTracker}s:
  * <ul>
- *   <li>committedTracker: tracks responses from committed replicas only</li>
- *   <li>totalTracker: tracks responses from all replicas (committed + pending)</li>
+ *   <li>naturalTracker: tracks responses from natural replicas only</li>
+ *   <li>totalTracker: tracks responses from all replicas (natural + pending)</li>
  * </ul>
  * <p>
  * Thread-safe through delegation to thread-safe SimpleResponseTrackers.
@@ -50,27 +50,27 @@ public class WriteResponseTracker implements ResponseTracker
     /**
      * Create a write response tracker with the double count model.
      *
-     * @param baseBlockFor      number of committed replica responses required for CL
+     * @param baseBlockFor      number of natural replica responses required for CL
      * @param totalBlockFor     total responses required (baseBlockFor + pending count)
-     * @param committedReplicas number of committed replicas available
+     * @param naturalReplicas number of natural replicas available
      * @param pendingReplicas   number of pending replicas available
      * @param isPending         predicate to determine if an endpoint is pending
      */
     public WriteResponseTracker(int baseBlockFor,
                                 int totalBlockFor,
-                                int committedReplicas,
+                                int naturalReplicas,
                                 int pendingReplicas,
                                 Predicate<InetAddressAndPort> isPending)
     {
-        this(baseBlockFor, totalBlockFor, committedReplicas, pendingReplicas, isPending, null);
+        this(baseBlockFor, totalBlockFor, naturalReplicas, pendingReplicas, isPending, null);
     }
 
     /**
      * Create a write response tracker with the double count model and a filter.
      *
-     * @param naturalBlockFor      number of committed replica responses required for CL
+     * @param naturalBlockFor      number of natural replica responses required for CL
      * @param totalBlockFor     total responses required (naturalBlockFor + pending count)
-     * @param naturalReplicas number of committed replicas available
+     * @param naturalReplicas number of natural replicas available
      * @param pendingReplicas   number of pending replicas available
      * @param isPending         predicate to determine if an endpoint is pending
      * @param filter            predicate to filter which responses count (e.g., InOurDc for LOCAL_QUORUM)
@@ -171,7 +171,7 @@ public class WriteResponseTracker implements ResponseTracker
         return total.countsTowardQuorum(from);
     }
 
-    public int committedReceived()
+    public int naturalReceived()
     {
         return natural.received();
     }
@@ -181,7 +181,7 @@ public class WriteResponseTracker implements ResponseTracker
         return total.received() - natural.received();
     }
 
-    public int committedFailures()
+    public int naturalFailures()
     {
         return natural.failures();
     }
@@ -200,7 +200,7 @@ public class WriteResponseTracker implements ResponseTracker
     public String toString()
     {
         return String.format("WriteResponseTracker[baseBlockFor=%d, totalBlockFor=%d, " +
-                             "committedTracker=%s, totalTracker=%s]",
+                             "naturalTracker=%s, totalTracker=%s]",
                              baseBlockFor(), required(),
                              natural, total);
     }

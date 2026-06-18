@@ -796,11 +796,11 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 }
                 else
                 {
-                    int committedContacts = totalContacts - pendingInDc;
+                    int naturalContacts = totalContacts - pendingInDc;
                     int totalBlockFor = blockFor + pendingInDc;
                     Predicate<InetAddressAndPort> isPending = ep -> dcLayout.pending.endpoints().contains(ep);
                     return new WriteResponseTracker(blockFor, totalBlockFor,
-                                                    committedContacts, pendingInDc,
+                                                    naturalContacts, pendingInDc,
                                                     isPending, dcFilter);
                 }
             }
@@ -1108,8 +1108,8 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 int blockFor = planner.cl.blockFor(planner.strategy);
                 int totalBlockFor = blockFor + totalPending;
 
-                Preconditions.checkState(blockFor <= totalContacts, "Simple tracker: blockFor=%s > totalContacts=%s for CL %s", blockFor, totalContacts, planner.cl);
-
+                if (blockFor > totalContacts)
+                    throw UnavailableException.create(planner.cl, blockFor, totalBlockFor, totalContacts - totalPending, totalContacts);
 
                 if (totalPending == 0)
                     return new SimpleResponseTracker(blockFor, totalContacts, filter);
@@ -1249,7 +1249,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             if (fullReplica == null)
             {
                 // No full replicas available - throw error similar to assureSufficientLiveReplicas
-                throw UnavailableException.create(ConsistencyLevel.ONE, minBlockFor(), 1, eligibleCandidates(candidates), 0);
+                throw new UnavailableException("No full replicas available", planner.cl, 1, eligibleCandidates(candidates));
             }
 
             int totalContacts = 0;
@@ -1656,6 +1656,12 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             logger.trace("Sending satellite commit mutation for {} to {}", commit.partitionKey(), endpoint);
             MessagingService.instance().sendWithCallback(satelliteMessage, endpoint, new RequestCallback<NoPayload>()
             {
+                @Override
+                public boolean invokeOnFailure()
+                {
+                    return true;
+                }
+
                 @Override
                 public void onResponse(Message<NoPayload> msg)
                 {

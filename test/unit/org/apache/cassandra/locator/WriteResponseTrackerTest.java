@@ -60,7 +60,7 @@ public class WriteResponseTrackerTest
         tracker.onResponse(endpoint("127.0.0.4"));
         assertTrue("Should be complete", tracker.isComplete());
         assertTrue("Should be successful", tracker.isSuccessful());
-        assertEquals(2, tracker.committedReceived());
+        assertEquals(2, tracker.naturalReceived());
         assertEquals(1, tracker.pendingReceived());
         assertEquals(3, tracker.received());
     }
@@ -79,7 +79,7 @@ public class WriteResponseTrackerTest
         tracker.onResponse(endpoint("127.0.0.1"));
         tracker.onResponse(endpoint("127.0.0.4"));
         assertFalse("Should not be complete - need 2 committed", tracker.isComplete());
-        assertEquals(1, tracker.committedReceived());
+        assertEquals(1, tracker.naturalReceived());
         assertEquals(1, tracker.pendingReceived());
 
         // 2 committed failures -> can't reach 2 committed
@@ -104,7 +104,7 @@ public class WriteResponseTrackerTest
         tracker.onResponse(endpoint("127.0.0.1"));
         tracker.onResponse(endpoint("127.0.0.2"));
         assertFalse("Should not be complete - need 4 total", tracker.isComplete());
-        assertEquals(2, tracker.committedReceived());
+        assertEquals(2, tracker.naturalReceived());
 
         // 1 committed failure, 2 pending failures -> only 3 total possible, need 4
         tracker.onFailure(endpoint("127.0.0.3"), TIMEOUT);
@@ -128,7 +128,7 @@ public class WriteResponseTrackerTest
         tracker.onResponse(endpoint("127.0.0.2"));
         assertTrue(tracker.isComplete());
         assertTrue(tracker.isSuccessful());
-        assertEquals(2, tracker.committedReceived());
+        assertEquals(2, tracker.naturalReceived());
         assertEquals(0, tracker.pendingReceived());
     }
 
@@ -147,7 +147,7 @@ public class WriteResponseTrackerTest
         assertTrue(tracker.isComplete());
         assertFalse(tracker.isSuccessful());
         assertEquals(0, tracker.received());
-        assertEquals(2, tracker.committedFailures());
+        assertEquals(2, tracker.naturalFailures());
     }
 
     @Test
@@ -166,7 +166,7 @@ public class WriteResponseTrackerTest
 
         assertTrue(tracker.isComplete());
         assertTrue(tracker.isSuccessful());
-        assertEquals(3, tracker.committedReceived());
+        assertEquals(3, tracker.naturalReceived());
         assertEquals(1, tracker.pendingReceived());
         assertEquals(4, tracker.received());
         assertEquals(0, tracker.failures());
@@ -185,7 +185,7 @@ public class WriteResponseTrackerTest
         // Pending arrives first
         tracker.onResponse(endpoint("127.0.0.4"));
         assertFalse(tracker.isComplete());
-        assertEquals(0, tracker.committedReceived());
+        assertEquals(0, tracker.naturalReceived());
         assertEquals(1, tracker.pendingReceived());
 
         // Then committed
@@ -235,8 +235,8 @@ public class WriteResponseTrackerTest
         tracker.onFailure(endpoint("127.0.0.5"), TIMEOUT);
 
         assertFalse("Need 5 total, only have 3", tracker.isComplete());
-        assertEquals(3, tracker.committedReceived());
-        assertEquals(2, tracker.committedFailures());
+        assertEquals(3, tracker.naturalReceived());
+        assertEquals(2, tracker.naturalFailures());
 
         // 2 pending successes
         tracker.onResponse(endpoint("127.0.0.6"));
@@ -244,7 +244,7 @@ public class WriteResponseTrackerTest
 
         assertTrue(tracker.isComplete());
         assertTrue(tracker.isSuccessful());
-        assertEquals(3, tracker.committedReceived());
+        assertEquals(3, tracker.naturalReceived());
         assertEquals(2, tracker.pendingReceived());
         assertEquals(5, tracker.received());
     }
@@ -295,9 +295,9 @@ public class WriteResponseTrackerTest
         tracker.onFailure(endpoint("127.0.0.2"), TIMEOUT);
         tracker.onResponse(endpoint("127.0.0.4"));
 
-        assertEquals(1, tracker.committedReceived());
+        assertEquals(1, tracker.naturalReceived());
         assertEquals(1, tracker.pendingReceived());
-        assertEquals(1, tracker.committedFailures());
+        assertEquals(1, tracker.naturalFailures());
         assertEquals(0, tracker.pendingFailures());
         assertEquals(2, tracker.received());
         assertEquals(1, tracker.failures());
