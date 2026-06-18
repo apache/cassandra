@@ -90,7 +90,7 @@ public class MutationJournal
     // opaque / immutable list of segments that we should clear the needs-replay flag on
     public static class PendingClearReplay
     {
-        private ImmutableSet<Long> segments;
+        private final ImmutableSet<Long> segments;
 
         public PendingClearReplay(ImmutableSet<Long> segments)
         {
@@ -256,9 +256,11 @@ public class MutationJournal
         return pendingClearReplay;
     }
 
-    public int pendingClearReplaySize()
+    public static int pendingClearReplaySize()
     {
-        return pendingClearReplay.size();
+        if (instance == null)
+            return 0;
+        return instance.pendingClearReplay.size();
     }
 
     void startInternal()

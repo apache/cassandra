@@ -115,7 +115,7 @@ public class MutationTrackingTest extends TestBaseImpl
             TableMetadata table = Schema.instance.getTableMetadata(keyspaceName, tableName);
             DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
             MutationSummary summary = MutationTrackingService.instance().createSummaryForKey(dk, table.id, false);
-            if (summary.size() == 0)
+            if (summary.isEmpty())
                 return 0;
             CoordinatorLogId logId = getOnlyLogId(summary);
             return summaryIdSpace(summary.get(logId)).offsetCount();

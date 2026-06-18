@@ -66,7 +66,7 @@ public class MutationTrackingMetrics
         );
         pendingClearReplaySize = Metrics.register(
                 factory.createMetricName("PendingClearReplaySize"),
-                () -> MutationJournal.instance().pendingClearReplaySize()
+                () -> MutationJournal.pendingClearReplaySize()
         );
     }
 }

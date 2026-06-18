@@ -336,10 +336,12 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         ClusterMetadataService.instance().log().removeListener(tcmListener);
         activeReconciler.shutdownBlocking();
         executor.shutdown();
-        executor.awaitTermination(1, TimeUnit.MINUTES);
+        if (!executor.awaitTermination(1, TimeUnit.MINUTES))
+            logger.warn("Mutation tracking executor did not terminate within 1 minute; forcing shutdown");
+
         // attempt to persist offsets and mark segments as
         // not needing replay one last time before shutdown
-        if (started)
+        if (isStarted())
             offsetsPersister.run(true);
         ExpiredStatePurger.instance.shutdownBlocking();
     }
@@ -1615,7 +1617,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
      * To improve startup, we periodically save our view of mutation ids that we've witnessed to disk as part of this
      * class. Any ids witnessed since the last time this class was run are reconstructed by replaying the journal.
      *
-     * However, if an sstable is flushed is after the most recent LogStatePersister run, AND it marks a segment as no
+     * However, if an sstable is flushed after the most recent LogStatePersister run, AND it marks a segment as no
      * longer needing replay, AND the node is stopped before the next LogStatePersister, then the offsets witnessed
      * between the LogStatePersister and sstable flush will be forgotten on startup.
      *
