@@ -2739,6 +2739,7 @@ public class StorageProxy implements StorageProxyMBean
 
         protected void runMayThrow()
         {
+            boolean cancelled = false;
             try
             {
                 MessageParams.reset();
@@ -2765,6 +2766,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     logger.debug("Query cancelled (timeout)", e);
                     response = null;
+                    cancelled = true;
                     Preconditions.checkState(!command.isCompleted(), "Local read marked as completed despite being aborted by timeout to table %s", command.metadata());
                 }
 
@@ -2776,7 +2778,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // We track latency based on request processing time
                     MessagingService.instance().metrics.recordSelfDroppedMessage(verb, MonotonicClock.Global.preciseTime.now() - requestTime.startedAtNanos(), NANOSECONDS);
-                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.UNKNOWN);
+                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), cancelled ? RequestFailure.TIMEOUT : RequestFailure.UNKNOWN);
                 }
 
                 if (!readRejected)
