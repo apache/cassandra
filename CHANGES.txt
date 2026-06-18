@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Report cancelled read command execution to coordinator as a RequestFailure.TIMEOUT (CASSANDRA-21468)
  * Fix TCM log catchup from peer with snapshots and gaps in the log sequence (CASSANDRA-21455)
  * Speed up nodetool doc generation by producing all command help in a single jvm (CASSANDRA-21444)
  * Always send TCM commit failures as Messaging failures (CASSANDRA-21457)
