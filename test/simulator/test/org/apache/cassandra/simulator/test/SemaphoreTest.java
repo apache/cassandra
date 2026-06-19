@@ -27,6 +27,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.simulator.SimulationRunner;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -60,7 +62,9 @@ public class SemaphoreTest extends SimulationTestBase
     @Test
     public void semaphoreAcquireReleaseRepeatabilityTest()
     {
-        long seed = System.currentTimeMillis();
+        long seed = CassandraRelevantProperties.SIMULATOR_SEED.isPresent()
+                    ? SimulationRunner.parseSeed(CassandraRelevantProperties.SIMULATOR_SEED.getString())
+                    : System.currentTimeMillis();
         semaphoreTestInternal(seed);
         State.record = false;
         // Verify that subsequent interleavings will be the same

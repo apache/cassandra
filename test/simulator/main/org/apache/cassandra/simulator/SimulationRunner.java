@@ -368,7 +368,10 @@ public class SimulationRunner
 
         public void run(B builder) throws IOException
         {
-            long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
+            long seed = parseHex(Optional.ofNullable(this.seed))
+                        .orElseGet(() -> CassandraRelevantProperties.SIMULATOR_SEED.isPresent()
+                                         ? parseSeed(CassandraRelevantProperties.SIMULATOR_SEED.getString())
+                                         : new Random(System.nanoTime()).nextLong());
             SeedDefiner.setSeed(seed);
             beforeAll();
             // TODO (expected): this doesn't work properly for multiple seeds in a single JVM
@@ -515,6 +518,12 @@ public class SimulationRunner
         if (s.startsWith("0x"))
             return Hex.parseLong(s, 2, s.length());
         throw new IllegalArgumentException("Invalid hex string: " + s);
+    }
+
+    /** Parses a decimal seed or an unsigned hexadecimal seed with a {@code 0x} prefix. */
+    public static long parseSeed(String s)
+    {
+        return s.startsWith("0x") ? parseHex(s) : Long.parseLong(s);
     }
 
     private static final Pattern CHANCE_PATTERN = Pattern.compile("(uniform|(?<qlog>qlog(\\((?<quantizations>[0-9]+)\\))?):)?(?<min>0(\\.[0-9]+)?)(..(?<max>0\\.[0-9]+))?", Pattern.CASE_INSENSITIVE);
