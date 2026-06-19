@@ -91,6 +91,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "alreadyHintedForRetryOnDifferentSystem");
     // Only write a hint to be applied as a transaction once
     private volatile int alreadyHintedForRetryOnDifferentSystem = 0;
+    private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> signaledUpdater =
+        AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "signaled");
+    private volatile int signaled = 0;
     private volatile Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final Dispatcher.RequestTime requestTime;
     private @Nullable final Supplier<Mutation> hintOnFailure;
@@ -357,7 +360,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     protected void signal()
     {
-        if (condition.isSignalled())
+        if (!signaledUpdater.compareAndSet(this, 0, 1))
             return;
 
         //The ideal CL should only count as a strike if the requested CL was achieved.
