@@ -110,7 +110,7 @@ public class ImportTest extends CQLTester
         // copy is true - so importing will be done by copying
         importSSTables(SSTableImporter.Options.options(backupDir.toString()).copyData(true).build(), 10);
         // files are left there as they were just copied
-        Assert.assertNotEquals(0, countFiles(backupDir));
+        assertNotEquals(0, countFiles(backupDir));
     }
 
     private File prepareBasicImporting() throws Throwable
@@ -379,9 +379,9 @@ public class ImportTest extends CQLTester
         // then we moved out 1 sstable, a correct one (in backupdirCorrect).
         // now import should fail import on backupdir, but import the one in backupdirCorrect.
         SSTableImporter.Options options = SSTableImporter.Options.options(Sets.newHashSet(backupdir.toString(), backupdirCorrect.toString())).copyData(copy).verifySSTables(verify).build();
-        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-        List<String> failedDirectories = importer.importNewSSTables(options);
-        assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
+        ToolRunner.ToolResult result = assertImportFailed(getCurrentColumnFamilyStore(), options);
+        assertThat(result.getStderr()).contains("Some directories failed to import, check server logs for details");
+        assertThat(result.getStderr()).contains(backupdir.toString());
         UntypedResultSet res = execute("SELECT * FROM %s");
         for (UntypedResultSet.Row r : res)
         {
@@ -717,7 +717,7 @@ public class ImportTest extends CQLTester
                 assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
 
                 // files are left there as they were just copied
-                Assert.assertNotEquals(0, countFiles(backupDir));
+                assertNotEquals(0, countFiles(backupDir));
             }
             finally
             {
@@ -759,7 +759,7 @@ public class ImportTest extends CQLTester
             assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
 
             // files are left there as they were just copied
-            Assert.assertNotEquals(0, countFiles(backupDir));
+            assertNotEquals(0, countFiles(backupDir));
         }
         finally
         {
