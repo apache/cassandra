@@ -735,12 +735,12 @@ public abstract class AbstractReplicationStrategy
                     if (totalBlockFor == baseBlockFor)
                         return new SimpleResponseTracker(baseBlockFor, totalContacts);
 
-                    // Double count model: committed must satisfy base CL, total must include pending
+                    // Double count model: natural must satisfy base CL, total must include pending
                     int pendingReplicas = pending.size();
-                    // contacts() includes both committed and pending replicas
-                    int committedReplicas = totalContacts - pendingReplicas;
+                    // contacts() includes both natural and pending replicas
+                    int naturalReplicas = totalContacts - pendingReplicas;
                     return new WriteResponseTracker(baseBlockFor, totalBlockFor,
-                                                    committedReplicas, pendingReplicas,
+                                                    naturalReplicas, pendingReplicas,
                                                     endpoint -> pending.endpoints().contains(endpoint));
                 }
 
@@ -764,10 +764,10 @@ public abstract class AbstractReplicationStrategy
 
                     // Double count model for local DC
                     int localPending = pending.count(InOurDc.replicas());
-                    // localContacts includes both committed and pending in local DC
-                    int localCommitted = localContacts - localPending;
+                    // localContacts includes both natural and pending in local DC
+                    int localNatural = localContacts - localPending;
                     return new WriteResponseTracker(baseBlockFor, totalBlockFor,
-                                                    localCommitted, localPending,
+                                                    localNatural, localPending,
                                                     endpoint -> pending.endpoints().contains(endpoint),
                                                     InOurDc.endpoints());
                 }
@@ -811,8 +811,8 @@ public abstract class AbstractReplicationStrategy
             int dcContacts = entry.getValue().size();
             List<Replica> dcPending = pendingByDc.getOrDefault(dc, Collections.emptyList());
             int dcPendingCount = dcPending.size();
-            int dcCommitted = dcContacts - dcPendingCount;
-            int dcBlockFor = dcCommitted / 2 + 1;
+            int dcNatural = dcContacts - dcPendingCount;
+            int dcBlockFor = dcNatural / 2 + 1;
 
             // Each sub-tracker must filter by DC since CompositeTracker broadcasts to all children
             Predicate<InetAddressAndPort> dcFilter = endpoint -> dc.equals(locator.location(endpoint).datacenter);
@@ -825,7 +825,7 @@ public abstract class AbstractReplicationStrategy
             {
                 int totalBlockFor = dcBlockFor + dcPendingCount;
                 trackerPerDc.put(dc, new WriteResponseTracker(dcBlockFor, totalBlockFor,
-                                                              dcCommitted, dcPendingCount,
+                                                              dcNatural, dcPendingCount,
                                                               endpoint -> pending.endpoints().contains(endpoint),
                                                               dcFilter));
             }
