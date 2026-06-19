@@ -64,7 +64,7 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
         if (plan.responses().isComplete())
             signal();
 
-        // Must be last
+        // Must be last (see comment on AbstractWriteResponseHandler.logResponseToIdealCLDelegate for why) - forward to ideal CL delegate
         logResponseToIdealCLDelegate(message);
     }
 

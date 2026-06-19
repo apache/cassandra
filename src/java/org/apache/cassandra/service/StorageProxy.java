@@ -1617,8 +1617,6 @@ public class StorageProxy implements StorageProxyMBean
                                                                pending.get());
                         };
 
-                        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(metadata, Keyspace.open(keyspaceName), consistencyLevel, computeReplicas, ReplicaPlans.writeAll);
-
                         CoordinationPlan.ForWriteWithIdeal plan = CoordinationPlan.forWrite(metadata, Keyspace.open(keyspaceName), consistencyLevel, computeReplicas, ReplicaPlans.writeAll);
 
                         wrappers.add(wrapViewBatchResponseHandler(mutation,
@@ -2573,7 +2571,7 @@ public class StorageProxy implements StorageProxyMBean
             writeMetrics.remoteRequests.mark();
 
             CoordinationPlan.ForWrite plan = CoordinationPlan.forForwardingCounterWrite(metadata, keyspace, tk,
-                                                                                           clm -> ReplicaPlans.findCounterLeaderReplica(clm, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency()));
+                                                                                        clm -> ReplicaPlans.findCounterLeaderReplica(clm, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency()));
             // Forward the actual update to the chosen leader replica
             AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(plan,
                                                                                                  WriteType.COUNTER, null, requestTime);

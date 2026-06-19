@@ -72,7 +72,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
         if (plan.responses().isComplete())
             signal();
 
-        // Must be last - forward to ideal CL delegate
+        // Must be last (see comment on AbstractWriteResponseHandler.logResponseToIdealCLDelegate for why) - forward to ideal CL delegate
         logResponseToIdealCLDelegate(m);
     }
 
