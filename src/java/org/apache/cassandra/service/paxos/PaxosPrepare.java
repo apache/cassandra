@@ -194,6 +194,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         FoundIncompleteAccepted incompleteAccepted() { return (FoundIncompleteAccepted) this; }
         FoundIncompleteCommitted incompleteCommitted() { return (FoundIncompleteCommitted) this; }
         Paxos.MaybeFailure maybeFailure() { return ((MaybeFailure) this).info; }
+        Participants participants() { return participants; }
     }
 
     static class Success extends WithRequestedBallot

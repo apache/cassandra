@@ -87,6 +87,7 @@ import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -1171,7 +1172,7 @@ public class Paxos
                     }
                     else
                     {
-                        DataResolver<EndpointsForToken, Participants> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, () -> success.participants, NoopReadRepair.instance, requestTime);
+                        DataResolver<EndpointsForToken, Participants> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, success::participants, NoopReadRepair.instance, requestTime);
 
                         for (int i = 0 ; i < responses.size() ; ++i)
                         {
@@ -1233,7 +1234,10 @@ public class Paxos
         Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
 
         if (keyspace.getReplicationStrategy().shouldRejectPaxos(token))
+        {
+            PaxosMetrics.rejectedOperations.mark();
             return false;
+        }
 
         return (includesRead ? EndpointsForToken.natural(keyspace, token).get()
                              : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token).all()
