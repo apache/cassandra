@@ -2,6 +2,7 @@
  * Add Paxos v2 option and informatin in cassandra.yaml (CASSANDRA-21316)
  * Harden data resurrection startup check with atomic heartbeat file write with fallback (CASSANDRA-21290)
 Merged from 4.0:
+ * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
  * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
  * Fix negative memtable allocator ownership when an update is shadowed by an existing row deletion (CASSANDRA-21469)
  * Consider first token of SSTable when calculating SSTable intersection in LeveledScanner  (CASSANDRA-21369)
