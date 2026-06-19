@@ -39,7 +39,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
@@ -75,7 +75,7 @@ public class RangeCommandIteratorTest
         for (int i = 0; i + 1 < tokens.size(); i++)
         {
             Range<PartitionPosition> range = Range.makeRowRange(tokens.get(i), tokens.get(i + 1));
-            ranges.add(CoordinationPlanTestUtils.create(ReplicaPlans.forRangeRead(keyspace, TABLE_ID, null, ConsistencyLevel.ONE, range, 1)));
+            ranges.add(CoordinationPlans.create(ReplicaPlans.forRangeRead(keyspace, TABLE_ID, null, ConsistencyLevel.ONE, range, 1)));
             vnodeCount++;
         }
 

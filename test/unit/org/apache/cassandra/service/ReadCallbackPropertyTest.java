@@ -34,7 +34,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -232,7 +232,7 @@ public class ReadCallbackPropertyTest extends ResponseHandlerPropertyTestBase
             (self) -> null, // repair plan function
             Epoch.EMPTY
         );
-        return CoordinationPlanTestUtils.create(plan);
+        return CoordinationPlans.create(plan);
     }
 
     /**

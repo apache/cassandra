@@ -40,7 +40,7 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -280,6 +280,6 @@ public class ReadExecutorTest
 
     private CoordinationPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken selected)
     {
-        return CoordinationPlanTestUtils.create(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, natural, selected, natural, (cm) -> null, (self) -> null, Epoch.EMPTY));
+        return CoordinationPlans.create(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, natural, selected, natural, (cm) -> null, (self) -> null, Epoch.EMPTY));
     }
 }

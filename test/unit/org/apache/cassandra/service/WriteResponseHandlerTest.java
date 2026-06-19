@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Predicates;
 
 import org.apache.cassandra.locator.*;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -329,7 +329,7 @@ public class WriteResponseHandlerTest
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, Dispatcher.RequestTime requestTime)
     {
         ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll);
-        CoordinationPlan.ForWriteWithIdeal coordinationPlan = CoordinationPlanTestUtils.create(replicaPlan, ideal);
+        CoordinationPlan.ForWriteWithIdeal coordinationPlan = CoordinationPlans.create(replicaPlan, ideal);
         return ks.getReplicationStrategy().getWriteResponseHandler(coordinationPlan, null, WriteType.SIMPLE, null, requestTime);
     }
 

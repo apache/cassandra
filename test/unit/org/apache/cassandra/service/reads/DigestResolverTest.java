@@ -24,7 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.Test;
@@ -217,7 +217,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
 
     private CoordinationPlan.ForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return CoordinationPlanTestUtils.create(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas, replicas, null, (self) -> null, Epoch.EMPTY));
+        return CoordinationPlans.create(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas, replicas, null, (self) -> null, Epoch.EMPTY));
     }
 
     private void waitForLatch(CountDownLatch startlatch)

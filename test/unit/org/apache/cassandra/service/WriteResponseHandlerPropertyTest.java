@@ -283,7 +283,7 @@ public class WriteResponseHandlerPropertyTest extends ResponseHandlerPropertyTes
                                                                  ClusterMetadata.current().epoch,
                                                                  Predicates.alwaysTrue(),
                                                                  ReplicaPlans.writeAll);
-        CoordinationPlan.ForWriteWithIdeal coordinationPlan = CoordinationPlanTestUtils.create(replicaPlan, null);
+        CoordinationPlan.ForWriteWithIdeal coordinationPlan = CoordinationPlans.create(replicaPlan, null);
         return ks.getReplicationStrategy().getWriteResponseHandler(coordinationPlan, null, WriteType.SIMPLE, null,
                                                                    Dispatcher.RequestTime.forImmediateExecution());
     }

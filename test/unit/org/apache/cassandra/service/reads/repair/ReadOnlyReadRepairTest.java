@@ -29,7 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -88,7 +88,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Test
     public void getMergeListener()
     {
-        CoordinationPlan.ForRangeRead plan = CoordinationPlanTestUtils.create(replicaPlan(replicas, replicas));
+        CoordinationPlan.ForRangeRead plan = CoordinationPlans.create(replicaPlan(replicas, replicas));
         InstrumentedReadRepair repair = createInstrumentedReadRepair(plan);
         Assert.assertSame(UnfilteredPartitionIterators.MergeListener.NOOP, repair.getMergeListener(plan.replicas()));
     }
@@ -96,7 +96,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     @Test(expected = UnsupportedOperationException.class)
     public void repairPartitionFailure()
     {
-        CoordinationPlan.ForRangeRead plan = CoordinationPlanTestUtils.create(replicaPlan(replicas, replicas));
+        CoordinationPlan.ForRangeRead plan = CoordinationPlans.create(replicaPlan(replicas, replicas));
         ReplicaPlan.ForWrite writePlan = repairPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(plan);
         repair.repairPartition(null, Collections.emptyMap(), writePlan, ReadRepairSource.OTHER);

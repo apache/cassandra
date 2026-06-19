@@ -21,7 +21,10 @@ package org.apache.cassandra.locator;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
-public class CoordinationPlanTestUtils
+/**
+ * Creates coordination plans with arbitrary replica plans
+ */
+public class CoordinationPlans
 {
     private static ResponseTracker createTrackerForWrite(ReplicaPlan.ForWrite plan)
     {

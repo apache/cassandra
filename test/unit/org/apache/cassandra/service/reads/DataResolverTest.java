@@ -59,7 +59,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.CoordinationPlan;
-import org.apache.cassandra.locator.CoordinationPlanTestUtils;
+import org.apache.cassandra.locator.CoordinationPlans;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -1329,14 +1329,14 @@ public class DataResolverTest extends AbstractReadResponseTest
     private CoordinationPlan.ForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
         BiFunction<ReplicaPlan<?, ?>, Token, ReplicaPlan.ForWrite> repairPlan = (self, t) -> ReplicaPlans.forReadRepair(self, ClusterMetadata.current(), ks, null, consistencyLevel, t, (i) -> true, ReadCoordinator.DEFAULT);
-        return CoordinationPlanTestUtils.create(ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks,
-                                                                                         ks.getReplicationStrategy(),
-                                                                                         consistencyLevel,
-                                                                                         ReplicaUtils.FULL_BOUNDS,
-                                                                                         replicas, replicas, replicas,
-                                                                                         1, null,
-                                                                                         repairPlan,
-                                                                                         Epoch.EMPTY)));
+        return CoordinationPlans.create(ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks,
+                                                                                        ks.getReplicationStrategy(),
+                                                                                        consistencyLevel,
+                                                                                        ReplicaUtils.FULL_BOUNDS,
+                                                                                        replicas, replicas, replicas,
+                                                                                        1, null,
+                                                                                        repairPlan,
+                                                                                        Epoch.EMPTY)));
     }
 
     private static void resolveAndConsume(DataResolver resolver)
