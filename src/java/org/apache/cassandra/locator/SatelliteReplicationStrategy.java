@@ -582,11 +582,11 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             throw UnavailableException.create(consistencyForConsensus, 1, 0);
 
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
-        ReplicaLayout.ForTokenWrite fullLayout = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspaceMetadata, token);
+        ReplicaLayout.ForTokenWrite liveAndDownLayout = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspaceMetadata, token);
 
         // Paxos consensus operates entirely within the primary DC
         Predicate<Replica> inPrimaryDC = rp -> metadata.locator.location(rp.endpoint()).datacenter.equals(primaryDC);
-        ReplicaLayout.ForTokenWrite primaryAll = fullLayout.filter(inPrimaryDC);
+        ReplicaLayout.ForTokenWrite primaryAll = liveAndDownLayout.filter(inPrimaryDC);
 
         // Satellite/secondary DC endpoints for reads during prepare and writes during commit.
         // Only include the primary DC's satellite and other full DCs — not satellites of other DCs.
@@ -599,9 +599,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 return true;
             return fullDCs.containsKey(dc);
         };
-        EndpointsForToken satelliteEndpoints = fullLayout.all().filter(isParticipatingNonPrimary);
+        EndpointsForToken satelliteEndpoints = liveAndDownLayout.all().filter(isParticipatingNonPrimary);
 
-        EndpointsForToken live = fullLayout.all().filter(isReplicaAlive);
+        EndpointsForToken live = liveAndDownLayout.all().filter(isReplicaAlive);
 
         return new SatellitePaxosParticipants(metadata.epoch,
                                               Keyspace.open(table.keyspace),
@@ -644,14 +644,14 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         final String primary;
         final String satellite;
         final List<String> dcs;
-        final L fullLayout;
+        final L liveAndDownLayout;
         final L liveLayout;
-        final Map<String, L> fullLayouts;
+        final Map<String, L> liveAndDownLayouts;
         final Map<String, L> liveLayouts;
-        final Map<String, E> fullEndpoints;
+        final Map<String, E> liveAndDownEndpoints;
         final Map<String, E> liveEndpoints;
 
-        public CoordinationPlanner(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, L fullLayout)
+        public CoordinationPlanner(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, L liveAndDownLayout)
         {
             this.metadata = metadata;
             this.keyspace = keyspace;
@@ -664,13 +664,13 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             Preconditions.checkState(!dcs.isEmpty(), "No DCs available for request (primary=%s, all disabled?)", primary);
 
             Set<String> dcSet = new HashSet<>(dcs);
-            this.fullLayout = filterLayout(fullLayout, rp -> dcSet.contains(metadata.locator.location(rp.endpoint()).datacenter));
-            this.liveLayout = filterLayout(this.fullLayout, FailureDetector.isReplicaAlive);
+            this.liveAndDownLayout = filterLayout(liveAndDownLayout, rp -> dcSet.contains(metadata.locator.location(rp.endpoint()).datacenter));
+            this.liveLayout = filterLayout(this.liveAndDownLayout, FailureDetector.isReplicaAlive);
 
-            this.fullLayouts = Maps.newHashMapWithExpectedSize(dcs.size());
+            this.liveAndDownLayouts = Maps.newHashMapWithExpectedSize(dcs.size());
             this.liveLayouts = Maps.newHashMapWithExpectedSize(dcs.size());
 
-            this.fullEndpoints = Maps.newHashMapWithExpectedSize(dcs.size());
+            this.liveAndDownEndpoints = Maps.newHashMapWithExpectedSize(dcs.size());
             this.liveEndpoints = Maps.newHashMapWithExpectedSize(dcs.size());
 
             populateDcLayouts();
@@ -706,18 +706,18 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             for (String dc : dcs)
             {
                 Predicate<Replica> dcFilter = rp -> metadata.locator.location(rp.endpoint()).datacenter.equals(dc);
-                L full = filterLayout(fullLayout, dcFilter);
+                L liveAndDown = filterLayout(liveAndDownLayout, dcFilter);
                 L live = filterLayout(liveLayout, dcFilter);
 
-                fullLayouts.put(dc, full);
+                liveAndDownLayouts.put(dc, liveAndDown);
                 liveLayouts.put(dc, live);
 
-                fullEndpoints.put(dc, full.natural());
+                liveAndDownEndpoints.put(dc, liveAndDown.natural());
                 liveEndpoints.put(dc, live.natural());
             }
 
             if (ADDL_CHECKS_ENABLED)
-                Preconditions.checkState(fullLayouts.size() == dcs.size(), "populateDcLayouts: fullLayouts.size()=%s != dcs.size()=%s", fullLayouts.size(), dcs.size());
+                Preconditions.checkState(liveAndDownLayouts.size() == dcs.size(), "populateDcLayouts: liveAndDownLayouts.size()=%s != dcs.size()=%s", liveAndDownLayouts.size(), dcs.size());
         }
 
         ResponseTrackerBuilder<E, L, P> createResponseTrackerBuilder()
@@ -767,9 +767,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         {
             final ReplicaPlans.Selector selector;
 
-            public ForWrite(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForTokenWrite fullLayout, ReplicaPlans.Selector selector)
+            public ForWrite(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForTokenWrite liveAndDownLayout, ReplicaPlans.Selector selector)
             {
-                super(metadata, keyspace, cl, strategy, primary, fullLayout);
+                super(metadata, keyspace, cl, strategy, primary, liveAndDownLayout);
                 this.selector = selector;
                 if (ADDL_CHECKS_ENABLED)
                     Preconditions.checkState(!strategy.disabledDCs.contains(primary));
@@ -781,7 +781,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 // this basically hardcodes ReplicaPlans.writeAll
                 Predicate<InetAddressAndPort> dcFilter = ep -> metadata.locator.location(ep).datacenter.equals(dc);
 
-                ReplicaLayout.ForTokenWrite dcLayout = fullLayouts.get(dc);
+                ReplicaLayout.ForTokenWrite dcLayout = liveAndDownLayouts.get(dc);
                 Preconditions.checkNotNull(dcLayout);
 
                 int blockFor = strategy.calculateQuorum(dc);
@@ -808,7 +808,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             @Override
             ReplicaPlan.ForWrite recomputePlan(ClusterMetadata metadata)
             {
-                Token token = fullLayout.token();
+                Token token = liveAndDownLayout.token();
                 return strategy(metadata).planForWrite(metadata, keyspace, cl,
                                                               cm -> ReplicaLayout.forTokenWriteLiveAndDown(cm, keyspace, token),
                                                        selector).replicas();
@@ -846,15 +846,15 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             ReplicaPlan.ForWrite createReplicaPlan()
             {
 
-                ReplicaLayout.ForTokenWrite fullLayout = mergeLayouts(fullLayouts.values());
+                ReplicaLayout.ForTokenWrite liveAndDownLayout = mergeLayouts(liveAndDownLayouts.values());
                 ReplicaLayout.ForTokenWrite liveLayout = mergeLayouts(liveLayouts.values());
-                EndpointsForToken contacts = selector.select(cl, fullLayout, liveLayout);
+                EndpointsForToken contacts = selector.select(cl, liveAndDownLayout, liveLayout);
 
                 return new ReplicaPlan.ForWrite(keyspace,
                                                 strategy,
                                                 cl,
-                                                fullLayout.pending(),
-                                                fullLayout.all(),
+                                                liveAndDownLayout.pending(),
+                                                liveAndDownLayout.all(),
                                                 liveLayout.all(),
                                                 contacts,
                                                 this::recomputePlan,
@@ -867,9 +867,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             final @Nullable Index.QueryPlan indexQueryPlan;
             final boolean alwaysSpeculate;
 
-            public ForRead(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, L fullLayout, @Nullable Index.QueryPlan indexQueryPlan, boolean alwaysSpeculate)
+            public ForRead(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, L liveAndDownLayout, @Nullable Index.QueryPlan indexQueryPlan, boolean alwaysSpeculate)
             {
-                super(metadata, keyspace, cl, strategy, primary, fullLayout);
+                super(metadata, keyspace, cl, strategy, primary, liveAndDownLayout);
                 this.indexQueryPlan = indexQueryPlan;
                 this.alwaysSpeculate = alwaysSpeculate;
             }
@@ -879,7 +879,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             {
                 Predicate<InetAddressAndPort> dcFilter = ep -> metadata.locator.location(ep).datacenter.equals(dc);
 
-                L dcLayout = fullLayouts.get(dc);
+                L dcLayout = liveAndDownLayouts.get(dc);
                 int blockFor = strategy.calculateQuorum(dc);
                 int totalContacts = dcLayout.all().size();
 
@@ -962,9 +962,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             final SpeculativeRetryPolicy retry;
             final ReadCoordinator coordinator;
 
-            public ForTokenRead(ClusterMetadata metadata, Keyspace keyspace, Token token, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForTokenRead fullLayout, @Nullable Index.QueryPlan indexQueryPlan, SpeculativeRetryPolicy retry, TableId tableId, ReadCoordinator coordinator)
+            public ForTokenRead(ClusterMetadata metadata, Keyspace keyspace, Token token, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForTokenRead liveAndDownLayout, @Nullable Index.QueryPlan indexQueryPlan, SpeculativeRetryPolicy retry, TableId tableId, ReadCoordinator coordinator)
             {
-                super(metadata, keyspace, cl, strategy, primary, fullLayout, indexQueryPlan, retry == AlwaysSpeculativeRetryPolicy.INSTANCE);
+                super(metadata, keyspace, cl, strategy, primary, liveAndDownLayout, indexQueryPlan, retry == AlwaysSpeculativeRetryPolicy.INSTANCE);
                 this.token = token;
                 this.tableId = tableId;
                 this.retry = retry;
@@ -1003,9 +1003,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             final int vnodeCount;
             final TableId tableId;
 
-            public ForRangeRead(ClusterMetadata metadata, Keyspace keyspace, AbstractBounds<PartitionPosition> range, int vnodeCount, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForRangeRead fullLayout, @Nullable Index.QueryPlan indexQueryPlan, TableId tableId)
+            public ForRangeRead(ClusterMetadata metadata, Keyspace keyspace, AbstractBounds<PartitionPosition> range, int vnodeCount, ConsistencyLevel cl, SatelliteReplicationStrategy strategy, String primary, ReplicaLayout.ForRangeRead liveAndDownLayout, @Nullable Index.QueryPlan indexQueryPlan, TableId tableId)
             {
-                super(metadata, keyspace, cl, strategy, primary, fullLayout, indexQueryPlan, false);
+                super(metadata, keyspace, cl, strategy, primary, liveAndDownLayout, indexQueryPlan, false);
                 this.range = range;
                 this.vnodeCount = vnodeCount;
                 this.tableId = tableId;
@@ -1184,19 +1184,19 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
         private E allLiveAndDown()
         {
-            E fullEndpoints = planner.fullLayout.all();
-            ReplicaCollection.Builder<E> fullBuilder = fullEndpoints.newBuilder(fullEndpoints.size());
+            E liveAndDownEndpoints = planner.liveAndDownLayout.all();
+            ReplicaCollection.Builder<E> liveAndDownBuilder = liveAndDownEndpoints.newBuilder(liveAndDownEndpoints.size());
 
             for (String dc : planner.dcs)
             {
-                E endpoints = planner.fullEndpoints.get(dc);
+                E endpoints = planner.liveAndDownEndpoints.get(dc);
                 if (endpoints == null)
                     continue;
 
-                fullBuilder.addAll(endpoints);
+                liveAndDownBuilder.addAll(endpoints);
             }
 
-            return fullBuilder.build();
+            return liveAndDownBuilder.build();
         }
 
         private E allCandidates(Map<String, E> candidates)
@@ -1368,7 +1368,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 if (planner.cl == ConsistencyLevel.ALL)
                 {
                     int required = 0;
-                    for (E replicas : planner.fullEndpoints.values())
+                    for (E replicas : planner.liveAndDownEndpoints.values())
                         required += replicas.size();
 
                     this.blockFor = required;
@@ -1386,7 +1386,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             {
                 if (blockFor <= initial && blockFor > filtered)
                 {
-                    IndexStatusManager.instance.readFailureException(filtered, removedSupplier(planner.fullEndpoints, candidates), indexStatusMap, planner.cl, blockFor);
+                    IndexStatusManager.instance.readFailureException(filtered, removedSupplier(planner.liveAndDownEndpoints, candidates), indexStatusMap, planner.cl, blockFor);
                 }
             }
 
@@ -1471,7 +1471,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
                 if (liveDcs <= blockForDcs)
                 {
-                    IndexStatusManager.instance.readFailureException(available, removedSupplier(planner.fullEndpoints, candidates), indexStatusMap, planner.cl, required);
+                    IndexStatusManager.instance.readFailureException(available, removedSupplier(planner.liveAndDownEndpoints, candidates), indexStatusMap, planner.cl, required);
                 }
             }
 
@@ -1553,9 +1553,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
     {
         // writes don't need any special handling during primary failover. We just write to the current
         // primary DC, regardless of any other failover status
-        ReplicaLayout.ForTokenWrite fullLayout = liveAndDown.apply(metadata);
+        ReplicaLayout.ForTokenWrite liveAndDownLayout = liveAndDown.apply(metadata);
 
-        CoordinationPlanner.ForWrite planner = new CoordinationPlanner.ForWrite(metadata, keyspace, consistencyLevel, this, primaryDC, fullLayout, selector);
+        CoordinationPlanner.ForWrite planner = new CoordinationPlanner.ForWrite(metadata, keyspace, consistencyLevel, this, primaryDC, liveAndDownLayout, selector);
 
         return new CoordinationPlan.ForWrite(planner.createReplicaPlan(), planner.createResponseTracker());
     }
@@ -1581,13 +1581,13 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
 
     SatelliteCommitPlan createSatelliteCommitPlan(ClusterMetadata metadata, Keyspace keyspace, Token token)
     {
-        ReplicaLayout.ForTokenWrite fullLayout = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace, token);
+        ReplicaLayout.ForTokenWrite liveAndDownLayout = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace, token);
         CoordinationPlanner.ForWrite planner = new CoordinationPlanner.ForWrite(metadata, keyspace, ConsistencyLevel.QUORUM,
-                                                                             this, primaryDC, fullLayout, ReplicaPlans.writeAll);
+                                                                             this, primaryDC, liveAndDownLayout, ReplicaPlans.writeAll);
         ResponseTracker tracker = planner.createResponseTracker();
 
         // paxos is handling the consensus/commit acks in the primary DC, we just need to worry about the witness DCs
-        EndpointsForToken primaryEndpoints = planner.fullLayouts.get(primaryDC).all();
+        EndpointsForToken primaryEndpoints = planner.liveAndDownLayouts.get(primaryDC).all();
         if (primaryEndpoints != null)
         {
             for (int i = 0; i < primaryEndpoints.size(); i++)
@@ -1595,10 +1595,10 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         }
 
         // Collect satellite/secondary DC endpoints from the filtered layout.
-        // planner.fullLayout is already filtered to only include DCs in the coordination plan
+        // planner.liveAndDownLayout is already filtered to only include DCs in the coordination plan
         // (primary DC + its satellite + other full DCs), excluding satellites of non-primary DCs.
         Predicate<Replica> notPrimary = rp -> !metadata.locator.location(rp.endpoint()).datacenter.equals(primaryDC);
-        EndpointsForToken allSatellite = planner.fullLayout.all().filter(notPrimary);
+        EndpointsForToken allSatellite = planner.liveAndDownLayout.all().filter(notPrimary);
         EndpointsForToken liveSatellite = allSatellite.filter(FailureDetector.isReplicaAlive);
         EndpointsForToken downSatellite = allSatellite.filter(rp -> !FailureDetector.isReplicaAlive.test(rp));
 
@@ -1716,9 +1716,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                                                                   SpeculativeRetryPolicy retry,
                                                                   ReadCoordinator coordinator)
     {
-        ReplicaLayout.ForTokenRead fullLayout = ReplicaLayout.forTokenReadSorted(metadata, keyspace, this, tableId, token, coordinator);
+        ReplicaLayout.ForTokenRead liveAndDownLayout = ReplicaLayout.forTokenReadSorted(metadata, keyspace, this, tableId, token, coordinator);
 
-        CoordinationPlanner.ForTokenRead planner = new CoordinationPlanner.ForTokenRead(metadata, keyspace, token, consistencyLevel, this, primary, fullLayout, indexQueryPlan, retry, tableId, coordinator);
+        CoordinationPlanner.ForTokenRead planner = new CoordinationPlanner.ForTokenRead(metadata, keyspace, token, consistencyLevel, this, primary, liveAndDownLayout, indexQueryPlan, retry, tableId, coordinator);
 
         return new CoordinationPlan.ForTokenRead(ReplicaPlan.shared(planner.createReplicaPlan()), planner.createResponseTracker());
     }
@@ -1788,9 +1788,9 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                                                                   ConsistencyLevel consistencyLevel)
     {
 
-        ReplicaLayout.ForRangeRead fullLayout = ReplicaLayout.forRangeReadSorted(metadata, keyspace, this, range);
+        ReplicaLayout.ForRangeRead liveAndDownLayout = ReplicaLayout.forRangeReadSorted(metadata, keyspace, this, range);
 
-        CoordinationPlanner.ForRangeRead planner = new CoordinationPlanner.ForRangeRead(metadata, keyspace, range, vnodeCount, consistencyLevel, this, primary, fullLayout, indexQueryPlan, tableId);
+        CoordinationPlanner.ForRangeRead planner = new CoordinationPlanner.ForRangeRead(metadata, keyspace, range, vnodeCount, consistencyLevel, this, primary, liveAndDownLayout, indexQueryPlan, tableId);
 
         return new CoordinationPlan.ForRangeRead(ReplicaPlan.shared(planner.createReplicaPlan()), planner.createResponseTracker());
     }
