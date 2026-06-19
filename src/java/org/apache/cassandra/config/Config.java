@@ -191,6 +191,7 @@ public class Config
     public volatile DurationSpec.IntMillisecondsBound cms_default_max_retry_backoff = null;
     public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
 
+    public volatile CMSCommitMemberPreferencePolicy cms_commit_member_preference_policy = CMSCommitMemberPreferencePolicy.random;
     public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
 
     /**
@@ -1254,6 +1255,31 @@ public class Config
         periodic,
         batch,
         group
+    }
+
+    /**
+     * Strategy for selecting which CMS member to contact for TCM commits.
+     */
+    public enum CMSCommitMemberPreferencePolicy
+    {
+        /** Shuffle candidates randomly (original behavior) */
+        random,
+
+        /** Shuffle local DC candidates randomly, followed by shuffled non-local */
+        local_random,
+
+        /** Sort by address - all nodes converge on same member with the goal
+         *  of reducing Paxos contention, but will increase hot-spotting on the
+         *  determined member
+         */
+        deterministic,
+
+        /** Sort local members first by name, then non-local. Nodes in each DC
+         *  will converge on same member with the goal of reducing Paxos contention d
+         *  below the random but with lower latency, though higher contention than
+         *  globally deterministic.
+         */
+        local_deterministic
     }
 
     public enum FlushCompression
