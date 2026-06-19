@@ -20,7 +20,6 @@ package org.apache.cassandra.simulator;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -101,6 +100,7 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -1032,15 +1032,10 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         try
         {
             Field field = Clock.Global.class.getDeclaredField("instance");
-            field.setAccessible(true);
-
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
-            modifiersField.setAccessible(true);
-            modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
-
-            field.set(null, new Clock.Default());
+            // JDK 22+ requires Unsafe to write this final static field.
+            ReflectionUtils.writeField(null, field, new Clock.Default());
         }
-        catch (NoSuchFieldException|IllegalAccessException e)
+        catch (NoSuchFieldException e)
         {
             throw new RuntimeException(e);
         }

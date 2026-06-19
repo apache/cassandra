@@ -20,15 +20,72 @@ package org.apache.cassandra.utils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import sun.misc.Unsafe;
 
 public class ReflectionUtils
 {
     private ReflectionUtils()
     {
 
+    }
+
+    private static final Unsafe UNSAFE = theUnsafe();
+
+    private static Unsafe theUnsafe()
+    {
+        try
+        {
+            Field f = Unsafe.class.getDeclaredField("theUnsafe");
+            f.setAccessible(true);
+            return (Unsafe) f.get(null);
+        }
+        catch (ReflectiveOperationException e)
+        {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    /**
+     * Writes a field through {@link Unsafe}, including instance and static {@code final} fields.
+     * Clearing the {@code Field.modifiers} bit does not permit these writes on JDK 22+.
+     * <p>
+     * This cannot change a {@code static final} constant inlined by the compiler.
+     *
+     * @param instance the instance whose field to set, or {@code null} for a static field
+     * @param field    the field to write, which may be {@code final}
+     * @param value    the new value, boxed for primitive fields
+     */
+    public static void writeField(Object instance, Field field, Object value)
+    {
+        boolean isStatic = Modifier.isStatic(field.getModifiers());
+        Object base = isStatic ? UNSAFE.staticFieldBase(field) : instance;
+        long offset = isStatic ? UNSAFE.staticFieldOffset(field) : UNSAFE.objectFieldOffset(field);
+        Class<?> type = field.getType();
+        if (!type.isPrimitive())
+            UNSAFE.putObject(base, offset, value);
+        else if (type == boolean.class)
+            UNSAFE.putBoolean(base, offset, (Boolean) value);
+        else if (type == byte.class)
+            UNSAFE.putByte(base, offset, (Byte) value);
+        else if (type == char.class)
+            UNSAFE.putChar(base, offset, (Character) value);
+        else if (type == short.class)
+            UNSAFE.putShort(base, offset, (Short) value);
+        else if (type == int.class)
+            UNSAFE.putInt(base, offset, (Integer) value);
+        else if (type == long.class)
+            UNSAFE.putLong(base, offset, (Long) value);
+        else if (type == float.class)
+            UNSAFE.putFloat(base, offset, (Float) value);
+        else if (type == double.class)
+            UNSAFE.putDouble(base, offset, (Double) value);
+        else
+            throw new IllegalArgumentException("Unsupported field type: " + type);
     }
 
     public static Field getModifiersField() throws NoSuchFieldException
