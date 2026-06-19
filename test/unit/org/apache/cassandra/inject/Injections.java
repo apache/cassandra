@@ -17,14 +17,10 @@
  */
 package org.apache.cassandra.inject;
 
-import java.io.IOException;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.lang.management.ManagementFactory;
-import java.net.ServerSocket;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,12 +34,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Lists;
 
 import org.apache.commons.io.IOUtils;
-import org.jboss.byteman.agent.install.Install;
-import org.jboss.byteman.agent.submit.Submit;
 import org.jboss.byteman.rule.helper.Helper;
-
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.inject.ActionBuilder.newActionBuilder;
 import static org.apache.cassandra.inject.Expression.expr;
@@ -52,87 +43,22 @@ import static org.apache.cassandra.inject.Expression.quote;
 
 public class Injections
 {
-    private static Submit submitter;
-
     public static void inject(Injection...injections) throws Throwable
     {
         String script = Arrays.stream(injections).map(Injection::format).collect(Collectors.joining("\n"));
-        getSubmitter().addRulesFromResources(Lists.newArrayList(IOUtils.toInputStream(script)));
+        BytemanAgentSupport.submitter().addRulesFromResources(Lists.newArrayList(IOUtils.toInputStream(script)));
     }
 
     public static void deleteAll()
     {
         try
         {
-            getSubmitter().deleteAllRules();
+            BytemanAgentSupport.submitter().deleteAllRules();
         }
         catch (Throwable ignore)
         {
             // Ignore because it will throw if there aren't any injections
         }
-    }
-
-    private static Submit getSubmitter() throws Throwable
-    {
-        if (submitter == null)
-        {
-            submitter = new Submit(FBUtilities.getBroadcastAddressAndPort().getAddress().getHostAddress(), loadAgent());
-        }
-        return submitter;
-    }
-
-    private static int loadAgent() throws Throwable
-    {
-        int port = getPort();
-        long pid = getProcessId();
-        List<String> properties = new ArrayList<>();
-        properties.add("org.jboss.byteman.transform.all=true");
-        Install.install(Long.toString(pid), true, true, FBUtilities.getBroadcastAddressAndPort().getAddress().getHostAddress(), port, properties.toArray(new String[0]));
-        return port;
-    }
-
-    private static int getPort()
-    {
-        try (ServerSocket serverSocket = new ServerSocket(0))
-        {
-            return serverSocket.getLocalPort();
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Retrieves the process ID or <code>null</code> if the process ID cannot be retrieved.
-     * @return the process ID or <code>null</code> if the process ID cannot be retrieved.
-     */
-    private static Long getProcessId()
-    {
-        long pid = NativeLibrary.getProcessID();
-        if (pid >= 0)
-            return pid;
-
-        return getProcessIdFromJvmName();
-    }
-
-    /**
-     * Retrieves the process ID from the JVM name.
-     * @return the process ID or <code>null</code> if the process ID cannot be retrieved.
-     */
-    private static Long getProcessIdFromJvmName()
-    {
-        // the JVM name in Oracle JVMs is: '<pid>@<hostname>' but this might not be the case on all JVMs
-        String jvmName = ManagementFactory.getRuntimeMXBean().getName();
-        try
-        {
-            return Long.valueOf(jvmName.split("@")[0]);
-        }
-        catch (NumberFormatException e)
-        {
-            // ignore
-        }
-        return null;
     }
 
     @Retention(RetentionPolicy.RUNTIME)
