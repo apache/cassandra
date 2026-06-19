@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -39,9 +40,13 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.telemetry.CassandraAttributes;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.TimeUUID;
+
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.Span;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_TRACING_CLASS;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -328,6 +333,15 @@ public abstract class Tracing extends ExecutorLocals.Impl
     // normal traces get zero-, one-, and two-argument overloads so common case doesn't need to create varargs array
     public static void trace(String message)
     {
+        Span span = Span.current();
+        if (span.isRecording())
+        {
+            Attributes attr = Attributes.builder()
+                                        .put(CassandraAttributes.THREAD_ID, Thread.currentThread().getId())
+                                        .put(CassandraAttributes.THREAD_NAME, Thread.currentThread().getName())
+                                        .build();
+            span.addEvent(message, attr);
+        }
         final TraceState state = instance.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
             return;
@@ -337,29 +351,20 @@ public abstract class Tracing extends ExecutorLocals.Impl
 
     public static void trace(String format, Object arg)
     {
-        final TraceState state = instance.get();
-        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
-            return;
-
-        state.trace(format, arg);
+        String message = MessageFormatter.format(format, arg).getMessage();
+        trace(message);
     }
 
     public static void trace(String format, Object arg1, Object arg2)
     {
-        final TraceState state = instance.get();
-        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
-            return;
-
-        state.trace(format, arg1, arg2);
+        String message = MessageFormatter.format(format, arg1, arg2).getMessage();
+        trace(message);
     }
 
     public static void trace(String format, Object... args)
     {
-        final TraceState state = instance.get();
-        if (state == null) // inline isTracing to avoid implicit two calls to state.get()
-            return;
-
-        state.trace(format, args);
+        String message = MessageFormatter.arrayFormat(format, args).getMessage();
+        trace(message);
     }
 
     /**

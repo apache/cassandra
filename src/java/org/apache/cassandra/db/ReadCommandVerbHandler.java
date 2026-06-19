@@ -44,6 +44,8 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
+import io.opentelemetry.api.trace.Span;
+
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.exceptions.RequestFailureReason.RETRY_ON_DIFFERENT_TRANSACTION_SYSTEM;
 
@@ -67,6 +69,10 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     public void doVerb(Message<ReadCommand> message)
     {
+        if (Span.current().getSpanContext().isValid())
+        {
+            Span.current().updateName(String.format("%s %s", message.verb().name(), message.payload.metadata().toString()));
+        }
         if (message.epoch().isAfter(Epoch.EMPTY))
         {
             ClusterMetadata metadata = ClusterMetadata.current();

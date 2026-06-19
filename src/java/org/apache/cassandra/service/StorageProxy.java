@@ -177,6 +177,8 @@ import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
+import org.apache.cassandra.telemetry.CassandraAttributes;
+import org.apache.cassandra.telemetry.Telemetry;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.triggers.TriggerExecutor;
@@ -191,6 +193,11 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 
 import static accord.primitives.Txn.Kind.Read;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -304,8 +311,29 @@ public class StorageProxy implements StorageProxyMBean
         {
             EndpointsForToken selected = targets.contacts().withoutSelf();
             Replicas.temporaryAssertFull(selected); // TODO CASSANDRA-14548
-            Stage.COUNTER_MUTATION.executor()
-                                  .execute(counterWriteTask(mutation, targets.withContacts(selected), responseHandler, localDataCenter, requestTime));
+            Runnable task = counterWriteTask(mutation, targets.withContacts(selected), responseHandler, localDataCenter, requestTime);
+            Context context = Context.current();
+            Stage.COUNTER_MUTATION.execute(() -> {
+                                      // Create additional span on coordinator counter-mutation to distinguish from the coordinator span
+                                      Span parentSpan = Span.fromContext(context);
+                                      String target = mutation.getPartitionUpdates().stream().map((pu) -> pu.metadata().toString()).collect(Collectors.joining(" "));
+                                      Span counterMutationSpan = parentSpan.getSpanContext().isValid() ? Telemetry.getRequestTracer()
+                                                                                                                  .spanBuilder(String.format("%s %s", Verb.COUNTER_MUTATION_REQ.name(), target))
+                                                                                                                  .setParent(context)
+                                                                                                                  .setAttribute(CassandraAttributes.THREAD_ID, Thread.currentThread().getId())
+                                                                                                                  .setAttribute(CassandraAttributes.THREAD_NAME, Thread.currentThread().getName())
+                                                                                                                  .startSpan()
+                                                                                                       : Span.getInvalid();
+
+                                      try (Scope ignore = counterMutationSpan.makeCurrent())
+                                      {
+                                          task.run();
+                                      }
+                                      finally
+                                      {
+                                          counterMutationSpan.end();
+                                      }
+                                  });
         };
 
 
@@ -930,7 +958,7 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static void commitPaxosLocal(Replica localReplica, final Message<Commit> message, final AbstractWriteResponseHandler<?> responseHandler, Dispatcher.RequestTime requestTime)
     {
-        PAXOS_COMMIT_REQ.stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica, requestTime)
+        PAXOS_COMMIT_REQ.stage.maybeExecuteImmediately(Context.current().wrap(new LocalMutationRunnable(localReplica, requestTime)
         {
             public void runMayThrow()
             {
@@ -959,7 +987,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 return PAXOS_COMMIT_REQ;
             }
-        });
+        }));
     }
 
     /**
@@ -1992,10 +2020,15 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, String description, Dispatcher.RequestTime requestTime)
     {
-        stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica, requestTime)
+        stage.maybeExecuteImmediately(Context.current().wrap(new LocalMutationRunnable(localReplica, requestTime)
         {
             public void runMayThrow()
             {
+                // update span name if keyspace and table name are available
+                if (Span.current().getSpanContext().isValid())
+                {
+                    Span.current().updateName(String.format("%s %s", verb().name(), description));
+                }
                 try
                 {
                     runnable.run();
@@ -2017,15 +2050,31 @@ public class StorageProxy implements StorageProxyMBean
             {
                 return Verb.MUTATION_REQ;
             }
-        });
+        }));
     }
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, final RequestCallback<?> handler, Object description, Dispatcher.RequestTime requestTime)
     {
-        stage.maybeExecuteImmediately(new LocalMutationRunnable(localReplica, requestTime)
+        stage.maybeExecuteImmediately(Context.current().wrap(new LocalMutationRunnable(localReplica, requestTime)
         {
             public void runMayThrow()
             {
+                // update span name if keyspace and table name are available
+                if (Span.current().getSpanContext().isValid())
+                {
+                    String target;
+                    if (description instanceof IMutation)
+                    {
+                        IMutation mutation = (IMutation) description;
+                        target = mutation.getPartitionUpdates().stream()
+                                         .map((pu) -> pu.metadata().toString()).collect(Collectors.joining(" "));
+                    }
+                    else
+                    {
+                        target = description.toString();
+                    }
+                    Span.current().updateName(String.format("%s %s", verb().name(), target));
+                }
                 try
                 {
                     MessageParams.reset();
@@ -2041,6 +2090,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (!(ex instanceof WriteTimeoutException) && !(ex instanceof RetryOnDifferentSystemException))
                         logger.error("Failed to apply mutation locally : ", ex);
+                    Span.current().recordException(ex);
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.forException(ex));
                 }
                 finally
@@ -2062,7 +2112,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 return Verb.MUTATION_REQ;
             }
-        });
+        }));
     }
 
     /**
@@ -2739,7 +2789,16 @@ public class StorageProxy implements StorageProxyMBean
 
         protected void runMayThrow()
         {
-            try
+            Span parentSpan = Span.current();
+            // Create additional Span for coordinator local read if the parent is from remote
+            // to prevent creating root span for internal read
+            Span localReadSpan = parentSpan.getSpanContext().isValid() ? Telemetry.getRequestTracer()
+                                                                                   .spanBuilder(String.format("%s %s", verb.toString(), command.metadata().toString()))
+                                                                                   .setAttribute(CassandraAttributes.THREAD_ID, Thread.currentThread().getId())
+                                                                                   .setAttribute(CassandraAttributes.THREAD_NAME, Thread.currentThread().getName())
+                                                                                   .startSpan()
+                                                                        : Span.getInvalid();
+            try (Scope scope = localReadSpan.makeCurrent())
             {
                 MessageParams.reset();
 
@@ -2757,13 +2816,15 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     if (!command.isTrackingWarnings())
                         throw e;
-                    
+
+                    localReadSpan.recordException(e);
                     response = command.createEmptyResponse();
                     readRejected = true;
                 }
                 catch (QueryCancelledException e)
                 {
                     logger.debug("Query cancelled (timeout)", e);
+                    localReadSpan.recordException(e);
                     response = null;
                     Preconditions.checkState(!command.isCompleted(), "Local read marked as completed despite being aborted by timeout to table %s", command.metadata());
                 }
@@ -2785,6 +2846,8 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (Throwable t)
             {
+                localReadSpan.setStatus(StatusCode.ERROR, t.getMessage());
+                localReadSpan.recordException(t);
                 if (t instanceof TombstoneOverwhelmingException)
                 {
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.READ_TOO_MANY_TOMBSTONES);
@@ -2795,6 +2858,10 @@ public class StorageProxy implements StorageProxyMBean
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailure.UNKNOWN);
                     throw t;
                 }
+            }
+            finally
+            {
+                localReadSpan.end();
             }
         }
 
@@ -3177,6 +3244,15 @@ public class StorageProxy implements StorageProxyMBean
 
         public final void run()
         {
+            Span parentSpan = Span.current();
+            // Create additional Span for coordinator local mutation if the parent is valid
+            // to prevent creating root span for internal mutation
+            Span localMutationSpan = parentSpan.getSpanContext().isValid() ? Telemetry.getRequestTracer()
+                                                                                      .spanBuilder(verb().name())
+                                                                                      .setAttribute(CassandraAttributes.THREAD_ID, Thread.currentThread().getId())
+                                                                                      .setAttribute(CassandraAttributes.THREAD_NAME, Thread.currentThread().getName())
+                                                                                      .startSpan()
+                                                                           : Span.getInvalid();
             final Verb verb = verb();
             long now = MonotonicClock.Global.approxTime.now();
             long deadline = requestTime.computeDeadline(verb.expiresAfterNanos());
@@ -3194,20 +3270,32 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     protected void runMayThrow() throws Exception
                     {
-                        LocalMutationRunnable.this.runMayThrow();
+                        try (Scope scope = localMutationSpan.makeCurrent())
+                        {
+                            LocalMutationRunnable.this.runMayThrow();
+                        }
+                        finally
+                        {
+                            localMutationSpan.end();
+                        }
                     }
                 };
                 submitHint(runnable);
                 return;
             }
 
-            try
+            try (Scope scope = localMutationSpan.makeCurrent())
             {
                 runMayThrow();
             }
             catch (Exception e)
             {
+                localMutationSpan.recordException(e);
                 throw new RuntimeException(e);
+            }
+            finally
+            {
+                localMutationSpan.end();
             }
         }
 

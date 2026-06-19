@@ -210,6 +210,12 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_FUNCTION, keyspaceName, functionName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE FUNCTION %s.%s", keyspaceName, functionName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, functionName);

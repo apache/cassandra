@@ -48,6 +48,8 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
+import io.opentelemetry.context.Context;
+
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
@@ -99,7 +101,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
         if (to.isSelf() && coordinator.localReadSupported())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback, requestTime, trackRepairedStatus));
+            Stage.READ.maybeExecuteImmediately(Context.current().wrap(new StorageProxy.LocalReadRunnable(command, readCallback, requestTime, trackRepairedStatus)));
             return;
         }
 

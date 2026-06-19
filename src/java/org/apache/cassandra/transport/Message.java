@@ -19,7 +19,9 @@ package org.apache.cassandra.transport;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.telemetry.tracing.CustomPayloadGetter;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Envelope.Header.Flag;
 import org.apache.cassandra.transport.messages.AuthChallenge;
@@ -55,6 +58,11 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -239,6 +247,16 @@ public abstract class Message
             return false;
         }
 
+        protected Span createSpan(InetSocketAddress clientAddress, Context context)
+        {
+            return Span.getInvalid();
+        }
+
+        protected Map<String, String> getInitialTraceParameters()
+        {
+            return Collections.emptyMap();
+        }
+
         /**
          * @return true if warnings should be tracked and aborts enforced for resource limits on this {@link Request}
          */
@@ -254,6 +272,7 @@ public abstract class Message
             boolean shouldTrace = false;
             TimeUUID tracingSessionId = null;
 
+            final Span span;
             if (isTraceable())
             {
                 if (isTracingRequested())
@@ -267,15 +286,41 @@ public abstract class Message
                     shouldTrace = true;
                     Tracing.instance.newSession(getCustomPayload());
                 }
+
+                // Try getting OpenTelemetry tracing context from custom payload containing W3C trace context
+                Context context = W3CTraceContextPropagator.getInstance()
+                                                           .extract(Context.current(), getCustomPayload(), CustomPayloadGetter.instance);
+
+                // Create span if the span is propagated, or cassandra tracing is requested
+                // Note that probablistic tracing will not create OpenTelemetry tracing
+                if (Span.fromContext(context).getSpanContext().isRemote() || isTracingRequested())
+                {
+                    span = createSpan(queryState.getClientState().getRemoteAddress(), context);
+                }
+                else
+                {
+                    span = Span.getInvalid();
+                }
+            }
+            else
+            {
+                span = Span.getInvalid();
             }
 
             Response response;
-            try
+            try (Scope scope = span.makeCurrent())
             {
                 response = execute(queryState, requestTime, shouldTrace);
             }
+            catch (Throwable e)
+            {
+                span.setStatus(StatusCode.ERROR, e.getMessage());
+                span.recordException(e);
+                throw e;
+            }
             finally
             {
+                span.end();
                 if (shouldTrace)
                     Tracing.instance.stopSession();
             }

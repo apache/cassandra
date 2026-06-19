@@ -144,6 +144,12 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     }
 
     @Override
+    public String getQuerySummary()
+    {
+        return "DESCRIBE";
+    }
+
+    @Override
     public final ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime) throws RequestValidationException, RequestExecutionException
     {
         return executeLocally(state, options);

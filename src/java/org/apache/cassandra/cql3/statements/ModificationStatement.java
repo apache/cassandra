@@ -311,6 +311,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return true;
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("%s %s", type.name(), metadata.toString());
+    }
+
     public void addFunctionsTo(List<Function> functions)
     {
         attrs.addFunctionsTo(functions);

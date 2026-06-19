@@ -156,6 +156,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_TABLE, keyspaceName, tableName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("ALTER TABLE %s.%s", keyspaceName, tableName);
+    }
+
     public String toString()
     {
         return format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);

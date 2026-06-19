@@ -47,6 +47,8 @@ import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
+import io.opentelemetry.context.Context;
+
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
     private static final Logger logger = LoggerFactory.getLogger(ShortReadPartitionsProtection.class);
@@ -188,7 +190,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
         if (source.isSelf() && coordinator.localReadSupported())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
+            Stage.READ.maybeExecuteImmediately(Context.current().wrap(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime)));
         }
         else
         {

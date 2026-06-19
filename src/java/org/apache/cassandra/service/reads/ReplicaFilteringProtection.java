@@ -78,6 +78,8 @@ import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
+import io.opentelemetry.context.Context;
+
 /**
  * Helper in charge of collecting additional queries to be done on the coordinator to protect against invalid results
  * being included due to replica-side filtering (secondary indexes or {@code ALLOW * FILTERING}).
@@ -172,7 +174,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
 
         if (source.isSelf() && coordinator.localReadSupported())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime));
+            Stage.READ.maybeExecuteImmediately(Context.current().wrap(new StorageProxy.LocalReadRunnable(cmd, handler, requestTime)));
         }
         else
         {

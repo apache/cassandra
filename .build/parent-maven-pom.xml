@@ -1316,6 +1316,18 @@
         <artifactId>passay</artifactId>
         <version>1.6.4</version>
       </dependency>
+      <dependency>
+        <groupId>io.opentelemetry</groupId>
+        <artifactId>opentelemetry-bom</artifactId>
+        <version>1.62.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.opentelemetry.semconv</groupId>
+        <artifactId>opentelemetry-semconv</artifactId>
+        <version>1.41.1</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

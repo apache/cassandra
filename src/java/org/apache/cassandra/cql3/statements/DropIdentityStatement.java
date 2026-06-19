@@ -90,6 +90,12 @@ public class DropIdentityStatement extends AuthenticationStatement
     }
 
     @Override
+    public String getQuerySummary()
+    {
+        return "DROP IDENTITY";
+    }
+
+    @Override
     public ResultMessage execute(ClientState state) throws RequestExecutionException, RequestValidationException
     {
         // not rejected in validate()

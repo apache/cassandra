@@ -2999,3 +2999,9 @@ compression_dictionary_cache_size: 10
 # Expired dictionaries will be removed from memory but can be reloaded if needed.
 # Min unit: s
 compression_dictionary_cache_expire: 24h
+
+# OpenTelemetry integration
+# If enabled, Cassandra can export telemetry using OpenTelemetry.
+# Currently, only tracing is exported
+# Default: false
+opentelemetry_enabled: false

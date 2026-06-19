@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.net.InetSocketAddress;
+
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.CQLStatement;
@@ -27,15 +29,24 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.telemetry.CassandraAttributes;
+import org.apache.cassandra.telemetry.Telemetry;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.LocalizeString;
 
 import io.netty.buffer.ByteBuf;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.semconv.ClientAttributes;
+import io.opentelemetry.semconv.DbAttributes;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -44,7 +55,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
  */
 public class QueryMessage extends Message.Request
 {
-    public static final Message.Codec<QueryMessage> codec = new Message.Codec<QueryMessage>()
+    public static final Message.Codec<QueryMessage> codec = new Message.Codec<>()
     {
         public QueryMessage decode(ByteBuf body, ProtocolVersion version)
         {
@@ -103,6 +114,7 @@ public class QueryMessage extends Message.Request
     protected Message.Response execute(QueryState state, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
         CQLStatement statement = null;
+        Span span = Span.current();
         try
         {
             if (options.getPageSize() == 0)
@@ -115,11 +127,16 @@ public class QueryMessage extends Message.Request
 
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();
             statement = queryHandler.parse(query, state, options);
+            // update span name
+            if (span.getSpanContext().isValid())
+            {
+                span.updateName(String.format("%s %s", type.name(), statement.getQuerySummary()));
+            }
             Message.Response response = queryHandler.process(statement, state, options, getCustomPayload(), requestTime);
             QueryEvents.instance.notifyQuerySuccess(statement, query, options, state, queryStartTime, response);
 
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
-                ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
+                ((ResultMessage.Rows) response).result.metadata.setSkipMetadata();
 
             return response;
         }
@@ -129,8 +146,29 @@ public class QueryMessage extends Message.Request
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
                 logger.error("Unexpected error during query", e);
+            span.recordException(e);
             return ErrorMessage.fromException(e);
         }
+    }
+
+    @Override
+    protected Span createSpan(InetSocketAddress clientAddress, Context context)
+    {
+        String consistencyValue = options.getConsistency() != null ? LocalizeString.toLowerCaseLocalized(options.getConsistency().name()) : "";
+        String serialConsistencyValue = options.getSerialConsistency() != null ? LocalizeString.toLowerCaseLocalized(options.getSerialConsistency().name()) : "";
+        return Telemetry.getRequestTracer().spanBuilder(type.name()) // Span name will be updated after successful statement parsing
+                        .setSpanKind(SpanKind.SERVER)
+                        .setParent(context)
+                        .setAttribute(DbAttributes.DB_SYSTEM_NAME, CassandraAttributes.DB_SYSTEM_NAME_CASSANDRA)
+                        .setAttribute(CassandraAttributes.CASSANDRA_QUERY_TYPE, type.name())
+                        .setAttribute(ClientAttributes.CLIENT_ADDRESS, clientAddress.getAddress().getHostAddress())
+                        .setAttribute(ClientAttributes.CLIENT_PORT, clientAddress.getPort())
+                        .setAttribute(CassandraAttributes.CASSANDRA_COORDINATOR_ADDRESS, FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(false))
+                        .setAttribute(CassandraAttributes.CASSANDRA_COORDINATOR_PORT, FBUtilities.getBroadcastNativeAddressAndPort().getPort())
+                        .setAttribute(CassandraAttributes.CASSANDRA_PAGE_SIZE, options.getPageSize())
+                        .setAttribute(CassandraAttributes.CASSANDRA_CONSISTENCY_LEVEL, consistencyValue)
+                        .setAttribute(CassandraAttributes.CASSANDRA_SERIAL_CONSISTENCY_LEVEL, serialConsistencyValue)
+                        .startSpan();
     }
 
     private void traceQuery(QueryState state)
@@ -150,7 +188,7 @@ public class QueryMessage extends Message.Request
     @Override
     public String toString()
     {
-        return String.format("QUERY %s [pageSize = %d] at consistency %s", 
+        return String.format("QUERY %s [pageSize = %d] at consistency %s",
                              query, options.getPageSize(), options.getConsistency());
     }
 }

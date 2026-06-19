@@ -97,4 +97,10 @@ public class DropRoleStatement extends AuthenticationStatement
     {
         return new AuditLogContext(AuditLogEntryType.DROP_ROLE);
     }
+
+    @Override
+    public String getQuerySummary()
+    {
+        return "DROP ROLE";
+    }
 }

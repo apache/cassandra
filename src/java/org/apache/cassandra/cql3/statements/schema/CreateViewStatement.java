@@ -418,6 +418,12 @@ public final class CreateViewStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.CREATE_VIEW, keyspaceName, viewName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("CREATE VIEW %s.%s", keyspaceName, viewName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, viewName);

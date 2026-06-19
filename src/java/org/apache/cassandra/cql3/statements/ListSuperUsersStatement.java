@@ -99,4 +99,10 @@ public class ListSuperUsersStatement extends AuthorizationStatement
     {
         return new AuditLogContext(AuditLogEntryType.LIST_SUPERUSERS);
     }
+
+    @Override
+    public String getQuerySummary()
+    {
+        return "LIST SUPERUSERS";
+    }
 }

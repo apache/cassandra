@@ -129,6 +129,17 @@ public interface CQLStatement
         return false;
     }
 
+    /**
+     * The query summary describes a class of database queries and is useful as a grouping key.
+     * This is used in telemetry to group similar queries together.
+     *
+     * @see <a href="https://opentelemetry.io/docs/specs/semconv/db/database-spans/#generating-a-summary-of-the-query">Generating a summary of the query</a>
+     */
+    default String getQuerySummary()
+    {
+        return "<unknown>";
+    }
+
     abstract class Raw
     {
         protected VariableSpecifications bindVariables;

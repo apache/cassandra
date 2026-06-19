@@ -232,6 +232,12 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_KEYSPACE, keyspaceName);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("ALTER KEYSPACE %s", keyspaceName);
+    }
+
     public String toString()
     {
         return String.format("%s (%s)", getClass().getSimpleName(), keyspaceName);

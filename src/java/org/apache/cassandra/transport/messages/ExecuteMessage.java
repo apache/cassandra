@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -33,6 +34,8 @@ import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.net.ArtificialLatency;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.telemetry.CassandraAttributes;
+import org.apache.cassandra.telemetry.Telemetry;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Dispatcher;
@@ -40,11 +43,18 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.LocalizeString;
 import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import io.netty.buffer.ByteBuf;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.semconv.ClientAttributes;
+import io.opentelemetry.semconv.DbAttributes;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -52,7 +62,7 @@ public class ExecuteMessage extends Message.Request
 {
     private static final NoSpamLogger nospam = NoSpamLogger.getLogger(logger, 10, TimeUnit.MINUTES);
 
-    public static final Message.Codec<ExecuteMessage> codec = new Message.Codec<ExecuteMessage>()
+    public static final Message.Codec<ExecuteMessage> codec = new Message.Codec<>()
     {
         public ExecuteMessage decode(ByteBuf body, ProtocolVersion version)
         {
@@ -123,6 +133,26 @@ public class ExecuteMessage extends Message.Request
     }
 
     @Override
+    protected Span createSpan(InetSocketAddress clientAddress, Context context)
+    {
+        String consistencyValue = options.getConsistency() != null ? LocalizeString.toLowerCaseLocalized(options.getConsistency().name()) : "";
+        String serialConsistencyValue = options.getSerialConsistency() != null ? LocalizeString.toLowerCaseLocalized(options.getSerialConsistency().name()) : "";
+        return Telemetry.getRequestTracer().spanBuilder(type.name()) // Span name will be updated after successful statement parsing
+                        .setSpanKind(SpanKind.SERVER)
+                        .setParent(context)
+                        .setAttribute(DbAttributes.DB_SYSTEM_NAME, CassandraAttributes.DB_SYSTEM_NAME_CASSANDRA)
+                        .setAttribute(CassandraAttributes.CASSANDRA_QUERY_TYPE, type.name())
+                        .setAttribute(ClientAttributes.CLIENT_ADDRESS, clientAddress.getAddress().getHostAddress())
+                        .setAttribute(ClientAttributes.CLIENT_PORT, clientAddress.getPort())
+                        .setAttribute(CassandraAttributes.CASSANDRA_COORDINATOR_ADDRESS, FBUtilities.getBroadcastNativeAddressAndPort().getHostAddress(false))
+                        .setAttribute(CassandraAttributes.CASSANDRA_COORDINATOR_PORT, FBUtilities.getBroadcastNativeAddressAndPort().getPort())
+                        .setAttribute(CassandraAttributes.CASSANDRA_PAGE_SIZE, options.getPageSize())
+                        .setAttribute(CassandraAttributes.CASSANDRA_CONSISTENCY_LEVEL, consistencyValue)
+                        .setAttribute(CassandraAttributes.CASSANDRA_SERIAL_CONSISTENCY_LEVEL, serialConsistencyValue)
+                        .startSpan();
+    }
+
+    @Override
     protected boolean isTrackable()
     {
         return true;
@@ -150,6 +180,12 @@ public class ExecuteMessage extends Message.Request
             }
 
             CQLStatement statement = prepared.statement;
+            // update span name
+            Span span = Span.current();
+            if (span.getSpanContext().isValid())
+            {
+                span.updateName(String.format("%s %s", type.name(), statement.getQuerySummary()));
+            }
             options.prepare(statement.getBindVariables());
 
             if (options.getPageSize() == 0)
@@ -166,6 +202,13 @@ public class ExecuteMessage extends Message.Request
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
 
             long requestStartTime = currentTimeMillis();
+
+            if (span.isRecording())
+            {
+                // Use raw CQL statement here to store parameterized query
+                // Until proper sanitization can be done, bound parameters are not added as attributes
+                span.setAttribute(DbAttributes.DB_QUERY_TEXT, prepared.rawCQLStatement);
+            }
 
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), requestTime);
 
@@ -207,6 +250,7 @@ public class ExecuteMessage extends Message.Request
         {
             QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
+            Span.current().recordException(e);
             return ErrorMessage.fromException(e);
         }
     }

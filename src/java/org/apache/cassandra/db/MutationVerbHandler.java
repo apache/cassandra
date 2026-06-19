@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -26,6 +27,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.tracing.Tracing;
+
+import io.opentelemetry.api.trace.Span;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
@@ -56,6 +59,13 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
             Tracing.trace("Discarding mutation from {} (timed out)", message.from());
             MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
             return;
+        }
+
+        if (Span.current().getSpanContext().isValid())
+        {
+            String target = message.payload.getPartitionUpdates().stream()
+                                           .map((pu) -> pu.metadata().toString()).collect(Collectors.joining(" "));
+            Span.current().updateName(String.format("%s %s", message.verb().name(), target));
         }
 
         MessageParams.reset();

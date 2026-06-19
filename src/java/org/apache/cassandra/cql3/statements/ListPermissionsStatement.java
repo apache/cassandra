@@ -156,4 +156,10 @@ public class ListPermissionsStatement extends AuthorizationStatement
     {
         return new AuditLogContext(AuditLogEntryType.LIST_PERMISSIONS);
     }
+
+    @Override
+    public String getQuerySummary()
+    {
+        return "LIST PERMISSIONS";
+    }
 }

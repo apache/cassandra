@@ -534,6 +534,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         return new AuditLogContext(AuditLogEntryType.SELECT, keyspace(), table.name);
     }
 
+    @Override
+    public String getQuerySummary()
+    {
+        return String.format("SELECT %s", table.toString());
+    }
+
     // Simple wrapper class to avoid some code duplication
     private static abstract class Pager
     {

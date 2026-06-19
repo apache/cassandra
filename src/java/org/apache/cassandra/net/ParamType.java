@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.accord.debug.AccordRemoteTracing;
 import org.apache.cassandra.service.writes.thresholds.WriteThresholdMapSerializer;
+import org.apache.cassandra.telemetry.tracing.TraceContextSerializer;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.Int64Serializer;
@@ -60,6 +61,7 @@ public enum ParamType
     WRITE_SIZE_WARN                  (18, WriteThresholdMapSerializer.serializer),
     WRITE_TOMBSTONE_WARN             (19, WriteThresholdMapSerializer.serializer),
     ACCORD_TRACING                   (20, AccordRemoteTracing.tracingSerializer),
+    TRACE_CONTEXT                    (21, TraceContextSerializer.serializer),
     ;
 
     final int id;
