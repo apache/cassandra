@@ -1321,7 +1321,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                             fullReplicas++;
                 }
 
-                throw UnavailableException.create(planner.cl, minBlockFor(), 1, eligibleCandidates(candidates), fullReplicas);
+                throw new UnavailableException("Unable to reach quorum of quorum", planner.cl, minBlockFor(), fullReplicas);
             }
 
             E result = contactBuilder.build();
@@ -1587,7 +1587,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         ResponseTracker tracker = planner.createResponseTracker();
 
         // paxos is handling the consensus/commit acks in the primary DC, we just need to worry about the witness DCs
-        EndpointsForToken primaryEndpoints = planner.fullEndpoints.get(primaryDC);
+        EndpointsForToken primaryEndpoints = planner.fullLayouts.get(primaryDC).all();
         if (primaryEndpoints != null)
         {
             for (int i = 0; i < primaryEndpoints.size(); i++)
