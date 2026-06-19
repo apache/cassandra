@@ -1642,7 +1642,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
             for (int i = 0; i < plan.downEndpoints.size(); i++)
                 satelliteHostIds.add(metadata.directory.peerId(plan.downEndpoints.endpoint(i)).id());
             if (!satelliteHostIds.isEmpty())
-                MutationTrackingService.instance().sentWriteRequest(commit.makeMutation(), satelliteHostIds);
+                MutationTrackingService.instance().sentWriteRequest(commit.mutation, satelliteHostIds);
         }
 
         // Create promise that resolves when satellite tracker completes
