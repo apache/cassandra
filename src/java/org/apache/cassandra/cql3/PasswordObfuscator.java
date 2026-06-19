@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.auth.RoleOptions;
@@ -67,11 +68,11 @@ public class PasswordObfuscator
         if (!pass.isPresent() || pass.get().isEmpty())
             return query;
 
-        // Regular expression:
-        //  - Match new line and case insensitive (?si), and PASSWORD_TOKEN with greedy mode up to the start of the actual password and group it.
-        //  - Quote the password between \Q and \E so any potential special characters are ignored
-        //  - Replace the match with the grouped data + the obfuscated token
-        return query.replaceAll("((?si)"+ PASSWORD_TOKEN + ".+?)\\Q" + pass.get() + "\\E",
-                                "$1" + PasswordObfuscator.OBFUSCATION_TOKEN);
+        // CQL-escape the password, the password in RoleOptions is unescaped, but the query contains the escaped form.
+        String escapedPassword = pass.get().replace("'", "''");
+
+        // Use Pattern.quote() to safely handle all special regex characters.
+        String pattern = "((?si)" + PASSWORD_TOKEN + ".+?)" + Pattern.quote(escapedPassword);
+        return query.replaceAll(pattern, "$1" + OBFUSCATION_TOKEN);
     }
 }
