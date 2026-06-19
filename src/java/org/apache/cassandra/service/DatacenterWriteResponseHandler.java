@@ -17,15 +17,19 @@
  */
 package org.apache.cassandra.service;
 
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.locator.CoordinationPlan;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.ParamType;
+import org.apache.cassandra.service.writes.thresholds.WriteWarningContext;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -53,6 +57,10 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
     public void onResponse(Message<T> message)
     {
         InetAddressAndPort from = message == null ? FBUtilities.getBroadcastAddressAndPort() : message.from();
+        Map<ParamType, Object> params = message != null ? message.header.params() : MessageParams.capture();
+
+        if (WriteWarningContext.isSupported(params.keySet()))
+            getWarningContext().updateCounters(params);
 
         plan.responses().onResponse(from);
 

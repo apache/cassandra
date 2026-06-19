@@ -156,9 +156,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         if (!signaled)
             throwTimeout();
 
-        int candidateReplicaCount = candidateReplicaCount();
         if (!plan.responses().isSuccessful())
         {
+            int candidateReplicaCount = candidateReplicaCount();
             // failures keeps incrementing, and this.failureReasonByEndpoint keeps getting new entries after signaling.
             // Simpler to reason about what happened by copying this.failureReasonByEndpoint and then inferring
             // failures from it
