@@ -80,6 +80,14 @@ public class UFInsecureSystemAccessTest extends CQLTester
                             assertInvalid(function(KEYSPACE + ".restricted", source));
                         }
                     }
+                    // System.getLogger is on the sandbox verifier's System deny list, so under the sandbox mechanism
+                    // only the insecure combination may create a function that calls it.
+                    if (!useThreads && allowInsecure)
+                    {
+                        String name = createFunction(KEYSPACE_PER_TEST, "double",
+                                                     function("%s", "System.getLogger(\"udf-test\"); return 0d;"));
+                        assertRows(execute("SELECT " + name + "(val) FROM %s WHERE key=1"), row(0d));
+                    }
                     assertInvalidMessage("call to java.lang.ClassLoader.getPlatformClassLoader()",
                                          function(KEYSPACE + ".restricted", "ClassLoader.getPlatformClassLoader(); return 0d;"));
                     assertInvalid(function(KEYSPACE + ".restricted", "Runtime.getRuntime(); return 0d;"));
