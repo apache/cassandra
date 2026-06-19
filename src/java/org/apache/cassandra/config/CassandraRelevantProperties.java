@@ -731,6 +731,16 @@ public enum CassandraRelevantProperties
     UCS_SURVIVAL_FACTOR("unified_compaction.survival_factor", "1"),
     UCS_TARGET_SSTABLE_SIZE("unified_compaction.target_sstable_size", "1GiB"),
     UDF_EXECUTOR_THREAD_KEEPALIVE_MS("cassandra.udf_executor_thread_keepalive_ms", "30000"),
+    /**
+     * Selects the UDF sandbox mechanism.
+     * <ul>
+     *   <li>{@code auto} uses a {@link java.lang.SecurityManager} before JDK 24 and the byte-code sandbox
+     *       on JDK 24+.</li>
+     *   <li>{@code securitymanager} requires a SecurityManager and fails on JDK 24+.</li>
+     *   <li>{@code sandbox} uses the byte-code sandbox on every JDK.</li>
+     * </ul>
+     */
+    UDF_SECURITY_MECHANISM("cassandra.udf.security_mechanism", "auto"),
     UNSAFE_SYSTEM("cassandra.unsafesystem"),
     /** User's home directory. */
     USER_HOME("user.home"),
