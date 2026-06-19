@@ -18,15 +18,20 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.auth.RoleOptions;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.PasswordObfuscator.OBFUSCATION_TOKEN;
 import static org.apache.cassandra.cql3.PasswordObfuscator.obfuscate;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PasswordObfuscatorTest
 {
@@ -34,6 +39,9 @@ public class PasswordObfuscatorTest
     private static final RoleOptions hashedPwdOpts = new RoleOptions();
     private static final String plainPwd = "testpassword";
     private static final String hashedPwd = "$2a$10$1fI9MDCe13ZmEYW4XXZibuASNKyqOY828ELGUtml/t.0Mk/6Kqnsq";
+
+    public static final int ASCII_START = 32;
+    public static final int ASCII_END = 126;
 
     @BeforeClass
     public static void startup()
@@ -362,5 +370,122 @@ public class PasswordObfuscatorTest
                                       "    CREATE ROLE alice2 WITH HASHED PASSWORD = '%s' and LOGIN = true; \n" +
                                       "APPLY BATCH;", hashedPwd, hashedPwd),
                                hashedPwdOpts));
+    }
+
+    /**
+     * Tests that passwords containing the literal string \E are properly obfuscated.
+     * <p>
+     * The \E sequence is special in Java regex as it ends a \Q...\E quoted block.
+     * If inline \Q...\E quoting is used instead of Pattern.quote(), passwords containing
+     * \E will break the regex pattern and cause either an exception or failed obfuscation.
+     */
+    @Test
+    public void testPasswordWithRegexEndQuote()
+    {
+        // \E in the middle
+        assertPasswordObfuscated("secret\\Epassword");
+
+        // \E at the start
+        assertPasswordObfuscated("\\Esecretpassword");
+
+        // \E at the end
+        assertPasswordObfuscated("secretpassword\\E");
+
+        // \E followed by regex special char +
+        assertPasswordObfuscated("secret\\E+password");
+
+        // Multiple \E sequences
+        assertPasswordObfuscated("sec\\Eret\\Epass");
+    }
+
+    /**
+     * Helper method to test that a password is properly obfuscated in a CREATE ROLE statement.
+     *
+     * @param password the password to test (unescaped, as stored in RoleOptions)
+     */
+    private void assertPasswordObfuscated(String password)
+    {
+        RoleOptions roleOpts = new RoleOptions();
+        roleOpts.setOption(IRoleManager.Option.PASSWORD, password);
+
+        // Escape single quotes for CQL query string
+        String escapedPassword = password.replace("'", "''");
+        String query = format("CREATE ROLE role1 WITH PASSWORD = '%s'", escapedPassword);
+        String expected = format("CREATE ROLE role1 WITH PASSWORD = '%s'", OBFUSCATION_TOKEN);
+
+        assertEquals("Password should be obfuscated: " + password, expected, obfuscate(query, roleOpts));
+    }
+
+    /**
+     * Tests that passwords containing each printable special character (outside a-z, A-Z, 0-9)
+     * are properly obfuscated by PasswordObfuscator.
+     * <p>
+     * This test iterates through all printable ASCII special characters (32-126, excluding
+     * alphanumeric) and tests each character at three positions: start, middle, and end of
+     * the password. Any failures are collected and reported at the end.
+     */
+    @Test
+    public void testAllPrintableSpecialCharactersObfuscation()
+    {
+        List<String> failures = new ArrayList<>();
+
+        for (char c = ASCII_START; c <= ASCII_END; c++)
+        {
+            // Skip alphanumeric characters
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+                continue;
+
+            // Test character at start, middle, and end of password
+            String[] passwords = {
+                c + "password",        // at start
+                "pass" + c + "word",   // in middle
+                "password" + c         // at end
+            };
+
+            for (String password : passwords)
+            {
+                String escapedPassword = password.replace("'", "''");
+                String query = format("CREATE ROLE role1 WITH PASSWORD = '%s'", escapedPassword);
+                String expected = format("CREATE ROLE role1 WITH PASSWORD = '%s'", OBFUSCATION_TOKEN);
+
+                RoleOptions testOpts = new RoleOptions();
+                testOpts.setOption(IRoleManager.Option.PASSWORD, password);
+
+                try
+                {
+                    String result = obfuscate(query, testOpts);
+
+                    if (!expected.equals(result))
+                    {
+                        if (result.contains(escapedPassword) || result.contains(password))
+                        {
+                            failures.add(format("Password '%s': PASSWORD LEAKED - Result: %s",
+                                                password, result));
+                        }
+                        else
+                        {
+                            failures.add(format("Password '%s': Unexpected result - Expected: %s, Got: %s",
+                                                password, expected, result));
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    failures.add(format("Password '%s': Exception thrown - %s: %s",
+                                        password, e.getClass().getSimpleName(), e.getMessage()));
+                }
+            }
+        }
+
+        if (!failures.isEmpty())
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append(format("%d password(s) with special characters failed obfuscation:\n", failures.size()));
+            for (String failure : failures)
+            {
+                sb.append("  - ").append(failure).append("\n");
+            }
+            fail(sb.toString());
+        }
     }
 }
