@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 
@@ -75,6 +77,36 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
                                                                                         "keystore_password", validKeyStorePassword,
                                                                                         "truststore", validTrustStorePath,
                                                                                         "truststore_password", validTrustStorePassword);
+
+    /** Returns whether the running JDK enables the TLS protocol by default. */
+    public static boolean isProtocolEnabledByDefault(String protocol)
+    {
+        try
+        {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, null, null);
+            return Arrays.asList(ctx.createSSLEngine().getEnabledProtocols()).contains(protocol);
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
+    /** Returns whether the running JDK enables the cipher suite by default. */
+    public static boolean isCipherEnabledByDefault(String cipherSuite)
+    {
+        try
+        {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, null, null);
+            return Arrays.asList(ctx.createSSLEngine().getEnabledCipherSuites()).contains(cipherSuite);
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
 
     // Configuration with a valid keystore, but an unknown protocol
     final static Map<String,Object> nonExistantProtocol = ImmutableMap.<String,Object>builder()
