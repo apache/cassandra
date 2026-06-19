@@ -20,8 +20,6 @@ package org.apache.cassandra.locator;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 /**
  * Black-box response tracker encapsulating coordination completion logic.
  *
@@ -52,9 +50,8 @@ public interface ResponseTracker
      * Record a failed response from a replica.
      *
      * @param from endpoint that failed
-     * @param reason failure reason for metrics and error messages
      */
-    void onFailure(InetAddressAndPort from, RequestFailureReason reason);
+    void onFailure(InetAddressAndPort from);
 
     // TODO: consider having an outcome method that returns an enum (PENDING, SUCCESS, FAILURE)
     /**

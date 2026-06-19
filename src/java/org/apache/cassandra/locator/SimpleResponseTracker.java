@@ -21,8 +21,6 @@ package org.apache.cassandra.locator;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Predicate;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 /**
  * Simple response tracker that counts responses against a single threshold.
  * <p>
@@ -82,7 +80,7 @@ public class SimpleResponseTracker implements ResponseTracker
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from)
     {
         if (countsTowardQuorum(from))
             FAILURES_UPDATER.incrementAndGet(this);

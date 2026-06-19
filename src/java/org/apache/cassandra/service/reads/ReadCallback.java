@@ -273,7 +273,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         assertWaitingFor(from);
 
         failureReasonByEndpoint.put(from, failure.reason);
-        plan.responses().onFailure(from, failure.reason);
+        plan.responses().onFailure(from);
 
         if (plan.responses().isComplete() && !plan.responses().isSuccessful())
             condition.signalAll();

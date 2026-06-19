@@ -20,8 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.util.function.Predicate;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 /**
  * Response tracker for writes with pending replicas using the double count model.
  * <p>
@@ -119,10 +117,10 @@ public class WriteResponseTracker implements ResponseTracker
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from)
     {
-        natural.onFailure(from, reason);
-        total.onFailure(from, reason);
+        natural.onFailure(from);
+        total.onFailure(from);
     }
 
     @Override

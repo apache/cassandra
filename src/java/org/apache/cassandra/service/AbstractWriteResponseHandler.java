@@ -298,7 +298,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     public final void expired(InetAddressAndPort from)
     {
-        plan.responses().onFailure(from, RequestFailureReason.NODE_DOWN);
+        plan.responses().onFailure(from);
         logFailureOrTimeoutToIdealCLDelegate();
         if (plan.responses().isComplete() && !plan.responses().isSuccessful())
             signal();
@@ -395,7 +395,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             }
         failureReasonByEndpoint.put(from, failure.reason);
 
-        plan.responses().onFailure(from, failure.reason);
+        plan.responses().onFailure(from);
 
         logFailureOrTimeoutToIdealCLDelegate();
 

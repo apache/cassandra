@@ -1677,7 +1677,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
                 {
                     MutationTrackingService.instance().retryFailedWrite(mutationId, from, failure);
 
-                    tracker.onFailure(from, failure.reason);
+                    tracker.onFailure(from);
                     if (tracker.isComplete())
                         resolvePromise(promise, tracker);
                 }
@@ -1689,7 +1689,7 @@ public class SatelliteReplicationStrategy extends AbstractReplicationStrategy
         {
             InetAddressAndPort endpoint = plan.downEndpoints.endpoint(i);
             MutationTrackingService.instance().retryFailedWrite(mutationId, endpoint, RequestFailure.NODE_DOWN);
-            tracker.onFailure(endpoint, UNKNOWN);
+            tracker.onFailure(endpoint);
         }
 
         if (tracker.isComplete())

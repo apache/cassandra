@@ -21,8 +21,6 @@ package org.apache.cassandra.locator;
 import java.util.Collection;
 import java.util.function.ToIntFunction;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 /**
  * Composite response tracker: broadcasts responses to all child trackers and succeeds when at least
  * `blockFor` children are individually successful, or fails when `failures > count - blockFor`
@@ -76,10 +74,10 @@ public class CompositeTracker implements ResponseTracker
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from)
     {
         for (ResponseTracker child : children)
-            child.onFailure(from, reason);
+            child.onFailure(from);
     }
 
     @Override
