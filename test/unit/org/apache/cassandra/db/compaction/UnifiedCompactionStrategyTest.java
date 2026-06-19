@@ -31,8 +31,8 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.monitoring.runtime.instrumentation.common.collect.ImmutableList;
 
 import org.apache.commons.math3.random.JDKRandomGenerator;
 import org.junit.Assert;
