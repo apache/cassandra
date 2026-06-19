@@ -27,15 +27,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 public class CompositeTrackerTest
 {
-    private static final RequestFailureReason TIMEOUT = RequestFailureReason.TIMEOUT;
-
     private InetAddressAndPort endpoint(String ip) throws UnknownHostException
     {
         return InetAddressAndPort.getByName(ip);
@@ -242,11 +238,11 @@ public class CompositeTrackerTest
         CompositeTracker tracker = new CompositeTracker(3, c0, c1, c2);
 
         InetAddressAndPort ep = endpoint("127.0.0.1");
-        tracker.onFailure(ep, TIMEOUT);
+        tracker.onFailure(ep);
 
-        verify(c0).onFailure(ep, TIMEOUT);
-        verify(c1).onFailure(ep, TIMEOUT);
-        verify(c2).onFailure(ep, TIMEOUT);
+        verify(c0).onFailure(ep);
+        verify(c1).onFailure(ep);
+        verify(c2).onFailure(ep);
     }
 
     @Test

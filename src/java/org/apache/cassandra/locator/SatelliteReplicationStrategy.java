@@ -95,7 +95,6 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 
 /**
  * Replication strategy for  CEP-58: Satellite Datacenters

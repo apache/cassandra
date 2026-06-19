@@ -27,14 +27,10 @@ import java.util.function.Predicate;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 import static org.junit.Assert.*;
 
 public class SimpleResponseTrackerTest
 {
-    private static final RequestFailureReason TIMEOUT = RequestFailureReason.TIMEOUT;
-
     private InetAddressAndPort endpoint(String ip) throws UnknownHostException
     {
         return InetAddressAndPort.getByName(ip);
@@ -80,9 +76,9 @@ public class SimpleResponseTrackerTest
 
         // Need 3, have 5 total
         tracker.onResponse(endpoint("127.0.0.1"));  // 1 success
-        tracker.onFailure(endpoint("127.0.0.2"), TIMEOUT);  // 1 failure
-        tracker.onFailure(endpoint("127.0.0.3"), TIMEOUT);  // 2 failures
-        tracker.onFailure(endpoint("127.0.0.4"), TIMEOUT);  // 3 failures
+        tracker.onFailure(endpoint("127.0.0.2"));  // 1 failure
+        tracker.onFailure(endpoint("127.0.0.3"));  // 2 failures
+        tracker.onFailure(endpoint("127.0.0.4"));  // 3 failures
 
         // Have 1 success, 3 failures, 1 remaining
         // Need 2 more but only 1 remaining -> impossible
@@ -112,9 +108,9 @@ public class SimpleResponseTrackerTest
     {
         SimpleResponseTracker tracker = new SimpleResponseTracker(2, 3);
 
-        tracker.onFailure(endpoint("127.0.0.1"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.2"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.3"), TIMEOUT);
+        tracker.onFailure(endpoint("127.0.0.1"));
+        tracker.onFailure(endpoint("127.0.0.2"));
+        tracker.onFailure(endpoint("127.0.0.3"));
 
         assertTrue(tracker.isComplete());
         assertFalse(tracker.isSuccessful());

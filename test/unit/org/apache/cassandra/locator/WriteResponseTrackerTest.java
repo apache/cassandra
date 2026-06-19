@@ -25,8 +25,6 @@ import java.util.function.Predicate;
 
 import org.junit.Test;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
-
 import static org.junit.Assert.*;
 
 /**
@@ -34,8 +32,6 @@ import static org.junit.Assert.*;
  */
 public class WriteResponseTrackerTest
 {
-    private static final RequestFailureReason TIMEOUT = RequestFailureReason.TIMEOUT;
-
     private InetAddressAndPort endpoint(String ip) throws UnknownHostException
     {
         return InetAddressAndPort.getByName(ip);
@@ -83,8 +79,8 @@ public class WriteResponseTrackerTest
         assertEquals(1, tracker.pendingReceived());
 
         // 2 committed failures -> can't reach 2 committed
-        tracker.onFailure(endpoint("127.0.0.2"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.3"), TIMEOUT);
+        tracker.onFailure(endpoint("127.0.0.2"));
+        tracker.onFailure(endpoint("127.0.0.3"));
         assertTrue("Should be complete - impossible to reach committed requirement", tracker.isComplete());
         assertFalse("Should not be successful", tracker.isSuccessful());
     }
@@ -107,9 +103,9 @@ public class WriteResponseTrackerTest
         assertEquals(2, tracker.naturalReceived());
 
         // 1 committed failure, 2 pending failures -> only 3 total possible, need 4
-        tracker.onFailure(endpoint("127.0.0.3"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.4"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.5"), TIMEOUT);
+        tracker.onFailure(endpoint("127.0.0.3"));
+        tracker.onFailure(endpoint("127.0.0.4"));
+        tracker.onFailure(endpoint("127.0.0.5"));
         assertTrue("Should be complete - impossible to reach total requirement", tracker.isComplete());
         assertFalse("Should not be successful", tracker.isSuccessful());
     }
@@ -141,8 +137,8 @@ public class WriteResponseTrackerTest
 
         WriteResponseTracker tracker = new WriteResponseTracker(2, 3, 3, 1, isPending);
 
-        tracker.onFailure(endpoint("127.0.0.1"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.2"), TIMEOUT);
+        tracker.onFailure(endpoint("127.0.0.1"));
+        tracker.onFailure(endpoint("127.0.0.2"));
         // After 2 committed failures, can't reach baseBlockFor=2 with only 1 remaining
         assertTrue(tracker.isComplete());
         assertFalse(tracker.isSuccessful());
@@ -231,8 +227,8 @@ public class WriteResponseTrackerTest
         tracker.onResponse(endpoint("127.0.0.1"));
         tracker.onResponse(endpoint("127.0.0.2"));
         tracker.onResponse(endpoint("127.0.0.3"));
-        tracker.onFailure(endpoint("127.0.0.4"), TIMEOUT);
-        tracker.onFailure(endpoint("127.0.0.5"), TIMEOUT);
+        tracker.onFailure(endpoint("127.0.0.4"));
+        tracker.onFailure(endpoint("127.0.0.5"));
 
         assertFalse("Need 5 total, only have 3", tracker.isComplete());
         assertEquals(3, tracker.naturalReceived());
@@ -292,7 +288,7 @@ public class WriteResponseTrackerTest
         assertEquals(3, tracker.required()); // Returns totalBlockFor for error messages
 
         tracker.onResponse(endpoint("127.0.0.1"));
-        tracker.onFailure(endpoint("127.0.0.2"), TIMEOUT);
+        tracker.onFailure(endpoint("127.0.0.2"));
         tracker.onResponse(endpoint("127.0.0.4"));
 
         assertEquals(1, tracker.naturalReceived());
