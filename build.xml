@@ -151,7 +151,7 @@
     <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
 
     <!-- https://www.eclemma.org/jacoco/ -->
-    <property name="jacoco.version" value="0.8.8"/>
+    <property name="jacoco.version" value="0.8.15"/>
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
     <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
@@ -175,8 +175,8 @@
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
-    <property name="asm.version" value="9.5"/>
-    <property name="allocation-instrumenter.version" value="3.1.0"/>
+    <property name="asm.version" value="9.8"/>
+    <property name="allocation-instrumenter.version" value="3.3.5"/>
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />

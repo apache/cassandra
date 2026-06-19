@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
