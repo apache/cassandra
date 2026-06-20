@@ -410,7 +410,7 @@ public class Keyspace
         if (mutation.id().isNone())
             return applyInternal(mutation, writeCommitLog, updateIndexes, true, true, new AsyncPromise<>());
         else
-            return applyInternalTracked(mutation, new AsyncPromise<>());
+            return applyInternalTracked(mutation, writeCommitLog, new AsyncPromise<>());
     }
 
     public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
@@ -441,7 +441,7 @@ public class Keyspace
                       boolean isDroppable)
     {
         if (MigrationRouter.isFullyTracked(mutation))
-            applyInternalTracked(mutation, null);
+            applyInternalTracked(mutation, makeDurable, null);
         else
             applyInternal(mutation, makeDurable, updateIndexes, isDroppable, false, null);
     }
@@ -615,7 +615,7 @@ public class Keyspace
     /**
      * Append the mutation to the mutation journal, then update memtables and indexes.
      */
-    private Future<?> applyInternalTracked(Mutation mutation, Promise<?> future)
+    private Future<?> applyInternalTracked(Mutation mutation, boolean makeDurable, Promise<?> future)
     {
         MutationTrackingService.ensureEnabled();
         if (!MigrationRouter.isFullyTracked(mutation) || mutation.id().isNone())
@@ -628,11 +628,11 @@ public class Keyspace
             throw new RuntimeException("Testing write failures");
 
         boolean started;
-        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, true))
+        try (WriteContext ctx = trackedWriteHandler.beginWrite(mutation, makeDurable))
         {
             started = MutationTrackingService.instance().startWriting(mutation);
 
-            if (started)
+            if (started || !makeDurable)
             {
                 for (PartitionUpdate upd : mutation.getPartitionUpdates())
                 {
