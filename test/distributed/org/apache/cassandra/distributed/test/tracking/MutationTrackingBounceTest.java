@@ -75,7 +75,7 @@ public class MutationTrackingBounceTest extends FuzzTestBase
         int tables = 10;
         int writesPerKey = 2;
         int pks = 100;
-        withRandom(rng -> {
+        withRandom(1509900183613458L, rng -> {
             cluster.schemaChange(String.format("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d} " +
                                                "AND replication_type='tracked'",
                                                KEYSPACE, rf));

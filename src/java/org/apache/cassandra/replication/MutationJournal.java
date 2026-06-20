@@ -401,7 +401,7 @@ public class MutationJournal
                 if (newPUCollector != null)
                 {
                     assert !newPUCollector.isEmpty();
-                    keyspace.apply(newPUCollector.build(), false, true, false);
+                    keyspace.applyForReplay(newPUCollector.build());
                 }
             }
         }, getAvailableProcessors());

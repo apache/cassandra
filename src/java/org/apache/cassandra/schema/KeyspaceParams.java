@@ -25,6 +25,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.ClientState;
@@ -180,6 +181,9 @@ public final class KeyspaceParams
 
     public void validate(String name, ClientState state, ClusterMetadata metadata)
     {
+        if (!durableWrites && replicationType.isTracked())
+            throw new ConfigurationException(String.format("Keyspace %s cannot disable durable_writes with replication_type='tracked': " +
+                                                           "the mutation journal is required for tracked replication", name));
         replication.validate(name, state, metadata, replicationType);
     }
 
