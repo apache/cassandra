@@ -19,7 +19,19 @@
 <project basedir=".." name="apache-cassandra-accord-build"
          xmlns:if="ant:if">
     <target name="_build-accord" depends="init" unless="no-build-accord">
-      <exec executable="${basedir}/${accord.dir}/gradlew" dir="${basedir}/${accord.dir}" logError="true" failonerror="true" failifexecutionfails="true">
+      <!-- Accord's build needs Gradle 9 to read JDK 25 bytecode (class file v69) when compiling its
+           precompiled convention plugins, but Gradle 9 only runs on JDK 17+, while building on JDK 11
+           requires Gradle 8. Accord commits the Gradle 8 wrapper (whose jar also boots on JDK 11); when
+           building on JDK 17+ point the wrapper at the Gradle 9 distribution for the duration of the build
+           and restore the committed file afterwards, so the submodule is left unmodified. Accord's build
+           scripts are compatible with both Gradle 8 and Gradle 9. -->
+      <property name="accord.wrapper.props" location="${basedir}/${accord.dir}/gradle/wrapper/gradle-wrapper.properties"/>
+      <condition property="accord.use.gradle9">
+        <not><equals arg1="${ant.java.version}" arg2="11"/></not>
+      </condition>
+      <copy if:set="accord.use.gradle9" file="${accord.wrapper.props}" tofile="${accord.wrapper.props}.orig" overwrite="true" preservelastmodified="true"/>
+      <replace if:set="accord.use.gradle9" file="${accord.wrapper.props}" token="gradle-8.5-bin.zip" value="gradle-9.6.0-bin.zip"/>
+      <exec executable="${basedir}/${accord.dir}/gradlew" dir="${basedir}/${accord.dir}" logError="true" failonerror="false" resultproperty="accord.build.rc" failifexecutionfails="true">
         <!-- Need to call clean as a version change with a jar that didn't have code changes will not produce a new jar with the new version... so need clean to make sure build is stable -->
         <arg value="clean" />
         <arg value="build" />
@@ -42,6 +54,11 @@
         <arg value="-Paccord_version=${version}" />
         <arg value="-Dmaven.repo.local=${maven.repo.local}" if:set="maven.repo.local" />
       </exec>
+      <!-- Restore the committed Gradle 8 wrapper after the build. -->
+      <move if:set="accord.use.gradle9" file="${accord.wrapper.props}.orig" tofile="${accord.wrapper.props}" overwrite="true"/>
+      <fail message="Accord build failed (exit code ${accord.build.rc})">
+        <condition><not><equals arg1="${accord.build.rc}" arg2="0"/></not></condition>
+      </fail>
       <!-- when dependencies are copied into the build dir they may be ignored if already present, so cleanup to pick up latest changes -->
       <delete>
         <!-- Why does this not use ${build.dir.lib}/jar and ${test.lib}/jar?  The reason is that filesets never finds files in that case -->
