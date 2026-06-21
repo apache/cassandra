@@ -23,6 +23,9 @@ set -o pipefail
 rm -f build/test/lib/jars/guava-18.0.jar
 current_dir=$(dirname "$(readlink -f "$0")")
 
+# Find the versioned cassandra-jamm agent jar.
+jamm_jar=$(ls "$current_dir"/../lib/cassandra-jamm-*.jar 2>/dev/null | head -1)
+
 common=(-Dstorage-config=$current_dir/../test/conf
         -Djava.awt.headless=true
         -ea
@@ -57,7 +60,7 @@ common=(-Dstorage-config=$current_dir/../test/conf
         -Dcassandra.test.logConfigPath=$current_dir/../test/conf/log4j2-dtest-simulator.xml
         -Dcassandra.test.logConfigProperty=log4j.configurationFile
         -Dlog4j2.configurationFile=$current_dir/../test/conf/log4j2-dtest-simulator.xml
-        -javaagent:$current_dir/../lib/jamm-0.3.2.jar
+        -javaagent:$jamm_jar
         -javaagent:$current_dir/../build/test/lib/jars/simulator-asm.jar
         -Xbootclasspath/a:$current_dir/../build/test/lib/jars/simulator-bootstrap.jar
         -XX:ActiveProcessorCount=4
