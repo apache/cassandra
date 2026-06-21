@@ -20,6 +20,8 @@
 package org.apache.cassandra.utils.memory;
 
 import java.nio.ByteBuffer;
+import java.security.Provider;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -30,8 +32,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
 import com.google.common.collect.Iterables;
 
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -57,6 +64,57 @@ public class BufferPoolTest
     public void setUp()
     {
         bufferPool = new BufferPool("test_pool", 8 * 1024 * 1024, true);
+    }
+
+    /**
+     * Runs AES-GCM with pooled direct buffers from one macro buffer. JDK 25 AES-GCM casts buffer attachments
+     * to {@code java.nio.Buffer}, so the marker attachment must be Buffer-compatible.
+     */
+    @Test
+    public void testAesGcmRoundTripWithPooledDirectBuffers() throws Exception
+    {
+        byte[] keyBytes = new byte[32];
+        new Random(0).nextBytes(keyBytes);
+        SecretKeySpec key = new SecretKeySpec(keyBytes, "AES");
+        byte[] iv = new byte[12];
+        new Random(1).nextBytes(iv);
+        Provider sunJce = Security.getProvider("SunJCE");
+        Assume.assumeTrue("SunJCE provider is required to exercise OpenJDK GaloisCounterMode", sunJce != null);
+
+        final int len = 8192;
+        // Shared allocation makes AES-GCM inspect both attachment chains.
+        ByteBuffer plaintext = bufferPool.get(len, BufferType.OFF_HEAP);
+        ByteBuffer ciphertext = bufferPool.get(len + 16, BufferType.OFF_HEAP); // Includes the 128-bit GCM tag.
+        ByteBuffer decrypted = bufferPool.get(len, BufferType.OFF_HEAP);
+        try
+        {
+            assertTrue(plaintext.isDirect() && ciphertext.isDirect() && decrypted.isDirect());
+            for (int i = 0; i < len; i++)
+                plaintext.put(i, (byte) i);
+            plaintext.position(0).limit(len);
+
+            Cipher enc = Cipher.getInstance("AES/GCM/NoPadding", sunJce);
+            enc.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv));
+            ciphertext.clear();
+            enc.doFinal(plaintext, ciphertext); // Uses direct source and destination buffers.
+            ciphertext.flip();
+
+            Cipher dec = Cipher.getInstance("AES/GCM/NoPadding", sunJce);
+            dec.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
+            decrypted.clear();
+            dec.doFinal(ciphertext, decrypted); // Uses direct source and destination buffers.
+            decrypted.flip();
+
+            assertEquals(len, decrypted.remaining());
+            for (int i = 0; i < len; i++)
+                assertEquals((byte) i, decrypted.get(i));
+        }
+        finally
+        {
+            bufferPool.put(plaintext);
+            bufferPool.put(ciphertext);
+            bufferPool.put(decrypted);
+        }
     }
 
     @Test
