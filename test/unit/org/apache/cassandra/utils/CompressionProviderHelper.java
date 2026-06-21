@@ -218,7 +218,7 @@ public final class CompressionProviderHelper
         public void compress(ByteBuffer src, ByteBuffer dest)
         {
             // Write raw uncompressed bytes instead of a valid Snappy stream.
-            // Snappy will not be be able to decompress
+            // Snappy will not be able to decompress
             // This is what the smoke test's step 1 cross-check is designed to catch.
             dest.put(src);
         }

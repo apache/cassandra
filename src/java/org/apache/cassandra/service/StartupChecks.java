@@ -38,10 +38,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -372,69 +372,69 @@ public class StartupChecks
             if (configuration.isDisabled(name()))
                 return;
 
+            // Resolving the custom providers forces classloading (and native-lib init) of each
+            // configured compressor; a missing class or failed native init is a configuration error.
+            Map<Class<?>, AbstractCompressionProvider> providers = getCustomProviders();
+
+            if (providers.isEmpty())
+                return;
+
+            long seed = (new Random()).nextLong();
+            Random random = new Random(seed);
+            byte[] payload = smokeTestPayload(random);
+
+            logger.info("Running compression smoke test for {} custom provider(s) with seed {}. " +
+                        "To reproduce a failure, regenerate the 4 KiB payload with new java.util.Random({}).",
+                        providers.size(), seed, seed);
+
             List<String> failedProviders = new ArrayList<>();
-            Map<Class<?>, AbstractCompressionProvider> providers = CompressorRegistry.instance.getCustomProviders();
-
-            byte[] testPayload = null;
-
             for (Map.Entry<Class<?>, AbstractCompressionProvider> entry : providers.entrySet())
             {
+                Class<?> compressorClass = entry.getKey();
                 AbstractCompressionProvider provider = entry.getValue();
-                Class<? > compressorClass = entry.getKey();
-                if (testPayload == null)
-                    testPayload = getTestPayload();
+
+                ICompressor custom;
 
                 try
                 {
-                    ICompressor customCompressor = provider.createCompressor(compressorClass, Collections.emptyMap());
-                    ICompressor defaultCompressor = CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER.createCompressor(customCompressor.serializedAs(), Collections.emptyMap());
-
-                    // Test both ways, compress with custom, decompress with Default provider and vice versa,
-                    // to make sure the compressed format is compatible with the default provider.
-                    // Step 1: Compress with custom provider, decompress with default provider
-                    ByteBuffer input = ByteBuffer.allocateDirect(testPayload.length);
-                    input.put(testPayload);
-                    input.flip();
-                    ByteBuffer customCompressed = ByteBuffer.allocateDirect(customCompressor.initialCompressedBufferLength(testPayload.length));
-                    customCompressor.compress(input, customCompressed);
-                    customCompressed.flip();
-
-                    ByteBuffer defaultDecompressed = ByteBuffer.allocateDirect(testPayload.length);
-                    defaultCompressor.uncompress(customCompressed, defaultDecompressed);
-                    defaultDecompressed.flip();
-
-                    byte[] defaultResult = new byte[defaultDecompressed.remaining()];
-                    defaultDecompressed.get(defaultResult);
-
-                    if (!Arrays.equals(testPayload, defaultResult))
-                        throw new IllegalStateException(
-                        "Step 1 mismatch (custom compressed, default decompressed) for provider:"
-                        + provider.getClass().getName());
-
-                    // 2) Compress with default provider, decompress with custom provider
-                    input.flip();
-                    ByteBuffer defaultCompressed  = ByteBuffer.allocateDirect(
-                    defaultCompressor.initialCompressedBufferLength(testPayload.length));
-                    defaultCompressor.compress(input, defaultCompressed);
-                    defaultCompressed.flip();
-
-                    ByteBuffer customDecompressed = ByteBuffer.allocateDirect(testPayload.length);
-                    customCompressor.uncompress(defaultCompressed, customDecompressed);
-                    customDecompressed.flip();
-
-                    byte[] customResult = new byte[customDecompressed.remaining()];
-                    customDecompressed.get(customResult);
-
-                    if (!Arrays.equals(testPayload, customResult))
-                        throw new IllegalStateException(
-                        "Step 2 mismatch (default compressed, custom decompressed) for provider: "
-                        + provider.getClass().getName());
-
-                    logger.info("Smoke test passed for custom compression provider {}.", provider.getClass().getName());
+                    custom = provider.createCompressor(compressorClass, Collections.emptyMap());
                 }
-                catch (Exception e)
+                catch (Throwable t)
                 {
-                    failedProviders.add(compressorClass.getSimpleName());
+                    throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                               String.format("Unable to instantiate a compressor for class %s " +
+                                                             "for the purposes of a startup check from provider %s.",
+                                                             compressorClass.getName(),
+                                                             provider.getClass().getName()));
+                }
+
+                if (custom.serializedAs() != compressorClass)
+                {
+                    throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                               String.format("Provider %s returned a compressor whose serializedAs() is %s, " +
+                                                             "but it must be %s (the built-in it substitutes for).",
+                                                             provider.getClass().getName(),
+                                                             custom.serializedAs(),
+                                                             compressorClass.getName()));
+                }
+
+                ICompressor builtin = CompressorRegistry.DEFAULT_COMPRESSION_PROVIDER.createCompressor(compressorClass, Collections.emptyMap());
+
+                try
+                {
+                    // Round trip both ways so the custom and built-in compressors are proven to share
+                    // an on-disk-compatible format (peers/restarts without the plugin read the data).
+                    assertCompatibleRoundTrip(custom, builtin, payload);
+                    assertCompatibleRoundTrip(builtin, custom, payload);
+
+                    logger.info("Compression smoke test passed for custom provider {} ({}).",
+                                provider.getClass().getName(), compressorClass.getSimpleName());
+                }
+                catch (Throwable t)
+                {
+                    logger.error("Compression smoke test failed for custom provider {} ({}); reproduce with seed {}.",
+                                 provider.getClass().getName(), compressorClass.getSimpleName(), seed, t);
+                    failedProviders.add(provider.getClass().getName() + " -> " + compressorClass.getSimpleName());
                 }
             }
 
@@ -442,24 +442,72 @@ public class StartupChecks
             {
                 throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
                                            String.format("The following custom compression providers failed smoke test: %s. " +
-                                                         "Please ensure they are compatible with in-built compressor.",
-                                                         Joiner.on(", ").join(failedProviders)));
+                                                         "Providers substitute for a built-in compressor, so non byte-compatible output " +
+                                                         "is silent data corruption when read without the provider. Reproduce with the seed %s.",
+                                                         Joiner.on(", ").join(failedProviders),
+                                                         seed));
             }
         }
 
-        private byte[] getTestPayload()
+        private Map<Class<?>, AbstractCompressionProvider> getCustomProviders() throws StartupException
+        {
+            Map<Class<?>, AbstractCompressionProvider> providers;
+            try
+            {
+                providers = CompressorRegistry.instance.getCustomProviders();
+            }
+            catch (Throwable t)
+            {
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG,
+                                           "Failed to load configured custom compression providers; " +
+                                           "check compressor_providers in cassandra.yaml", t);
+            }
+            return providers;
+        }
+        // Compresses payload with `compressor`, decompresses with `decompressor`, and verifies the
+        // result matches - proving the two share an on-disk-compatible format. Throws on mismatch.
+        private void assertCompatibleRoundTrip(ICompressor compressor, ICompressor decompressor, byte[] payload) throws IOException
+        {
+            ByteBuffer input = compressor.preferredBufferType().allocate(payload.length);
+            int compressedLength = compressor.initialCompressedBufferLength(payload.length);
+            ByteBuffer compressed = compressor.preferredBufferType().allocate(compressedLength);
+            input.put(payload);
+            input.flip();
+            compressor.compress(input, compressed);
+            compressed.flip();
+
+            // Within a compress/uncompress call the in/out buffers must share a type, but the compressor
+            // and decompressor may prefer different ones; only re-stage the compressed bytes in that case.
+            if (compressor.preferredBufferType() != decompressor.preferredBufferType())
+            {
+                ByteBuffer staged = decompressor.preferredBufferType().allocate(compressed.remaining());
+                staged.put(compressed);
+                staged.flip();
+                compressed = staged;
+            }
+
+            ByteBuffer output = decompressor.preferredBufferType().allocate(payload.length);
+            decompressor.uncompress(compressed, output);
+            output.flip();
+
+            if (!output.equals(ByteBuffer.wrap(payload)))
+            {
+                throw new IOException(String.format("Round-trip mismatch: compressed with %s, decompressed with %s",
+                                                    compressor.getClass().getName(), decompressor.getClass().getName()));
+            }
+        }
+        private byte[] smokeTestPayload(Random random)
         {
             // 4 KiB payload: the first half zeros (highly compressible, exercises the real compression
-            // path), the second half random (incompressible, exercises the compressor's worst-case
-            // output sizing via initialCompressedBufferLength).
+            // path), the second half high-entropy bytes (incompressible, exercises the compressor's
+            // worst-case output sizing via initialCompressedBufferLength).
             byte[] testPayload = new byte[4 * 1024];
             byte[] randomHalf = new byte[testPayload.length / 2];
-            ThreadLocalRandom.current().nextBytes(randomHalf);
+            random.nextBytes(randomHalf);
             System.arraycopy(randomHalf, 0, testPayload, testPayload.length / 2, randomHalf.length);
             return testPayload;
         }
     };
-
 
     public static final StartupCheck checkValidLaunchDate = new StartupCheck()
     {
