@@ -2,3 +2,7 @@
 	path = modules/accord
 	url = https://github.com/JeremiahDJordan/cassandra-accord.git
 	branch = CASSANDRA-21171-support-jdk25-trunk
+[submodule "modules/jamm"]
+	path = modules/jamm
+	url = https://github.com/JeremiahDJordan/jamm.git
+	branch = CASSANDRA-21171-support-jdk25-trunk

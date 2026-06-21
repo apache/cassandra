@@ -158,8 +158,8 @@
       <artifactId>jna</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.github.jbellis</groupId>
-      <artifactId>jamm</artifactId>
+      <groupId>org.apache.cassandra</groupId>
+      <artifactId>cassandra-jamm</artifactId>
     </dependency>
     <dependency>
       <groupId>tools.profiler</groupId>

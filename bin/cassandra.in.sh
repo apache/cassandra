@@ -79,7 +79,10 @@ if [ -f "$CASSANDRA_HOME"/lib/jsr223/scala/scala-compiler.jar ] ; then
 fi
 
 # set JVM javaagent opts to avoid warnings/errors
-JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
+# Find the versioned cassandra-jamm agent jar.
+for jamm_jar in "$CASSANDRA_HOME"/lib/cassandra-jamm-*.jar; do
+    if [ -f "$jamm_jar" ]; then JAVA_AGENT="$JAVA_AGENT -javaagent:$jamm_jar"; break; fi
+done
 
 platform=$(uname -m)
 if [ -d "$CASSANDRA_HOME"/lib/"$platform" ]; then

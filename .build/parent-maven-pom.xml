@@ -526,9 +526,11 @@
         <version>1.0.6</version>
       </dependency>
       <dependency>
-        <groupId>com.github.jbellis</groupId>
-        <artifactId>jamm</artifactId>
-        <version>${jamm.version}</version>
+        <!-- build-jamm.xml builds modules/jamm and installs it as
+             org.apache.cassandra:cassandra-jamm in the local Maven repository. -->
+        <groupId>org.apache.cassandra</groupId>
+        <artifactId>cassandra-jamm</artifactId>
+        <version>@version@</version>
       </dependency>
       <dependency>
         <groupId>tools.profiler</groupId>
