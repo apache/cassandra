@@ -18,8 +18,17 @@
 
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.io.InputStream;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.net.URL;
 import java.security.AccessControlException;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Assume;
@@ -171,6 +180,88 @@ public class UFSecurityTest extends CQLTester
                                  "RETURNS double " +
                                  "LANGUAGE JAVA\n" +
                                  "AS '" + moduleApiSource[1] + "';");
+    }
+
+    /**
+     * Tests ClassLoader methods covered by the class-level verifier rule. The verifier rejects all
+     * ClassLoader calls for both sandbox mechanisms.
+     */
+    @Test
+    public void testClassLoaderAccessRejected() throws Throwable
+    {
+        // These calls compile, then the verifier rejects them.
+        assertInvalidMessage("Java UDF validation failed: [call to java.lang.ClassLoader.getPlatformClassLoader()]",
+                             createClassLoaderFunction("java.lang.ClassLoader.getPlatformClassLoader(); return 0d;"));
+        assertInvalidMessage("Java UDF validation failed: [call to java.lang.ClassLoader.getParent()]",
+                             createClassLoaderFunction("((java.lang.ClassLoader) null).getParent(); return 0d;"));
+
+        // resources returns types that the UDF class loader cannot resolve, so compilation rejects this call.
+        assertInvalid(createClassLoaderFunction("((java.lang.ClassLoader) null).resources(\"x\"); return 0d;"));
+    }
+
+    private static String createClassLoaderFunction(String body)
+    {
+        return "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_classloader_access(val double) " +
+               "RETURNS NULL ON NULL INPUT " +
+               "RETURNS double " +
+               "LANGUAGE JAVA\n" +
+               "AS '" + body + "';";
+    }
+
+    /**
+     * Finds public ClassLoader methods that return loader or resource types and confirms that a UDF cannot
+     * call them. Reflection includes every such method on the running JDK.
+     */
+    @Test
+    public void testClassLoaderLoaderYieldingMethodsDenied() throws Throwable
+    {
+        Set<Class<?>> loaderYielding = new HashSet<>(Arrays.asList(
+            ClassLoader.class, Class.class, URL.class, InputStream.class, Stream.class, Enumeration.class));
+
+        int checked = 0;
+        for (Method m : ClassLoader.class.getMethods())
+        {
+            if (m.getDeclaringClass() != ClassLoader.class || !Modifier.isPublic(m.getModifiers()))
+                continue;
+            if (!loaderYielding.contains(m.getReturnType()))
+                continue;
+
+            String target = Modifier.isStatic(m.getModifiers())
+                            ? "java.lang.ClassLoader"
+                            : "((java.lang.ClassLoader) null)";
+            StringBuilder args = new StringBuilder();
+            for (Class<?> p : m.getParameterTypes())
+            {
+                if (args.length() > 0)
+                    args.append(", ");
+                args.append(defaultArg(p));
+            }
+            // Handle declared exceptions so the test body can compile.
+            String body = "try { " + target + '.' + m.getName() + '(' + args + "); } catch (Throwable __t) {} return 0d;";
+
+            // Resolvable calls reach the verifier. Calls with blocked return types fail during compilation.
+            assertInvalid("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".invalid_classloader_enum(val double) " +
+                          "RETURNS NULL ON NULL INPUT " +
+                          "RETURNS double " +
+                          "LANGUAGE JAVA\n" +
+                          "AS '" + body + "';");
+            checked++;
+        }
+        // Require enough methods to show that reflection exercised the check.
+        Assert.assertTrue("Expected several loader/resource-yielding ClassLoader methods, found " + checked, checked >= 3);
+    }
+
+    private static String defaultArg(Class<?> type)
+    {
+        if (type == String.class)  return "\"x\"";
+        if (type == boolean.class) return "false";
+        if (type == char.class)    return "'a'";
+        if (type == byte.class || type == short.class || type == int.class) return "0";
+        if (type == long.class)    return "0L";
+        if (type == float.class)   return "0f";
+        if (type == double.class)  return "0d";
+        // Use a typed null for object and array parameters.
+        return "(" + type.getCanonicalName() + ") null";
     }
 
     private static void assertAccessControlException(String script, FunctionExecutionException e)

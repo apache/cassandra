@@ -208,6 +208,9 @@ public final class JavaBasedUDFunction extends UDFunction
         verifier.addDisallowedMethodCall("java/lang/Class", "getModule");
         verifier.addDisallowedClass("java/lang/Module");
         verifier.addDisallowedClass("java/lang/ModuleLayer");
+        // Reject all ClassLoader calls. Generated UDF wrappers do not call ClassLoader.
+        // The per-method rules below list calls covered by this restriction.
+        verifier.addDisallowedClass("java/lang/ClassLoader");
         verifier.addDisallowedMethodCall("java/lang/ClassLoader", "clearAssertionStatus");
         verifier.addDisallowedMethodCall("java/lang/ClassLoader", "getResource");
         verifier.addDisallowedMethodCall("java/lang/ClassLoader", "getResourceAsStream");
