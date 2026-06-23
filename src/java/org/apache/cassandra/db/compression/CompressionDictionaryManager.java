@@ -177,7 +177,8 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
         // Validate table supports dictionary compression
         if (!isEnabled)
         {
-            throw new UnsupportedOperationException("Table " + keyspaceName + '.' + tableName + " does not support dictionary compression");
+            throw new IllegalStateException(format("The compression on table %s.%s is not enabled or SSTable compressor is not a dictionary compressor.",
+                                                   keyspaceName, tableName));
         }
 
         // resolve training config and fail fast when invalid, so we do not reach logic which would e.g. flush unnecessarily.
@@ -353,11 +354,11 @@ public class CompressionDictionaryManager implements CompressionDictionaryManage
             if (lastTraining.isAfter(now.minus(config.minTrainingFrequency, ChronoUnit.MINUTES)))
             {
                 Instant nextEarliestTraining = lastTraining.plus(config.minTrainingFrequency, ChronoUnit.MINUTES);
-                throw new IllegalArgumentException(format("The next training or importing can occur only at least after %s from the last training which happened at %s. " +
-                                                          "You can train again no earlier than at %s.",
-                                                          new DurationSpec.IntMinutesBound(config.minTrainingFrequency, TimeUnit.MINUTES),
-                                                          lastTraining,
-                                                          nextEarliestTraining));
+                throw new RuntimeException(format("The next training or importing can occur only at least after %s from the last training which happened at %s. " +
+                                                  "You can train again no earlier than at %s.",
+                                                  new DurationSpec.IntMinutesBound(config.minTrainingFrequency, TimeUnit.MINUTES),
+                                                  lastTraining,
+                                                  nextEarliestTraining));
             }
         }
     }

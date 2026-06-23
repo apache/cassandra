@@ -259,4 +259,51 @@ public final class JsonUtils
                 valueMap.put(lowered, valueMap.remove(mapKey));
         }
     }
+
+    public static String getJsonType(Class<?> type)
+    {
+        if (type == String.class)
+            return "string";
+        else if (type == int.class || type == Integer.class)
+            return "integer";
+        else if (type == long.class || type == Long.class)
+            return "integer";
+        else if (type == boolean.class || type == Boolean.class)
+            return "boolean";
+        else if (type == double.class || type == Double.class ||
+                 type == float.class || type == Float.class)
+            return "number";
+        else if (type.isArray() || List.class.isAssignableFrom(type))
+            return "array";
+        else if (Map.class.isAssignableFrom(type))
+            return "object";
+        else if (type.isEnum())
+            return "string";
+        else
+            return "string";
+    }
+
+    public static Object convertDefaultValue(String defaultValue, Class<?> type)
+    {
+        try
+        {
+            if (type == boolean.class || type == Boolean.class)
+                return Boolean.parseBoolean(defaultValue);
+            else if (type == int.class || type == Integer.class)
+                return Integer.parseInt(defaultValue);
+            else if (type == long.class || type == Long.class)
+                return Long.parseLong(defaultValue);
+            else if (type == double.class || type == Double.class)
+                return Double.parseDouble(defaultValue);
+            else if (type == float.class || type == Float.class)
+                return Float.parseFloat(defaultValue);
+            else
+                return defaultValue;
+        }
+        catch (Exception e)
+        {
+            // Fall back to string default value if parsing fails.
+            return defaultValue;
+        }
+    }
 }

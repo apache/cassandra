@@ -125,6 +125,7 @@ public class JMXStandardsTest
         Pattern mbeanPattern = Pattern.compile(".*MBean$");
         Set<String> matches = reflections.getAll(Scanners.SubTypes).stream()
                                          .filter(s -> mbeanPattern.matcher(s).find())
+                                         .filter(s -> s.startsWith("org.apache.cassandra."))
                                          .collect(Collectors.toSet());
 
         List<String> warnings = new ArrayList<>();

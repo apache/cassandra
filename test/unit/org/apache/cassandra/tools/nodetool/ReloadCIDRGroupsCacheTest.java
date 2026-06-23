@@ -38,6 +38,8 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
+// TODO: CASSANDRA-XXXXX Test needs to be migrated to CQLNodetoolProtocolTester
+//  once nodetool supports passing authentication credentials.
 public class ReloadCIDRGroupsCacheTest extends CQLTester
 {
     static InetSocketAddress ipAddr;

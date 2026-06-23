@@ -34,6 +34,8 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getNetworkPermissionsReadCount;
 import static org.assertj.core.api.Assertions.assertThat;
 
+// TODO: CASSANDRA-XXXXX Test needs to be migrated to CQLNodetoolProtocolTester
+//  once nodetool supports passing authentication credentials.
 public class InvalidateNetworkPermissionsCacheTest extends CQLTester
 {
     @BeforeClass

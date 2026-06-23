@@ -57,4 +57,25 @@ public class QueueBackpressureTest
         backpressure = backpressure.mark(backpressure.appliedAt() + TimeUnit.MILLISECONDS.toNanos(1001));
         Assert.assertEquals(backpressure.minDelayNanos(), backpressure.delay(TimeUnit.NANOSECONDS));
     }
+
+    /**
+     * The client and management transports use separate {@link QueueBackpressure} instances, so an overload
+     * incident on one must not inflate the delay applied by the other.
+     */
+    @Test
+    public void testIncidentStateIsPerInstance()
+    {
+        long minDelayNanos = TimeUnit.MILLISECONDS.toNanos(10);
+        long maxDelayNanos = TimeUnit.MILLISECONDS.toNanos(100);
+        QueueBackpressure client = QueueBackpressure.newDefault(() -> minDelayNanos, () -> maxDelayNanos);
+        QueueBackpressure management = QueueBackpressure.newDefault(() -> minDelayNanos, () -> maxDelayNanos);
+
+        long clientDelay = 0;
+        for (int i = 0; i < 50; i++)
+            clientDelay = client.markAndGetDelay(TimeUnit.NANOSECONDS);
+        Assert.assertTrue("Client incident should have ramped past the minimum delay", clientDelay > minDelayNanos);
+
+        Assert.assertEquals("A first management overload must start its own incident at the minimum delay",
+                            minDelayNanos, management.markAndGetDelay(TimeUnit.NANOSECONDS));
+    }
 }

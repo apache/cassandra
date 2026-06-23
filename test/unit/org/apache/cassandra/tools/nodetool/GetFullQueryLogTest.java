@@ -24,7 +24,7 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.tools.ToolRunner;
 
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @see ResetFullQueryLog
  * @see DisableFullQueryLog
  */
-public class GetFullQueryLogTest extends CQLTester
+public class GetFullQueryLogTest extends CQLNodetoolProtocolTester
 {
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -83,24 +83,24 @@ public class GetFullQueryLogTest extends CQLTester
 
     private String getFullQueryLog()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getfullquerylog");
+        ToolRunner.ToolResult tool = invokeNodetool("getfullquerylog");
         tool.assertOnCleanExit();
         return tool.getStdout();
     }
 
     private void resetFullQueryLog()
     {
-        ToolRunner.invokeNodetool("resetfullquerylog").assertOnCleanExit();
+        invokeNodetool("resetfullquerylog").assertOnCleanExit();
     }
 
     private void disableFullQueryLog()
     {
-        ToolRunner.invokeNodetool("disablefullquerylog").assertOnCleanExit();
+        invokeNodetool("disablefullquerylog").assertOnCleanExit();
     }
 
     private void enableFullQueryLog()
     {
-        ToolRunner.invokeNodetool("enablefullquerylog",
+        invokeNodetool("enablefullquerylog",
                                   "--path",
                                   temporaryFolder.getRoot().toString(),
                                   "--blocking",
