@@ -19,6 +19,7 @@
 import os
 import sys
 import re
+import codecs
 import contextlib
 import subprocess
 import signal
@@ -116,6 +117,12 @@ class ProcRunner:
             env = {}
         self.env = env
         self.readbuf = ''
+        # os.read()/pipe reads can split a multi-byte UTF-8 sequence across two
+        # reads (the boundary depends on terminal/readline echo flushing, which
+        # changed with the Ubuntu 22.04 / readline 8.1 build image). Decode
+        # incrementally so a partial trailing sequence is buffered until the
+        # rest of its bytes arrive, instead of failing with UnicodeDecodeError.
+        self._decoder = codecs.getincrementaldecoder("utf-8")()
 
         self.start_proc()
 
@@ -160,16 +167,26 @@ class ProcRunner:
         self.proc.stdin.write(data)
 
     def read_tty(self, blksize, timeout=None):
-        buf = os.read(self.childpty, blksize)
-        if isinstance(buf, bytes):
-            buf = buf.decode("utf-8")
-        return buf
+        while True:
+            buf = os.read(self.childpty, blksize)
+            if not isinstance(buf, bytes):
+                return buf
+            decoded = self._decoder.decode(buf)
+            # A non-empty read that decodes to '' means we only got the start of
+            # a multi-byte UTF-8 sequence; keep reading until it completes rather
+            # than returning '', which callers (read_until) treat as EOF.
+            # An empty read (b'') is genuine EOF and must propagate as ''.
+            if decoded != '' or buf == b'':
+                return decoded
 
     def read_pipe(self, blksize, timeout=None):
-        buf = self.proc.stdout.read(blksize)
-        if isinstance(buf, bytes):
-            buf = buf.decode("utf-8")
-        return buf
+        while True:
+            buf = self.proc.stdout.read(blksize)
+            if not isinstance(buf, bytes):
+                return buf
+            decoded = self._decoder.decode(buf)
+            if decoded != '' or buf == b'':
+                return decoded
 
     def read_until(self, until, blksize=4096, timeout=None,
                    flags=0, ptty_timeout=None, replace=None):
