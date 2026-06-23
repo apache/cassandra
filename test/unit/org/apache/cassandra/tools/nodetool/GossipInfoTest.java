@@ -23,7 +23,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * @see GossipInfo
  */
-public class GossipInfoTest extends CQLTester
+public class GossipInfoTest extends CQLNodetoolProtocolTester
 {
     private static String token;
 
@@ -52,7 +52,7 @@ public class GossipInfoTest extends CQLTester
     @Test
     public void testGossipInfo()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gossipinfo");
+        ToolRunner.ToolResult tool = invokeNodetool("gossipinfo");
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         Assertions.assertThat(stdout).contains("/127.0.0.1");
@@ -75,7 +75,7 @@ public class GossipInfoTest extends CQLTester
         MessagingService.instance().send(echoMessageOut, FBUtilities.getBroadcastAddressAndPort());
 
         String origHeartbeatCount = StringUtils.substringBetween(stdout, "heartbeat:", "\n");
-        tool = ToolRunner.invokeNodetool("gossipinfo");
+        tool = invokeNodetool("gossipinfo");
         tool.assertOnCleanExit();
         String newHeartbeatCount = StringUtils.substringBetween(stdout, "heartbeat:", "\n");
         assertThat(Integer.parseInt(origHeartbeatCount)).isLessThanOrEqualTo(Integer.parseInt(newHeartbeatCount));
@@ -84,7 +84,7 @@ public class GossipInfoTest extends CQLTester
     @Test
     public void testGossipInfoWithPortPrint()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("-pp", "gossipinfo");
+        ToolRunner.ToolResult tool = invokeNodetool("-pp", "gossipinfo");
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         Assertions.assertThat(stdout).containsPattern("/127.0.0.1\\:[0-9]+\\s+generation");
@@ -93,7 +93,7 @@ public class GossipInfoTest extends CQLTester
     @Test
     public void testGossipInfoWithResolveIp()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("gossipinfo", "--resolve-ip");
+        ToolRunner.ToolResult tool = invokeNodetool("gossipinfo", "--resolve-ip");
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         Assertions.assertThat(stdout).containsPattern("^localhost\\s+generation");
@@ -102,7 +102,7 @@ public class GossipInfoTest extends CQLTester
     @Test
     public void testGossipInfoWithPortPrintAndResolveIp()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("-pp", "gossipinfo", "--resolve-ip");
+        ToolRunner.ToolResult tool = invokeNodetool("-pp", "gossipinfo", "--resolve-ip");
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         Assertions.assertThat(stdout).containsPattern("^localhost\\:[0-9]+\\s+generation");

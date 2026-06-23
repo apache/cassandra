@@ -182,6 +182,11 @@ public class ToolRunner
         return invoke(CQLTester.buildCqlshArgs(args));
     }
 
+    public static ToolResult invokeCqlshManagement(List<String> args)
+    {
+        return invoke(CQLTester.buildCqlshManagementArgs(args));
+    }
+
     public static ToolResult invokeCassandraStress(String... args)
     {
         return invokeCassandraStress(Arrays.asList(args));
@@ -210,6 +215,11 @@ public class ToolRunner
     public static ToolResult invokeNodetool(Map<String, String> env, List<String> args)
     {
         return invoke(env, CQLTester.buildNodetoolArgs(args));
+    }
+
+    public static ToolResult invokeCqlNodetool(Map<String, String> env, List<String> args)
+    {
+        return invoke(env, CQLTester.buildNodetoolCqlArgs(args));
     }
 
     public static ToolRunner.ToolResult invokeNodetoolInJvm(String... args)
@@ -358,6 +368,13 @@ public class ToolRunner
 
     public static ToolRunner.ToolResult invokeNodetoolInJvm(BiFunction<INodeProbeFactory, Output, Object> nodeTool, String... args)
     {
+        return invokeNodetoolInJvm(nodeTool, CQLTester::buildNodetoolArgs, args);
+    }
+
+    public static ToolRunner.ToolResult invokeNodetoolInJvm(BiFunction<INodeProbeFactory, Output, Object> nodeTool,
+                                                            Function<List<String>, List<String>> argsBuilder,
+                                                            String... args)
+    {
         PrintStream originalSysOut = System.out;
         PrintStream originalSysErr = System.err;
         LinesOutputStream out = new LinesOutputStream(logger::info);
@@ -365,7 +382,7 @@ public class ToolRunner
         PrintStream printOut = new PrintStream(out);
         PrintStream printErr = new PrintStream(err);
         Output output = new Output(printOut, printErr);
-        List<String> clearedArgs = CQLTester.buildNodetoolArgs(isEmpty(args) ? new ArrayList<>() : List.of(args));
+        List<String> clearedArgs = argsBuilder.apply(isEmpty(args) ? new ArrayList<>() : List.of(args));
         clearedArgs.remove("bin/nodetool");
         try
         {
@@ -927,7 +944,10 @@ public class ToolRunner
         public String getOutput()
         {
             flush();
-            return String.join("\n", outputLines);
+            String joined = String.join("\n", outputLines);
+            if (!joined.isEmpty() && !joined.endsWith("\n"))
+                joined += "\n";
+            return joined;
         }
     }
 }

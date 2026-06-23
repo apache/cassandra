@@ -43,30 +43,51 @@ if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     exit 1
 fi
 
-JMX_PORT=""
-
-# Try to parse port from configure_jmx method call, when not commented out
-if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
-    jmx_method_call=$(grep "^configure_jmx \+[0-9]\+$" "$CASSANDRA_CONF/cassandra-env.sh")
-    if [ ! "x${jmx_method_call}" = "x" ]; then
-        JMX_PORT=$(echo "${jmx_method_call}" | tr -s " " | cut -d " " -f2)
+# Check if protocol is cql (from environment variable)
+PROTOCOL_IS_CQL=""
+if [ "x$CASSANDRA_CLI_EXECUTION_PROTOCOL" != "x" ]; then
+    protocol_lower=$(echo "$CASSANDRA_CLI_EXECUTION_PROTOCOL" | tr '[:upper:]' '[:lower:]')
+    if [ "$protocol_lower" = "cql" ]; then
+        PROTOCOL_IS_CQL="true"
     fi
 fi
 
-# In case JMX_PORT is not set (when configure_jmx in cassandra-env.sh is commented out),
-# try to parse it from cassandra.yaml.
-if [ "x$JMX_PORT" = "x" ]; then
+# Check for cql protocol in system properties to determine if we should parse CQL or JMX port
+for arg in "$@"; do
+    case "$arg" in
+        -Dcassandra.cli.execution.protocol=cql|-Dcassandra.cli.execution.protocol=CQL)
+            PROTOCOL_IS_CQL="true"
+            break
+            ;;
+    esac
+done
+
+# Parse port from config files based on protocol
+CONNECTION_PORT=""
+if [ "$PROTOCOL_IS_CQL" = "true" ]; then
+    # For CQL, parse native_transport_management_port from cassandra.yaml
     if [ -f "$CASSANDRA_CONF/cassandra.yaml" ]; then
-        JMX_PORT=$(grep jmx_port "$CASSANDRA_CONF/cassandra.yaml" | cut -d ':' -f 2 | tr -d '[[:space:]]')
+        CONNECTION_PORT=$(grep native_transport_management_port "$CASSANDRA_CONF/cassandra.yaml" | cut -d ':' -f 2 | tr -d '[[:space:]]')
+    fi
+else
+    # For JMX, parse port from configure_jmx method call, when not commented out
+    if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
+        jmx_method_call=$(grep "^configure_jmx \+[0-9]\+$" "$CASSANDRA_CONF/cassandra-env.sh")
+        if [ ! "x${jmx_method_call}" = "x" ]; then
+            CONNECTION_PORT=$(echo "${jmx_method_call}" | tr -s " " | cut -d " " -f2)
+        fi
+    fi
+
+    # In case CONNECTION_PORT is not set (when configure_jmx in cassandra-env.sh is commented out),
+    # try to parse it from cassandra.yaml.
+    if [ "x$CONNECTION_PORT" = "x" ]; then
+        if [ -f "$CASSANDRA_CONF/cassandra.yaml" ]; then
+            CONNECTION_PORT=$(grep jmx_port "$CASSANDRA_CONF/cassandra.yaml" | cut -d ':' -f 2 | tr -d '[[:space:]]')
+        fi
     fi
 fi
 
-# If, by any chance, it is not there either, set it to default.
-if [ "x$JMX_PORT" = "x" ]; then
-    JMX_PORT=7199
-fi
-
-# JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
+# Connection Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
 # should override the value from cassandra-env.sh
 ARGS=""
 JVM_ARGS=""
@@ -76,19 +97,19 @@ do
   if [ ! $1 ]; then break; fi
   case $1 in
     -p)
-      JMX_PORT=$2
+      CONNECTION_PORT=$2
       shift
       ;;
     --port=*)
-      JMX_PORT=$(echo $1 | cut -d '=' -f 2)
+      CONNECTION_PORT=$(echo $1 | cut -d '=' -f 2)
       ;;
     --port)
-      JMX_PORT=$2
+      CONNECTION_PORT=$2
       shift
       ;;
     --ssl)
       if [ -f $SSL_FILE ]
-      then 
+      then
           SSL_ARGS=$(cat $SSL_FILE | tr '\n' ' ')
       fi
       JVM_ARGS="$JVM_ARGS -Dssl.enable=true $SSL_ARGS"
@@ -108,6 +129,14 @@ do
   shift
 done
 
+if [ "x$CONNECTION_PORT" = "x" ]; then
+    if [ "$PROTOCOL_IS_CQL" = "true" ]; then
+        CONNECTION_PORT=11211
+    else
+        CONNECTION_PORT=7199
+    fi
+fi
+
 if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
 fi
@@ -123,7 +152,7 @@ CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE
             -Dcassandra.logdir="$CASSANDRA_LOG_DIR" \
             -Dlogback.configurationFile=logback-tools.xml \
             $JVM_ARGS \
-            org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS)
+            org.apache.cassandra.tools.NodeTool -p $CONNECTION_PORT $ARGS)
 
 if [ "x$ARCHIVE_COMMAND" != "x" ]
 then

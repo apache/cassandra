@@ -33,9 +33,16 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.DebuggableTask;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.ExecuteCommandStatement;
+import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.cql3.statements.UseStatement;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
@@ -44,6 +51,7 @@ import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -53,6 +61,7 @@ import io.netty.channel.EventLoop;
 import io.netty.util.AttributeKey;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
+import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 
 public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Request>
 {
@@ -83,8 +92,43 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
                                                                           "transport",
                                                                           "Native-Transport-Auth-Requests");
 
+    /**
+     * Executor for handling requests from management connections (part of CEP-38).
+     *
+     * <p>Management connections are identified via Connection's flag set by the management
+     * transport server at initial connection setup. Request then are routed to a dedicated
+     * executor instead of the standard {@link #requestExecutor}. This provides isolation and
+     * prioritization of management operations, ensuring they can proceed even under
+     * a high load of regular client requests.
+     *
+     * <p>The executor is configured separately via
+     * {@link DatabaseDescriptor#getNativeTransportManagementMaxThreads()} to allow
+     * independent tuning of management operation throughput.
+     *
+     * <p>Management connections are established through the management transport server
+     * (see {@link org.apache.cassandra.service.NativeTransportManagementService}), which listens
+     * on a separate port from the regular native transport.
+     *
+     * <p>Unlike auth requests, management requests have no fallback executor, so values
+     * less than 1 are treated as 1: a zero-sized pool would queue management requests forever.
+     */
+    @VisibleForTesting
+    static final LocalAwareExecutorPlus managementExecutor = SHARED.newExecutor(Math.max(1, DatabaseDescriptor.getNativeTransportManagementMaxThreads()),
+                                                                                 DatabaseDescriptor::setNativeTransportManagementMaxThreads,
+                                                                                 "transport",
+                                                                                 "Native-Transport-Management-Tasks");
+
     private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
+
+    /**
+     * Set while a management request is executing on the current thread. A management command may itself
+     * initiate the management server's stop (e.g. INVOKE COMMAND stopdaemon), in which case the drain-wait
+     * in {@link Server#close} runs on this very thread and must not wait for its own task to complete.
+     */
+    private static final ThreadLocal<Boolean> IN_MANAGEMENT_TASK = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
     private final boolean useLegacyFlusher;
+    private final boolean isManagementDispatcher;
 
     /**
      * Takes a Channel, Request and the Response produced by processRequest and outputs a FlushItem
@@ -98,9 +142,10 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         FlushItem<?> toFlushItem(P param, Channel channel, Message.Request request, Message.Response response);
     }
 
-    public Dispatcher(boolean useLegacyFlusher)
+    public Dispatcher(boolean useLegacyFlusher, boolean isManagementDispatcher)
     {
         this.useLegacyFlusher = useLegacyFlusher;
+        this.isManagementDispatcher = isManagementDispatcher;
     }
 
     @Override
@@ -126,10 +171,32 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         boolean isAuthQuery = DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 &&
                               (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS);
 
-        // Importantly, the authExecutor will handle the AUTHENTICATE message which may be CPU intensive.
-        LocalAwareExecutorPlus executor = isAuthQuery ? authExecutor : requestExecutor;
+        if (isAuthQuery)
+        {
+            // Importantly, the authExecutor will handle the AUTHENTICATE message which may be CPU intensive.
+            authExecutor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure));
+            ClientMetrics.instance.markRequestDispatched();
+            return;
+        }
 
-        executor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure));
+        // Use connection object to check for management connections, this could be faster than checking
+        // channel attributies directly every time. For management connections, we route requests to
+        // the management executor.
+        Connection connection = request.connection();
+        if (connection instanceof ServerConnection)
+        {
+            ServerConnection serverConnection = (ServerConnection) connection;
+            if (serverConnection.isManagementConnection())
+            {
+                // Intentionally skipping ClientMetrics calls here: that meter tracks regular client request
+                // dispatch, and management API requests are accounted for separately dedicated metrics rather
+                // than mixing them into the client requests rate.
+                managementExecutor.submit(new ManagementRequestProcessor<>(channel, request, forFlusher, param, backpressure));
+                return;
+            }
+        }
+
+        requestExecutor.submit(new RequestProcessor<>(channel, request, forFlusher, param, backpressure));
         ClientMetrics.instance.markRequestDispatched();
     }
 
@@ -296,13 +363,13 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
      */
     public class RequestProcessor<P> implements DebuggableTask.RunnableDebuggableTask
     {
-        private final Channel channel;
-        private final Message.Request request;
-        private final FlushItemConverter<P> forFlusher;
-        private final P flusherParam;
-        private final Overload backpressure;
+        protected final Channel channel;
+        protected final Message.Request request;
+        protected final FlushItemConverter<P> forFlusher;
+        protected final P flusherParam;
+        protected final Overload backpressure;
 
-        private volatile long startTimeNanos;
+        protected volatile long startTimeNanos;
 
         public RequestProcessor(Channel channel, Message.Request request, FlushItemConverter<P> forFlusher, P flusherParam, Overload backpressure)
         {
@@ -348,6 +415,124 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         }
     }
 
+    /** RequestProcessor for management connections that validates before executing. */
+    private class ManagementRequestProcessor<P> extends RequestProcessor<P> {
+
+        public ManagementRequestProcessor(Channel channel,
+                                          Message.Request request,
+                                          FlushItemConverter<P> forFlusher,
+                                          P flusherParam,
+                                          Overload backpressure) {
+            super(channel, request, forFlusher, flusherParam, backpressure);
+        }
+
+        @Override
+        public void run() {
+            startTimeNanos = MonotonicClock.Global.preciseTime.now();
+            RequestTime requestTime = new RequestTime(request.createdAtNanos, startTimeNanos);
+
+            // Validate management request BEFORE executing
+            Connection connection = request.connection();
+            if (connection instanceof ServerConnection) {
+                ServerConnection serverConnection = (ServerConnection) connection;
+                if (serverConnection.isManagementConnection()) {
+                    if (!isManagementRequestAllowed(request)) {
+                        // The flush pipeline takes the stream id from the request envelope, so the
+                        // response must not carry one of its own.
+                        Message.Response response = ErrorMessage.fromExceptionNoStreamId(
+                        new InvalidRequestException(
+                            "Only executions of the INVOKE COMMAND statements are allowed on the management port."));
+                        response.attach(connection);
+                        FlushItem<?> toFlush = forFlusher.toFlushItem(flusherParam, channel, request, response);
+                        flush(toFlush);
+                        return;
+                    }
+                }
+            }
+
+            IN_MANAGEMENT_TASK.set(Boolean.TRUE);
+            try {
+                // If validation passes, call the normal processRequest to execute
+                // This calls the instance method processRequest() which does all the work
+                processRequest(channel, request, forFlusher, flusherParam, backpressure, requestTime);
+            } finally {
+                IN_MANAGEMENT_TASK.set(Boolean.FALSE);
+            }
+        }
+    }
+
+    @VisibleForTesting
+    static boolean isManagementRequestAllowed(Message.Request request)
+    {
+        switch (request.type)
+        {
+            case QUERY:
+                try
+                {
+                    // Early parse the query to check if it's an INVOKE COMMAND statement.
+                    // For management non-intensive operations double parsing is probably acceptable.
+                    CQLStatement.Raw rawStatement = QueryProcessor.parseStatement(((QueryMessage) request).query);
+                    if (rawStatement instanceof ExecuteCommandStatement.Raw)
+                        return true;
+
+                    // Allow read-only SELECT queries on system keyspaces (needed for driver metadata
+                    // discovery), except system_auth (see isManagementReadableSystemKeyspace).
+                    if (rawStatement instanceof SelectStatement.RawStatement)
+                    {
+                        SelectStatement.RawStatement selectRaw = (SelectStatement.RawStatement) rawStatement;
+                        return selectRaw.isFullyQualified()
+                               && isManagementReadableSystemKeyspace(selectRaw.keyspace());
+                    }
+
+                    // This is also a corner case for the driver's behavior on the management port.
+                    // When connecting, the driver sends a USE statement for the keyspace provided
+                    // in driver.connect("system_schema").
+                    if (rawStatement instanceof UseStatement)
+                    {
+                        UseStatement useStatement = (UseStatement) rawStatement;
+                        return isManagementReadableSystemKeyspace(useStatement.keyspace());
+                    }
+
+                    return false;
+                }
+                catch (Exception e)
+                {
+                    logger.warn("The command request parsing failed. The command will not be executed: {}", e.getMessage());
+                    // If parsing fails (syntax error, etc.), it's not a valid command statement;
+                    // this is expected for non-command queries.
+                    return false;
+                }
+            case STARTUP:
+            case CREDENTIALS:
+            case AUTH_RESPONSE:
+            case OPTIONS:
+            case REGISTER:
+                return true; // Protocol messages are always allowed.
+            case EXECUTE:
+            case PREPARE:
+            case BATCH:
+            default:
+                return false; // Not supported and not allowed on management connections.
+        }
+    }
+
+    /**
+     * System keyspaces a CQL driver may read/USE on the management port for metadata discovery. This is
+     * {@link SchemaConstants#isSystemKeyspace(String)} (which also covers virtual system keyspaces) minus
+     * {@code system_auth}: that keyspace is the credential store (bcrypt {@code salted_hash}, superuser
+     * flags) and must never be readable over the management port, which is reachable without authorization
+     * (if AllowAllAuthorizer is enabled).
+     */
+    private static boolean isManagementReadableSystemKeyspace(String keyspace)
+    {
+        if (keyspace == null)
+            return false;
+        if (SchemaConstants.AUTH_KEYSPACE_NAME.equals(toLowerCaseLocalized(keyspace)))
+            return false;
+        return SchemaConstants.isSystemKeyspace(keyspace)
+               || SchemaConstants.isVirtualSystemKeyspace(keyspace);
+    }
+
     /**
      * Checks if the item in the head of the queue has spent more than allowed time in the queue.
      */
@@ -358,7 +543,8 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         if (threshold <= 0)
             return true;
 
-        return requestExecutor.oldestTaskQueueTime() < (DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS) * threshold);
+        LocalAwareExecutorPlus executor = isManagementDispatcher ? managementExecutor : requestExecutor;
+        return executor.oldestTaskQueueTime() < (DatabaseDescriptor.getNativeTransportTimeout(TimeUnit.NANOSECONDS) * threshold);
     }
 
     /**
@@ -502,15 +688,23 @@ public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Req
         flusher.start();
     }
 
+    /**
+     * @return true once the executor serving this dispatcher's server has drained: {@link #managementExecutor}
+     * for the management transport, {@link #requestExecutor} otherwise. A management task running on the
+     * calling thread is excluded — it is the task that initiated the stop and cannot drain before it.
+     */
     public boolean isDone()
     {
-        return requestExecutor.getPendingTaskCount() == 0 && requestExecutor.getActiveTaskCount() == 0;
+        LocalAwareExecutorPlus executor = isManagementDispatcher ? managementExecutor : requestExecutor;
+        int self = isManagementDispatcher && IN_MANAGEMENT_TASK.get() ? 1 : 0;
+        return executor.getPendingTaskCount() == 0 && executor.getActiveTaskCount() - self <= 0;
     }
 
     public static void shutdown()
     {
         requestExecutor.shutdown();
         authExecutor.shutdown();
+        managementExecutor.shutdown();
     }
 
     /**

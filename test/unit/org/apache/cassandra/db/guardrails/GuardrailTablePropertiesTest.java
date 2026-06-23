@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.db.guardrails;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -35,6 +37,7 @@ import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 
 import static java.lang.String.format;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -94,6 +97,18 @@ public class GuardrailTablePropertiesTest extends GuardrailTester
         assertInvalidPropertyCSV("comment,invalid1,invalid2", "[invalid1, invalid2]");
         assertInvalidPropertyCSV("invalid1,invalid2,comment", "[invalid1, invalid2]");
         assertInvalidPropertyCSV("invalid1,comment,invalid2", "[invalid1, invalid2]");
+    }
+
+    @Test
+    public void testInsertionOrderPreservedOnSet()
+    {
+        LinkedHashSet<String> properties = new LinkedHashSet<>(Arrays.asList("comment", "cdc", "gc_grace_seconds"));
+        guardrails().setTablePropertiesWarned(properties);
+
+        Set<String> result = guardrails().getTablePropertiesWarned();
+        assertThat(result).isInstanceOf(LinkedHashSet.class);
+        assertEquals(Arrays.asList("comment", "cdc", "gc_grace_seconds"),
+                     new ArrayList<>(result));
     }
 
     private void assertValidProperty(Set<String> properties)

@@ -19,6 +19,7 @@ package org.apache.cassandra.service;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import org.junit.After;
@@ -170,7 +171,16 @@ public class NativeTransportServiceTest
 
     private static void withService(Consumer<NativeTransportService> f, boolean start, int concurrently)
     {
-        NativeTransportService service = new NativeTransportService();
+        withService(srv -> f.accept((NativeTransportService) srv),
+                    NativeTransportService::new, start, concurrently);
+    }
+
+    static void withService(Consumer<CassandraDaemon.Server> f,
+                            Supplier<CassandraDaemon.Server> provider,
+                            boolean start,
+                            int concurrently)
+    {
+        CassandraDaemon.Server service = provider.get();
         assertFalse(service.isRunning());
         if (start)
         {

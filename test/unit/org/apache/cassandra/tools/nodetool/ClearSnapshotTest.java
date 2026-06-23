@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,13 +34,14 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.RemoteJmxMBeanAccessor;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static java.lang.String.format;
@@ -49,13 +49,12 @@ import static java.time.temporal.ChronoUnit.HOURS;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.config.DatabaseDescriptor.getAllDataFileLocations;
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertTrue;
 
-public class ClearSnapshotTest extends CQLTester
+public class ClearSnapshotTest extends CQLNodetoolProtocolTester
 {
     private static final Pattern DASH_PATTERN = Pattern.compile("-");
     private static NodeProbe probe;
@@ -65,7 +64,7 @@ public class ClearSnapshotTest extends CQLTester
     {
         startJMXServer();
         requireNetwork();
-        probe = new NodeProbe(jmxHost, jmxPort);
+        probe = new NodeProbe(new RemoteJmxMBeanAccessor(jmxHost, jmxPort));
     }
 
     @Before
@@ -75,7 +74,7 @@ public class ClearSnapshotTest extends CQLTester
     }
 
     @AfterClass
-    public static void teardown() throws IOException
+    public static void teardown() throws Exception
     {
         probe.close();
     }

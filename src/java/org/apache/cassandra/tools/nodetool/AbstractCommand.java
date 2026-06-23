@@ -73,7 +73,7 @@ public abstract class AbstractCommand implements Runnable
      * @return {@code true} if the command is required to connect to the node, {@code false} otherwise.
      * @throws ExecutionException if an error occurs during preparation and execution must be aborted.
      */
-    protected boolean shouldConnect() throws ExecutionException
+    public boolean shouldConnect() throws ExecutionException
     {
         return true;
     }
