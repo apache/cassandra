@@ -34,6 +34,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
+import org.apache.cassandra.utils.FBUtilities;
 
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
@@ -551,11 +552,12 @@ public class LoaderOptions
                 {
                     try
                     {
-                        Class authProviderClass = Class.forName(authProviderName);
-                        Constructor constructor = authProviderClass.getConstructor(String.class, String.class);
-                        authProvider = (AuthProvider)constructor.newInstance(user, passwd);
+                        Class<? extends AuthProvider> authProviderClass =
+                            FBUtilities.classForNameWithoutInitialization(authProviderName, "auth provider", AuthProvider.class);
+                        Constructor<? extends AuthProvider> constructor = authProviderClass.getConstructor(String.class, String.class);
+                        authProvider = constructor.newInstance(user, passwd);
                     }
-                    catch (ClassNotFoundException e)
+                    catch (ConfigurationException e)
                     {
                         errorMsg("Unknown auth provider: " + e.getMessage(), getCmdLineOptions());
                     }
@@ -582,9 +584,9 @@ public class LoaderOptions
             {
                 try
                 {
-                    authProvider = (AuthProvider)Class.forName(authProviderName).newInstance();
+                    authProvider = FBUtilities.construct(authProviderName, "auth provider", AuthProvider.class);
                 }
-                catch (ClassNotFoundException | InstantiationException | IllegalAccessException e)
+                catch (ConfigurationException e)
                 {
                     errorMsg("Unknown auth provider: " + e.getMessage(), getCmdLineOptions());
                 }

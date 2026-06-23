@@ -43,6 +43,7 @@ import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
 
@@ -273,23 +274,16 @@ public final class CompressionParams
         return maxCompressedLength;
     }
 
-    private static Class<?> parseCompressorClass(String className) throws ConfigurationException
+    private static Class<? extends ICompressor> parseCompressorClass(String className) throws ConfigurationException
     {
         if (className == null || className.isEmpty())
             return null;
 
         className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
-        try
-        {
-            return Class.forName(className);
-        }
-        catch (Exception e)
-        {
-            throw new ConfigurationException("Could not create Compression for type " + className, e);
-        }
+        return FBUtilities.classForNameWithoutInitialization(className, "compression", ICompressor.class);
     }
 
-    private static ICompressor createCompressor(Class<?> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
+    private static ICompressor createCompressor(Class<? extends ICompressor> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
     {
         if (compressorClass == null)
         {

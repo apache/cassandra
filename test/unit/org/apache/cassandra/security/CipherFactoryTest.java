@@ -34,12 +34,41 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
 public class CipherFactoryTest
 {
+    @Test
+    public void keyProviderWrongTypeRejectedWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+
+        TransparentDataEncryptionOptions options = EncryptionContextGenerator.createEncryptionOptions();
+        options.key_provider.class_name = ClassLoadingTestNonAssignable.class.getName();
+
+        try
+        {
+            new CipherFactory(options);
+            fail("Expected CipherFactory construction to be rejected for a non-KeyProvider class");
+        }
+        catch (RuntimeException e)
+        {
+            // CipherFactory wraps the load failure; the cause is the type-check ConfigurationException
+            Throwable cause = e.getCause();
+            assertNotNull(cause);
+            assertThat(cause).isInstanceOf(ConfigurationException.class);
+            assertThat(cause.getMessage()).contains("must extend or implement " + KeyProvider.class.getName());
+        }
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class)).isFalse();
+    }
+
     // http://www.gutenberg.org/files/4300/4300-h/4300-h.htm
     static final String ULYSSEUS = "Stately, plump Buck Mulligan came from the stairhead, bearing a bowl of lather on which a mirror and a razor lay crossed. " +
                                    "A yellow dressinggown, ungirdled, was sustained gently behind him on the mild morning air. He held the bowl aloft and intoned: " +
