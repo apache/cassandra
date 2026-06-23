@@ -18,13 +18,10 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.IOException;
-
+import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
 
 import org.assertj.core.api.Assertions;
-import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ICluster;
@@ -46,52 +43,96 @@ import static org.junit.Assert.assertTrue;
  */
 public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
 {
-    private static ICluster cluster;
-
-    @Before
-    public void setupEnv() throws IOException
-    {
-        if (cluster == null)
-        {
-            cluster = init(builder().withNodes(1)
-                                    .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
-                                    .start());
-            cluster.get(1).nodetool("disableautocompaction");
-        }
-    }
-
-    @AfterClass
-    public static void teardownEnv() throws Exception
-    {
-        cluster.close();
-    }
-
     @Test
     public void testEnableDisableBinary() throws Throwable
     {
-        // We can connect
-        assertTrue(canConnect());
+        try (ICluster<?> nodeCluster = init(builder().withNodes(1)
+                                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL))
+                                                        .start()))
+        {
+            nodeCluster.get(1).nodetool("disableautocompaction");
 
-        // We can't connect after disabling
-        ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "disablebinary");
-        Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Stop listening for CQL clients");
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
-        assertFalse(canConnect());
+            // We can connect
+            assertTrue(canConnect());
 
-        // We can connect after re-enabling
-        tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "enablebinary");
-        Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Starting listening for CQL clients");
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
-        assertTrue(canConnect());
+            // We can't connect after disabling
+            ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(nodeCluster.get(1), "disablebinary");
+            Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Stop listening for CQL clients");
+            assertTrue(tool.getCleanedStderr().isEmpty());
+            assertEquals(0, tool.getExitCode());
+            assertFalse(canConnect());
+
+            // We can connect after re-enabling
+            tool = ToolRunner.invokeNodetoolJvmDtest(nodeCluster.get(1), "enablebinary");
+            Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Starting listening for CQL clients");
+            assertTrue(tool.getCleanedStderr().isEmpty());
+            assertEquals(0, tool.getExitCode());
+            assertTrue(canConnect());
+        }
+    }
+
+    /**
+     * This is an important corner case to verify that when binary protocol is disabled,
+     * we can still connect to the management port and query system tables. This case
+     * must be explicitly tested because the management port is used by ops and other
+     * monitoring tools to control the cluster.
+     *
+     * @throws Throwable If any exception occurs during the test.
+     */
+    @Test
+    public void testSystemQueriesViaManagementPortWhenBinaryDisabled() throws Throwable
+    {
+        int managementPort = 11211;
+        int numberOfNodes = 1;
+        try (ICluster<?> managementCluster = init(builder().withNodes(numberOfNodes)
+                                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
+                                                                                    .set("start_native_transport_management", true)
+                                                                                    .set("native_transport_management_port", managementPort))
+                                                        .start()))
+        {
+            managementCluster.get(1).nodetool("disableautocompaction");
+            assertTrue("Regular native CQL port should is accessible", canConnect());
+            assertTrue("Management port should is accessible", canConnect(managementPort));
+
+            ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(managementCluster.get(1), "disablebinary");
+            Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Stop listening for CQL clients");
+            assertEquals(0, tool.getExitCode());
+            assertFalse("Regular native CQL port should NOT be accessible", canConnect());
+            assertTrue("Management port should is accessible", canConnect(managementPort));
+
+            try (Cluster c = Cluster.builder()
+                                    .addContactPoint("127.0.0.1")
+                                    .withPort(managementPort)
+                                    .build();
+                 Session s = c.connect())
+            {
+                assertFalse("system.local should return data",
+                            s.execute("SELECT * FROM system.local").all().isEmpty());
+                assertTrue("system.peers is NOT empty, howeverwe only have one node in the cluster",
+                           s.execute("SELECT * FROM system.peers").all().isEmpty());
+                assertFalse("system_schema.keyspaces should return data",
+                            s.execute("SELECT * FROM system_schema.keyspaces").all().isEmpty());
+                assertFalse("system_schema.tables should return data",
+                            s.execute("SELECT * FROM system_schema.tables").all().isEmpty());
+            }
+
+            tool = ToolRunner.invokeNodetoolJvmDtest(managementCluster.get(1), "enablebinary");
+            assertEquals(0, tool.getExitCode());
+            assertTrue("Should connect to regular binary after re-enabling", canConnect());
+        }
     }
 
     private boolean canConnect()
     {
+        return canConnect(9042);
+    }
+
+    private boolean canConnect(int port)
+    {
         boolean canConnect = false;
         try(com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder()
                                                                                  .addContactPoint("127.0.0.1")
+                                                                                 .withPort(port)
                                                                                  .build();
             Session s = c.connect("system_schema"))
         {

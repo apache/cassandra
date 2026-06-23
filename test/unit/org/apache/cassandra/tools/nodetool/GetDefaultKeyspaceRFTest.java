@@ -22,12 +22,12 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class GetDefaultKeyspaceRFTest extends CQLTester
+public class GetDefaultKeyspaceRFTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -39,7 +39,7 @@ public class GetDefaultKeyspaceRFTest extends CQLTester
     @Test
     public void testGetDefaultRF()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getdefaultrf");
+        ToolRunner.ToolResult tool = invokeNodetool("getdefaultrf");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout().trim()).isEqualTo(Integer.toString(DatabaseDescriptor.getDefaultKeyspaceRF()));
     }

@@ -46,6 +46,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
+import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.Permission;
@@ -596,6 +597,8 @@ public class AuthorizationProxy implements InvocationHandler
                   () -> true);
 
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME_BASE + DEPRECATED_CACHE_NAME);
+            // Registration makes this cache discovearble by the management transport MBean accessor
+            AuthCacheService.instance.register(this);
         }
 
         public void invalidatePermissions(String roleName)
@@ -608,6 +611,12 @@ public class AuthorizationProxy implements InvocationHandler
         {
             super.unregisterMBean();
             MBeanWrapper.instance.unregisterMBean(MBEAN_NAME_BASE + DEPRECATED_CACHE_NAME, MBeanWrapper.OnException.LOG);
+        }
+
+        @Override
+        public void accept(MBeanVisitor visitor)
+        {
+            visitor.visitJmxPermissions(this);
         }
     }
 
