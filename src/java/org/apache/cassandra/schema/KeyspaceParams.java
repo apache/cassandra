@@ -141,7 +141,7 @@ public final class KeyspaceParams
 
     public static KeyspaceParams simpleWitness(String replicationFactor)
     {
-        return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), ReplicationType.tracked);
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor), FastPathStrategy.simple(), ReplicationType.tracked);
     }
 
     public static KeyspaceParams simpleTransient(int replicationFactor)
