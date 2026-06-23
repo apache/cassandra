@@ -41,7 +41,7 @@ public class ExtensionKey<V, K extends ExtensionValue<V>> extends MetadataKey
 
     public K newValue()
     {
-        return valueType.cast(FBUtilities.construct(valueType.getName(), "extension value"));
+        return FBUtilities.construct(valueType.getName(), "extension value", valueType);
     }
 
     public static final class Serializer implements MetadataSerializer<ExtensionKey<?, ?>>
@@ -58,7 +58,9 @@ public class ExtensionKey<V, K extends ExtensionValue<V>> extends MetadataKey
         {
             String id = in.readUTF();
             String valType = in.readUTF();
-            return new ExtensionKey(id, FBUtilities.classForName(valType, "value type"));
+            Class<? extends ExtensionValue> valueType =
+                FBUtilities.classForNameWithoutInitialization(valType, "value type", ExtensionValue.class);
+            return new ExtensionKey(id, valueType);
         }
 
         @Override
@@ -68,4 +70,3 @@ public class ExtensionKey<V, K extends ExtensionValue<V>> extends MetadataKey
         }
     }
 }
-

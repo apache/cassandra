@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.schema;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -32,6 +34,7 @@ import org.apache.cassandra.config.InheritingClass;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 import org.apache.cassandra.utils.ConfigGenBuilder;
 
 import static accord.utils.Property.qt;
@@ -50,6 +53,58 @@ public class MemtableParamsTest
     {
         Map<String, ParameterizedClass> map = MemtableParams.expandDefinitions(ImmutableMap.of());
         assertEquals(ImmutableMap.of("default", DEFAULT), map);
+    }
+
+    @Test
+    public void testInvalidFactoryMethodDoesNotInitializeClass() throws Exception
+    {
+        ClassLoadingTestSupport.assertNotInitialized(MemtableFactoryInvalidReturnType.class);
+
+        try
+        {
+            getMemtableFactory(MemtableFactoryInvalidReturnType.class);
+            fail("Expected exception.");
+        }
+        catch (ConfigurationException e)
+        {
+            assertThat(e.getMessage()).contains("must return");
+        }
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(MemtableFactoryInvalidReturnType.class)).isFalse();
+    }
+
+    @Test
+    public void testInvalidFactoryFieldDoesNotInitializeClass() throws Exception
+    {
+        ClassLoadingTestSupport.assertNotInitialized(MemtableFactoryInvalidFieldType.class);
+
+        try
+        {
+            getMemtableFactory(MemtableFactoryInvalidFieldType.class);
+            fail("Expected exception.");
+        }
+        catch (ConfigurationException e)
+        {
+            assertThat(e.getMessage()).contains("must be of type");
+        }
+
+        assertThat(ClassLoadingTestSupport.wasInitialized(MemtableFactoryInvalidFieldType.class)).isFalse();
+    }
+
+    private static void getMemtableFactory(Class<?> memtableClass) throws Exception
+    {
+        Method method = MemtableParams.class.getDeclaredMethod("getMemtableFactory", ParameterizedClass.class);
+        method.setAccessible(true);
+        try
+        {
+            method.invoke(null, new ParameterizedClass(memtableClass.getName()));
+        }
+        catch (InvocationTargetException e)
+        {
+            if (e.getCause() instanceof ConfigurationException)
+                throw (ConfigurationException) e.getCause();
+            throw e;
+        }
     }
 
     @Test

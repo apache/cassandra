@@ -31,10 +31,14 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ClassLoadingTestNonAssignable;
+import org.apache.cassandra.utils.ClassLoadingTestSupport;
 
 
 public class IndexModeTest
@@ -185,8 +189,8 @@ public class IndexModeTest
     {
         ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
 
-        IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", "java.lang.Object"));
-        Assert.assertEquals(Object.class, result.analyzerClass);
+        IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", NonTokenizingAnalyzer.class.getName()));
+        Assert.assertEquals(NonTokenizingAnalyzer.class, result.analyzerClass);
         Assert.assertTrue(result.isAnalyzed);
         Assert.assertFalse(result.isLiteral);
         Assert.assertEquals((long)(1073741824 * 0.15), result.maxCompactionFlushMemoryInBytes);
@@ -198,14 +202,65 @@ public class IndexModeTest
     {
         ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
 
-        IndexMode result = IndexMode.getMode(cd, ImmutableMap.of("analyzer_class", "java.lang.Object",
+        IndexMode result = IndexMode.getMode(cd, ImmutableMap.of("analyzer_class", NonTokenizingAnalyzer.class.getName(),
                                                                  "analyzed", "false"));
 
-        Assert.assertEquals(Object.class, result.analyzerClass);
+        Assert.assertEquals(NonTokenizingAnalyzer.class, result.analyzerClass);
         Assert.assertFalse(result.isAnalyzed);
         Assert.assertFalse(result.isLiteral);
         Assert.assertEquals((long)(1073741824 * 0.15), result.maxCompactionFlushMemoryInBytes);
         Assert.assertEquals(Mode.PREFIX, result.mode);
+    }
+
+    @Test
+    public void test_bytesType_rejectsNonAnalyzerWithoutInitializing()
+    {
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
+
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        try
+        {
+            IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", ClassLoadingTestNonAssignable.class.getName()));
+            Assert.fail("Should not pass");
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("must extend or implement " + AbstractAnalyzer.class.getName()));
+        }
+
+        Assert.assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void test_bytesType_missingAnalyzerFallsBack()
+    {
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance, ColumnMetadata.NO_UNIQUE_ID);
+
+        IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", "does.not.ExistAnalyzer"));
+        Assert.assertNull(result.analyzerClass);
+        Assert.assertFalse(result.isAnalyzed);
+        Assert.assertFalse(result.isLiteral);
+        Assert.assertEquals((long)(1073741824 * 0.15), result.maxCompactionFlushMemoryInBytes);
+        Assert.assertEquals(Mode.PREFIX, result.mode);
+    }
+
+    @Test
+    public void test_validateAnalyzer_rejectsNonAnalyzerWithoutInitializing()
+    {
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), UTF8Type.instance, ColumnMetadata.NO_UNIQUE_ID);
+
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        try
+        {
+            IndexMode.validateAnalyzer(Collections.singletonMap("analyzer_class", ClassLoadingTestNonAssignable.class.getName()), cd);
+            Assert.fail("Should not pass");
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("must extend or implement " + AbstractAnalyzer.class.getName()));
+        }
+
+        Assert.assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
     }
 
     @Test

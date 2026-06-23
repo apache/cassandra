@@ -286,13 +286,28 @@ public class TriggerExecutor
         }
     }
 
-    public synchronized void loadTriggerClass(String triggerClass) throws Exception
+    public synchronized Class<? extends ITrigger> loadTriggerClass(String triggerClass) throws Exception
     {
         // Allow loading the class regardless of Config, since this could happen as part of TCM replay via
         // CreateTriggerStatement#apply.
         // Check that triggerClass is available on the classpath, but do not initialize the class since that would
         // execute static blocks.
-        customClassLoader.loadClass(triggerClass).getConstructor();
+        Class<? extends ITrigger> trigger;
+        try
+        {
+            trigger = FBUtilities.classForNameWithoutInitialization(triggerClass,
+                                                                    "trigger",
+                                                                    ITrigger.class,
+                                                                    customClassLoader);
+        }
+        catch (ConfigurationException e)
+        {
+            if (e.getCause() instanceof ClassNotFoundException)
+                throw (ClassNotFoundException) e.getCause();
+            throw e;
+        }
+        trigger.getConstructor();
+        return trigger;
     }
 
     public synchronized ITrigger loadTriggerInstance(String triggerClass) throws Exception
@@ -306,6 +321,6 @@ public class TriggerExecutor
         // double check.
         if (cachedTriggers.get(triggerClass) != null)
             return cachedTriggers.get(triggerClass);
-        return (ITrigger) customClassLoader.loadClass(triggerClass).getConstructor().newInstance();
+        return loadTriggerClass(triggerClass).getConstructor().newInstance();
     }
 }

@@ -128,6 +128,7 @@ public final class DiagnosticEventPersistence
         LastEventIdBroadcaster.instance().setLastEventId(event.getClass().getName(), store.getLastEventId());
     }
 
+    @SuppressWarnings("unchecked")
     private Class<DiagnosticEvent> getEventClass(String eventClazz) throws ClassNotFoundException, InvalidClassException
     {
         // get class by eventClazz argument name
@@ -135,12 +136,12 @@ public final class DiagnosticEventPersistence
         if (!eventClazz.startsWith("org.apache.cassandra."))
             throw new RuntimeException("Not a Cassandra event class: " + eventClazz);
 
-        Class<DiagnosticEvent> clazz = (Class<DiagnosticEvent>) Class.forName(eventClazz);
+        Class<?> clazz = Class.forName(eventClazz, false, DiagnosticEventPersistence.class.getClassLoader());
 
         if (!(DiagnosticEvent.class.isAssignableFrom(clazz)))
             throw new InvalidClassException("Event class must be of type DiagnosticEvent");
 
-        return clazz;
+        return (Class<DiagnosticEvent>) clazz.asSubclass(DiagnosticEvent.class);
     }
 
     private DiagnosticEventStore<Long> getStore(Class cls)
