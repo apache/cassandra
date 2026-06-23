@@ -136,9 +136,10 @@ public class CompressionDictionaryCommandGroup
                     else if (TrainingStatus.FAILED == status)
                     {
                         err.printf("%nTraining failed for %s.%s%n", keyspace, table);
+                        String failureMessage = null;
                         try
                         {
-                            String failureMessage = trainingState.getFailureMessage();
+                            failureMessage = trainingState.getFailureMessage();
                             if (failureMessage != null && !failureMessage.isEmpty())
                             {
                                 err.printf("Reason: %s%n", failureMessage);
@@ -148,19 +149,23 @@ public class CompressionDictionaryCommandGroup
                         {
                             // If we can't get the failure message, just continue without it
                         }
-                        System.exit(1);
+                        throw new RuntimeException(String.format("Training failed for %s.%s. Reason: %s",
+                                                                 keyspace, table, failureMessage == null ?
+                                                                                  "undefined" : failureMessage));
                     }
 
                     Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
                 }
 
-                err.printf("%nTraining did not complete within expected timeframe (10 minutes).%n");
-                System.exit(1);
+                throw new RuntimeException("Training did not complete within expected timeframe (10 minutes).");
+            }
+            catch (IllegalArgumentException | IllegalStateException e)
+            {
+                throw new IllegalArgumentException("Failed to trigger training: " + e.getMessage(), e);
             }
             catch (Exception e)
             {
-                err.printf("Failed to trigger training: %s%n", e.getMessage());
-                System.exit(1);
+                throw new RuntimeException("Failed to trigger training: " + e.getMessage(), e);
             }
         }
 
@@ -187,7 +192,7 @@ public class CompressionDictionaryCommandGroup
                 catch (Throwable t)
                 {
                     err.println("Invalid value for " + MAX_DICT_SIZE_PARAM_NAME + ": " + t.getMessage());
-                    System.exit(1);
+                    throw t;
                 }
             }
 
@@ -200,7 +205,7 @@ public class CompressionDictionaryCommandGroup
                 catch (Throwable t)
                 {
                     err.println("Invalid value for " + MAX_TOTAL_SAMPLE_SIZE_PARAM_NAME + ": " + t.getMessage());
-                    System.exit(1);
+                    throw t;
                 }
             }
         }
@@ -283,7 +288,7 @@ public class CompressionDictionaryCommandGroup
             if (dictId <= 0 && dictId != -1)
             {
                 probe.output().err.printf("Dictionary id has to be strictly positive number.%n");
-                System.exit(1);
+                throw  new IllegalArgumentException("Dictionary id has to be strictly positive number.");
             }
 
             try
@@ -304,7 +309,9 @@ public class CompressionDictionaryCommandGroup
                     probe.output().err.printf("Dictionary%s does not exist for %s.%s.%n",
                                               dictId == -1 ? "" : " with id " + dictId,
                                               keyspace, table);
-                    System.exit(1);
+                    throw new IllegalArgumentException(String.format("Dictionary%s does not exist for %s.%s.",
+                                                                     dictId == -1 ? "" : " with id " + dictId,
+                                                                     keyspace, table));
                 }
 
                 CompressionDictionaryDataObject dataObject = CompressionDictionaryDetailsTabularData.fromCompositeData(compressionDictionary);
@@ -314,7 +321,7 @@ public class CompressionDictionaryCommandGroup
             catch (Throwable e)
             {
                 probe.output().err.printf("Failed to export dictionary: %s%n", e.getMessage());
-                System.exit(1);
+                throw new RuntimeException(e);
             }
         }
     }
@@ -339,19 +346,22 @@ public class CompressionDictionaryCommandGroup
                 CompositeData compositeData = CompressionDictionaryDetailsTabularData.fromCompressionDictionaryDataObject(dictionaryDataObject);
                 probe.importCompressionDictionary(compositeData);
             }
+            catch (IllegalStateException | IllegalArgumentException ex)
+            {
+                // These exceptions are threated as the command input was invalid, so we don't need to wrap them.
+                throw ex;
+            }
             catch (ValueInstantiationException ex)
             {
                 // we catch this when validation of data object fails - that will happen when
                 // JSON is invalid, and we attempt to deserialize it to data object by Jackson
                 // We can fail fast on the client, so we will never reach Cassandra node with a payload
                 // which would fail there too, so we do not contact a node unnecessarily.
-                probe.output().err.printf("Unable to import dictionary JSON: %s%n", ex.getCause().getMessage());
-                System.exit(1);
+                throw new RuntimeException(String.format("Unable to import dictionary JSON: %s%n", ex.getCause().getMessage()), ex);
             }
             catch (Throwable t)
             {
-                probe.output().err.printf("Unable to import dictionary JSON: %s%n", t.getMessage());
-                System.exit(1);
+                throw new RuntimeException(String.format("Unable to import dictionary JSON: %s%n", t.getMessage()), t);
             }
         }
 
@@ -360,17 +370,17 @@ public class CompressionDictionaryCommandGroup
             if (!dictionaryFile.exists())
             {
                 probe.output().err.printf("Path %s does not exist.%n", dictionaryPath);
-                System.exit(1);
+                throw  new IllegalArgumentException("Path " + dictionaryPath + " does not exist.");
             }
             if (!dictionaryFile.isFile())
             {
                 probe.output().err.printf("Path %s is not a file.%n", dictionaryPath);
-                System.exit(1);
+                throw  new IllegalArgumentException("Path " + dictionaryPath + " is not a file.");
             }
             if (!dictionaryFile.isReadable())
             {
                 probe.output().err.printf("Path %s is not readable.%n", dictionaryPath);
-                System.exit(1);
+                throw  new IllegalArgumentException("Path " + dictionaryPath + " is not readable.");
             }
         }
     }
@@ -431,8 +441,7 @@ public class CompressionDictionaryCommandGroup
             }
             catch (Exception e)
             {
-                probe.output().err.printf("Failed to list dictionaries: %s%n", e.getMessage());
-                System.exit(1);
+                throw new RuntimeException("Failed to list dictionaries: " + e.getMessage(), e);
             }
         }
     }

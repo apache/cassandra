@@ -56,7 +56,7 @@ public class CIDRFilteringMetricsTable implements CIDRFilteringMetricsTableMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=CIDRFilteringMetricsTable";
 
-    private static final CIDRFilteringMetricsTable instance = new CIDRFilteringMetricsTable();
+    public static final CIDRFilteringMetricsTable instance = new CIDRFilteringMetricsTable();
 
     CIDRFilteringMetricsTable()
     {

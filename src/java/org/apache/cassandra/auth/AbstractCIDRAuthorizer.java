@@ -28,8 +28,8 @@ import org.apache.cassandra.metrics.CIDRAuthorizerMetrics;
  */
 public abstract class AbstractCIDRAuthorizer implements ICIDRAuthorizer
 {
-    protected static CIDRPermissionsManager cidrPermissionsManager;
-    protected static CIDRGroupsMappingManager cidrGroupsMappingManager;
+    public static CIDRPermissionsManager cidrPermissionsManager;
+    public static CIDRGroupsMappingManager cidrGroupsMappingManager;
 
     protected static CIDRAuthorizerMetrics cidrAuthorizerMetrics;
 

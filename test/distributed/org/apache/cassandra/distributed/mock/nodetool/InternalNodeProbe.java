@@ -19,79 +19,69 @@
 package org.apache.cassandra.distributed.mock.nodetool;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.RuntimeMXBean;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.batchlog.BatchlogManager;
+import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.db.compression.CompressionDictionaryManagerMBean;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.hints.HintsServiceMBean;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.locator.SnitchAdapter;
+import org.apache.cassandra.management.MBeanAccessor;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.MessagingServiceMBean;
+import org.apache.cassandra.profiler.AsyncProfilerMBean;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.AsyncProfilerService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
+import org.apache.cassandra.service.GCInspectorMXBean;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageProxyMBean;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.service.accord.AccordOperations;
+import org.apache.cassandra.service.accord.AccordOperationsMBean;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
+import org.apache.cassandra.service.snapshot.SnapshotManagerMBean;
 import org.apache.cassandra.streaming.StreamManager;
+import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.tcm.CMSOperations;
+import org.apache.cassandra.tcm.CMSOperationsMBean;
 import org.apache.cassandra.tools.NodeProbe;
 
 public class InternalNodeProbe extends NodeProbe
 {
-    private final boolean withNotifications;
     private boolean previousSkipNotificationListeners = false;
 
     public InternalNodeProbe(boolean withNotifications)
     {
-        this.withNotifications = withNotifications;
-        connect();
-    }
-
-    protected void connect()
-    {
-        // note that we are not connecting via JMX for testing
-        mbeanServerConn = null;
-        jmxc = null;
-
+        super(new TestMockMBeanAccessor()); // host/port are unused in InternalNodeProbe
         previousSkipNotificationListeners = StorageService.instance.skipNotificationListeners;
         StorageService.instance.skipNotificationListeners = !withNotifications;
-
-        ssProxy = StorageService.instance;
-        snapshotProxy = SnapshotManager.instance;
-        cmsProxy = CMSOperations.instance;
-        accordProxy = AccordOperations.instance;
-        msProxy = MessagingService.instance();
-        streamProxy = StreamManager.instance;
-        compactionProxy = CompactionManager.instance;
-        fdProxy = (FailureDetectorMBean) FailureDetector.instance;
-        cacheService = CacheService.instance;
-        spProxy = StorageProxy.instance;
-        hsProxy = HintsService.instance;
-
-        gcProxy = new GCInspector();
-        gossProxy = Gossiper.instance;
-        bmProxy = BatchlogManager.instance;
-        arsProxy = ActiveRepairService.instance();
-        memProxy = ManagementFactory.getMemoryMXBean();
-        runtimeProxy = ManagementFactory.getRuntimeMXBean();
-        asyncProfilerProxy = AsyncProfilerService.instance();
     }
 
     @Override
@@ -190,5 +180,79 @@ public class InternalNodeProbe extends NodeProbe
     public long getStorageMetric(String metricName)
     {
         throw new UnsupportedOperationException();
+    }
+
+    private static class TestMockMBeanAccessor implements MBeanAccessor
+    {
+        private final Map<Class<?>, Object> mbeanRegistry = new HashMap<>();
+
+        public TestMockMBeanAccessor()
+        {
+            registerMBean(StorageServiceMBean.class, StorageService.instance);
+            registerMBean(SnapshotManagerMBean.class, SnapshotManager.instance);
+            registerMBean(CMSOperationsMBean.class, CMSOperations.instance);
+            registerMBean(AccordOperationsMBean.class, AccordOperations.instance);
+            registerMBean(MessagingServiceMBean.class, MessagingService.instance());
+            registerMBean(StreamManagerMBean.class, StreamManager.instance);
+            registerMBean(CompactionManagerMBean.class, CompactionManager.instance);
+            registerMBean(FailureDetectorMBean.class, (FailureDetectorMBean) FailureDetector.instance);
+            registerMBean(CacheServiceMBean.class, CacheService.instance);
+            registerMBean(StorageProxyMBean.class, StorageProxy.instance);
+            registerMBean(HintsServiceMBean.class, HintsService.instance);
+            registerMBean(GCInspectorMXBean.class, new GCInspector());
+            registerMBean(GossiperMBean.class, Gossiper.instance);
+            registerMBean(BatchlogManagerMBean.class, BatchlogManager.instance);
+            registerMBean(ActiveRepairServiceMBean.class, ActiveRepairService.instance());
+            registerMBean(MemoryMXBean.class, ManagementFactory.getMemoryMXBean());
+            registerMBean(RuntimeMXBean.class, ManagementFactory.getRuntimeMXBean());
+            registerMBean(AsyncProfilerMBean.class, AsyncProfilerService.instance());
+        }
+
+        protected <T> void registerMBean(Class<T> clazz, T mbean)
+        {
+            mbeanRegistry.put(clazz, mbean);
+        }
+
+        @Override
+        public <T> T findMBean(Class<T> clazz)
+        {
+            return mbeanRegistry.get(clazz) == null ? null : clazz.cast(mbeanRegistry.get(clazz));
+        }
+
+        @Override
+        public <T> T findMBeanMetric(Class<T> clazz, Props props)
+        {
+            return null;
+        }
+
+        @Override
+        public boolean isMBeanMetricRegistered(Props props)
+        {
+            return false;
+        }
+
+        @Override
+        public ColumnFamilyStoreMBean findColumnFamily(String type, String keyspace, String columnFamily)
+        {
+            return null;
+        }
+
+        @Override
+        public CompressionDictionaryManagerMBean findCompressionDictionary(String keyspace, String table)
+        {
+            return null;
+        }
+
+        @Override
+        public List<ThreadPoolInfo> threadPoolInfos()
+        {
+            return List.of();
+        }
+
+        @Override
+        public List<Map.Entry<String, ColumnFamilyStoreMBean>> findColumnFamilies(String type)
+        {
+            return List.of();
+        }
     }
 }

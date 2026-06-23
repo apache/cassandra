@@ -18,26 +18,36 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.List;
+
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.ToolRunner;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**o
  * Tests for the {@code nodetool snapshot} command
  */
-public class SnapshotTest extends CQLTester
+public class SnapshotTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
+    }
+
+    @After
+    public void tearDown()
+    {
+        // Clear all named snaphsots created by tests.
+        for (String tag : List.of("custom_snapshot_name", "skip_flush", "ttl", "table", "kt_option"))
+            invokeNodetool("clearsnapshot", "-t", tag);
     }
 
     @Test
