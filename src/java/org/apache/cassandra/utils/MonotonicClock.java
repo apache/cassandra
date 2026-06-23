@@ -85,7 +85,7 @@ public interface MonotonicClock
                 try
                 {
                     logger.debug("Using custom clock implementation: {}", sclock);
-                    return (MonotonicClock) Class.forName(sclock).newInstance();
+                    return FBUtilities.construct(sclock, "monotonic clock", MonotonicClock.class);
                 }
                 catch (Exception e)
                 {
@@ -104,7 +104,8 @@ public interface MonotonicClock
                 try
                 {
                     logger.debug("Using custom clock implementation: {}", sclock);
-                    Class<? extends MonotonicClock> clazz = (Class<? extends MonotonicClock>) Class.forName(sclock);
+                    Class<? extends MonotonicClock> clazz =
+                        FBUtilities.classForNameWithoutInitialization(sclock, "monotonic clock", MonotonicClock.class);
 
                     if (SystemClock.class.equals(clazz) && SystemClock.class.equals(precise.getClass()))
                         return precise;

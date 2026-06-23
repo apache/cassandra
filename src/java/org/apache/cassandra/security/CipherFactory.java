@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A factory for loading encryption keys from {@link KeyProvider} instances.
@@ -70,9 +71,10 @@ public class CipherFactory
         try
         {
             secureRandom = SecureRandom.getInstance("SHA1PRNG");
-            Class<KeyProvider> keyProviderClass = (Class<KeyProvider>)Class.forName(options.key_provider.class_name);
-            Constructor ctor = keyProviderClass.getConstructor(TransparentDataEncryptionOptions.class);
-            keyProvider = (KeyProvider)ctor.newInstance(options);
+            Class<? extends KeyProvider> keyProviderClass =
+                FBUtilities.classForNameWithoutInitialization(options.key_provider.class_name, "key provider", KeyProvider.class);
+            Constructor<? extends KeyProvider> ctor = keyProviderClass.getConstructor(TransparentDataEncryptionOptions.class);
+            keyProvider = ctor.newInstance(options);
         }
         catch (Exception e)
         {

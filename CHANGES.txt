@@ -1,4 +1,5 @@
 4.0.21
+ * Verify extension type before initializing reflectively-loaded classes (CASSANDRA-21525)
  * Rename conflicting nodetool import --copy-data short option from -p to -cd (CASSANDRA-20214)
  * Fix PasswordObfuscator failing to obfuscate certain passwords (CASSANDRA-21113)
  * Fix negative memtable allocator ownership when an update is shadowed by an existing row deletion (CASSANDRA-21469)

@@ -23,6 +23,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -43,14 +44,75 @@ import org.junit.Test;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 
+import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class FBUtilitiesTest
 {
+    @Test
+    public void testTypedClassForNameRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.classForNameWithoutInitialization(ClassLoadingTestNonAssignable.class.getName(), "test class", Runnable.class))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testTypedConstructRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.construct(ClassLoadingTestNonAssignable.class.getName(), "test class", Runnable.class))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testTypedInstanceOrConstructRejectsWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.instanceOrConstruct(ClassLoadingTestNonAssignable.class.getName(), "test class", Runnable.class))
+        .isInstanceOf(ConfigurationException.class)
+        .hasMessageContaining("must extend or implement " + Runnable.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testNewAuditLoggerRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertThatThrownBy(() -> FBUtilities.newAuditLogger(ClassLoadingTestNonAssignable.class.getName(), Collections.emptyMap()))
+        .isInstanceOf(ConfigurationException.class)
+        .hasRootCauseInstanceOf(ConfigurationException.class)
+        .hasStackTraceContaining("must extend or implement " + IAuditLogger.class.getName());
+
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+    }
+
+    @Test
+    public void testIsAuditLoggerClassExistsRejectsWrongTypeWithoutInitializing()
+    {
+        ClassLoadingTestSupport.assertNotInitialized(ClassLoadingTestNonAssignable.class);
+        assertFalse(FBUtilities.isAuditLoggerClassExists(ClassLoadingTestNonAssignable.class.getName()));
+        assertFalse(ClassLoadingTestSupport.wasInitialized(ClassLoadingTestNonAssignable.class));
+
+        assertTrue(FBUtilities.isAuditLoggerClassExists("NoOpAuditLogger"));
+        assertFalse(FBUtilities.isAuditLoggerClassExists("does.not.ExistAuditLogger"));
+    }
+
     @Test
     public void testCompareByteSubArrays()
     {

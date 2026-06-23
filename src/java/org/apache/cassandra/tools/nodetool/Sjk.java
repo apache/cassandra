@@ -405,6 +405,7 @@ public class Sjk extends NodeToolCmd
             List<Class<?>> result = new ArrayList<>();
             try
             {
+                ClassLoader cl = Thread.currentThread().getContextClassLoader();
                 String path = packageName.replace('.', '/');
                 for (String f : findFiles(path))
                 {
@@ -412,7 +413,7 @@ public class Sjk extends NodeToolCmd
                     {
                         f = f.substring(0, f.length() - ".class".length());
                         f = f.replace('/', '.');
-                        result.add(Class.forName(f));
+                        result.add(Class.forName(f, false, cl));
                     }
                 }
                 return result;

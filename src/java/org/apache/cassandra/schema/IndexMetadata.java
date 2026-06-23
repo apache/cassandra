@@ -117,9 +117,7 @@ public final class IndexMetadata
                 throw new ConfigurationException(String.format("Required option missing for index %s : %s",
                                                                name, IndexTarget.CUSTOM_INDEX_OPTION_NAME));
             String className = options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            Class<Index> indexerClass = FBUtilities.classForName(className, "custom indexer");
-            if (!Index.class.isAssignableFrom(indexerClass))
-                throw new ConfigurationException(String.format("Specified Indexer class (%s) does not implement the Indexer interface", className));
+            Class<? extends Index> indexerClass = FBUtilities.classForNameWithoutInitialization(className, "custom indexer", Index.class);
             validateCustomIndexOptions(table, indexerClass, options);
         }
     }

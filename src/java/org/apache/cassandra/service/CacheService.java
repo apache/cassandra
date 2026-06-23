@@ -129,9 +129,11 @@ public class CacheService implements CacheServiceMBean
                                         ? DatabaseDescriptor.getRowCacheClassName() : "org.apache.cassandra.cache.NopCacheProvider";
         try
         {
-            Class<CacheProvider<RowCacheKey, IRowCacheEntry>> cacheProviderClass =
-                (Class<CacheProvider<RowCacheKey, IRowCacheEntry>>) Class.forName(cacheProviderClassName);
-            cacheProvider = cacheProviderClass.newInstance();
+            Class<? extends CacheProvider> cacheProviderClass =
+                FBUtilities.classForNameWithoutInitialization(cacheProviderClassName, "row cache provider", CacheProvider.class);
+            @SuppressWarnings("unchecked")
+            CacheProvider<RowCacheKey, IRowCacheEntry> typedCacheProvider = cacheProviderClass.newInstance();
+            cacheProvider = typedCacheProvider;
         }
         catch (Exception e)
         {

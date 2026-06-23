@@ -107,7 +107,7 @@ public class ClientState
         {
             try
             {
-                handler = FBUtilities.construct(customHandlerClass, "QueryHandler");
+                handler = FBUtilities.construct(customHandlerClass, "QueryHandler", QueryHandler.class);
                 logger.info("Using {} as query handler for native protocol queries (as requested with -Dcassandra.custom_query_handler_class)", customHandlerClass);
             }
             catch (Exception e)

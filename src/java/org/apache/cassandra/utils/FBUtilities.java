@@ -634,28 +634,28 @@ public class FBUtilities
             assert comparator.isPresent() : "Expected a comparator for local partitioner";
             return new LocalPartitioner(comparator.get());
         }
-        return FBUtilities.instanceOrConstruct(partitionerClassName, "partitioner");
+        return FBUtilities.instanceOrConstruct(partitionerClassName, "partitioner", IPartitioner.class);
     }
 
     public static IAuthorizer newAuthorizer(String className) throws ConfigurationException
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "authorizer");
+        return FBUtilities.construct(className, "authorizer", IAuthorizer.class);
     }
 
     public static IAuthenticator newAuthenticator(String className) throws ConfigurationException
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "authenticator");
+        return FBUtilities.construct(className, "authenticator", IAuthenticator.class);
     }
 
     public static IRoleManager newRoleManager(String className) throws ConfigurationException
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.auth." + className;
-        return FBUtilities.construct(className, "role manager");
+        return FBUtilities.construct(className, "role manager", IRoleManager.class);
     }
 
     public static INetworkAuthorizer newNetworkAuthorizer(String className)
@@ -668,9 +668,9 @@ public class FBUtilities
         {
             className = "org.apache.cassandra.auth." + className;
         }
-        return FBUtilities.construct(className, "network authorizer");
+        return FBUtilities.construct(className, "network authorizer", INetworkAuthorizer.class);
     }
-    
+
     public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
     {
         if (!className.contains("."))
@@ -678,8 +678,9 @@ public class FBUtilities
 
         try
         {
-            Class<?> auditLoggerClass = Class.forName(className);
-            return (IAuditLogger) auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
+            Class<? extends IAuditLogger> auditLoggerClass =
+                FBUtilities.classForNameWithoutInitialization(className, "Audit logger", IAuditLogger.class);
+            return auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
         }
         catch (Exception ex)
         {
@@ -694,7 +695,7 @@ public class FBUtilities
 
         try
         {
-            FBUtilities.classForName(className, "Audit logger");
+            FBUtilities.classForNameWithoutInitialization(className, "Audit logger", IAuditLogger.class);
         }
         catch (ConfigurationException e)
         {
@@ -704,6 +705,8 @@ public class FBUtilities
     }
 
     /**
+     * Loads and initializes a class.
+     *
      * @return The Class for the given name.
      * @param classname Fully qualified classname.
      * @param readable Descriptive noun for the role the class plays.
@@ -722,6 +725,53 @@ public class FBUtilities
     }
 
     /**
+     * Loads a class without initializing it, then verifies it extends or implements the expected base type.
+     *
+     * @return The Class for the given name.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @param expectedType Required superclass or interface.
+     * @throws ConfigurationException If the class cannot be found or is not assignable to {@code expectedType}.
+     */
+    public static <T> Class<? extends T> classForNameWithoutInitialization(String classname,
+                                                                           String readable,
+                                                                           Class<T> expectedType) throws ConfigurationException
+    {
+        return classForNameWithoutInitialization(classname, readable, expectedType, FBUtilities.class.getClassLoader());
+    }
+
+    /**
+     * Loads a class without initializing it, then verifies it extends or implements the expected base type.
+     *
+     * @return The Class for the given name.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @param expectedType Required superclass or interface.
+     * @param classLoader ClassLoader to use.
+     * @throws ConfigurationException If the class cannot be found or is not assignable to {@code expectedType}.
+     */
+    public static <T> Class<? extends T> classForNameWithoutInitialization(String classname,
+                                                                           String readable,
+                                                                           Class<T> expectedType,
+                                                                           ClassLoader classLoader) throws ConfigurationException
+    {
+        try
+        {
+            Class<?> klass = Class.forName(classname, false, classLoader);
+            if (!expectedType.isAssignableFrom(klass))
+                throw new ConfigurationException(String.format("Invalid %s class '%s': must extend or implement %s",
+                                                               readable,
+                                                               classname,
+                                                               expectedType.getName()));
+            return klass.asSubclass(expectedType);
+        }
+        catch (ClassNotFoundException | NoClassDefFoundError e)
+        {
+            throw new ConfigurationException(String.format("Unable to find %s class '%s'", readable, classname), e);
+        }
+    }
+
+    /**
      * Constructs an instance of the given class, which must have a no-arg or default constructor.
      * @param classname Fully qualified classname.
      * @param readable Descriptive noun for the role the class plays.
@@ -730,6 +780,25 @@ public class FBUtilities
     public static <T> T instanceOrConstruct(String classname, String readable) throws ConfigurationException
     {
         Class<T> cls = FBUtilities.classForName(classname, readable);
+        return instanceOrConstruct(cls, classname, readable);
+    }
+
+    /**
+     * Constructs an instance of the given class, or gets its static {@code instance} field, after verifying the
+     * class without initializing it.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @param expectedType Required superclass or interface.
+     * @throws ConfigurationException If the class cannot be found or is not assignable to {@code expectedType}.
+     */
+    public static <T> T instanceOrConstruct(String classname, String readable, Class<T> expectedType) throws ConfigurationException
+    {
+        Class<? extends T> cls = FBUtilities.classForNameWithoutInitialization(classname, readable, expectedType);
+        return instanceOrConstruct(cls, classname, readable);
+    }
+
+    private static <T> T instanceOrConstruct(Class<? extends T> cls, String classname, String readable) throws ConfigurationException
+    {
         try
         {
             Field instance = cls.getField("instance");
@@ -754,7 +823,20 @@ public class FBUtilities
         return construct(cls, classname, readable);
     }
 
-    private static <T> T construct(Class<T> cls, String classname, String readable) throws ConfigurationException
+    /**
+     * Constructs an instance of the given class after verifying it without initializing it.
+     * @param classname Fully qualified classname.
+     * @param readable Descriptive noun for the role the class plays.
+     * @param expectedType Required superclass or interface.
+     * @throws ConfigurationException If the class cannot be found or is not assignable to {@code expectedType}.
+     */
+    public static <T> T construct(String classname, String readable, Class<T> expectedType) throws ConfigurationException
+    {
+        Class<? extends T> cls = FBUtilities.classForNameWithoutInitialization(classname, readable, expectedType);
+        return construct(cls, classname, readable);
+    }
+
+    private static <T> T construct(Class<? extends T> cls, String classname, String readable) throws ConfigurationException
     {
         try
         {
