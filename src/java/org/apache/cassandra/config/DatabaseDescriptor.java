@@ -124,8 +124,10 @@ import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.AccordWaitStrategies;
 import org.apache.cassandra.service.consensus.TransactionalMode;
@@ -269,6 +271,15 @@ public class DatabaseDescriptor
     private static final boolean strictRuntimeChecks = TEST_STRICT_RUNTIME_CHECKS.getBoolean();
 
     public static volatile boolean allowUnlimitedConcurrentValidations = ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getBoolean();
+
+    /**
+     * RetryStrategy which provides exponential backoff with full jitter, for use by both CMS and non-CMS members
+     * when submitting a Commit request. The range and increments of the backoff times are defined by
+     * conf.cms_commit_retry_initial_delay and conf.cms_commit_retry_max_delay. Both are hot properties and so
+     * changing either one causes this retry strategy to be reconstructed.
+     */
+    private static volatile RetryStrategy cms_commit_retry_strategy;
+
 
     /**
      * The configuration for guardrails.
@@ -579,6 +590,8 @@ public class DatabaseDescriptor
         applyGuardrails();
 
         applyAccord();
+
+        applyCMS();
 
         applyStartupChecks();
     }
@@ -1386,6 +1399,25 @@ public class DatabaseDescriptor
             throw new ConfigurationException("Invalid accord progress log configuration: " + e.getMessage(), e);
         }
         AccordService.applyProtocolModifiers(getAccord());
+    }
+
+    private static void applyCMS()
+    {
+        try
+        {
+            long initialDelayMs = conf.cms_commit_retry_initial_delay.to(TimeUnit.MILLISECONDS);
+            long maxDelayMs = conf.cms_commit_retry_max_delay.to(TimeUnit.MILLISECONDS);
+            // range of backoff wait time starts at 0ms backing off exponentially at initialDelayMs * 2^attempts
+            String spec = String.format("0ms ... %dms * 2^attempts <= %dms", initialDelayMs, maxDelayMs);
+            logger.debug("Initializing cms_commit_retry_strategy from spec: " + spec);
+            cms_commit_retry_strategy = RetryStrategy.parse(spec,
+                                                            TimeoutStrategy.LatencySourceFactory.none(),
+                                                            RetryStrategy.randomizers.uniform());
+        }
+        catch (Exception e)
+        {
+            throw new ConfigurationException("Invalid configuration for cms_commit_retry_strategy. " + e.getMessage(), e);
+        }
     }
 
     public static StartupChecksConfiguration getStartupChecksConfiguration()
@@ -6200,6 +6232,8 @@ public class DatabaseDescriptor
         }
     }
 
+
+
     public static DurationSpec getCmsCommitRetryInitialDelay()
     {
         return conf.cms_commit_retry_initial_delay;
@@ -6211,6 +6245,7 @@ public class DatabaseDescriptor
         {
             logger.info("Setting cms_commit_retry_initial_delay to {}ms", delayInMillis);
             conf.cms_commit_retry_initial_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
+            applyCMS();
         }
     }
 
@@ -6225,7 +6260,13 @@ public class DatabaseDescriptor
         {
             logger.info("Setting cms_commit_retry_max_delay to {}ms", delayInMillis);
             conf.cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound(delayInMillis);
+            applyCMS();
         }
+    }
+
+    public static RetryStrategy getCmsCommitRetryStrategy()
+    {
+        return cms_commit_retry_strategy;
     }
 
     public static int getEpochAwareDebounceInFlightTrackerMaxSize()

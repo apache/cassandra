@@ -43,7 +43,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -396,13 +395,7 @@ public class Commit
             long now = MonotonicClock.Global.preciseTime.now();
             long localDeadlineNanos = Math.max(now + casWriteRpcTimeoutNanos,
                                                message.expiresAtNanos() - casWriteRpcTimeoutNanos);
-            long initialDelayMs = DatabaseDescriptor.getCmsCommitRetryInitialDelay().to(TimeUnit.MILLISECONDS);
-            long maxDelayMs = DatabaseDescriptor.getCmsCommitRetryMaxDelay().to(TimeUnit.MILLISECONDS);
-
-            String spec = String.format("... %dms^attempts <= %dms", initialDelayMs, maxDelayMs);
-            RetryStrategy backoffWithJitter = RetryStrategy.parse(spec,
-                                                                  TimeoutStrategy.LatencySourceFactory.none(),
-                                                                  RetryStrategy.randomizers.uniform());
+            RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
             Retry retryPolicy = Retry.until(localDeadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
             Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown, retryPolicy);
             if (result.isSuccess())

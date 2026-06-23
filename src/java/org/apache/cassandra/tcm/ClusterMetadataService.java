@@ -58,7 +58,6 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.RetryStrategy;
-import org.apache.cassandra.service.TimeoutStrategy;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
@@ -733,13 +732,7 @@ public class ClusterMetadataService
             // with jitter works to desynchronize retry waves after a CMS await timeout. For CMS members committing
             // locally, it helps to space Paxos CAS retries in the local commit loop.
             long deadlineNanos = nanoTime() + DatabaseDescriptor.getCmsCommitTimeout().to(TimeUnit.NANOSECONDS);
-            long initialDelayMs = DatabaseDescriptor.getCmsCommitRetryInitialDelay().to(TimeUnit.MILLISECONDS);
-            long maxDelayMs = DatabaseDescriptor.getCmsCommitRetryMaxDelay().to(TimeUnit.MILLISECONDS);
-            // range of backoff wait time starts at 0ms backing off exponentially at initialDelayMs * 2^attempts
-            String spec = String.format("0ms ... %dms * 2^attempts <= %dms", initialDelayMs, maxDelayMs);
-            RetryStrategy backoffWithJitter = RetryStrategy.parse(spec,
-                                                                  TimeoutStrategy.LatencySourceFactory.none(),
-                                                                  RetryStrategy.randomizers.uniform());
+            RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
             retryPolicy = Retry.until(deadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
         }
         return retryPolicy;
