@@ -33,6 +33,7 @@ import java.util.TimeZone;
 
 import javax.management.InstanceNotFoundException;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.ArrayListMultimap;
 
 import org.apache.commons.lang3.time.DurationFormatUtils;
@@ -341,7 +342,7 @@ public class TableStatsHolder implements StatsHolder
                 catch (RuntimeException e)
                 {
                     // offheap-metrics introduced in 2.1.3 - older versions do not have the appropriate mbeans
-                    if (!(e.getCause() instanceof InstanceNotFoundException))
+                    if (!(Throwables.getRootCause(e) instanceof InstanceNotFoundException))
                         throw e;
                 }
 

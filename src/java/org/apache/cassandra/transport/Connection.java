@@ -23,6 +23,7 @@ import io.netty.util.AttributeKey;
 public class Connection
 {
     static final AttributeKey<Connection> attributeKey = AttributeKey.valueOf("CONN");
+    static final AttributeKey<Boolean> managementKey = AttributeKey.valueOf("IS_MANAGEMENT_CONN");
 
     private final Channel channel;
     private final ProtocolVersion version;

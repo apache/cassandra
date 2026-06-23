@@ -25,6 +25,7 @@ import java.util.List;
 import javax.management.ListenerNotFoundException;
 import javax.management.remote.JMXConnector;
 
+import org.apache.cassandra.management.MBeanAccessor;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.Closeable;
@@ -34,9 +35,9 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.FAILED;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.valueOf;
-import static org.apache.cassandra.tools.NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
@@ -46,6 +47,8 @@ import static org.apache.cassandra.utils.progress.ProgressEventType.PROGRESS;
 
 public class RepairRunner extends JMXNotificationProgressListener implements Closeable
 {
+    private final long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS.getLong();
+
     public static abstract class RepairCmd
     {
         private final String keyspace;
@@ -60,6 +63,7 @@ public class RepairRunner extends JMXNotificationProgressListener implements Clo
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
 
     private final PrintStream out;
+    /** The connector to monitor the JMX connection state, so it can be {@code null} for server-side tools. */
     private final JMXConnector jmxc;
     private final StorageServiceMBean ssProxy;
     private final Condition condition = newOneTimeCondition();
@@ -68,10 +72,10 @@ public class RepairRunner extends JMXNotificationProgressListener implements Clo
     private Integer cmd;
     private volatile Exception error;
 
-    public RepairRunner(PrintStream out, JMXConnector jmxc, StorageServiceMBean ssProxy, RepairCmd repairCmd)
+    public RepairRunner(PrintStream out, MBeanAccessor accessor, StorageServiceMBean ssProxy, RepairCmd repairCmd)
     {
         this.out = out;
-        this.jmxc = jmxc;
+        this.jmxc = accessor instanceof RemoteJmxMBeanAccessor ? ((RemoteJmxMBeanAccessor) accessor).getJmxConnector() : null;
         this.ssProxy = ssProxy;
         this.repairCmd = repairCmd;
     }

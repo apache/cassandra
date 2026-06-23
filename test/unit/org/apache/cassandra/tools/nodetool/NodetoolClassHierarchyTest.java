@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -220,6 +221,213 @@ public class NodetoolClassHierarchyTest extends CQLTester
         else if (name.startsWith("-"))
             return name.substring(1);
         return name;
+    }
+
+    /**
+     * Previously, in the Airline implementation of nodetool, the defaul values for command
+     * parameters were declared as values in the java field of the command class. We left this
+     * as-is, but with picocli we have to make sure that this is consistend with annotations
+     * such as {@code @Option(defaultValue = "...")}.
+     * <p>
+     * When {@code @Option(defaultValue = "...")} is declared on a field, the Java field
+     * initializer must produce the same value. This is required because picocli only applies
+     * {@code defaultValue} during {@code parseArgs()}, any code that reads the field before
+     * parsing sees only the Java initializer, not the annotations default.
+     */
+    @Test
+    public void testOptionAnnotationDefaultMatchesJavaInitializer()
+    {
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> violations = new TreeMap<>();
+
+        commandTreeWalker(root, cmd -> {
+            List<String> cmdViolations = collectDefaultValueMismatches(cmd);
+            if (!cmdViolations.isEmpty())
+                violations.put(fullCommandName(cmd), cmdViolations);
+        });
+
+        assertTrue("The following commands have @Option(defaultValue) that does not match " +
+                   "the Java field initializer. Either remove defaultValue from the annotation " +
+                   "or align the Java field initializer with it:\n" +
+                   buildAffectedCommandMessage(violations),
+                   violations.isEmpty());
+    }
+
+    /**
+     * Commands must not declare aliases. Alias MBean registration is not supported,
+     * so allowing aliases would create a mismatch between the CLI (which would honor them)
+     * and the JMX/CQL transports (which would not). If alias support is added in the future,
+     * this test should be replaced with proper alias-aware registration and lookup logic.
+     */
+    @Test
+    public void testNoCommandDeclaresAliases()
+    {
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> affected = new TreeMap<>();
+
+        commandTreeWalker(root, cmd -> {
+            String[] aliases = cmd.getCommandSpec().aliases();
+            if (aliases.length > 0)
+                affected.put(fullCommandName(cmd), Arrays.asList(aliases));
+        });
+
+        assertTrue("The following commands declare aliases, but alias registration " +
+                   "is not yet supported across all transports (JMX, CQL):\n" +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+    }
+
+    /**
+     * Commands must not declare custom picocli {@code converters} on options or parameters.
+     * <p>
+     * Instead, options and parameters must use plain strings, lists of strings, or the built-in Java
+     * types supported by {@code TypeConverterRegistry} (primitives, enums, and collections/arrays of
+     * those). Commands that need a richer domain type should accept one of these simple types and
+     * perform the conversion in the command body, as several existing commands already do.
+     */
+    @Test
+    public void testNoCommandDeclaresCustomConverter()
+    {
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> affected = new TreeMap<>();
+
+        commandTreeWalker(root, cmd -> {
+            List<String> converters = collectCustomConverters(cmd);
+            if (!converters.isEmpty())
+                affected.put(fullCommandName(cmd), converters);
+        });
+
+        assertTrue("The following commands declare custom picocli converters, which are not supported " +
+                   "by the remote argument-conversion path (it would feed the whole collection's toString() " +
+                   "to a per-element converter). Make PicocliOptionMetadata/PicocliParameterMetadata.convertValue " +
+                   "element-aware before adding one:\n" +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+    }
+
+    private static List<String> collectCustomConverters(CommandLine cmd)
+    {
+        List<String> converters = new ArrayList<>();
+
+        for (CommandLine.Model.OptionSpec option : cmd.getCommandSpec().options())
+        {
+            if (option.usageHelp() || option.versionHelp())
+                continue;
+            CommandLine.ITypeConverter<?>[] optionConverters = option.converters();
+            if (optionConverters != null && optionConverters.length > 0)
+                converters.add(String.format("option %s -> %s",
+                                             String.join("/", option.names()),
+                                             optionConverters[0].getClass().getName()));
+        }
+
+        for (CommandLine.Model.PositionalParamSpec param : cmd.getCommandSpec().positionalParameters())
+        {
+            CommandLine.ITypeConverter<?>[] paramConverters = param.converters();
+            if (paramConverters != null && paramConverters.length > 0)
+                converters.add(String.format("parameter index=%s (%s) -> %s",
+                                             param.index(),
+                                             param.paramLabel(),
+                                             paramConverters[0].getClass().getName()));
+        }
+
+        return converters;
+    }
+
+    /**
+     * Commands must not declare {@code @ArgGroup} fields.
+     * Declare the options directly on the command and validate the grouping in the command body.
+     */
+    @Test
+    public void testNoCommandDeclaresArgGroups()
+    {
+        Set<Class<?>> ignore = Set.of(CMSAdmin.DumpClusterMetadata.class);
+
+        CommandLine root = new CommandLine(NodetoolCommand.class);
+        Map<String, List<String>> affected = new TreeMap<>();
+        Set<Class<?>> staleExclusions = new LinkedHashSet<>(ignore);
+
+        commandTreeWalker(root, cmd -> {
+            List<String> groups = collectArgGroups(cmd);
+            if (groups.isEmpty())
+                return;
+
+            Object userObject = cmd.getCommandSpec().userObject();
+            if (userObject != null && ignore.contains(userObject.getClass()))
+                staleExclusions.remove(userObject.getClass());
+            else
+                affected.put(fullCommandName(cmd), groups);
+        });
+
+        assertTrue("The following commands declare @ArgGroup fields, which cannot be populated " +
+                   "by the remote execution path (picocli only instantiates group objects during " +
+                   "parseArgs(), which the server never runs). Declare the options directly on " +
+                   "the command and validate the grouping in the command body:\n" +
+                   buildAffectedCommandMessage(affected),
+                   affected.isEmpty());
+
+        assertTrue("Commands excluded as pending @ArgGroup refactoring no longer declare @ArgGroup, " +
+                   "remove them from the exclusion list: " + staleExclusions,
+                   staleExclusions.isEmpty());
+    }
+
+    private static List<String> collectArgGroups(CommandLine cmd)
+    {
+        List<String> groups = new ArrayList<>();
+        for (CommandLine.Model.ArgGroupSpec group : cmd.getCommandSpec().argGroups())
+        {
+            List<String> members = new ArrayList<>();
+            for (CommandLine.Model.OptionSpec option : group.allOptionsNested())
+                members.add(String.join("/", option.names()));
+            groups.add("group [" + String.join(", ", members) + "]");
+        }
+        return groups;
+    }
+
+    private static List<String> collectDefaultValueMismatches(CommandLine cmd)
+    {
+        List<String> violations = new ArrayList<>();
+
+        for (CommandLine.Model.OptionSpec optionSpec : cmd.getCommandSpec().options())
+        {
+            if (optionSpec.usageHelp() || optionSpec.versionHelp())
+                continue;
+
+            String annotationDefault = optionSpec.defaultValue();
+            if (annotationDefault == null)
+                continue;
+
+            Object javaValue = optionSpec.getValue();
+            String javaValueStr = javaValue == null ? "null" : String.valueOf(javaValue);
+
+            if (!annotationDefault.equals(javaValueStr))
+            {
+                violations.add(String.format("option %s: @Option(defaultValue=\"%s\") but Java initializer gives \"%s\"",
+                                             Arrays.toString(optionSpec.names()),
+                                             annotationDefault,
+                                             javaValueStr));
+            }
+        }
+
+        for (CommandLine.Model.PositionalParamSpec paramSpec : cmd.getCommandSpec().positionalParameters())
+        {
+            String annotationDefault = paramSpec.defaultValue();
+            if (annotationDefault == null)
+                continue;
+
+            Object javaValue = paramSpec.getValue();
+            String javaValueStr = javaValue == null ? "null" : String.valueOf(javaValue);
+
+            if (!annotationDefault.equals(javaValueStr))
+            {
+                violations.add(String.format("parameter index=%s (%s): @Parameters(defaultValue=\"%s\") but Java initializer gives \"%s\"",
+                                             paramSpec.index(),
+                                             paramSpec.paramLabel(),
+                                             annotationDefault,
+                                             javaValueStr));
+            }
+        }
+
+        return violations;
     }
 
     /**

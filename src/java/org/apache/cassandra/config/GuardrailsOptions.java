@@ -20,12 +20,14 @@ package org.apache.cassandra.config;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -49,7 +51,6 @@ import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.utils.LocalizeString;
 
 import static java.lang.String.format;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Configuration settings for guardrails populated from the Yaml file.
@@ -1636,12 +1637,24 @@ public class GuardrailsOptions implements GuardrailsConfig
                                                       "than the fail threshold %s", warn, name, fail));
     }
 
+    /**
+     * See {@code GuardrailsConfigCommandTest}, that relies on the fact that the error messages for invalid properties
+     * are deterministic and contain the list of invalid properties in the same order as they were provided in the command.
+     *
+     * @param properties set of properties to validate.
+     * @param name name of the property for error messages.
+     * @return set of properties converted to lower case.
+     */
     private static Set<String> validateTableProperties(Set<String> properties, String name)
     {
         if (properties == null)
             throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
 
-        Set<String> lowerCaseProperties = properties.stream().map(String::toLowerCase).collect(toSet());
+        // We use LinkedHashSet to preserve the order of properties in error messages. This is
+        // used to avoid confusion in an error message when the CQL/nodetool commands are invoked
+        // with properties in a specific order.
+        Set<String> lowerCaseProperties = properties.stream().map(LocalizeString::toLowerCaseLocalized)
+                                                    .collect(Collectors.toCollection(LinkedHashSet::new));
 
         Set<String> diff = Sets.difference(lowerCaseProperties, TableAttributes.allKeywords());
 
@@ -1656,7 +1669,11 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (properties == null)
             throw new IllegalArgumentException(format("Invalid value for %s: null is not allowed", name));
 
-        Set<String> lowerCaseProperties = properties.stream().map(LocalizeString::toLowerCaseLocalized).collect(toSet());
+        // We use LinkedHashSet to preserve the order of properties in error messages. This is
+        // used to avoid confusion in an error message when the CQL/nodetool commands are invoked
+        // with properties in a specific order.
+        Set<String> lowerCaseProperties = properties.stream().map(LocalizeString::toLowerCaseLocalized)
+                                                    .collect(Collectors.toCollection(LinkedHashSet::new));
 
         for (String requiredKeyword : KeyspaceAttributes.requiredKeywords())
         {

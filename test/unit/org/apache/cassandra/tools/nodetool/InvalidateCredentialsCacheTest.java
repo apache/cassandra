@@ -40,6 +40,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @see InvalidateCredentialsCache
+ *
+ * TODO: CASSANDRA-XXXXX Test needs to be migrated to CQLNodetoolProtocolTester
+ *   once nodetool supports passing authentication credentials.
  */
 public class InvalidateCredentialsCacheTest extends CQLTester
 {

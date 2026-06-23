@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleLocationProvider;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -32,7 +33,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class StatusTest extends CQLTester
+public class StatusTest extends CQLNodetoolProtocolTester
 {
     private static final Pattern PATTERN = Pattern.compile("\\R");
     private static String localHostId;
@@ -76,7 +77,7 @@ public class StatusTest extends CQLTester
         schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE);
         schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE_PER_TEST);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("status");
+        ToolRunner.ToolResult tool = invokeNodetool("status");
         tool.assertOnCleanExit();
         String[] lines = PATTERN.split(tool.getStdout());
 
@@ -135,7 +136,7 @@ public class StatusTest extends CQLTester
 
     private void validateStatusOutput(String hostForm, String... args)
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
+        ToolRunner.ToolResult tool = invokeNodetool(args);
         tool.assertOnCleanExit();
         /*
          Datacenter: datacenter1

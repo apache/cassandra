@@ -1145,6 +1145,57 @@ rpc_address: localhost
 # enable or disable keepalive on rpc/native connections
 rpc_keepalive: true
 
+# Whether to start the native management transport server.
+# The address on which the native management transport is bound can be configured
+# using rpc_management_address or rpc_management_interface. If neither is set,
+# it defaults to rpc_address (or rpc_interface if that was used).
+start_native_transport_management: false
+
+# The address or interface to bind the native management transport server to.
+# This allows you to bind management operations to a different network interface
+# than regular client connections, providing better security isolation.
+#
+# Set rpc_management_address OR rpc_management_interface, not both.
+#
+# If neither rpc_management_address nor rpc_management_interface is set,
+# the management transport will use the same address as the regular native
+# transport (rpc_address or rpc_interface).
+#
+# For security reasons, you should not expose this port to the internet.
+# Firewall it if needed. Consider binding to a management network interface
+# that is not accessible from public networks.
+# rpc_management_address: localhost
+
+# Set rpc_management_address OR rpc_management_interface, not both. Interfaces
+# must correspond to a single address, IP aliasing is not supported.
+#
+# This allows you to bind the management transport to a specific network
+# interface by name (e.g., eth1, eth0). The IP address will be automatically
+# resolved from the interface. This is useful when the interface IP may change
+# (e.g., DHCP) or when you want to bind to a specific interface without
+# hardcoding the IP address.
+# rpc_management_interface: eth1
+
+# If you choose to specify the management interface by name and the interface
+# has both an ipv4 and an ipv6 address, you can specify which should be chosen
+# using rpc_management_interface_prefer_ipv6. If false the first ipv4 address
+# will be used. If true the first ipv6 address will be used. Defaults to false
+# preferring ipv4. If there is only one address it will be selected regardless
+# of ipv4/ipv6.
+# rpc_management_interface_prefer_ipv6: false
+
+# Port for the management CQL native transport to listen for clients on.
+# For security reasons, you should not expose this port to the internet.
+# Firewall it if needed.
+native_transport_management_port: 11211
+
+# The maximum threads for handling management requests are set
+# separately from regular requests to allow better isolation and
+# prioritization of management operations. This is important to
+# ensure that management operations can proceed even under a high
+# load of regular client requests. Defaults to 2.
+# native_transport_management_max_threads: 2
+
 # Uncomment to set socket buffer size for internode communication
 # Note that when setting this, the buffer size is limited by net.core.wmem_max
 # and when not setting it it is defined by net.ipv4.tcp_wmem

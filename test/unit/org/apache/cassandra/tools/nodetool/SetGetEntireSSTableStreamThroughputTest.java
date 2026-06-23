@@ -21,18 +21,17 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 
 import static org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import static org.apache.cassandra.tools.ToolRunner.ToolResult;
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.withPrecision;
 
 /**
  * Tests for entire SSTable {@code nodetool setstreamthroughput} and {@code nodetool getstreamthroughput}.
  */
-public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
+public class SetGetEntireSSTableStreamThroughputTest extends CQLNodetoolProtocolTester
 {
     private static final int MAX_INT_CONFIG_VALUE_MIB = Integer.MAX_VALUE - 1;
 
@@ -80,7 +79,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
         assertSetInvalidThroughput("value", "Invalid value for positional parameter at index 0 (stream_throughput): 'value' is not an int");
     }
 
-    private static void assertSetGetValidThroughput(int throughput)
+    private void assertSetGetValidThroughput(int throughput)
     {
         ToolResult tool = invokeNodetool("setstreamthroughput", "-e", String.valueOf(throughput));
         tool.assertOnCleanExit();
@@ -89,14 +88,14 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
         assertGetThroughput(throughput);
     }
 
-    private static void assertSetGetValidThroughput(int throughput, double rateInBytes)
+    private void assertSetGetValidThroughput(int throughput, double rateInBytes)
     {
         assertSetGetValidThroughput(throughput);
 
         assertThat(StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
     }
 
-    private static void assertSetInvalidEntireSStableThroughputMib(String throughput)
+    private void assertSetInvalidEntireSStableThroughputMib(String throughput)
     {
         ToolResult tool = invokeNodetool("setstreamthroughput", "-e", throughput);
         assertThat(tool.getExitCode()).isEqualTo(1);
@@ -104,7 +103,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
                                               "should be less than 2147483647 in MiB/s");
     }
 
-    private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
+    private void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
     {
         ToolResult tool = throughput == null ? invokeNodetool("setstreamthroughput", "-e")
                                              : invokeNodetool("setstreamthroughput", "-e", throughput);
@@ -112,7 +111,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
-    private static void assertGetThroughput(double expected)
+    private void assertGetThroughput(double expected)
     {
         ToolResult tool = invokeNodetool("getstreamthroughput", "-e");
         tool.assertOnCleanExit();

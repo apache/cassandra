@@ -176,8 +176,8 @@ public class CompressionDictionaryManagerTest
     public void testTrainManualWithNonDictionaryTable()
     {
         assertThatThrownBy(() -> managerWithoutDict.train(false))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support dictionary compression");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("is not enabled or SSTable compressor is not a dictionary compressor");
     }
 
     @Test
