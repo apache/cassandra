@@ -44,7 +44,7 @@ public interface UpdateFunction<K, V>
     V merge(V replacing, K update);
 
     /**
-     * @param heapSize extra heap space allocated (over previous tree)
+     * @param heapSize heap space signed delta allocated (over previous tree), can be negative
      */
     void onAllocatedOnHeap(long heapSize);
 
