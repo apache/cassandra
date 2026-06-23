@@ -21,14 +21,13 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.io.compress.IDictionaryCompressor;
 import org.apache.cassandra.tools.ToolRunner;
 
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class TrainCompressionDictionaryTest extends CQLTester
+public class TrainCompressionDictionaryTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Throwable
@@ -136,8 +135,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
                                                       "train",
                                                       keyspace(),
                                                       table);
-        assertThat(result.getStderr())
-        .contains("Failed to trigger training: No SSTables available for training", "after flush");
+        assertThat(result.getStdout()).contains("No SSTables available for training", "after flush");
     }
 
     @Test
@@ -147,9 +145,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
                                                       "train",
                                                       "nonexistent_keyspace",
                                                       "nonexistent_table");
-        result.asserts()
-              .failure()
-              .errorContains("Failed to trigger training");
+        assertThat(result.getStdout()).contains("Failed to trigger training");
     }
 
     @Test
@@ -159,10 +155,7 @@ public class TrainCompressionDictionaryTest extends CQLTester
                                                       "train",
                                                       keyspace(),
                                                       "nonexistent_table");
-        result.asserts()
-              .failure()
-              .errorContains("Failed to trigger training")
-              .errorContains("does not exist or does not support dictionary compression");
+        assertThat(result.getStdout()).contains("Failed to trigger training");
     }
 
     @Test
@@ -175,9 +168,9 @@ public class TrainCompressionDictionaryTest extends CQLTester
                                                       "train",
                                                       keyspace(),
                                                       table);
-        result.asserts()
-              .failure()
-              .errorContains("does not support dictionary compression");
+        result.asserts().failure();
+        assertThat(result.getStdout())
+              .contains("is not enabled or SSTable compressor is not a dictionary compressor");
     }
 
     @Test
@@ -190,9 +183,9 @@ public class TrainCompressionDictionaryTest extends CQLTester
                                                       "train",
                                                       keyspace(),
                                                       table);
-        result.asserts()
-              .failure()
-              .errorContains("does not support dictionary compression");
+        result.asserts().failure();
+        assertThat(result.getStdout())
+              .contains("is not enabled or SSTable compressor is not a dictionary compressor");
     }
 
 
@@ -204,18 +197,17 @@ public class TrainCompressionDictionaryTest extends CQLTester
 
         // Training should fail on LZ4 table
         ToolRunner.ToolResult result = invokeNodetool("compressiondictionary", "train", keyspace(), table);
-        result.asserts()
-              .failure()
-              .errorContains("Failed to trigger training")
-              .errorContains("does not exist or does not support dictionary compression");
+        result.asserts().failure();
+        assertThat(result.getStdout())
+              .contains("is not enabled or SSTable compressor is not a dictionary compressor");
 
         // Alter table to use ZstdDictionaryCompressor
         execute("ALTER TABLE %s WITH compression = {'class': 'ZstdDictionaryCompressor'}");
 
         // Training should fail with no sstables
         result = invokeNodetool("compressiondictionary", "train", keyspace(), table);
-        assertThat(result.getStderr())
-        .contains("Failed to trigger training: No SSTables available for training", "after flush");
+        assertThat(result.getStdout())
+        .contains("No SSTables available for training", "after flush");
 
         // Write sstables
         createSSTables(true);

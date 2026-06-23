@@ -20,12 +20,12 @@ package org.apache.cassandra.tools.nodetool;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class VersionTest extends CQLTester
+public class VersionTest extends CQLNodetoolProtocolTester
 {
 
     @BeforeClass
@@ -38,7 +38,7 @@ public class VersionTest extends CQLTester
     @Test
     public void testBasic()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("version");
+        ToolRunner.ToolResult tool = invokeNodetool("version");
         tool.assertOnExitCode();
         String stdout = tool.getStdout();
         assertThat(stdout).containsPattern("ReleaseVersion:\\s+\\S+");
@@ -47,7 +47,7 @@ public class VersionTest extends CQLTester
     @Test
     public void testVOption()
     {
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("version", "-v");
+        ToolRunner.ToolResult tool = invokeNodetool("version", "-v");
         tool.assertOnExitCode();
         String stdout = tool.getStdout();
         assertThat(stdout).containsPattern("ReleaseVersion:\\s+\\S+");

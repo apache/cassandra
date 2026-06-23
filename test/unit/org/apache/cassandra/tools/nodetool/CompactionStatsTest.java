@@ -26,6 +26,7 @@ import java.util.stream.IntStream;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.CQLNodetoolProtocolTester;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInfo;
@@ -40,7 +41,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-public class CompactionStatsTest extends CQLTester
+public class CompactionStatsTest extends CQLNodetoolProtocolTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -264,7 +265,7 @@ public class CompactionStatsTest extends CQLTester
     {
         AtomicReference<String> stdout = new AtomicReference<>();
         await().until(() -> {
-            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
+            ToolRunner.ToolResult tool = invokeNodetool(args);
             tool.assertOnCleanExit();
             String output = tool.getStdout();
             stdout.set(output);

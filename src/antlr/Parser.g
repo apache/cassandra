@@ -294,6 +294,7 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st55=securityLabelOnUserTypeStatement    { $stmt = st55; }
     | st56=commentOnUserTypeFieldStatement     { $stmt = st56; }
     | st57=securityLabelOnUserTypeFieldStatement   { $stmt = st57; }
+    | st58=executeCommandStatement             { $stmt = st58; }
     ;
 
 /*
@@ -1371,6 +1372,53 @@ securityLabelOnUserTypeFieldStatement returns [SecurityLabelOnUserTypeFieldState
     ;
 
 /**
+ * INVOKE COMMAND <commandName> [WITH key1 = value1 AND key2 = value2];
+ */
+executeCommandStatement returns [ExecuteCommandStatement.Raw stmt]
+    @init {
+        stmtBegins();
+        java.util.Map<String, Object> args = new java.util.LinkedHashMap<>();
+    }
+    : K_INVOKE K_COMMAND cmdName=noncol_ident 
+      (K_WITH commandProperties[args])?
+      {
+          $stmt = new ExecuteCommandStatement.Raw(cmdName.toString(), args);
+      }
+    ;
+
+commandProperties[java.util.Map<String, Object> args]
+    : commandProperty[args] (K_AND commandProperty[args])*
+    ;
+
+commandProperty[java.util.Map<String, Object> args]
+    : k=noncol_ident '=' v=commandPropertyValue
+      {
+          String key = k.toString();
+          Object value = v;
+          if (args.put(key, value) != null)
+          {
+              addRecognitionError("Duplicate argument: " + key);
+          }
+      }
+    ;
+
+commandPropertyValue returns [Object value]
+    : s=STRING_LITERAL { $value = $s.text; }
+    | i=INTEGER { $value = $i.text; }
+    | f=FLOAT { $value = $f.text; }
+    | b=BOOLEAN { $value = $b.text; }
+    | l=commandListValue { $value = l; }
+    ;
+
+commandListValue returns [java.util.List<String> value]
+    @init { java.util.List<String> l = new java.util.ArrayList<>(); }
+    : '[' ( s1=STRING_LITERAL { l.add($s1.text); }
+            ( ',' sn=STRING_LITERAL { l.add($sn.text); } )*
+          )? ']'
+      { $value = l; }
+    ;
+
+/**
  * DROP TABLE [IF EXISTS] <table>;
  */
 dropTableStatement returns [DropTableStatement.Raw stmt]
@@ -1980,7 +2028,7 @@ collectionLiteral returns [Term.Raw value]
 
 listLiteral returns [Term.Raw value]
     @init {List<Term.Raw> l = new ArrayList<Term.Raw>();}
-    @after {$value = new ArrayLiteral(l);}
+@after {$value = new ArrayLiteral(l);}
     : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new ArrayLiteral(l); }
     ;
 
@@ -2483,5 +2531,7 @@ basic_unreserved_keyword returns [String str]
         | K_LABELS
         | K_FIELD
         | K_COLUMN
+        | K_COMMAND
+        | K_INVOKE
         ) { $str = $k.text; }
     ;

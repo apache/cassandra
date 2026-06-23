@@ -22,7 +22,6 @@ import java.io.Console;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Scanner;
 
 import javax.inject.Inject;
@@ -32,21 +31,15 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.INodeProbeFactory;
 import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.nodetool.strategy.NodetoolConnectionException;
 
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.ExecutionException;
-import picocli.CommandLine.IExecutionStrategy;
-import picocli.CommandLine.InitializationException;
 import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
-import picocli.CommandLine.ParameterException;
-import picocli.CommandLine.ParseResult;
-import picocli.CommandLine.RunLast;
 import picocli.CommandLine.Spec;
 
 import static java.lang.Integer.parseInt;
-import static org.apache.cassandra.tools.NodeProbe.defaultPort;
+import static org.apache.cassandra.tools.RemoteJmxMBeanAccessor.defaultPort;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
@@ -57,8 +50,6 @@ import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 @Command(name = "connect", description = "Connect to a Cassandra node via JMX")
 public class JmxConnect extends AbstractCommand implements AutoCloseable
 {
-    public static final String MIXIN_KEY = "jmx";
-
     /** The command specification, used to access command-specific properties. */
     @Spec
     protected CommandSpec spec; // injected by picocli
@@ -80,30 +71,6 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
 
     @Inject
     private INodeProbeFactory nodeProbeFactory;
-
-    /**
-     * This method is called by picocli and used depending on the execution strategy.
-     * @param parseResult The parsed command line.
-     * @return The exit code.
-     */
-    public static int executionStrategy(ParseResult parseResult)
-    {
-        CommandSpec jmx = parseResult.commandSpec().mixins().get(MIXIN_KEY);
-        if (jmx == null)
-            throw new InitializationException("No JmxConnect command found in the top-level hierarchy");
-
-        try (JmxConnectionCommandInvoker invoker = new JmxConnectionCommandInvoker((JmxConnect) jmx.userObject()))
-        {
-            return invoker.execute(parseResult);
-        }
-        catch (JmxConnectionCommandInvoker.CloseException e)
-        {
-            jmx.commandLine()
-               .getErr()
-               .println("Failed to connect to JMX: " + e.getMessage());
-            return jmx.commandLine().getExitCodeExceptionMapper().getExitCode(e);
-        }
-    }
 
     /**
      * Initialize the JMX connection to the Cassandra node using the provided options.
@@ -129,9 +96,11 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
         catch (IOException | SecurityException e)
         {
             Throwable rootCause = Throwables.getRootCause(e);
-            output.printError("nodetool: Failed to connect to '%s:%s' - %s: '%s'.%n", host, port,
-                         rootCause.getClass().getSimpleName(), rootCause.getMessage());
-            throw new InitializationException("Failed to connect to JMX", e);
+            throw new NodetoolConnectionException(String.format("Failed to connect to '%s:%s' - %s: '%s'.",
+                                                                host, port,
+                                                                rootCause.getClass().getSimpleName(),
+                                                                rootCause.getMessage()),
+                                                  e);
         }
     }
 
@@ -183,61 +152,13 @@ public class JmxConnect extends AbstractCommand implements AutoCloseable
         return password;
     }
 
-    private static class JmxConnectionCommandInvoker implements IExecutionStrategy, AutoCloseable
+    public String getHost()
     {
-        private final JmxConnect connect;
+        return host;
+    }
 
-        public JmxConnectionCommandInvoker(JmxConnect connect)
-        {
-            this.connect = connect;
-        }
-
-        @Override
-        public int execute(ParseResult parseResult) throws ExecutionException, ParameterException
-        {
-            CommandSpec lastParent = lastExecutableSubcommandWithSameParent(parseResult.asCommandLineList());
-            if (lastParent.userObject() instanceof AbstractCommand)
-            {
-                AbstractCommand command = (AbstractCommand) lastParent.userObject();
-                if (command.shouldConnect())
-                    connect.run();
-                command.probe(connect.probe());
-            }
-            return new RunLast().execute(parseResult);
-        }
-
-        @Override
-        public void close() throws CloseException
-        {
-            try
-            {
-                if (connect.probe() != null)
-                    ((AutoCloseable) connect.probe()).close();
-            }
-            catch (Exception e)
-            {
-                throw new CloseException("Failed to close JMX connection", e);
-            }
-        }
-
-        private static CommandLine.Model.CommandSpec lastExecutableSubcommandWithSameParent(List<CommandLine> parsedCommands)
-        {
-            int start = parsedCommands.size() - 1;
-            for (int i = parsedCommands.size() - 2; i >= 0; i--)
-            {
-                if (parsedCommands.get(i).getParent() != parsedCommands.get(i + 1).getParent())
-                    break;
-                start = i;
-            }
-            return parsedCommands.get(start).getCommandSpec();
-        }
-
-        private static class CloseException extends RuntimeException
-        {
-            public CloseException(String message, Throwable cause)
-            {
-                super(message, cause);
-            }
-        }
+    public String getPort()
+    {
+        return port;
     }
 }

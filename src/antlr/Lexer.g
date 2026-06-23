@@ -148,6 +148,8 @@ K_MODIFY:      M O D I F Y;
 K_AUTHORIZE:   A U T H O R I Z E;
 K_DESCRIBE:    D E S C R I B E;
 K_EXECUTE:     E X E C U T E;
+K_COMMAND:     C O M M A N D;
+K_INVOKE:      I N V O K E;
 K_NORECURSIVE: N O R E C U R S I V E;
 K_MBEAN:       M B E A N;
 K_MBEANS:      M B E A N S;

@@ -91,7 +91,7 @@ import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.apache.cassandra.transport.PipelineConfigurator.SSL_FACTORY_CONTEXT_DESCRIPTION;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 
@@ -99,6 +99,23 @@ public class SimpleClient implements Closeable
 {
 
     public static final int TIMEOUT_SECONDS = 10;
+
+    public static class TimeoutException extends RuntimeException
+    {
+        TimeoutException(long seconds)
+        {
+            super("Timed out after waiting " + seconds + " seconds for a server response. " +
+                  "The request may still be executing on the server.");
+        }
+    }
+
+    public static class ConnectionClosedException extends RuntimeException
+    {
+        ConnectionClosedException()
+        {
+            super("Connection was closed by the server before a response was received.");
+        }
+    }
 
     static
     {
@@ -111,6 +128,8 @@ public class SimpleClient implements Closeable
     public final int port;
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private final int largeMessageThreshold;
+    /** How long {@link #execute(Message.Request)} waits for a server response; {@code <= 0} means wait indefinitely. */
+    private final long requestTimeoutSeconds;
 
     protected final ResponseHandler responseHandler = new ResponseHandler();
     protected final Connection.Tracker tracker = new ConnectionTracker();
@@ -131,6 +150,7 @@ public class SimpleClient implements Closeable
         private ProtocolVersion version = ProtocolVersion.CURRENT;
         private boolean useBeta = false;
         private int largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE;
+        private long requestTimeoutSeconds = TIMEOUT_SECONDS;
 
         private Builder(String host, int port)
         {
@@ -162,6 +182,13 @@ public class SimpleClient implements Closeable
             return this;
         }
 
+        /** @param seconds response wait limit for each request; {@code <= 0} waits indefinitely */
+        public Builder requestTimeoutSeconds(long seconds)
+        {
+            requestTimeoutSeconds = seconds;
+            return this;
+        }
+
         public SimpleClient build()
         {
             if (version.isBeta() && !useBeta)
@@ -182,6 +209,7 @@ public class SimpleClient implements Closeable
         this.version = builder.version;
         this.encryptionOptions = builder.encryptionOptions.applyConfig();
         this.largeMessageThreshold = builder.largeMessageThreshold;
+        this.requestTimeoutSeconds = builder.requestTimeoutSeconds;
     }
 
     public SimpleClient(String host, int port, ProtocolVersion version, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
@@ -211,6 +239,7 @@ public class SimpleClient implements Closeable
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);
+        this.requestTimeoutSeconds = TIMEOUT_SECONDS;
     }
 
     public SimpleClient(String host, int port)
@@ -328,9 +357,9 @@ public class SimpleClient implements Closeable
         {
             request.attach(connection);
             lastWriteFuture = channel.writeAndFlush(Collections.singletonList(request));
-            Message.Response msg = responseHandler.responses.poll(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            Message.Response msg = awaitResponse(responseDeadlineNanos());
             if (msg == null)
-                throw new RuntimeException("timeout");
+                throw new TimeoutException(requestTimeoutSeconds);
             if (throwOnErrorResponse && msg instanceof ErrorMessage)
                 throw new RuntimeException((Throwable)((ErrorMessage)msg).error);
             return msg;
@@ -357,12 +386,12 @@ public class SimpleClient implements Closeable
                 }
                 lastWriteFuture = channel.writeAndFlush(requests);
 
-                long deadline = currentTimeMillis() + TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
+                long deadlineNanos = responseDeadlineNanos();
                 for (int i = 0; i < requests.size(); i++)
                 {
-                    Message.Response msg = responseHandler.responses.poll(deadline - currentTimeMillis(), TimeUnit.MILLISECONDS);
+                    Message.Response msg = awaitResponse(deadlineNanos);
                     if (msg == null)
-                        throw new RuntimeException("timeout");
+                        throw new TimeoutException(requestTimeoutSeconds);
                     if (msg instanceof ErrorMessage)
                         throw new RuntimeException((Throwable) ((ErrorMessage) msg).error);
                     rrMap.put(requests.get(msg.getSource().header.streamId), msg);
@@ -393,6 +422,26 @@ public class SimpleClient implements Closeable
     {
         Envelope source = message.getSource();
         return source == null ? 0 : source.header.streamId;
+    }
+
+    private long responseDeadlineNanos()
+    {
+        return requestTimeoutSeconds > 0 ? nanoTime() + TimeUnit.SECONDS.toNanos(requestTimeoutSeconds) : Long.MAX_VALUE;
+    }
+
+    private Message.Response awaitResponse(long deadlineNanos) throws InterruptedException
+    {
+        while (true)
+        {
+            long waitNanos = Math.min(TimeUnit.SECONDS.toNanos(1), deadlineNanos - nanoTime());
+            Message.Response msg = waitNanos > 0 ? responseHandler.responses.poll(waitNanos, TimeUnit.NANOSECONDS) : null;
+            if (msg != null)
+                return msg;
+            if (responseHandler.connectionClosed)
+                throw new ConnectionClosedException();
+            if (nanoTime() - deadlineNanos >= 0)
+                return null;
+        }
     }
 
     public interface EventHandler
@@ -702,6 +751,14 @@ public class SimpleClient implements Closeable
     {
         public final BlockingQueue<Message.Response> responses = new SynchronousQueue<>(true);
         public EventHandler eventHandler;
+        volatile boolean connectionClosed;
+
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception
+        {
+            connectionClosed = true;
+            ctx.fireChannelInactive();
+        }
 
         @Override
         public void channelRead0(ChannelHandlerContext ctx, Message.Response r)
