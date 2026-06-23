@@ -436,7 +436,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         if(this == NONE)
             return 0;
 
-        return EMPTY_SIZE + BTree.sizeOfStructureOnHeap(columns);
+        return EMPTY_SIZE + BTree.sizeOnHeapOf(columns);
     }
 
     @Override

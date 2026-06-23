@@ -51,7 +51,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 {
     static final Cell<?>[] NO_CELLS = new Cell<?>[0];
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("", "", "", SetType.getInstance(ByteType.instance, true)), NO_CELLS, new DeletionTime(0, 0)));
+    static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("", "", "", SetType.getInstance(ByteType.instance, true)), NO_CELLS, new DeletionTime(0, 0)));
 
     // The cells for 'column' sorted by cell path.
     private final Object[] cells;
@@ -138,7 +138,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 
     public long unsharedHeapSizeExcludingData()
     {
-        long heapSize = EMPTY_SIZE + BTree.sizeOnHeapOf(cells);
+        long heapSize = EMPTY_SIZE + BTree.sizeOnHeapOf(cells) + complexDeletion.unsharedHeapSize();
         // TODO: this can be turned into a simple multiplication, at least while we have only one Cell implementation
         for (Cell<?> cell : this)
             heapSize += cell.unsharedHeapSizeExcludingData();
