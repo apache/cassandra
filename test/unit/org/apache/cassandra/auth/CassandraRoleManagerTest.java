@@ -70,7 +70,7 @@ public class CassandraRoleManagerTest
     public void getGrantedRolesImplMinimizesReads()
     {
         // IRoleManager::getRoleDetails was not in the initial API, so a default impl
-        // was added which uses the existing methods on IRoleManager as primitive to
+        // was added which uses the existing methods on IRoleManager as primitives to
         // construct the Role objects. While this will work for any IRoleManager impl
         // it is inefficient, so CassandraRoleManager has its own implementation which
         // collects all of the necessary info with a single query for each granted role.
@@ -93,7 +93,7 @@ public class CassandraRoleManagerTest
         fetchRolesAndCheckReadCount(roleManager, ROLE_A);
 
         // Check that when granted roles appear multiple times in parallel levels of the hierarchy, we don't
-        // do redundant reads. E.g. here role_b_1, role_b_2 and role_b3 are granted to both role_b and role_c
+        // do redundant reads. E.g. here role_b_1, role_b_2 and role_b_3 are granted to both role_b and role_c
         // but we only want to actually read them once
         grantRolesTo(roleManager, ROLE_C, ROLE_B_1, ROLE_B_2, ROLE_B_3);
         fetchRolesAndCheckReadCount(roleManager, ROLE_A);
@@ -154,6 +154,7 @@ public class CassandraRoleManagerTest
         }
     }
 
+    @Test
     public void testPasswordUpdateRateLimiting() throws Exception
     {
         try
@@ -183,7 +184,7 @@ public class CassandraRoleManagerTest
             }
             catch (OverloadedException e)
             {
-                assertEquals("Password for role test_password_role can only be changed every 100ms. ", e.getMessage());
+                assertEquals("Password for role test_password_role can only be changed every 100ms.", e.getMessage());
             }
 
             // Wait for the rate limit interval to pass
@@ -262,14 +263,11 @@ public class CassandraRoleManagerTest
             RoleOptions options2 = getLoginRoleOptions("password2");
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role2, options2);
 
-            // Wait for the rate limit interval to pass
+            // Wait for the rate limit interval to pass since creation
             Thread.sleep(150);
 
             RoleOptions newOptions1 = getLoginRoleOptions("new_password1");
             roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role1, newOptions1);
-
-            RoleOptions newOptions2 = getLoginRoleOptions("new_password2");
-            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role2, newOptions2);
 
             try
             {
@@ -280,6 +278,20 @@ public class CassandraRoleManagerTest
             catch (OverloadedException e)
             {
                 assertEquals("Password for role test_role_1 can only be changed every 100ms.", e.getMessage());
+            }
+
+            RoleOptions newOptions2 = getLoginRoleOptions("new_password2");
+            roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role2, newOptions2);
+
+            try
+            {
+                RoleOptions newOptions2Again = getLoginRoleOptions("another_password2");
+                roleManager.alterRole(AuthenticatedUser.ANONYMOUS_USER, role2, newOptions2Again);
+                fail("Expected OverloadedException for test_role_2");
+            }
+            catch (OverloadedException e)
+            {
+                assertEquals("Password for role test_role_2 can only be changed every 100ms.", e.getMessage());
             }
 
             roleManager.dropRole(AuthenticatedUser.ANONYMOUS_USER, role1);
