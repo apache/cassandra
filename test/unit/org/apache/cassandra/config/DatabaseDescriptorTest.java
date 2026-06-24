@@ -24,10 +24,13 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import com.google.common.base.Throwables;
@@ -41,6 +44,7 @@ import org.mockito.MockedStatic;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.security.EncryptionContext;
@@ -1073,5 +1077,117 @@ public class DatabaseDescriptorTest
     {
         Config config = DatabaseDescriptor.loadConfig();
         Assert.assertEquals(config.max_value_size.toMebibytes() * 1024 * 1024, DatabaseDescriptor.getMaxValueSize());
+    }
+
+    @Test
+    public void testInitializeBackgroundWriteDiskAccessModeRejectsZeroBufferSize()
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedMode = conf.background_write_disk_access_mode;
+        DataStorageSpec.IntKibibytesBound savedBufferSize = conf.direct_write_buffer_size;
+        try
+        {
+            conf.background_write_disk_access_mode = Config.DiskAccessMode.direct;
+            conf.direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound("0KiB");
+
+            try
+            {
+                DatabaseDescriptor.initializeBackgroundWriteDiskAccessMode();
+                fail("expected ConfigurationException for direct_write_buffer_size == 0");
+            }
+            catch (ConfigurationException expected)
+            {
+                Assert.assertTrue("expected message to mention direct_write_buffer_size, got: " + expected.getMessage(),
+                                  expected.getMessage().contains("direct_write_buffer_size"));
+            }
+        }
+        finally
+        {
+            conf.background_write_disk_access_mode = savedMode;
+            conf.direct_write_buffer_size = savedBufferSize;
+        }
+    }
+
+    @Test
+    public void testInitializeBackgroundWriteDiskAccessModeRejectsUnsupportedModes()
+    {
+        // Everything outside standard/direct must be rejected, including 'auto': it has no
+        // Direct I/O auto-detection for background writes yet, so it must fail rather than
+        // silently resolving to standard (unlike commitlog_disk_access_mode).
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedMode = conf.background_write_disk_access_mode;
+        try
+        {
+            EnumSet<Config.DiskAccessMode> supported = EnumSet.of(Config.DiskAccessMode.standard,
+                                                                  Config.DiskAccessMode.direct);
+            for (Config.DiskAccessMode mode : EnumSet.complementOf(supported))
+            {
+                conf.background_write_disk_access_mode = mode;
+                assertThatExceptionOfType(ConfigurationException.class)
+                    .isThrownBy(DatabaseDescriptor::initializeBackgroundWriteDiskAccessMode)
+                    .withMessageContaining("background_write_disk_access_mode");
+            }
+        }
+        finally
+        {
+            conf.background_write_disk_access_mode = savedMode;
+        }
+    }
+
+    @Test
+    public void testGetDirectIOWritePaths() throws IOException
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        Config.DiskAccessMode savedCommitLogMode = DatabaseDescriptor.getCommitLogWriteDiskAccessMode();
+        Config.DiskAccessMode savedBgWriteMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
+        String savedCommitLogLocation = DatabaseDescriptor.getCommitLogLocation();
+        String[] savedDataDirs = conf.data_file_directories;
+        String savedLocalSystemDir = conf.local_system_data_file_directory;
+        try
+        {
+            Path baseDir = Files.createTempDirectory("testGetDirectIOWritePaths");
+            String dataDir1 = baseDir.resolve("dio-data-1").toString();
+            String dataDir2 = baseDir.resolve("dio-data-2").toString();
+            String commitLogDir = baseDir.resolve("dio-commitlog").toString();
+
+            conf.local_system_data_file_directory = null;
+            conf.data_file_directories = new String[]{ dataDir1, dataDir2 };
+            DatabaseDescriptor.setCommitLogLocation(commitLogDir);
+
+            Path commitLogPath = new File(commitLogDir).toPath();
+            Set<Path> dataPaths = new HashSet<>();
+            for (String dir : DatabaseDescriptor.getAllDataFileLocations())
+                dataPaths.add(new File(dir).toPath());
+
+            // Neither write path uses Direct I/O.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).isEmpty();
+
+            // Only the commit log uses Direct I/O.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).containsExactly(commitLogPath);
+
+            // Only background SSTable writes use Direct I/O, which must enumerate every data directory.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.standard);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).containsExactlyInAnyOrderElementsOf(dataPaths);
+
+            // Both write paths use Direct I/O: the union of the commit log and data directories.
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.direct);
+            Set<Path> expectedUnion = new HashSet<>(dataPaths);
+            expectedUnion.add(commitLogPath);
+            assertThat(DatabaseDescriptor.getDirectIOWritePaths()).containsExactlyInAnyOrderElementsOf(expectedUnion);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogWriteDiskAccessMode(savedCommitLogMode);
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(savedBgWriteMode);
+            DatabaseDescriptor.setCommitLogLocation(savedCommitLogLocation);
+            conf.data_file_directories = savedDataDirs;
+            conf.local_system_data_file_directory = savedLocalSystemDir;
+        }
     }
 }

@@ -363,6 +363,18 @@ public class Config
 
     public DataStorageSpec.IntKibibytesBound compressed_read_ahead_buffer_size = new DataStorageSpec.IntKibibytesBound("256KiB");
 
+    // Direct IO for background SSTable writes (compaction, streaming, cleanup, etc.)
+    // When 'direct' is set, background writes bypass the OS page cache using O_DIRECT.
+    // Memtable flushes always use buffered I/O regardless of this setting.
+    // Default is 'standard' (buffered I/O) - users must opt-in to Direct IO
+    public DiskAccessMode background_write_disk_access_mode = DiskAccessMode.standard;
+
+    // Size of the in-memory staging buffer for Direct IO background writes. Trades off syscall
+    // frequency against per-flush blocking latency on the compaction thread.
+    // Aligned up to filesystem block size; auto-expands to fit a single compressed chunk + CRC
+    // + one block when chunk_length exceeds this value.
+    public DataStorageSpec.IntKibibytesBound direct_write_buffer_size = new DataStorageSpec.IntKibibytesBound("1MiB");
+
     // fraction of free disk space available for compaction after min free space is subtracted
     public volatile Double max_space_usable_for_compactions_in_percentage = .95;
 
@@ -1301,8 +1313,7 @@ public class Config
         legacy,
 
         /**
-         * Direct-I/O is enabled for commitlog disk only.
-         * When adding support for direct IO, update {@link org.apache.cassandra.service.StartupChecks#checkKernelBug1057843}
+         * When adding support for Direct I/O, update {@link org.apache.cassandra.service.StartupChecks#checkKernelBug1057843}
          */
         direct
     }

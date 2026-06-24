@@ -1,4 +1,5 @@
 6.0-alpha2
+ * Support direct I/O for background SSTable writes (CASSANDRA-21134)
  * Relax assertion on partitioner instances in SinglePartitionReadCommand (CASSANDRA-21251)
  * Report cancelled read command execution to coordinator as a RequestFailure.TIMEOUT (CASSANDRA-21468)
  * Fix TCM log catchup from peer with snapshots and gaps in the log sequence (CASSANDRA-21455)

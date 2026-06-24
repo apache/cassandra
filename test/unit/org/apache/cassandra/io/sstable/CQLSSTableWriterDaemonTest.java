@@ -18,18 +18,39 @@
 
 package org.apache.cassandra.io.sstable;
 
+import java.util.Arrays;
+import java.util.Collection;
+
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 
+@RunWith(Parameterized.class)
 public class CQLSSTableWriterDaemonTest extends CQLSSTableWriterTest
 {
+    @Parameterized.Parameter
+    public DiskAccessMode backgroundWriteMode;
+
+    @Parameterized.Parameters(name = "backgroundWriteMode={0}")
+    public static Collection<Object[]> modes()
+    {
+        return Arrays.asList(new Object[]{ DiskAccessMode.standard },
+                             new Object[]{ DiskAccessMode.direct });
+    }
+
+    private DiskAccessMode originalBackgroundWriteMode;
+
     @BeforeClass
     public static void setup() throws Exception
     {
@@ -40,5 +61,18 @@ public class CQLSSTableWriterDaemonTest extends CQLSSTableWriterTest
         ServerTestUtils.prepareServerNoRegister();
         MessagingService.instance().waitUntilListeningUnchecked();
         StorageService.instance.initServer();
+    }
+
+    @Before
+    public void setBackgroundWriteMode()
+    {
+        originalBackgroundWriteMode = DatabaseDescriptor.getBackgroundWriteDiskAccessMode();
+        DatabaseDescriptor.setBackgroundWriteDiskAccessMode(backgroundWriteMode);
+    }
+
+    @After
+    public void restoreBackgroundWriteMode()
+    {
+        DatabaseDescriptor.setBackgroundWriteDiskAccessMode(originalBackgroundWriteMode);
     }
 }
