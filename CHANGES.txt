@@ -4,6 +4,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Relax assertion on partitioner instances in SinglePartitionReadCommand (CASSANDRA-21251)
  * Report cancelled read command execution to coordinator as a RequestFailure.TIMEOUT (CASSANDRA-21468)
  * Add policy for selecting CMS host when submitting commit request (CASSANDRA-21456)
  * Fix TCM log catchup from peer with snapshots and gaps in the log sequence (CASSANDRA-21455)
