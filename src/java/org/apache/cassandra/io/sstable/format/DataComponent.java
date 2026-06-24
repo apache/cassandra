@@ -18,10 +18,18 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.EnumMap;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.config.Config.FlushCompression;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compression.CompressionDictionaryManager;
+import org.apache.cassandra.io.DirectIoSupport;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.compress.DirectCompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
@@ -32,8 +40,61 @@ import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.io.DirectIoSupport.NOT_A_WRITER;
+import static org.apache.cassandra.io.DirectIoSupport.SUPPORTED;
+import static org.apache.cassandra.io.DirectIoSupport.UNSUPPORTED_CORRECTNESS;
+import static org.apache.cassandra.io.DirectIoSupport.UNSUPPORTED_POLICY;
+
 public class DataComponent
 {
+    private static final EnumMap<OperationType, DirectIoSupport> DIRECT_WRITE_SUPPORT = buildDirectWriteSupport();
+
+    private static EnumMap<OperationType, DirectIoSupport> buildDirectWriteSupport()
+    {
+        EnumMap<OperationType, DirectIoSupport> m = new EnumMap<>(OperationType.class);
+
+        // append()-only writers; safe under O_DIRECT.
+        m.put(OperationType.CLEANUP, SUPPORTED);
+        m.put(OperationType.UPGRADE_SSTABLES, SUPPORTED);
+        m.put(OperationType.MAJOR_COMPACTION, SUPPORTED);
+        m.put(OperationType.GARBAGE_COLLECT, SUPPORTED);
+        m.put(OperationType.WRITE, SUPPORTED);
+        m.put(OperationType.ANTICOMPACTION, SUPPORTED);
+        m.put(OperationType.COMPACTION, SUPPORTED);
+        m.put(OperationType.TOMBSTONE_COMPACTION, SUPPORTED);
+        m.put(OperationType.STREAM, SUPPORTED);
+        // writesData==false yet these still reach buildWriter() (RELOCATE via relocateSSTables, UNKNOWN via
+        // the offline sstablesplit tool), which is why classification can't key off writesData. CASSANDRA-21134.
+        m.put(OperationType.RELOCATE, SUPPORTED);
+        m.put(OperationType.UNKNOWN, SUPPORTED);
+
+        // tryAppend() needs mark()/resetAndTruncate(), unsupported under O_DIRECT.
+        m.put(OperationType.SCRUB, UNSUPPORTED_CORRECTNESS);
+
+        // Flushed data is hot; keep it in the page cache.
+        m.put(OperationType.FLUSH, UNSUPPORTED_POLICY);
+
+        // These never construct a data-file writer (read-only, rewrite a non-data component, or write their
+        // own files), so they never reach buildWriter(). Classified only to keep the map total.
+        m.put(OperationType.P0, NOT_A_WRITER);
+        m.put(OperationType.VERIFY, NOT_A_WRITER);
+        m.put(OperationType.VALIDATION, NOT_A_WRITER);
+        m.put(OperationType.INDEX_BUILD, NOT_A_WRITER);
+        m.put(OperationType.VIEW_BUILD, NOT_A_WRITER);
+        m.put(OperationType.INDEX_SUMMARY, NOT_A_WRITER);
+        m.put(OperationType.KEY_CACHE_SAVE, NOT_A_WRITER);
+        m.put(OperationType.ROW_CACHE_SAVE, NOT_A_WRITER);
+        m.put(OperationType.COUNTER_CACHE_SAVE, NOT_A_WRITER);
+
+        // Total over the enum so a newly-added OperationType fails here at class-load instead of throwing
+        // from buildWriter() in production (CASSANDRA-21134: RELOCATE slipped through the old writesData gate).
+        for (OperationType op : OperationType.values())
+            if (!m.containsKey(op))
+                throw new AssertionError("Missing direct-write classification for " + op
+                                         + " — every OperationType must be SUPPORTED, UNSUPPORTED_*, or NOT_A_WRITER");
+        return m;
+    }
+
     public static SequentialWriter buildWriter(Descriptor descriptor,
                                                TableMetadata metadata,
                                                SequentialWriterOption options,
@@ -44,15 +105,29 @@ public class DataComponent
     {
         if (metadata.params.compression.isEnabled())
         {
-            final CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
+            CompressionParams compressionParams = buildCompressionParams(metadata, operationType, flushCompression);
 
-            return new CompressedSequentialWriter(descriptor.fileFor(Components.DATA),
-                                                  descriptor.fileFor(Components.COMPRESSION_INFO),
-                                                  descriptor.fileFor(Components.DIGEST),
-                                                  options,
-                                                  compressionParams,
-                                                  metadataCollector,
-                                                  compressionDictionaryManager);
+            if (DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == DiskAccessMode.direct
+                && isDirectWriteSupported(operationType))
+            {
+                return new DirectCompressedSequentialWriter(descriptor.fileFor(Components.DATA),
+                                                            descriptor.fileFor(Components.COMPRESSION_INFO),
+                                                            descriptor.fileFor(Components.DIGEST),
+                                                            options,
+                                                            compressionParams,
+                                                            metadataCollector,
+                                                            compressionDictionaryManager);
+            }
+            else
+            {
+                return new CompressedSequentialWriter(descriptor.fileFor(Components.DATA),
+                                                      descriptor.fileFor(Components.COMPRESSION_INFO),
+                                                      descriptor.fileFor(Components.DIGEST),
+                                                      options,
+                                                      compressionParams,
+                                                      metadataCollector,
+                                                      compressionDictionaryManager);
+            }
         }
         else
         {
@@ -103,4 +178,14 @@ public class DataComponent
         }
         return compressionParams;
     }
+
+    @VisibleForTesting
+    static boolean isDirectWriteSupported(OperationType operationType)
+    {
+        DirectIoSupport support = DIRECT_WRITE_SUPPORT.get(operationType);
+        if (support == null)
+            throw new IllegalStateException("OperationType " + operationType + " has no direct-write classification");
+        return support.isSupported();
+    }
+
 }

@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -198,6 +199,42 @@ public abstract class CQLSSTableWriterTest
                 assertEquals(3, row.getInt("k"));
                 assertFalse(row.has("v1"));
                 assertEquals(12, row.getInt("v2"));
+            }
+        }
+    }
+
+    @Test
+    public void testCompressedWriteAndReadBack() throws Exception
+    {
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                        + "  k int PRIMARY KEY,"
+                        + "  v text"
+                        + ") WITH compression = {'enabled':'true', 'class':'LZ4Compressor'}";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(schema)
+                                                       .using(insert)
+                                                       .build())
+        {
+            for (int i = 0; i < 50; i++)
+                writer.addRow(i, "row-" + i);
+        }
+
+        loadSSTables(dataDir, keyspace, table);
+
+        if (verifyDataAfterLoading)
+        {
+            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT k, v FROM " + qualifiedTable);
+            assertEquals(50, rs.size());
+
+            Set<Integer> seen = new HashSet<>();
+            for (UntypedResultSet.Row row : rs)
+            {
+                int k = row.getInt("k");
+                assertTrue("duplicate key " + k, seen.add(k));
+                assertEquals("row-" + k, row.getString("v"));
             }
         }
     }

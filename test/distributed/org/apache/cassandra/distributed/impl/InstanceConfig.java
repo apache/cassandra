@@ -151,6 +151,8 @@ public class InstanceConfig implements IInstanceConfig
 
                 .set("commitlog_disk_access_mode", "auto")
 
+                .set("background_write_disk_access_mode", "direct")
+
                 .set("trickle_fsync", "true")
 
                 .set("sstable", Map.of(

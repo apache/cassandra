@@ -40,6 +40,20 @@ public class ChecksumWriter
         this.incrementalOut = incrementalOut;
     }
 
+    // Subclasses with their own CRC sink (see writeIncrementalInt) use this ctor; they must not call
+    // writeChunkSize, which needs incrementalOut.
+    protected ChecksumWriter()
+    {
+        this.incrementalOut = null;
+    }
+
+    // Seam so subclasses can redirect the per-chunk CRC int without re-implementing appendDirect's
+    // checksum bookkeeping.
+    protected void writeIncrementalInt(int value) throws IOException
+    {
+        incrementalOut.writeInt(value);
+    }
+
     public void writeChunkSize(int length)
     {
         try
@@ -69,7 +83,7 @@ public class ChecksumWriter
             toAppend.reset();
 
             int incrementalChecksumValue = (int) incrementalChecksum.getValue();
-            incrementalOut.writeInt(incrementalChecksumValue);
+            writeIncrementalInt(incrementalChecksumValue);
 
             fullChecksum.update(toAppend);
             if (checksumIncrementalResult)

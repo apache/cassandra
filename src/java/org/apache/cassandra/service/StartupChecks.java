@@ -258,11 +258,7 @@ public class StartupChecks
             if (!FBUtilities.isLinux)
                 return;
 
-            Set<Path> directIOWritePaths = new HashSet<>();
-            if (DatabaseDescriptor.getCommitLogWriteDiskAccessMode() == Config.DiskAccessMode.direct)
-                directIOWritePaths.add(new File(DatabaseDescriptor.getCommitLogLocation()).toPath());
-            // Note: Data directories for direct IO compaction reads are checked in checkDirectIOSupport.
-            // This check is specifically for direct IO writes which are currently only supported for commit log.
+            Set<Path> directIOWritePaths = DatabaseDescriptor.getDirectIOWritePaths();
 
             if (!directIOWritePaths.isEmpty() && IGNORE_KERNEL_BUG_1057843_CHECK.getBoolean())
             {
@@ -887,21 +883,27 @@ public class StartupChecks
             if (configuration.isDisabled(name()))
                 return;
 
-            // Only check if compaction_read_disk_access_mode is direct
-            if (DatabaseDescriptor.getCompactionReadDiskAccessMode() != Config.DiskAccessMode.direct)
+            boolean directReads = DatabaseDescriptor.getCompactionReadDiskAccessMode() == Config.DiskAccessMode.direct;
+            boolean directWrites = DatabaseDescriptor.getBackgroundWriteDiskAccessMode() == Config.DiskAccessMode.direct;
+
+            if (!directReads && !directWrites)
                 return;
 
             List<String> unsupportedLocations = findDirectIOUnsupportedLocations(DatabaseDescriptor.getAllDataFileLocations());
 
             if (!unsupportedLocations.isEmpty())
             {
+                String configuredModes = directReads && directWrites
+                    ? "compaction reads and background writes"
+                    : directReads ? "compaction reads" : "background writes";
+
                 throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
-                                           String.format("Direct I/O is configured for compaction reads (compaction_read_disk_access_mode=direct), " +
+                                           String.format("Direct I/O is configured for %s, " +
                                                          "but the following data directories do not support Direct I/O: %s. " +
-                                                         "Either change compaction_read_disk_access_mode to 'standard' in cassandra.yaml, " +
+                                                         "Either change the disk access mode to 'standard' in cassandra.yaml, " +
                                                          "or ensure all data directories are on filesystems that support Direct I/O. " +
                                                          "Network filesystems (NFS, CIFS) and some virtual filesystems do not support Direct I/O.",
-                                                         unsupportedLocations));
+                                                         configuredModes, unsupportedLocations));
             }
         }
     };

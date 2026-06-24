@@ -693,6 +693,25 @@ commitlog_disk_access_mode: legacy
 # - direct: use direct I/O for compaction reads, bypassing the OS page cache
 # compaction_read_disk_access_mode: auto
 
+# Set the disk access mode for writing compressed SSTables during background operations
+# (compaction, streaming, cleanup, repair, etc.). The allowed values are:
+# - standard: use buffered I/O (default)
+# - direct: use direct I/O, bypassing the OS page cache
+# Only applies to compressed tables. Uncompressed tables always use buffered I/O.
+# Memtable flushes always use buffered I/O regardless of this setting, as flushed
+# data typically benefits from page cache for subsequent reads (workloads that
+# rarely read recently-flushed data, e.g. write-heavy time series, may see less
+# benefit from caching flush output).
+# background_write_disk_access_mode: standard
+
+# Size of the in-memory staging buffer for Direct IO background writes. Trades off syscall
+# frequency against per-flush blocking latency on the compaction thread.
+# Aligned up to filesystem block size; auto-expands to fit a single compressed chunk + CRC
+# + one block when chunk_length exceeds this value.
+# Allocated per concurrent background writer (e.g. one per active compaction thread,
+# streaming session, etc.), so total off-heap usage scales with concurrency.
+# direct_write_buffer_size: 1MiB
+
 # Compression to apply to SSTables as they flush for compressed tables.
 # Note that tables without compression enabled do not respect this flag.
 #
