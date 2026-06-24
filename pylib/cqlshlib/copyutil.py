@@ -1752,6 +1752,7 @@ class ExportProcess(ChildProcess):
         formatted = formatter(val, cqltype=cqltype,
                               encoding=self.encoding, colormap=NO_COLOR_MAP, date_time_format=self.date_time_format,
                               float_precision=cqltype.precision, nullval=self.nullval, quote=False,
+                              escape_backslash=False,
                               decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                               boolean_styles=self.boolean_styles)
         return formatted
