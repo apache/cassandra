@@ -3604,4 +3604,43 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                       .hasMessage("Attempted to set an element on a list which is null");
         });
     }
+
+    @Test
+    public void testRowReferenceDoesNotNPE() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC) AND transactional_mode='" + transactionalMode + "'",
+             cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+
+                 String update = "BEGIN TRANSACTION\n" +
+                                 "  LET r = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
+                                 "  UPDATE " + qualifiedAccordTableName + " SET v = r WHERE k=1 AND c=1;\n" +
+                                 "COMMIT TRANSACTION";
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[]{1, 1, 1}, update);
+             });
+    }
+
+    @Test
+    public void testUseLetVariableForEvaluationInUpdateStatement() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC) AND transactional_mode='" + transactionalMode + "'",
+             cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+
+                 String update = "BEGIN TRANSACTION\n" +
+                                 "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
+                                 "  UPDATE " + qualifiedAccordTableName + " SET v = row1.v + 2 WHERE k=1 AND c=1;\n" +
+                                 "COMMIT TRANSACTION";
+                 cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.ALL);
+
+                 String read = "BEGIN TRANSACTION\n" +
+                               "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                               "COMMIT TRANSACTION";
+
+                 SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+                 assertThat(result).hasSize(1).contains(1, 3);
+             });
+    }
 }
