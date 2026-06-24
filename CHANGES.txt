@@ -1,4 +1,5 @@
 7.0
+ * Fix CSV COPY TO/FROM corrupting text values containing backslashes on Python 3.10+ (CASSANDRA-21131)
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:

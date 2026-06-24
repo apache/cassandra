@@ -1754,6 +1754,16 @@ class ExportProcess(ChildProcess):
                               float_precision=cqltype.precision, nullval=self.nullval, quote=False,
                               decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                               boolean_styles=self.boolean_styles)
+
+        # CASSANDRA-21131: the display formatters (format_value_text / format_value_default)
+        # pre-double every backslash ('\' -> '\\'). On Python 3.10+ csv.writer also escapes
+        # the escapechar (bpo-12178), so the two layers stack and csv.reader on COPY FROM only
+        # removes one - doubling backslashes on every COPY TO/FROM round-trip. Undo the
+        # pre-doubling here so that csv.writer is the sole escaping layer. Before Python 3.10
+        # csv.writer does not escape the escapechar, so the pre-doubling is still required and
+        # must be left in place.
+        if sys.version_info >= (3, 10):
+            formatted = formatted.replace('\\\\', '\\')
         return formatted
 
     def close(self):

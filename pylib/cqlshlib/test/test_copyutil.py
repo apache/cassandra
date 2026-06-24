@@ -18,6 +18,8 @@
 # and $CQL_TEST_PORT to the associated port.
 
 
+import csv
+import io
 import unittest
 
 from cassandra.metadata import MIN_LONG, Murmur3Token
@@ -25,7 +27,9 @@ from cassandra.policies import SimpleConvictionPolicy
 from cassandra.pool import Host
 from unittest.mock import Mock
 
-from cqlshlib.copyutil import ExportTask
+from cqlshlib.copyutil import ExportProcess, ExportTask, ImportConversion
+from cqlshlib.displaying import NO_COLOR_MAP
+from cqlshlib.formatting import CqlType, DateTimeFormat, format_value_text
 
 
 class CopyTaskTest(unittest.TestCase):
@@ -114,3 +118,95 @@ class TestExportTask(CopyTaskTest):
             (None, MIN_LONG + 1): {'hosts': ('10.0.0.2', '10.0.0.3', '10.0.0.4'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'endtoken': MIN_LONG + 1}, expected_ranges)
+
+
+class TestCopyBackslashRoundtrip(unittest.TestCase):
+    """
+    COPY TO followed by COPY FROM must be a lossless round-trip for text values -
+    including text nested in collections - that contain backslashes.
+
+    Regression test for CASSANDRA-21131. The corruption only manifests on Python
+    3.10+, where csv.writer began escaping the escapechar itself (bpo-12178);
+    before 3.10 csv.writer left bare backslashes alone, so the pre-doubling done by
+    formatting.format_value_text was cancelled out by csv.reader and the round-trip
+    was already lossless. These tests therefore assert the observable round-trip
+    property rather than any intermediate escaping, so they hold on every supported
+    Python (3.6-3.11).
+
+    The round-trip test design follows the approach proposed by Howie Zhao
+    (@howiezhao) in CASSANDRA-21349 / PR #4780.
+    """
+
+    # CSV dialect produced from the default COPY ESCAPE / QUOTE / DELIMITER options
+    # (copyutil.parse_options). No explicit quoting is configured, so csv defaults
+    # to QUOTE_MINIMAL.
+    DIALECT = dict(quotechar='"', escapechar='\\', delimiter=',', doublequote=False)
+
+    def _format_value(self, val, typestring):
+        # Build an ExportProcess without running __init__ (which starts a
+        # multiprocessing.Process and opens cluster connections); set only the
+        # attributes that format_value reads.
+        proc = ExportProcess.__new__(ExportProcess)
+        proc.formatters = {}
+        proc.encoding = 'utf-8'
+        proc.date_time_format = DateTimeFormat()
+        proc.float_precision = 5
+        proc.double_precision = 12
+        proc.nullval = ''
+        proc.decimal_sep = '.'
+        proc.thousands_sep = ''
+        proc.boolean_styles = ['True', 'False']
+        return proc.format_value(val, CqlType(typestring))
+
+    def _csv_cell(self, formatted):
+        # One COPY TO write (csv.writer) followed by one COPY FROM read
+        # (csv.reader), exactly as cqlsh streams values through a CSV file.
+        buf = io.StringIO()
+        csv.writer(buf, **self.DIALECT).writerow([formatted])
+        return next(csv.reader(io.StringIO(buf.getvalue()), **self.DIALECT))[0]
+
+    def _roundtrip_scalar(self, original, typestring):
+        # Full COPY TO -> CSV -> COPY FROM for a scalar value, including the
+        # import-side unprotect step (mirrors ImportConversion._get_converter).
+        cell = self._csv_cell(self._format_value(original, typestring))
+        return str(ImportConversion.unprotect(cell))
+
+    def test_scalar_text_roundtrip(self):
+        values = ['plain', 'a\\b', 'C:\\tmp\\f', 'https:\\/\\/apache.org',
+                  '\\lead', 'trail\\', '\\\\\\', '', 'a\\,b', '\\"Marianne"\\']
+        for typestring in ('text', 'varchar', 'ascii'):
+            for original in values:
+                self.assertEqual(
+                    original, self._roundtrip_scalar(original, typestring),
+                    'round-trip changed %r (%s)' % (original, typestring))
+
+    def test_collection_text_roundtrip(self):
+        # The type_name here is list/set/map/tuple, so the fix must reach the text
+        # elements nested inside the collection, not just top-level scalars. After
+        # the CSV layer the cell handed to COPY FROM's CQL parser must carry the
+        # original (single) backslashes, never doubled ones.
+        cases = [
+            (['a\\b', 'c\\d'], 'list<text>', "['a\\b', 'c\\d']"),
+            ({'x\\y'}, 'set<text>', "{'x\\y'}"),
+            ({'k\\1': 'v\\2'}, 'map<text, text>', "{'k\\1': 'v\\2'}"),
+            (('a\\b', 'c\\d'), 'tuple<text, text>', "('a\\b', 'c\\d')"),
+        ]
+        for val, typestring, expected_cell in cases:
+            self.assertEqual(
+                expected_cell, self._csv_cell(self._format_value(val, typestring)),
+                'collection round-trip changed %r (%s)' % (val, typestring))
+
+    def test_roundtrip_is_idempotent(self):
+        original = 'https:\\/\\/example.com\\path'
+        once = self._roundtrip_scalar(original, 'text')
+        twice = self._roundtrip_scalar(once, 'text')
+        self.assertEqual(original, once, 'first round-trip changed the value')
+        self.assertEqual(once, twice, 'second round-trip changed the value (non-idempotent)')
+
+    def test_display_path_still_escapes_backslashes(self):
+        # The terminal-display path must keep doubling backslashes so SELECT output
+        # renders them visibly; only the CSV export path (copyutil) opts out, on
+        # Python 3.10+, by undoing the doubling before handing the value to csv.writer.
+        self.assertEqual(
+            'V\\\\S',
+            format_value_text('V\\S', encoding='utf-8', colormap=NO_COLOR_MAP))
