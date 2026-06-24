@@ -3758,6 +3758,11 @@ public abstract class CQLTester
             setupFileSystem();
 
             CQLTester.prePrepareServer();
+
+            // The in-memory (jimfs) filesystem installed above cannot do Direct I/O: its FileStore has no
+            // getBlockSize() and it rejects ExtendedOpenOption.DIRECT. cassandra_latest.yaml enables
+            // background_write_disk_access_mode: direct, which would otherwise crash every flush+compact here.
+            DatabaseDescriptor.setBackgroundWriteDiskAccessMode(Config.DiskAccessMode.standard);
         }
 
         protected static void setupFileSystem()

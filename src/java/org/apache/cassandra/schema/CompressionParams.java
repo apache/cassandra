@@ -198,8 +198,14 @@ public final class CompressionParams
     @VisibleForTesting
     public static CompressionParams noop()
     {
+        return noop(DEFAULT_CHUNK_LENGTH);
+    }
+
+    @VisibleForTesting
+    public static CompressionParams noop(int chunkLength)
+    {
         NoopCompressor compressor = NoopCompressor.create(Collections.emptyMap());
-        return new CompressionParams(compressor, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
+        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
     }
 
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException
