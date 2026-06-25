@@ -123,7 +123,7 @@ public class SharedExecutorPool
 
     public Stream<? extends DebuggableTaskRunner> workers()
     {
-        return allWorkers.stream();
+        return allWorkers.stream().flatMap(worker -> Stream.of(worker, worker.immediateRunner()));
     }
 
     void maybeStartSpinningWorker()

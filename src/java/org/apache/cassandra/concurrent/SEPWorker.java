@@ -51,6 +51,35 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
 
     private final AtomicReference<Runnable> currentTask = new AtomicReference<>();
 
+    private class ImmediateDebuggableTaskRunner implements DebuggableTask.DebuggableTaskRunner, ImmediateTaskHolder
+    {
+        private final AtomicReference<Runnable> immediateCurrentTask = new AtomicReference<>();
+
+        @Override
+        public DebuggableTask running()
+        {
+            return getDebuggableTask(immediateCurrentTask.get());
+        }
+
+        @Override
+        public String id()
+        {
+            // derive from the current thread name so the nested row tracks renames and correlates with the worker's main row
+            return thread.getName() + "(immediate)";
+        }
+
+        @Override
+        public Runnable setImmediateTask(Runnable currentTask)
+        {
+            // plain is used to reduce overheads, the method is expected to be invoked only by a single thread
+            Runnable previousTask = immediateCurrentTask.getPlain();
+            immediateCurrentTask.lazySet(currentTask);
+            return previousTask;
+        }
+    }
+
+    private final ImmediateDebuggableTaskRunner immediateDebuggableTaskRunner;
+
     private String lastUsedExecutorName;
 
     SEPWorker(ThreadGroup threadGroup, Long workerId, Work initialState, SharedExecutorPool pool)
@@ -58,18 +87,27 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         this.pool = pool;
         this.workerId = workerId;
         this.workerIdThreadSuffix = '-' + workerId.toString();
-        thread = new CassandraThread(threadGroup, this, threadGroup.getName() + "-Worker-" + workerId);
+        String threadName = threadGroup.getName() + "-Worker-" + workerId;
+        this.immediateDebuggableTaskRunner = new ImmediateDebuggableTaskRunner();
+        thread = new CassandraThread(threadGroup, this, threadName, immediateDebuggableTaskRunner);
         thread.setDaemon(true);
         set(initialState);
         thread.start();
     }
 
+    public DebuggableTask.DebuggableTaskRunner immediateRunner()
+    {
+        return immediateDebuggableTaskRunner;
+    }
+
     @Override
     public DebuggableTask running()
     {
-        // can change after null check so go off local reference
-        Runnable task = currentTask.get();
+        return getDebuggableTask(currentTask.get());
+    }
 
+    private static DebuggableTask getDebuggableTask(Runnable task)
+    {
         // Local read and mutation Runnables are themselves debuggable
         if (task instanceof DebuggableTask)
             return (DebuggableTask) task;
