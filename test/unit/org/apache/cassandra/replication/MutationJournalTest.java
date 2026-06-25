@@ -181,7 +181,7 @@ public class MutationJournalTest
     }
 
     @Test
-    public void testDropReconcileSegments()
+    public void testDropUnreferencedSegments()
     {
         ShortMutationId id1 = id(100L, 0);
         ShortMutationId id2 = id(100L, 1);
@@ -193,26 +193,23 @@ public class MutationJournalTest
         Mutation mutation3 = mutation("key3", "ck3", "value3");
         Mutation mutation4 = mutation("key4", "ck4", "value4");
 
+        SegmentReferenceTracker refs = journal.segmentReferenceTracker();
+
         // write two mutations to the first segment and flush it to make static
+        long firstSegment = journal.getCurrentPosition().segmentId;
         journal.write(id1, mutation1);
         journal.write(id2, mutation2);
         journal.closeCurrentSegmentForTestingIfNonEmpty();
 
         // write two mutations to the second segment and flush it to make static
+        long secondSegment = journal.getCurrentPosition().segmentId;
         journal.write(id3, mutation3);
         journal.write(id4, mutation4);
         journal.closeCurrentSegmentForTestingIfNonEmpty();
 
         {
-            // call dropReconciledSegments() with a log2offsets map that covers both segments fully
-            // *BUT* with the segments still marked as needing replay nothing should be dropped
-            Log2OffsetsMap.Immutable.Builder builder = new Log2OffsetsMap.Immutable.Builder();
-            builder.add(id1);
-            builder.add(id2);
-            builder.add(id3);
-            builder.add(id4);
-            assertEquals(0, journal.dropReconciledSegments(builder.build()));
-            // confirm that no static segments have been dropped
+            // Both segments still need replay; even with no sstable references they must be retained.
+            assertEquals(0, journal.dropUnreferencedSegments());
             assertEquals(2, journal.countStaticSegmentsForTesting());
         }
 
@@ -220,33 +217,17 @@ public class MutationJournalTest
         journal.clearNeedsReplayForTesting();
 
         {
-            // call dropReconciledSegments() with a log2offsets map that doesn't cover any segments fully
-            Log2OffsetsMap.Immutable.Builder builder = new Log2OffsetsMap.Immutable.Builder();
-            builder.add(id1);
-            assertEquals(0, journal.dropReconciledSegments(builder.build()));
-            // confirm that no static segments got dropped
-            assertEquals(2, journal.countStaticSegmentsForTesting());
-        }
-
-        {
-            // call dropReconciledSegments() with a log2offsets map that covers only the first segment fully
-            Log2OffsetsMap.Immutable.Builder builder = new Log2OffsetsMap.Immutable.Builder();
-            builder.add(id1);
-            builder.add(id2);
-            assertEquals(1, journal.dropReconciledSegments(builder.build()));
-            // confirm that only one static segment got dropped
+            // Pretend an unrepaired sstable references the first segment.
+            refs.incrementRefForTesting(firstSegment);
+            assertEquals(1, journal.dropUnreferencedSegments());
+            // Only the second (unreferenced) segment got dropped.
             assertEquals(1, journal.countStaticSegmentsForTesting());
         }
 
         {
-            // call dropReconciledSegments() with a log2offsets map that covers both segments fully
-            Log2OffsetsMap.Immutable.Builder builder = new Log2OffsetsMap.Immutable.Builder();
-            builder.add(id1);
-            builder.add(id2);
-            builder.add(id3);
-            builder.add(id4);
-            assertEquals(1, journal.dropReconciledSegments(builder.build()));
-            // confirm that all static segments have now been dropped
+            // Releasing the last reference allows the first segment to drop too.
+            refs.decrementRefForTesting(firstSegment);
+            assertEquals(1, journal.dropUnreferencedSegments());
             assertEquals(0, journal.countStaticSegmentsForTesting());
         }
     }

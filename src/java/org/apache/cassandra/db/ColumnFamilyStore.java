@@ -538,6 +538,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         data.subscribe(StorageService.instance.sstablesTracker);
         data.subscribe(SnapshotManager.instance);
 
+        // Tracked tables hold mutation journal segments alive while their unrepaired sstables reference them
+        // (CASSANDRA-21406). Subscribe before initial sstables load so the InitialSSTableAddedNotification
+        // populates the segment refcount on startup.
+        //
+        // TODO: this gates on replicationType().isTracked() at CFS init time. A keyspace that migrates from
+        // untracked to tracked at runtime (ALTER KEYSPACE) does not re-init its CFSes, so the subscription
+        // never happens for the live process. The refcount self-heals on the next restart via
+        // InitialSSTableAddedNotification, but during the live migration segments could be dropped while
+        // unrepaired tracked sstables still reference them. A runtime subscription hook on the migration
+        // transition (likely in MutationTrackingService.maybeUpdateKeyspaceShards on MIGRATE_TO/CREATE) is
+        // tracked as a follow-up to CASSANDRA-21406.
+        if (DatabaseDescriptor.getMutationTrackingEnabled() && metadata().replicationType().isTracked())
+            data.subscribe(MutationJournal.instance().segmentReferenceTracker());
+
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
         if (data.loadsstables)

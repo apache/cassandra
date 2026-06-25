@@ -36,7 +36,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import org.agrona.collections.Long2LongHashMap;
-import org.agrona.collections.Long2ObjectHashMap;
 import org.jctools.maps.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,6 +101,7 @@ public class MutationJournal
 
     private final Journal<ShortMutationId, Mutation> journal;
     private final Map<Long, SegmentStateTracker> segmentStateTrackers;
+    private final SegmentReferenceTracker segmentReferenceTracker;
 
     // Static segments awaiting durable cleanup of their needsReplay=false metadata.
     private final Set<Long> pendingClearReplay = ConcurrentHashMap.newKeySet();
@@ -189,6 +189,7 @@ public class MutationJournal
                                   });
                               }
                           };
+        segmentReferenceTracker = new SegmentReferenceTracker();
         segmentStateTrackers = new NonBlockingHashMapLong<>();
     }
 
@@ -441,12 +442,19 @@ public class MutationJournal
     }
 
     @VisibleForTesting
-    public int dropReconciledSegments(Log2OffsetsMap<?> reconciledOffsets)
+    int dropUnreferencedSegments()
     {
-        return journal.dropStaticSegments((segment) -> {
-            StaticOffsetRanges ranges = (StaticOffsetRanges) segment.keyStats();
-            return ranges.isFullyCovered(reconciledOffsets) && !segment.metadata().needsReplay();
-        });
+        return journal.dropStaticSegments(segment -> !segment.metadata().needsReplay()
+                                                     && !segmentReferenceTracker.isReferenced(segment.id()));
+    }
+
+    /**
+     * Listener tracking how many unrepaired sstables of tracked tables reference each static segment.
+     * Subscribed by {@link org.apache.cassandra.db.ColumnFamilyStore} on init for every tracked CFS.
+     */
+    public SegmentReferenceTracker segmentReferenceTracker()
+    {
+        return segmentReferenceTracker;
     }
 
     public void readAll(RecordConsumer<ShortMutationId> consumer)
@@ -801,30 +809,6 @@ public class MutationJournal
             }
             Crc.validate(crc, in.readInt());
             return new StaticOffsetRanges(ranges);
-        }
-
-        /**
-         * @return whether all keys in the segment are fully covered by the specified (durably reconciled) offsets map
-         */
-        boolean isFullyCovered(Log2OffsetsMap<?> durablyReconciled)
-        {
-            Long2ObjectHashMap<Offsets> reconciledMap = ((Log2OffsetsMap<Offsets>) durablyReconciled).asMap();
-            for (Long2LongHashMap.EntryIterator iter = ranges.entrySet().iterator(); iter.hasNext();)
-            {
-                iter.next();
-
-                long logId = iter.getLongKey();
-                long range = iter.getLongValue();
-                int min = minOffset(range);
-                int max = maxOffset(range);
-
-                Offsets offsets = reconciledMap.get(logId);
-                if (offsets == null)
-                    return false;
-                if (!offsets.containsRange(min, max))
-                    return false;
-            }
-            return true;
         }
     }
 

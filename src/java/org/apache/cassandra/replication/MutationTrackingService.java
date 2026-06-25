@@ -1057,19 +1057,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     private void truncateMutationJournal()
     {
-        Log2OffsetsMap.Mutable reconciledOffsets = new Log2OffsetsMap.Mutable();
-        collectDurablyReconciledOffsets(reconciledOffsets);
-        MutationJournal.instance().dropReconciledSegments(reconciledOffsets);
-    }
-
-    /**
-     * Collect every log's durably reconciled offsets. Every mutation covered
-     * by these offsets can be compacted away by the journal, assuming that all
-     * relevant memtables had been flushed to disk.
-     */
-    private void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
-    {
-        forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
+        MutationJournal.instance().dropUnreferencedSegments();
     }
 
     public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
@@ -1378,11 +1366,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
                 if (shard != null)
                     shard.recordFullyReconciledOffsets(logId, entry.offsets);
             });
-        }
-
-        void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
-        {
-            forEachShard(shard -> shard.collectDurablyReconciledOffsets(into));
         }
 
         void forEachShard(Consumer<Shard> consumer)
