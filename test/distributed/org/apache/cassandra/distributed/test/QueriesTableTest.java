@@ -121,13 +121,14 @@ public class QueriesTableTest extends TestBaseImpl
             String task = row.get("task").toString();
 
             boolean localReaderThread = threadId.contains("Read") || threadId.contains("SharedPool-Worker");
-            readVisible |= localReaderThread && task.contains("SELECT");
+            // QUERY in a task name is used as a way to differentiate a local replica read vs a coordinator read
+            readVisible |= localReaderThread && task.contains("SELECT") && !task.contains("QUERY");
             boolean coordReaderThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
-            coordinatorReadVisible |= coordReaderThread && task.contains("SELECT");
+            coordinatorReadVisible |= coordReaderThread && task.contains("SELECT") && task.contains("QUERY");
             boolean localWriterThread = threadId.contains("Mutation") || threadId.contains("SharedPool-Worker");
-            writeVisible |= localWriterThread && task.contains("Mutation");
+            writeVisible |= localWriterThread && task.contains("Mutation") && !task.contains("QUERY");
             boolean coordWriterThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
-            coordinatorWriteVisible |= coordWriterThread && task.contains("INSERT");
+            coordinatorWriteVisible |= coordWriterThread && task.contains("INSERT") && task.contains("QUERY");
         }
 
         assertTrue(readVisible);
@@ -169,9 +170,10 @@ public class QueriesTableTest extends TestBaseImpl
             String task = row.get("task").toString();
 
             boolean localReaderThread = threadId.contains("Read") || threadId.contains("SharedPool-Worker");
-            readVisible |= localReaderThread && task.contains("SELECT");
+            // QUERY in a task name is used as a way to differentiate a local replica read vs a coordinator read
+            readVisible |= localReaderThread && task.contains("SELECT") && !task.contains("QUERY");
             boolean coordUpdateThread = threadId.contains("Native-Transport-Requests") || threadId.contains("SharedPool-Worker");
-            coordinatorUpdateVisible |= coordUpdateThread && task.contains("UPDATE");
+            coordinatorUpdateVisible |= coordUpdateThread && task.contains("UPDATE") && task.contains("QUERY");
         }
 
         assertTrue(readVisible);

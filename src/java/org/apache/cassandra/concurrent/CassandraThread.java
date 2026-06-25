@@ -27,19 +27,34 @@ public class CassandraThread extends FastThreadLocalThread
     private ThreadLocalMetrics threadLocalMetrics;
     private ExecutorLocals executorLocals;
 
-    public CassandraThread(ThreadGroup group, Runnable target, String name)
+    private final ImmediateTaskHolder immediateTaskHolder;
+
+    public CassandraThread(ThreadGroup group, Runnable target, String name, ImmediateTaskHolder immediateTaskHolder)
     {
         super(group, target, name);
+        assert immediateTaskHolder != null;
+        this.immediateTaskHolder = immediateTaskHolder;
+    }
+    public CassandraThread(ThreadGroup group, Runnable target, String name)
+    {
+        this(group, target, name, ImmediateTaskHolder.NO_OP);
     }
 
     public CassandraThread()
     {
         super();
+        this.immediateTaskHolder = ImmediateTaskHolder.NO_OP;
     }
 
     public CassandraThread(Runnable target)
     {
         super(target);
+        this.immediateTaskHolder = ImmediateTaskHolder.NO_OP;
+    }
+
+    public ImmediateTaskHolder getImmediateTaskHolder()
+    {
+        return immediateTaskHolder;
     }
 
     public ThreadLocalMetrics getThreadLocalMetrics()

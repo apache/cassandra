@@ -211,12 +211,15 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
         }
         else
         {
+            ImmediateTaskHolder taskHolder = getNestedCurrentTaskHolder();
+            Runnable previousTask = taskHolder.setImmediateTask(task);
             try
             {
                 task.run();
             }
             finally
             {
+                taskHolder.setImmediateTask(previousTask);
                 returnWorkPermit();
                 // we have to maintain our invariant of always scheduling after any work is performed
                 // in this case in particular we are not processing the rest of the queue anyway, and so
@@ -224,6 +227,16 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
                 maybeSchedule();
             }
         }
+    }
+
+    private static ImmediateTaskHolder getNestedCurrentTaskHolder()
+    {
+        Thread currentThread = Thread.currentThread();
+        if (currentThread instanceof CassandraThread)
+        {
+            return ((CassandraThread) currentThread).getImmediateTaskHolder();
+        }
+        return ImmediateTaskHolder.NO_OP;
     }
 
     @Override
