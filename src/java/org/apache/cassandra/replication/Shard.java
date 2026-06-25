@@ -317,7 +317,8 @@ public class Shard
 
     void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
     {
-        logs.values().forEach(log -> log.collectDurablyReconciledOffsets(into));
+        for (CoordinatorLog log : logs.values())
+            log.collectDurablyReconciledOffsets(into);
     }
 
     private CoordinatorLog getOrCreate(Mutation mutation)

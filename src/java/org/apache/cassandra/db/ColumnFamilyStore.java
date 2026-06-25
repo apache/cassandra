@@ -538,6 +538,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         data.subscribe(StorageService.instance.sstablesTracker);
         data.subscribe(SnapshotManager.instance);
 
+        if (DatabaseDescriptor.getMutationTrackingEnabled())
+            data.subscribe(MutationJournal.instance().segmentReferenceTracker());
+
         Collection<SSTableReader> sstables = null;
         // scan for sstables corresponding to this cf and load them
         if (data.loadsstables)

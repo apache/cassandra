@@ -53,6 +53,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.MutationTrackingSpec;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -252,8 +253,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
         onNewClusterMetadata(null, metadata);
 
-        if (!keyspaceShards.isEmpty() && !config.background_reconciliation_enabled)
-            logBackgroundReconciliationDisabledWarning(keyspaceShards.keySet());
+        if (!keyspaceShards.isEmpty())
+        {
+            if (!config.background_reconciliation_enabled)
+                logBackgroundReconciliationDisabledWarning(keyspaceShards.keySet());
+
+            if (!config.journal_compaction_enabled)
+                logJournalCompactionDisabledWarning(keyspaceShards.keySet());
+        }
 
         offsetsBroadcaster.start();
         offsetsPersister.start();
@@ -339,10 +346,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         if (!executor.awaitTermination(1, TimeUnit.MINUTES))
             logger.warn("Mutation tracking executor did not terminate within 1 minute; forcing shutdown");
 
-        // attempt to persist offsets and mark segments as
-        // not needing replay one last time before shutdown
+        // attempt to persist offsets and mark segments as not needing replay one last time before shutdown, then
+        // reclaim any now-droppable segments synchronously (the executor is stopped, so scheduled attempts from
+        // drainCleanup would never run).
         if (isStarted())
-            offsetsPersister.run(true);
+        {
+            offsetsPersister.persistAndDrain();
+            MutationJournal.instance().drainBlocking();
+        }
         ExpiredStatePurger.instance.shutdownBlocking();
     }
 
@@ -1005,6 +1016,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             {
                 case MIGRATE_FROM:
                     // TODO (expected): Implement shard deletion for tracked → untracked migration completion (CASSANDRA-20955)
+                    evictSegmentReferences(keyspace);
                 case NONE:
                     if (current != null)
                         updated.put(keyspace, current);
@@ -1041,6 +1053,20 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return updated;
     }
 
+    private static void evictSegmentReferences(String keyspace)
+    {
+        if (!DatabaseDescriptor.getMutationTrackingEnabled())
+            return;
+
+        Keyspace ks = Schema.instance.getKeyspaceInstance(keyspace);
+        if (ks == null)
+            return;
+
+        SegmentReferenceTracker tracker = MutationJournal.instance().segmentReferenceTracker();
+        for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
+            tracker.evict(cfs.getLiveSSTables());
+    }
+
     // TODO (expected): when topology and state truncation is implemented, implement cleanup of this map as well
     private void onNewLog(Shard shard, CoordinatorLog log)
     {
@@ -1055,21 +1081,26 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         }
     }
 
-    private void truncateMutationJournal()
+    void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
     {
-        Log2OffsetsMap.Mutable reconciledOffsets = new Log2OffsetsMap.Mutable();
-        collectDurablyReconciledOffsets(reconciledOffsets);
-        MutationJournal.instance().dropReconciledSegments(reconciledOffsets);
+        forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
     }
 
     /**
-     * Collect every log's durably reconciled offsets. Every mutation covered
-     * by these offsets can be compacted away by the journal, assuming that all
-     * relevant memtables had been flushed to disk.
+     * @return true once every static journal segment is fully covered by the durably-reconciled offsets
      */
-    private void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+    @VisibleForTesting
+    public boolean allStaticSegmentsDurablyReconciledForTesting()
     {
-        forEachKeyspace(keyspace -> keyspace.collectDurablyReconciledOffsets(into));
+        Log2OffsetsMap.Mutable durablyReconciled = new Log2OffsetsMap.Mutable();
+        collectDurablyReconciledOffsets(durablyReconciled);
+        return MutationJournal.instance().countStaticSegmentsPendingReconciliationForTesting(durablyReconciled) == 0;
+    }
+
+    @VisibleForTesting
+    public void maybePromoteReconciledSSTablesForTesting()
+    {
+        MutationJournal.instance().segmentCompactor.maybePromoteReconciledSSTables();
     }
 
     public SyncTasks alignToShardBoundaries(Keyspace keyspace, List<SyncTask> tasks)
@@ -1136,6 +1167,14 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     {
         logger.warn("Background reconciliation is disabled but mutation tracking keyspaces exist: {}. " +
                     "Unreconciled mutations will not be automatically repaired in the background.", keyspaces);
+    }
+
+    private void logJournalCompactionDisabledWarning(Set<String> keyspaces)
+    {
+        logger.warn("Mutation journal compaction is disabled but mutation tracking keyspaces exist: {}. " +
+                    "Journal segments will not be reclaimed and durably-reconciled sstables will not be promoted " +
+                    "to repaired (mutation_tracking.journal_promotion_threshold has no effect while compaction is " +
+                    "disabled); the on-disk journal will grow without bound.", keyspaces);
     }
 
     public static class KeyspaceShards
@@ -1380,15 +1419,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             });
         }
 
-        void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
-        {
-            forEachShard(shard -> shard.collectDurablyReconciledOffsets(into));
-        }
-
         void forEachShard(Consumer<Shard> consumer)
         {
             for (Shard shard : shards.values())
                 consumer.accept(shard);
+        }
+
+        void collectDurablyReconciledOffsets(Log2OffsetsMap.Mutable into)
+        {
+            forEachShard(shard -> shard.collectDurablyReconciledOffsets(into));
         }
 
         Shard lookUp(Mutation mutation)
@@ -1657,12 +1696,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         {
             if (isPaused)
                 return;
-            run(true);
+            persistAndDrain();
         }
 
-        private void run(boolean dropSegments)
+        void persistAndDrain()
         {
-
             MutationJournal.PendingClearReplay toDrain = MutationJournal.instance().snapshotPendingClearReplay();
 
             boolean writesOk;
@@ -1679,9 +1717,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
             if (writesOk)
                 MutationJournal.instance().drainCleanup(toDrain);
-
-            if (dropSegments)
-                MutationTrackingService.instance().truncateMutationJournal();
         }
 
         private void run(KeyspaceShards shards)
@@ -1698,13 +1733,15 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
     @VisibleForTesting
     public void persistLogStateForTesting()
     {
-        offsetsPersister.run();
+        persistLogStateForTesting(true);
     }
 
     @VisibleForTesting
     public void persistLogStateForTesting(boolean dropSegments)
     {
-        offsetsPersister.run(dropSegments);
+        offsetsPersister.persistAndDrain();
+        if (dropSegments)
+            MutationJournal.instance().runCompactionBlocking();
     }
 
     @VisibleForTesting

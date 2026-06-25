@@ -26,6 +26,7 @@ import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.replication.MutationJournal;
 import org.apache.cassandra.service.replication.migration.MigrationRouter;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -45,7 +46,9 @@ public class TrackedKeyspaceWriteHandler implements KeyspaceWriteHandler
             if (makeDurable)
             {
                 Tracing.trace("Appending to mutation journal");
-                pointer = MutationJournal.instance().write(mutation.id(), mutation);
+                Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
+                boolean isFullReplica = keyspace.isFullReplicaFor(mutation.key().getToken(), ClusterMetadata.current());
+                pointer = MutationJournal.instance().write(mutation.id(), mutation, isFullReplica);
             }
 
             return new CassandraWriteContext(group, pointer);

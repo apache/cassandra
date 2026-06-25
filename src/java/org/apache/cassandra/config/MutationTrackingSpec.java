@@ -30,4 +30,24 @@ public class MutationTrackingSpec
      * The interval in which the backgroun reconciliation process runs
      */
     public volatile DurationSpec.LongMillisecondsBound background_reconciliation_interval = new DurationSpec.LongMillisecondsBound("1s");
+    /**
+     * Whether the mutation journal's segment-dropping/promotion compactor is enabled
+     */
+    public volatile boolean journal_compaction_enabled = true;
+    /**
+     * When the on-disk mutation journal grows beyond this size, out-of-band promotion of already
+     * durably-reconciled but still-unrepaired sstables to repaired is triggered so the journal segments they hold
+     * can be released and reclaimed (CASSANDRA-21406). {@code null} disables the mechanism. The default is 256MiB.
+     */
+    public volatile DataStorageSpec.LongBytesBound journal_promotion_threshold = new DataStorageSpec.LongBytesBound("256MiB");
+
+    /**
+     * @return the on-disk mutation journal size (in bytes) beyond which out-of-band promotion of durably-reconciled
+     * unrepaired sstables is triggered, or 0 if the mechanism is disabled.
+     */
+    public long getJournalPromotionThresholdBytes()
+    {
+        DataStorageSpec.LongBytesBound threshold = journal_promotion_threshold;
+        return threshold == null ? 0 : threshold.toBytes();
+    }
 }

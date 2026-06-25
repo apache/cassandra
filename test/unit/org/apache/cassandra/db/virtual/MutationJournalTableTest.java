@@ -81,7 +81,8 @@ public class MutationJournalTableTest extends CQLTester
                 "written_to",
                 "fsynced_to",
                 "needs_replay",
-                "file_path"
+                "file_path",
+                "referring_sstables"
             ));
 
         boolean foundSegments = false;
@@ -99,7 +100,8 @@ public class MutationJournalTableTest extends CQLTester
             int writtenTo = r.getInt("written_to");
             int fsyncedTo = r.getInt("fsynced_to");
             r.getBool("needs_replay"); // Just verify it's accessible
-            String filePath = r.getString("file_path");
+            r.getString("file_path");  // Just verify it's accessible
+            r.getList("referring_sstables", String.class);// Just verify it's accessible
 
             assertThat(segmentId).isGreaterThan(0L);
 
