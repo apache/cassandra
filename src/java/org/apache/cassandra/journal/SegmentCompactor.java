@@ -20,8 +20,13 @@ package org.apache.cassandra.journal;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * Decides which static segments of a {@link Journal} are compacted, and how. Used by {@link Compactor}
+ * to run periodic or on-demand compaction passes.
+ */
 public interface SegmentCompactor<K, V>
 {
+    /** A no-op compactor */
     SegmentCompactor<?, ?> NOOP = (SegmentCompactor<Object, Object>) (segments) -> segments;
 
     static <K, V> SegmentCompactor<K, V> noop()
@@ -30,5 +35,31 @@ public interface SegmentCompactor<K, V>
         return (SegmentCompactor<K, V>) NOOP;
     }
 
+    /**
+     * Picks which of the given candidate segments should be compacted this pass. Defaults to selecting
+     * all of them.
+     *
+     * @param candidates all static segments currently eligible for compaction
+     * @return the subset of {@code candidates} to pass to {@link #compact(Collection)}
+     */
+    default Collection<StaticSegment<K, V>> select(Collection<StaticSegment<K, V>> candidates)
+    {
+        return candidates;
+    }
+
+    /**
+     * Compacts the given {@code segments}, previously chosen by {@link #select(Collection)}.
+     *
+     * @param segments the segments to compact
+     * @return the new segments that replace them; empty when the segments are dropped
+     */
     Collection<StaticSegment<K, V>> compact(Collection<StaticSegment<K, V>> segments) throws IOException;
+
+    /**
+     * Invoked at the end of every {@link Compactor} run, whether or not any segments were selected or
+     * compacted this pass, and whether or not the pass failed.
+     */
+    default void onCompacted()
+    {
+    }
 }
