@@ -23,6 +23,7 @@ import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
@@ -84,16 +85,24 @@ public abstract class AbstractLocalProcessor implements Processor
             // Just try to catch up to the latest distributed state.
             if (result.isRejected())
             {
-                ClusterMetadata replayed = fetchLogAndWait(null, retryPolicy);
+                // Use a dedicated retry policy here as the one for the commit itself may not be appropriate.
+                // It uses the wrong metric and for STARTUP transformations will retry indefinitely, which is not
+                // what we want here.
+                Retry fetchLogRetry = Retry.until(retryPolicy.deadlineNanos, TCMMetrics.instance.fetchLogRetries);
+                ClusterMetadata replayed = fetchLogAndWait(null, fetchLogRetry);
 
                 // Retry if replay has changed the epoch, return rejection otherwise.
                 if (!replayed.epoch.isAfter(previous.epoch))
                 {
+                    logger.info("No epoch change after fetched latest log entries, returning rejection response");
                     return maybeFailure(entryId,
                                         lastKnown,
                                         () -> Commit.Result.rejected(result.rejected().code, result.rejected().reason, toLogState(lastKnown)));
                 }
 
+                logger.info("Fetched latest log entries after transformation rejection, re-entering " +
+                            "commit retry loop with {}ms remaining until deadline",
+                            NANOSECONDS.toMillis(retryPolicy.remainingNanos()));
                 continue;
             }
 
@@ -123,8 +132,16 @@ public abstract class AbstractLocalProcessor implements Processor
                 {
                     if (!retryPolicy.maybeSleep())
                         break;
+
+                    logger.info("Backed off after failure to commit to log, fetching latest log entries before retry");
                     // TODO: could also add epoch from mis-application from [applied].
-                    fetchLogAndWait(null, retryPolicy);
+                    // Use a dedicated retry policy here as the one for the commit itself may not be appropriate.
+                    // It uses the wrong metric and for STARTUP transformations will retry indefinitely, which is not
+                    // what we want here.
+                    Retry fetchLogRetry = Retry.until(retryPolicy.deadlineNanos, TCMMetrics.instance.fetchLogRetries);
+                    fetchLogAndWait(null, fetchLogRetry);
+                    logger.info("Fetched latest log entries, re-entering commit retry loop with {}ms remaining until deadline",
+                                NANOSECONDS.toMillis(retryPolicy.remainingNanos()));
                 }
             }
             catch (Throwable e)
