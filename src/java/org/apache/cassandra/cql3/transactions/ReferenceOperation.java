@@ -163,8 +163,8 @@ public class ReferenceOperation
 
             ReferenceValue referenceValue = value.prepare(valueReceiver, bindVariables);
 
-            // operation.term().equals(referenceValue.getTerm()) covers the case where we have
-            // v += row1.c,
+            // When operation.term().equals(referenceValue.getTerm()), we are in the case where we have v += row1.c and
+            // when this is not true, we are in the case where we have v = row1.c + 3
             return new ReferenceOperation(receiver, metadata, kind, key, field, operation.term().equals(referenceValue.getTerm()) ? null : operation.term(), referenceValue);
         }
     }
