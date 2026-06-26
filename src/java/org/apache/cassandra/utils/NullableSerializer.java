@@ -35,6 +35,7 @@ public class NullableSerializer
         if (value != null)
             serializer.serialize(value, out);
     }
+
     public static <T> void serializeNullable(T value, DataOutputPlus out, int version, IVersionedSerializer<T> serializer) throws IOException
     {
         out.writeBoolean(value != null);
