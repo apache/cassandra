@@ -3632,7 +3632,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     public void testUseLetVariableForEvaluationWithInt() throws Exception
     {
         test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
-            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 6)", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 5)", ConsistencyLevel.ALL);
 
             String update = "BEGIN TRANSACTION\n" +
                             "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
@@ -3645,7 +3645,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                           "COMMIT TRANSACTION";
 
             SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
-            assertThat(result).hasSize(1).contains(1, 1, 11);
+            assertThat(result).hasSize(1).contains(1, 1, 8);
         });
     }
 

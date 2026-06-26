@@ -312,10 +312,16 @@ public class TxnReferenceOperation
 
     static final ParameterisedUnversionedSerializer<TxnReferenceOperation, TableMetadatas> serializer = new ParameterisedUnversionedSerializer<>()
     {
+        private static final int TOP_BIT = 0x40;
+
         @Override
         public void serialize(TxnReferenceOperation operation, TableMetadatas tables, DataOutputPlus out) throws IOException
         {
-            out.writeByte(operation.kind.id);
+            if (operation.constant != null)
+                out.writeUnsignedVInt32(operation.kind.id | TOP_BIT);
+            else
+                out.writeUnsignedVInt32(operation.kind.id);
+
             tables.serialize(operation.table, out);
             columnMetadataSerializer.serialize(operation.receiver, operation.table, out);
             TxnReferenceValue.serializer.serialize(operation.value, tables, out);
@@ -327,7 +333,12 @@ public class TxnReferenceOperation
             out.writeBoolean(operation.field != null);
             if (operation.field != null)
                 ByteBufferUtil.writeWithVIntLength(operation.field, out);
-            out.writeBoolean(operation.constant != null);
+
+            // The boolean for whether operation.constant is null is encoded
+            // in the TOP_BIT of operation.kind.id, this is to ensure that everything
+            // serialized by the new nodes can be deserialized by the old nodes modulo
+            // the new CQL syntax allowing calcuations with LET variables within
+            // the update statement
             if (operation.constant != null)
                 ByteBufferUtil.writeWithVIntLength(operation.constant, out);
         }
@@ -335,21 +346,28 @@ public class TxnReferenceOperation
         @Override
         public TxnReferenceOperation deserialize(TableMetadatas tables, DataInputPlus in) throws IOException
         {
-            Kind kind = Kind.from(in.readByte());
+            int flags = in.readUnsignedVInt32();
+            Kind kind;
+            if ((flags & TOP_BIT) != 0)
+                kind = Kind.from((byte) (flags ^ TOP_BIT));
+            else
+                kind = Kind.from((byte) (flags));
             TableMetadata table = tables.deserialize(in);
             ColumnMetadata receiver = columnMetadataSerializer.deserialize(table, in);
             TxnReferenceValue value = TxnReferenceValue.serializer.deserialize(tables, in);
             ByteBuffer key = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
             ByteBuffer field = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
-            ByteBuffer constant = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
+            ByteBuffer constant = null;
+            if ((flags & TOP_BIT) != 0)
+                constant = ByteBufferUtil.readWithVIntLength(in);
             return new TxnReferenceOperation(kind, receiver, table, key, field, constant, value);
         }
 
         @Override
         public long serializedSize(TxnReferenceOperation operation, TableMetadatas tables)
         {
-            long size = Byte.BYTES;
-            size +=  tables.serializedSize(operation.table);
+            long size = TypeSizes.sizeofUnsignedVInt(operation.kind.id | TOP_BIT);
+            size += tables.serializedSize(operation.table);
             size += columnMetadataSerializer.serializedSize(operation.receiver, operation.table);
             size += TxnReferenceValue.serializer.serializedSize(operation.value, tables);
 
@@ -361,7 +379,6 @@ public class TxnReferenceOperation
             if (operation.field != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.field);
 
-            size += TypeSizes.sizeof(operation.constant != null);
             if (operation.constant != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.constant);
 
