@@ -20,13 +20,27 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -64,6 +78,7 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.vector.PrimaryKeyWithScore;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.schema.TableMetadata;
@@ -74,8 +89,17 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+/**
+ * Randomized tests around the functionality of {@link VectorMemoryIndex}.
+ * <p>
+ * Note that the multithreaded tests here have been ported to use the simulator in
+ * {@link org.apache.cassandra.simulator.test.VectorMemoryIndexSimulationTest}. Although they should catch many of
+ * the same kinds of bugs, this test persists partially as an example of how this porting can be done.
+ */
 public class VectorMemoryIndexTest extends SAITester
 {
     private static final Injections.Counter indexSearchCounter = Injections.newCounter("IndexSearchCounter")
@@ -84,11 +108,14 @@ public class VectorMemoryIndexTest extends SAITester
                                                                                                   .onMethod("search"))
                                                                            .build();
 
+    private static final double RECALL_THRESHOLD = 0.9;
+    private static final int VECTORS_PER_THREAD = 2000;
+
     private ColumnFamilyStore cfs;
     private StorageAttachedIndex index;
     private VectorMemoryIndex memtableIndex;
     private IPartitioner partitioner;
-    private Map<DecoratedKey, Integer> keyMap;
+    private ConcurrentMap<DecoratedKey, Integer> keyMap;
     private Map<Integer, ByteBuffer> rowMap;
     private int dimensionCount;
 
@@ -119,14 +146,10 @@ public class VectorMemoryIndexTest extends SAITester
         cfs = index.baseCfs();
         partitioner = cfs.getPartitioner();
         indexSearchCounter.reset();
-        keyMap = new TreeMap<>();
+        keyMap = new ConcurrentHashMap<>();
         rowMap = new HashMap<>();
 
         Injections.inject(indexSearchCounter);
-    }
-
-    public static void reassignLocalTokens()
-    {
     }
 
     @Test
@@ -149,7 +172,6 @@ public class VectorMemoryIndexTest extends SAITester
         List<DecoratedKey> keys = new ArrayList<>(keyMap.keySet());
         long actualVectorsReturned = 0;
         long expectedVectorsReturned = 0;
-        double expectedRecall = 0.9;
 
         for (int executionCount = 0; executionCount < 1000; executionCount++)
         {
@@ -161,14 +183,7 @@ public class VectorMemoryIndexTest extends SAITester
 
             Set<Integer> foundKeys = new HashSet<>();
             int limit = getRandom().nextIntBetween(1, 100);
-
-            ReadCommand command = PartitionRangeReadCommand.create(cfs.metadata(),
-                                                                   FBUtilities.nowInSeconds(),
-                                                                   ColumnFilter.all(cfs.metadata()),
-                                                                   RowFilter.none(),
-                                                                   DataLimits.cqlLimits(limit),
-                                                                   DataRange.allData(cfs.metadata().partitioner));
-
+            ReadCommand command = createRangeRead(limit);
             long expectedResults = Math.min(limit, keysInRange.size());
 
             try (CloseableIterator<PrimaryKeyWithScore> iterator = memtableIndex.orderBy(new QueryContext(command,
@@ -198,18 +213,504 @@ public class VectorMemoryIndexTest extends SAITester
                 expectedVectorsReturned += expectedResults;
                 if (foundKeys.size() < expectedResults)
                     assertTrue("Expected at least " + expectedResults + " results but got " + foundKeys.size(),
-                               foundKeys.size() >= expectedResults * expectedRecall);
+                               foundKeys.size() >= expectedResults * RECALL_THRESHOLD);
             }
         }
 
         assertTrue("Expected at least " + expectedVectorsReturned + " results but got " + actualVectorsReturned,
-                   actualVectorsReturned >= expectedVectorsReturned * expectedRecall);
+                   actualVectorsReturned >= expectedVectorsReturned * RECALL_THRESHOLD);
+    }
+
+    /**
+     * Verifies that expectedNodesVisited() always returns a value within its documented
+     * bounds: at least min(limit, graphSize) and at most graphSize.
+     * <p>
+     * This is a pure arithmetic test with no index infrastructure required. It exercises
+     * the boundary conditions that matter for the brute-force/ANN threshold decision in
+     * maxBruteForceRows(): if the formula underflows its lower bound, small queries will
+     * incorrectly use ANN; if it overflows its upper bound, the result is nonsensical.
+     */
+    @Test
+    public void testExpectedNodesVisitedRespectsBounds()
+    {
+        int[] graphSizes       = { 1, 2, 10, 100, 1000, 10000 };
+        int[] limits           = { 1, 2, 5, 10, 50, 100 };
+        double[] permittedFractions = { 0.01, 0.1, 0.5, 1.0, 2.0 };
+
+        for (int graphSize : graphSizes)
+        {
+            for (int limit : limits)
+            {
+                for (double fraction : permittedFractions)
+                {
+                    int permitted = Math.max(1, (int) (graphSize * fraction));
+                    int result = VectorMemoryIndex.expectedNodesVisited(limit, permitted, graphSize);
+                    int lowerBound = Math.min(limit, graphSize);
+
+                    assertTrue(String.format("expectedNodesVisited(%d, %d, %d) = %d is below lower bound %d", limit, permitted, graphSize, result, lowerBound),
+                            result >= lowerBound);
+
+                    assertTrue(String.format("expectedNodesVisited(%d, %d, %d) = %d exceeds graphSize %d", limit, permitted, graphSize, result, graphSize),
+                            result <= graphSize);
+                }
+            }
+        }
     }
 
     @Test
-    public void indexIteratorTest()
+    public void testConcurrentAddsWithRandomVectors() throws Exception
     {
-        // VSTODO
+        testConcurrentAddsAreEventuallyConsistent((threadId, i) -> randomVectorFromThreadLocal());
+    }
+
+    @Test
+    public void testConcurrentAddsWithSharedVectors() throws Exception
+    {
+        testConcurrentAddsAreEventuallyConsistent((threadId, i) -> makeSharedVector(i));
+    }
+
+    /**
+     * Verifies that concurrent calls to add() do not corrupt the graph or lose data.
+     * <p>
+     * GraphIndexBuilder.addGraphNode() is designed for concurrent use: insertionsInProgress
+     * is a ConcurrentSkipListSet, and PoolingSupport gives each thread its own GraphSearcher
+     * and scratch arrays. This test validates the full stack from VectorMemoryIndex.index()
+     * through OnHeapGraph.add() through GraphIndexBuilder.addGraphNode().
+     * <p>
+     * After all writers complete, a full-ring search must return the vast majority of
+     * inserted keys with valid scores, confirming no data was lost or corrupted.
+     */
+    private void testConcurrentAddsAreEventuallyConsistent(BiFunction<Integer, Integer, ByteBuffer> vectorFactory) throws Exception
+    {
+        Memtable memtable = Mockito.mock(Memtable.class);
+        memtableIndex = new VectorMemoryIndex(index, memtable);
+
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        int totalInserted = numThreads * VECTORS_PER_THREAD;
+
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+        // CyclicBarrier ensures all threads begin inserting simultaneously,
+        // maximizing contention on GraphIndexBuilder and ConcurrentVectorValues.
+        CyclicBarrier barrier = new CyclicBarrier(numThreads);
+        List<Future<?>> futures = new ArrayList<>();
+
+        for (int t = 0; t < numThreads; t++)
+        {
+            final int threadId = t;
+            futures.add(executor.submit(() -> {
+                try
+                {
+                    barrier.await();
+                    for (int i = 0; i < VECTORS_PER_THREAD; i++)
+                    {
+                        int pk = threadId * VECTORS_PER_THREAD + i;
+                        addRow(pk, vectorFactory.apply(threadId, i));
+                    }
+                }
+                catch (BrokenBarrierException | InterruptedException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            }));
+        }
+
+        executor.shutdown();
+        assertTrue("Timed out waiting for concurrent adds", executor.awaitTermination(60, TimeUnit.SECONDS));
+
+        // Rethrow any exception from worker threads — assertion failures inside a
+        // Runnable are otherwise silently swallowed by the ExecutorService.
+        for (Future<?> f : futures)
+        {
+            try
+            {
+                f.get();
+            }
+            catch (ExecutionException e)
+            {
+                fail("Worker thread threw during concurrent add(): " + e.getCause());
+            }
+        }
+
+        // After all writes complete, a full-ring search with limit == totalInserted
+        // must return the vast majority of distinct results. Every returned key must
+        // have been inserted by a worker thread, and every score must be a valid
+        // positive float (a zero or NaN score would indicate graph corruption).
+        AbstractBounds<PartitionPosition> fullRing = new Range<>(partitioner.getMinimumToken().minKeyBound(), partitioner.getMinimumToken().minKeyBound());
+        Expression expression = generateRandomExpression();
+        ReadCommand command = createRangeRead(totalInserted);
+
+        QueryContext queryContext = new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
+        Set<Integer> foundKeys = new HashSet<>();
+
+        try (CloseableIterator<PrimaryKeyWithScore> iterator = memtableIndex.orderBy(queryContext, expression, fullRing))
+        {
+            while (iterator.hasNext())
+            {
+                PrimaryKeyWithScore result = iterator.next();
+                assertNotNull("Null PrimaryKey in search results after concurrent adds", result.primaryKey());
+                float score = result.score();
+                assertTrue("Non-finite score after concurrent adds: " + score, Float.isFinite(score));
+
+                // All vector components are drawn from [0, 1) via ThreadLocalRandom.nextFloat(),
+                // so every term in the dot product is non-negative and the sum is strictly positive.
+                // A score of 0f or below would indicate graph corruption, not a valid similarity result.
+                assertTrue("Non-positive score after concurrent adds: " + score, score > 0f);
+
+                int pk = Int32Type.instance.compose(result.primaryKey().partitionKey().getKey());
+                assertFalse("Duplicate key returned after concurrent adds: " + pk, foundKeys.contains(pk));
+                assertTrue("Returned key " + pk + " was not inserted by any worker thread", keyMap.containsKey(result.primaryKey().partitionKey()));
+                foundKeys.add(pk);
+            }
+        }
+
+        assertTrue("Search returned " + foundKeys.size() + " of " + totalInserted + " results after concurrent adds (expected at least " + (int) (totalInserted * RECALL_THRESHOLD) + ')',
+                   foundKeys.size() >= totalInserted * RECALL_THRESHOLD);
+    }
+
+    @Test
+    public void testConcurrentAddsAndOrderByRandomVectors() throws Exception
+    {
+        testConcurrentAddsAndOrderByNeverThrow((threadId, i) -> randomVectorFromThreadLocal());
+    }
+
+    @Test
+    public void testConcurrentAddsAndOrderBySharedVectors() throws Exception
+    {
+        testConcurrentAddsAndOrderByNeverThrow((threadId, i) -> makeSharedVector(i));
+    }
+
+    /**
+     * Verifies that orderBy() never throws an exception while concurrent add() calls
+     * are in progress, and that the index reaches a consistent state once writes settle.
+     * <p>
+     * Missing results during concurrent writes are expected and correct — a read that
+     * races with a write is allowed to miss that write (valid linearization). The only
+     * invariant asserted during the write window is safety: no exceptions, no null PKs,
+     * no non-finite scores from results that *are* returned.
+     * <p>
+     * Readers block on writersFinished after the barrier release and perform one final
+     * search pass after all writers have joined, confirming full consistency at rest.
+     */
+    public void testConcurrentAddsAndOrderByNeverThrow(BiFunction<Integer, Integer, ByteBuffer> vectorFactory) throws Exception
+    {
+        Memtable memtable = Mockito.mock(Memtable.class);
+        memtableIndex = new VectorMemoryIndex(index, memtable);
+
+        int numWriterThreads = Runtime.getRuntime().availableProcessors();
+        int numReaderThreads = Runtime.getRuntime().availableProcessors();
+        int totalInserted = numWriterThreads * VECTORS_PER_THREAD;
+
+        // Pre-seed enough rows that orderBy() always has a non-empty graph to search,
+        // avoiding the early-return in OnHeapGraph.search() when vectorValues.size() == 0
+        // which would prevent readers from exercising any real code paths.
+        int preSeedCount = 50;
+        for (int i = 1; i <= preSeedCount; i++)
+            addRow(-i, randomVector()); // negative PKs, disjoint from writer range [0, totalInserted)
+
+        // each reader blocks here until every writer has completed,
+        // then performs one final search to verify post-settlement consistency.
+        CountDownLatch writersFinished = new CountDownLatch(numWriterThreads);
+
+        // phase1Executed: confirms at least one reader searched during the concurrent
+        // write window. If this latch is never counted down, the write window was too
+        // short and the concurrent safety assertions in Phase 1 were never exercised.
+        AtomicBoolean phase1Executed = new AtomicBoolean(false);
+
+        CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
+        ExecutorService executor = Executors.newFixedThreadPool(numWriterThreads + numReaderThreads);
+        CyclicBarrier barrier = new CyclicBarrier(numWriterThreads + numReaderThreads);
+
+        // Writers: each inserts into a disjoint PK range
+        for (int t = 0; t < numWriterThreads; t++)
+        {
+            final int threadId = t;
+            executor.submit(() -> {
+                try
+                {
+                    barrier.await();
+                    for (int i = 0; i < VECTORS_PER_THREAD; i++)
+                    {
+                        int pk = threadId * VECTORS_PER_THREAD + i;
+                        addRow(pk, vectorFactory.apply(threadId, i));
+                    }
+                }
+                catch (Throwable e)
+                {
+                    errors.add(e);
+                }
+                finally
+                {
+                    writersFinished.countDown();
+                }
+            });
+        }
+
+        // Readers: issue one search while writers are running (safety only), then
+        // block on writersFinished and issue one final search for correctness.
+        for (int t = 0; t < numReaderThreads; t++)
+        {
+            executor.submit(() -> {
+                try
+                {
+                    barrier.await();
+
+                    AbstractBounds<PartitionPosition> fullRing = new Range<>(partitioner.getMinimumToken().minKeyBound(), partitioner.getMinimumToken().minKeyBound());
+                    ReadCommand command = createRangeRead(totalInserted + preSeedCount);
+                    QueryContext queryContext = new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
+
+                    // Build query vectors inline — getRandom() is not thread-safe from
+                    // worker threads, so we use ThreadLocalRandom directly.
+                    ByteBuffer queryBuf = randomVectorFromThreadLocal();
+                    Expression concurrentExpression = Expression.create(index);
+                    concurrentExpression.add(Operator.ANN, queryBuf);
+
+                    // --- Phase 1: one search while writers are still running ---
+                    // Safety assertions only. Missing results are a valid linearization
+                    // of concurrent read/write and are not asserted against here.
+                    try (CloseableIterator<PrimaryKeyWithScore> it = memtableIndex.orderBy(queryContext, concurrentExpression, fullRing))
+                    {
+                        while (it.hasNext())
+                        {
+                            PrimaryKeyWithScore result = it.next();
+                            assertNotNull("Null PrimaryKey during concurrent add() + orderBy()", result.primaryKey());
+                            assertTrue("Non-finite score during concurrent add() + orderBy(): " + result.score(), Float.isFinite(result.score()));
+                        }
+                    }
+                    phase1Executed.set(true);
+
+                    // --- Phase 2: block until all writers finish, then verify consistency ---
+                    writersFinished.await();
+
+                    ByteBuffer settledQueryBuf = randomVectorFromThreadLocal();
+                    Expression settledExpression = Expression.create(index);
+                    settledExpression.add(Operator.ANN, settledQueryBuf);
+
+                    Set<Integer> foundAfterSettle = new HashSet<>();
+                    try (CloseableIterator<PrimaryKeyWithScore> it = memtableIndex.orderBy(queryContext, settledExpression, fullRing))
+                    {
+                        while (it.hasNext())
+                        {
+                            PrimaryKeyWithScore result = it.next();
+                            assertNotNull("Null PrimaryKey after writes settled", result.primaryKey());
+                            assertTrue("Non-finite score after writes settled: " + result.score(), Float.isFinite(result.score()));
+
+                            // All vector components are drawn from [0, 1) via ThreadLocalRandom.nextFloat(),
+                            // so every term in the dot product is non-negative and the sum is strictly positive.
+                            // A score of 0f or below would indicate graph corruption, not a valid similarity result.
+                            assertTrue("Non-positive score after writes settled: " + result.score(), result.score() > 0f);
+
+                            int pk = Int32Type.instance.compose(result.primaryKey().partitionKey().getKey());
+                            foundAfterSettle.add(pk);
+                        }
+                    }
+
+                    // ANN recall is approximate, so we allow a small miss rate rather
+                    // than asserting exact equality. Pre-seeded keys (negative PKs) are
+                    // included in the limit so they do not crowd out writer-inserted keys.
+                    int expectedMinimum = (int) (totalInserted * RECALL_THRESHOLD);
+                    long writerKeysFound = foundAfterSettle.stream().filter(pk -> pk >= 0).count();
+                    assertTrue("Only " + writerKeysFound + " of " + totalInserted + " writer-inserted keys found after writes settled" + " (expected at least " + expectedMinimum + ')',
+                               writerKeysFound >= expectedMinimum);
+                }
+                catch (Throwable e)
+                {
+                    errors.add(e);
+                }
+            });
+        }
+
+        executor.shutdown();
+        assertTrue("Timed out waiting for concurrent add() + orderBy()", executor.awaitTermination(60, TimeUnit.SECONDS));
+
+        // Verify Phase 1 actually executed — if this fails, increase vectorsPerWriter
+        // so the write window is wide enough for readers to search concurrently.
+        assertTrue("No reader executed a search during the concurrent write window; increase vectorsPerWriter to widen the write window", phase1Executed.get());
+
+        if (!errors.isEmpty())
+        {
+            AssertionError failure = new AssertionError("Concurrent add() + orderBy() produced " + errors.size() + " error(s); first: " + errors.get(0));
+            errors.forEach(failure::addSuppressed);
+            throw failure;
+        }
+    }
+
+    @Test
+    public void testConcurrentAddsAndOrderResultsByRandomVectors() throws Exception
+    {
+        testConcurrentAddsAndOrderResultsByNeverThrow((threadId, i) -> randomVectorFromThreadLocal());
+    }
+
+    @Test
+    public void testConcurrentAddsAndOrderResultsBySharedVectors() throws Exception
+    {
+        testConcurrentAddsAndOrderResultsByNeverThrow((threadId, i) -> makeSharedVector(i));
+    }
+
+    /**
+     * Verifies that orderResultsBy() never throws while concurrent add() calls are in
+     * progress, and that the index reaches a consistent state once writes settle.
+     * <p>
+     * The materialized key list passed to orderResultsBy() is built from keyMap, which is a
+     * ConcurrentHashMap updated by every addRow() call. A snapshot taken mid-write may be
+     * incomplete — this is intentional and mirrors the production path where the source
+     * KeyRangeIterator only sees keys committed before the non-ANN index scan ran.
+     */
+    private void testConcurrentAddsAndOrderResultsByNeverThrow(BiFunction<Integer, Integer, ByteBuffer> vectorFactory) throws Exception
+    {
+        Memtable memtable = Mockito.mock(Memtable.class);
+        memtableIndex = new VectorMemoryIndex(index, memtable);
+
+        int numWriterThreads = Runtime.getRuntime().availableProcessors();
+        int numReaderThreads = Runtime.getRuntime().availableProcessors();
+        int totalInserted = numWriterThreads * VECTORS_PER_THREAD;
+
+        // Pre-seed rows so orderResultsBy() always has a non-empty [minimumKey, maximumKey]
+        // window and a non-trivial resultsInRange list on the first reader pass.
+        int preSeedCount = 50;
+        for (int i = 1; i <= preSeedCount; i++)
+            addRow(-i, randomVector()); // negative PKs, disjoint from writer range [0, totalInserted)
+
+        CountDownLatch writersFinished = new CountDownLatch(numWriterThreads);
+        AtomicBoolean phase1Executed = new AtomicBoolean(false);
+        CopyOnWriteArrayList<Throwable> errors = new CopyOnWriteArrayList<>();
+
+        ExecutorService executor = Executors.newFixedThreadPool(numWriterThreads + numReaderThreads);
+        CyclicBarrier barrier = new CyclicBarrier(numWriterThreads + numReaderThreads);
+
+        // Writers: each inserts into a disjoint PK range [threadId*vectorsPerWriter, (threadId+1)*vectorsPerWriter)
+        for (int t = 0; t < numWriterThreads; t++)
+        {
+            final int threadId = t;
+            executor.submit(() -> {
+                try
+                {
+                    barrier.await();
+                    for (int i = 0; i < VECTORS_PER_THREAD; i++)
+                    {
+                        int pk = threadId * VECTORS_PER_THREAD + i;
+                        addRow(pk, vectorFactory.apply(threadId, i));
+                    }
+                }
+                catch (Throwable e)
+                {
+                    errors.add(e);
+                }
+                finally
+                {
+                    writersFinished.countDown();
+                }
+            });
+        }
+
+        for (int t = 0; t < numReaderThreads; t++)
+        {
+            executor.submit(() -> {
+                try
+                {
+                    barrier.await();
+
+                    ReadCommand command = createRangeRead(totalInserted + preSeedCount);
+                    QueryContext queryContext = new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
+
+                    // --- Phase 1: search during concurrent writes ---
+                    // Snapshot the keys visible so far; the list may be incomplete, which is
+                    // a valid linearization. We only assert safety here, not completeness.
+                    List<PrimaryKey> snapshotKeys = buildSortedPrimaryKeySnapshot();
+
+                    ByteBuffer queryBuf = randomVectorFromThreadLocal();
+                    Expression concurrentExpression = Expression.create(index);
+                    concurrentExpression.add(Operator.ANN, queryBuf);
+
+                    if (!snapshotKeys.isEmpty())
+                    {
+                        try (CloseableIterator<PrimaryKeyWithScore> it = memtableIndex.orderResultsBy(queryContext, snapshotKeys, concurrentExpression))
+                        {
+                            while (it.hasNext())
+                            {
+                                PrimaryKeyWithScore result = it.next();
+                                assertNotNull("Null PrimaryKey during concurrent add() + orderResultsBy()", result.primaryKey());
+                                assertTrue("Non-finite score during concurrent add() + orderResultsBy(): " + result.score(), Float.isFinite(result.score()));
+                            }
+                        }
+                        phase1Executed.set(true);
+                    }
+
+                    // --- Phase 2: wait for all writers, then verify correctness ---
+                    writersFinished.await();
+
+                    List<PrimaryKey> allKeys = buildSortedPrimaryKeySnapshot();
+                    ByteBuffer settledQueryBuf = randomVectorFromThreadLocal();
+                    Expression settledExpression = Expression.create(index);
+                    settledExpression.add(Operator.ANN, settledQueryBuf);
+
+                    Set<Integer> foundAfterSettle = new HashSet<>();
+                    try (CloseableIterator<PrimaryKeyWithScore> it = memtableIndex.orderResultsBy(queryContext, allKeys, settledExpression))
+                    {
+                        while (it.hasNext())
+                        {
+                            PrimaryKeyWithScore result = it.next();
+                            assertNotNull("Null PrimaryKey after writes settled in orderResultsBy()", result.primaryKey());
+                            assertTrue("Non-finite score after writes settled in orderResultsBy(): " + result.score(), Float.isFinite(result.score()));
+
+                            // All vector components are drawn from [0, 1) via ThreadLocalRandom.nextFloat(),
+                            // so every term in the dot product is non-negative and the sum is strictly positive.
+                            // A score of 0f or below would indicate graph corruption, not a valid similarity result.
+                            assertTrue("Non-positive score after writes settled in orderResultsBy(): " + result.score(), result.score() > 0f);
+
+                            int pk = Int32Type.instance.compose(result.primaryKey().partitionKey().getKey());
+                            foundAfterSettle.add(pk);
+                        }
+                    }
+
+                    long writerKeysFound = foundAfterSettle.stream().filter(pk -> pk >= 0).count();
+                    int expectedMinimum = (int) (totalInserted * RECALL_THRESHOLD);
+                    assertTrue("orderResultsBy() returned " + writerKeysFound + " of " + totalInserted + " writer-inserted keys after writes settled (expected at least " + expectedMinimum + ')',
+                               writerKeysFound >= expectedMinimum);
+                }
+                catch (Throwable e)
+                {
+                    errors.add(e);
+                }
+            });
+        }
+
+        executor.shutdown();
+        assertTrue("Timed out waiting for concurrent add() + orderResultsBy()", executor.awaitTermination(60, TimeUnit.SECONDS));
+        assertTrue("No reader executed a Phase 1 search during the concurrent write window; increase vectorsPerWriter to widen the write window", phase1Executed.get());
+
+        if (!errors.isEmpty())
+        {
+            AssertionError failure = new AssertionError("Concurrent add() + orderResultsBy() produced " + errors.size() + " error(s); first: " + errors.get(0));
+            errors.forEach(failure::addSuppressed);
+            throw failure;
+        }
+    }
+
+    private PartitionRangeReadCommand createRangeRead(int limit)
+    {
+        return PartitionRangeReadCommand.create(cfs.metadata(),
+                                                FBUtilities.nowInSeconds(),
+                                                ColumnFilter.all(cfs.metadata()),
+                                                RowFilter.none(),
+                                                DataLimits.cqlLimits(limit),
+                                                DataRange.allData(cfs.metadata().partitioner));
+    }
+
+    private List<PrimaryKey> buildSortedPrimaryKeySnapshot()
+    {
+        return keyMap.keySet()
+                     .stream()
+                     .map(dk -> index.hasClustering() ? index.keyFactory().create(dk, Clustering.EMPTY) : index.keyFactory().create(dk))
+                     .sorted()
+                     .collect(Collectors.toList());
+    }
+
+    private ByteBuffer makeSharedVector(int i)
+    {
+        List<Float> raw = new ArrayList<>(Collections.nCopies(dimensionCount - 1, 0.5f));
+        raw.add(i / (float) VECTORS_PER_THREAD);
+        return VectorType.getInstance(FloatType.instance, dimensionCount).getSerializer().serialize(raw);
     }
 
     private Expression generateRandomExpression()
@@ -219,11 +720,21 @@ public class VectorMemoryIndexTest extends SAITester
         return expression;
     }
 
-    private ByteBuffer randomVector() {
+    private ByteBuffer randomVector()
+    {
+        return randomVector(() -> getRandom().nextFloat());
+    }
+
+    private ByteBuffer randomVectorFromThreadLocal()
+    {
+        return randomVector(() -> ThreadLocalRandom.current().nextFloat());
+    }
+
+    private ByteBuffer randomVector(Supplier<Float> supplier)
+    {
         List<Float> rawVector = new ArrayList<>(dimensionCount);
-        for (int i = 0; i < dimensionCount; i++) {
-            rawVector.add(getRandom().nextFloat());
-        }
+        for (int i = 0; i < dimensionCount; i++)
+            rawVector.add(supplier.get());
         return VectorType.getInstance(FloatType.instance, dimensionCount).getSerializer().serialize(rawVector);
     }
 
