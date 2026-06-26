@@ -55,9 +55,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.serializers.TableMetadatas;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Generators;
 
 import static accord.utils.Property.qt;
-import static org.apache.cassandra.utils.Generators.toGen;
 
 public class TxnReferenceOperationTest
 {
@@ -110,7 +110,7 @@ public class TxnReferenceOperationTest
 
     private static Gen<TxnReferenceValue> valueGen(AbstractType<?> type)
     {
-        return toGen(AbstractTypeGenerators.getTypeSupport(type)
+        return Generators.toGen(AbstractTypeGenerators.getTypeSupport(type)
                                                       .bytesGen())
                          .map(TxnReferenceValue.Constant::new);
     }
@@ -140,7 +140,7 @@ public class TxnReferenceOperationTest
                 break;
                 case Discarder:
                 {
-                    CollectionType<?> type = (CollectionType<?>) toGen(AbstractTypeGenerators.builder()
+                    CollectionType<?> type = (CollectionType<?>) Generators.toGen(AbstractTypeGenerators.builder()
                                                                                                         .withMaxDepth(1)
                                                                                                         .withTypeKinds(AbstractTypeGenerators.TypeKind.LIST,
                                                                                                                        AbstractTypeGenerators.TypeKind.SET,
@@ -197,14 +197,14 @@ public class TxnReferenceOperationTest
                         receiver = table.getColumn(ColumnIdentifier.getInterned("col", true));
                         value = valueGen(type).next(rs);
                         if (rs.nextBoolean())
-                            constant = toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs);
+                            constant = Generators.toGen(AbstractTypeGenerators.getTypeSupport(type).bytesGen()).next(rs);
                         kind = group == Group.Adder ? TxnReferenceOperation.Kind.ConstantAdder : TxnReferenceOperation.Kind.ConstantSubtracter;
                     }
                 }
                 break;
                 case Setter:
                 {
-                    var type = toGen(AbstractTypeGenerators.builder()
+                    var type = Generators.toGen(AbstractTypeGenerators.builder()
                                                                       .withoutUnsafeEquality()
                                                                       .withMaxDepth(1)
                                                                       .build())

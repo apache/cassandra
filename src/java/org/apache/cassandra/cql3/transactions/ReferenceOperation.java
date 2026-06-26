@@ -64,7 +64,7 @@ public class ReferenceOperation
     }
 
     /**
-     * Creates a {@link ReferenceOperation} from the given {@link  Operation} for the purpose of defering execution
+     * Creates a {@link ReferenceOperation} from the given {@link Operation} for the purpose of defering execution
      * within a transaction. When the language sees an Operation using a reference one is created already, but for cases
      * that needs to defer execution (such as when {@link Operation#requiresRead()} is true), this method can be used.
      */
@@ -77,7 +77,6 @@ public class ReferenceOperation
         ReferenceValue value = new ReferenceValue.Constant(operation.term());
         Term key = extractKeyOrIndex(operation);
         FieldIdentifier field = extractField(operation);
-        // Chore: Maybe we should change the semantics of this?
         return new ReferenceOperation(receiver, table, kind, key, field, null, value);
     }
 
