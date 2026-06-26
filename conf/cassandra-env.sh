@@ -180,7 +180,7 @@ if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
 fi
 
 # If a user tries to use -Xmn with ZGC we should let them know it's not going to work. Not worth killing the node over though.
-if [ $DEFINED_XMN -eq 0 ] && [ $USING_ZGC -eq 0]; then
+if [ $DEFINED_XMN -eq 0 ] && [ $USING_ZGC -eq 0 ]; then
     echo "-Xmn does nothing when used in conjunction with ZGC; this setting will be ignored."
 fi
 
