@@ -37,10 +37,9 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -441,24 +440,15 @@ public class CMSOfflineTool implements Runnable
                                                    nodeState + " state. Only a JOINED node can be set as CMS member.");
             }
             InetAddressAndPort endpoint = metadata.directory.getNodeAddresses(nodeId).broadcastAddress;
-            ReplicationParams metaParams = ReplicationParams.meta(metadata);
-            Iterable<Replica> currentReplicas = metadata.placements.get(metaParams).writes.byEndpoint().flattenValues();
-            DataPlacement.Builder placementBuilder = metadata.placements.get(metaParams).unbuild();
-            for (Replica replica : currentReplicas)
-            {
-                placementBuilder.withoutReadReplica(metadata.epoch, replica)
-                                .withoutWriteReplica(metadata.epoch, replica);
-            }
+            CMSMembership cms = metadata.cmsMembership;
+            ClusterMetadata.Transformer transformer = metadata.transformer();
+            for (NodeId id : cms.fullMembers())
+                transformer = transformer.leaveCMS(id);
+            for (NodeId id : cms.joiningMembers())
+                transformer = transformer.cancelJoiningCMS(id);
 
-            Replica newCMS = MetaStrategy.replica(endpoint);
-            placementBuilder.withReadReplica(metadata.epoch, newCMS)
-                            .withWriteReplica(metadata.epoch, newCMS);
-
-            return metadata.transformer()
-                           .with(metadata.placements.unbuild()
-                                                    .with(metaParams, placementBuilder.build())
-                                                    .build())
-                           .build().metadata;
+            transformer = transformer.startJoiningCMS(nodeId).finishJoiningCMS(nodeId);
+            return transformer.build().metadata;
         }
     }
 
