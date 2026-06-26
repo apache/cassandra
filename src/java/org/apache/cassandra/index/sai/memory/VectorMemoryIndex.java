@@ -75,8 +75,7 @@ public class VectorMemoryIndex extends MemoryIndex
     private final Memtable memtable;
     private final LongAdder writeCount = new LongAdder();
 
-    private PrimaryKey minimumKey;
-    private PrimaryKey maximumKey;
+    private volatile KeyBounds keyBounds;
 
     private final NavigableSet<PrimaryKey> primaryKeys = new ConcurrentSkipListSet<>();
 
@@ -88,7 +87,7 @@ public class VectorMemoryIndex extends MemoryIndex
     }
 
     @Override
-    public synchronized long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
+    public long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
     {
         if (value == null || value.remaining() == 0 || !index.validateTermSize(key, value, false, null))
             return 0;
@@ -100,11 +99,11 @@ public class VectorMemoryIndex extends MemoryIndex
 
     private long index(PrimaryKey primaryKey, ByteBuffer value)
     {
-        updateKeyBounds(primaryKey);
-
+        long bytesUsed = graph.add(value, primaryKey, OnHeapGraph.InvalidVectorBehavior.FAIL);
         writeCount.increment();
         primaryKeys.add(primaryKey);
-        return graph.add(value, primaryKey, OnHeapGraph.InvalidVectorBehavior.FAIL);
+        updateKeyBounds(primaryKey);
+        return bytesUsed;
     }
 
     @Override
@@ -131,9 +130,6 @@ public class VectorMemoryIndex extends MemoryIndex
         {
             PrimaryKey primaryKey = index.hasClustering() ? index.keyFactory().create(key, clustering)
                                                           : index.keyFactory().create(key);
-            // update bounds because only rows with vectors are included in the key bounds,
-            // so if the vector was null before, we won't have included it
-            updateKeyBounds(primaryKey);
 
             // make the changes in this order, so we don't have a window where the row is not in the index at all
             if (newRemaining > 0)
@@ -144,20 +140,18 @@ public class VectorMemoryIndex extends MemoryIndex
             // remove primary key if it's no longer indexed
             if (newRemaining <= 0 && oldRemaining > 0)
                 primaryKeys.remove(primaryKey);
+
+            // update bounds because only rows with vectors are included in the key bounds,
+            // so if the vector was null before, we won't have included it
+            updateKeyBounds(primaryKey);
         }
         return bytesUsed;
     }
 
-    private void updateKeyBounds(PrimaryKey primaryKey)
+    private synchronized void updateKeyBounds(PrimaryKey key)
     {
-        if (minimumKey == null)
-            minimumKey = primaryKey;
-        else if (primaryKey.compareTo(minimumKey) < 0)
-            minimumKey = primaryKey;
-        if (maximumKey == null)
-            maximumKey = primaryKey;
-        else if (primaryKey.compareTo(maximumKey) > 0)
-            maximumKey = primaryKey;
+        KeyBounds current = keyBounds;
+        keyBounds = current == null ? new KeyBounds(key, key) : current.withUpdated(key);
     }
 
     @Override
@@ -213,15 +207,15 @@ public class VectorMemoryIndex extends MemoryIndex
     @Override
     public CloseableIterator<PrimaryKeyWithScore> orderResultsBy(QueryContext queryContext, List<PrimaryKey> results, Expression orderer)
     {
-        if (minimumKey == null)
-            // This case implies maximumKey is empty too.
+        KeyBounds bounds = keyBounds;
+        if (bounds == null)
             return CloseableIterator.empty();
 
         int limit = queryContext.limit();
 
         List<PrimaryKey> resultsInRange = results.stream()
-                                                 .dropWhile(k -> k.compareTo(minimumKey) < 0)
-                                                 .takeWhile(k -> k.compareTo(maximumKey) <= 0)
+                                                 .dropWhile(k -> k.compareTo(bounds.minimum) < 0)
+                                                 .takeWhile(k -> k.compareTo(bounds.maximum) <= 0)
                                                  .collect(Collectors.toList());
 
         int maxBruteForceRows = maxBruteForceRows(limit, resultsInRange.size(), graph.size());
@@ -418,6 +412,27 @@ public class VectorMemoryIndex extends MemoryIndex
         public void close()
         {
             FileUtils.closeQuietly(nodeScores);
+        }
+    }
+
+    private static final class KeyBounds
+    {
+        final PrimaryKey minimum;
+        final PrimaryKey maximum;
+
+        KeyBounds(PrimaryKey minimum, PrimaryKey maximum)
+        {
+            this.minimum = minimum;
+            this.maximum = maximum;
+        }
+
+        KeyBounds withUpdated(PrimaryKey key)
+        {
+            PrimaryKey newMin = minimum.compareTo(key) > 0 ? key : minimum;
+            PrimaryKey newMax = maximum.compareTo(key) < 0 ? key : maximum;
+
+            // Avoid allocation if nothing changed
+            return newMin == minimum && newMax == maximum ? this : new KeyBounds(newMin, newMax);
         }
     }
 }
