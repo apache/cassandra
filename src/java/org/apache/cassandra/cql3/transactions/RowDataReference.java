@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.transactions;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
@@ -99,6 +100,19 @@ public class RowDataReference extends Term.NonTerminal
     public void addFunctionsTo(List<Function> functions)
     {
         throw new UnsupportedOperationException("Functions are not currently supported w/ reference terms.");
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RowDataReference that = (RowDataReference) o;
+        return Objects.equals(txnDataName, that.txnDataName)
+               && Objects.equals(column, that.column)
+               && Objects.equals(table, that.table)
+               && Objects.equals(elementPath, that.elementPath)
+               && Objects.equals(fieldPath, that.fieldPath);
     }
 
     public ColumnMetadata toResultMetadata()

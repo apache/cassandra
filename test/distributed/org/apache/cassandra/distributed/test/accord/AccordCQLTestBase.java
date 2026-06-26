@@ -84,6 +84,7 @@ import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -3606,41 +3607,66 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     }
 
     @Test
-    public void testRowReferenceDoesNotNPE() throws Exception
+    public void testLETVariableReferenceInUpdateFails() throws Exception
     {
-        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC) AND transactional_mode='" + transactionalMode + "'",
-             cluster ->
-             {
-                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+        // Regression test for prior NPE
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            try
+            {
+                String txn = "BEGIN TRANSACTION\n" +
+                             "  LET r = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
+                             "  UPDATE " + qualifiedAccordTableName + " SET v = r WHERE k=1 AND c=1;\n" +
+                             "COMMIT TRANSACTION";
 
-                 String update = "BEGIN TRANSACTION\n" +
-                                 "  LET r = (SELECT v FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
-                                 "  UPDATE " + qualifiedAccordTableName + " SET v = r WHERE k=1 AND c=1;\n" +
-                                 "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[]{1, 1, 1}, update);
-             });
+                cluster.coordinator(1).executeWithResult(txn, ConsistencyLevel.SERIAL);
+                fail("Expected exception");
+            }
+            catch (Throwable t)
+            {
+                assertEquals(SyntaxException.class.getName(), t.getClass().getName());
+            }
+        });
     }
 
     @Test
-    public void testUseLetVariableForEvaluationInUpdateStatement() throws Exception
+    public void testUseLetVariableForEvaluationWithInt() throws Exception
     {
-        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC) AND transactional_mode='" + transactionalMode + "'",
-             cluster ->
-             {
-                 cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (1, 1, 6)", ConsistencyLevel.ALL);
 
-                 String update = "BEGIN TRANSACTION\n" +
-                                 "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
-                                 "  UPDATE " + qualifiedAccordTableName + " SET v = row1.v + 2 WHERE k=1 AND c=1;\n" +
-                                 "COMMIT TRANSACTION";
-                 cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.ALL);
+            String update = "BEGIN TRANSACTION\n" +
+                            "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
+                            "  UPDATE " + qualifiedAccordTableName + " SET v = row1.v + 3 WHERE k = 1 AND c = 1;\n" +
+                            "COMMIT TRANSACTION";
+            cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.ALL);
 
-                 String read = "BEGIN TRANSACTION\n" +
-                               "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
-                               "COMMIT TRANSACTION";
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
 
-                 SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
-                 assertThat(result).hasSize(1).contains(1, 3);
-             });
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, 1, 11);
+        });
+    }
+
+    @Test
+    public void testUseLetVariableForEvaluationWithString() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int, c int, v text, PRIMARY KEY (k, c)) WITH " + transactionalMode.asCqlParam(), cluster -> {
+            cluster.coordinator(1).execute("INSERT INTO " + qualifiedAccordTableName + " (k, c, v) VALUES (?, ?, ?)", ConsistencyLevel.ALL, 1, 1, "a");
+
+            String update = "BEGIN TRANSACTION\n" +
+                            "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1 AND c = 1);\n" +
+                            "  UPDATE " + qualifiedAccordTableName + " SET v = row1.v + ? WHERE k = 1 AND c = 1;\n" +
+                            "COMMIT TRANSACTION";
+            cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.ALL, "m");
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(read, ConsistencyLevel.SERIAL);
+            assertThat(result).hasSize(1).contains(1, 1, "am");
+        });
     }
 }

@@ -170,18 +170,20 @@ public class TxnReferenceOperation
     public final TableMetadata table;
     private final @Nullable ByteBuffer keyOrIndex;
     private final @Nullable ByteBuffer field;
+    private final @Nullable ByteBuffer constant;
     private final TxnReferenceValue value;
     private final @Nullable AbstractType<?> keyOrIndexType;
     private final AbstractType<?> valueType;
 
     public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, TableMetadata table,
-                                 @Nullable ByteBuffer keyOrIndex, @Nullable ByteBuffer field, TxnReferenceValue value)
+                                 @Nullable ByteBuffer keyOrIndex, @Nullable ByteBuffer field, @Nullable ByteBuffer constant, TxnReferenceValue value)
     {
         this.kind = kind;
         this.receiver = receiver;
         this.table = table;
         this.keyOrIndex = keyOrIndex;
         this.field = field;
+        this.constant = constant;
 
         // We don't expect operators on clustering keys, but unwrap just in case.
         AbstractType<?> receiverType = receiver.type.unwrap();
@@ -272,7 +274,11 @@ public class TxnReferenceOperation
     public void apply(TxnData data, DecoratedKey key, RowUpdateBuilder up)
     {
         Operation operation = toOperation(data);
-        operation.execute(key, up);
+        // When constant != null, we are performing a computation with a LET variable (i.e. row1.v + 2)
+        if (constant != null)
+            operation.execute(key, up, constant);
+        else
+            operation.execute(key, up);
     }
 
     @VisibleForTesting
@@ -321,6 +327,9 @@ public class TxnReferenceOperation
             out.writeBoolean(operation.field != null);
             if (operation.field != null)
                 ByteBufferUtil.writeWithVIntLength(operation.field, out);
+            out.writeBoolean(operation.constant != null);
+            if (operation.constant != null)
+                ByteBufferUtil.writeWithVIntLength(operation.constant, out);
         }
 
         @Override
@@ -332,7 +341,8 @@ public class TxnReferenceOperation
             TxnReferenceValue value = TxnReferenceValue.serializer.deserialize(tables, in);
             ByteBuffer key = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
             ByteBuffer field = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
-            return new TxnReferenceOperation(kind, receiver, table, key, field, value);
+            ByteBuffer constant = in.readBoolean() ? ByteBufferUtil.readWithVIntLength(in) : null;
+            return new TxnReferenceOperation(kind, receiver, table, key, field, constant, value);
         }
 
         @Override
@@ -350,6 +360,10 @@ public class TxnReferenceOperation
             size += TypeSizes.sizeof(operation.field != null);
             if (operation.field != null)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(operation.field);
+
+            size += TypeSizes.sizeof(operation.constant != null);
+            if (operation.constant != null)
+                size += ByteBufferUtil.serializedSizeWithVIntLength(operation.constant);
 
             return size;
         }

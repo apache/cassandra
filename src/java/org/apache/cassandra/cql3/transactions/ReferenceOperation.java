@@ -48,16 +48,18 @@ public class ReferenceOperation
     private final TableMetadata table;
     private final TxnReferenceOperation.Kind kind;
     private final FieldIdentifier field;
+    private final Term constant;
     private final Term key;
     private final ReferenceValue value;
 
-    public ReferenceOperation(ColumnMetadata receiver, TableMetadata table, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
+    public ReferenceOperation(ColumnMetadata receiver, TableMetadata table, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, Term constant, ReferenceValue value)
     {
         this.receiver = receiver;
         this.table = table;
         this.kind = kind;
         this.key = key;
         this.field = field;
+        this.constant = constant;
         this.value = value;
     }
 
@@ -75,7 +77,8 @@ public class ReferenceOperation
         ReferenceValue value = new ReferenceValue.Constant(operation.term());
         Term key = extractKeyOrIndex(operation);
         FieldIdentifier field = extractField(operation);
-        return new ReferenceOperation(receiver, table, kind, key, field, value);
+        // Chore: Maybe we should change the semantics of this?
+        return new ReferenceOperation(receiver, table, kind, key, field, null, value);
     }
 
     public TxnReferenceOperation.Kind getKind()
@@ -105,6 +108,7 @@ public class ReferenceOperation
                                          receiver, table,
                                          key != null ? key.bindAndGet(options) : null,
                                          field != null ? field.bytes : null,
+                                         constant != null ? constant.bindAndGet(options) : null,
                                          value.bindAndGet(options));
     }
 
@@ -157,7 +161,11 @@ public class ReferenceOperation
                 }
             }
 
-            return new ReferenceOperation(receiver, metadata, kind, key, field, value.prepare(valueReceiver, bindVariables));
+            ReferenceValue referenceValue = value.prepare(valueReceiver, bindVariables);
+
+            // operation.term().equals(referenceValue.getTerm()) covers the case where we have
+            // v += row1.c,
+            return new ReferenceOperation(receiver, metadata, kind, key, field, operation.term().equals(referenceValue.getTerm()) ? null : operation.term(), referenceValue);
         }
     }
 
