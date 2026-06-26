@@ -28,8 +28,8 @@ rows: "fixed(100)"
 # single coherent deterministic history.
 rotation:
   strategy: fixed
-  target: 100
-  replace_with_new: 0
+  target: 1000
+  replace_with_new: 100
   replace_with_visited: 0
 
 columnspec:

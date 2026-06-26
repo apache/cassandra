@@ -120,7 +120,7 @@ public class LevelledSStableGenerator
         CurrentPartition currentPartition = new CurrentPartition(pkGen);
         for (int i = 0; i < writers.length; i++)
         {
-            writers[i] = SSTableGenerator.newWriter(schema, disableCompression, sstableSizeMiB, directory, i, repairedAtMillis);
+            writers[i] = SSTableGenerator.newWriter(schema, disableCompression, sstableSizeMiB, directory, i, repairedAtMillis, true);
             executors[i] = SSTableGenerator.createExecutor(schema, currentPartition, writers[i], null);
         }
         long counter = 0;

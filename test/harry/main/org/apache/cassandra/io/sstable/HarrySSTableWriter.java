@@ -122,7 +122,7 @@ public class HarrySSTableWriter implements Closeable
     public HarrySSTableWriter addRow(String cql, Object... values) throws IOException
     {
         ModificationStatement statement = prepare(cql);
-        List<ColumnSpecification> boundNames = statement.getBindVariables();
+        List<ColumnSpecification> boundNames = statement.getBindVariables(); // CACHE?
         // TODO: avoid materializing this
         List<TypeCodec<Object>> typeCodecs = boundNames.stream()
                                                        .map(bn -> JavaDriverUtils.codecFor(JavaDriverUtils.driverType(bn.type)))

@@ -42,7 +42,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 
 public class HarryCcmStressTest
 {
-    public static final Logger LOGGER = LoggerFactory.getLogger(HarryStressTest.class);
+    public static final Logger LOGGER = LoggerFactory.getLogger(HarryCcmStressTest.class);
 
     @Test
     public void stressTest() throws Throwable

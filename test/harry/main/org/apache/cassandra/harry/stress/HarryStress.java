@@ -162,6 +162,7 @@ public class HarryStress
             Visit visit = seed.get();
             innerTracker.begin(visit);
             innerTracker.end(visit);
+            partitionFactory.maybeSwitchPartition(visit.lts, action -> {});
         }
     }
 

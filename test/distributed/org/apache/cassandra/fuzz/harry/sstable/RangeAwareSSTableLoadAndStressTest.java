@@ -22,8 +22,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.Test;
@@ -39,10 +40,10 @@ import org.apache.cassandra.harry.gen.Generators;
 import org.apache.cassandra.harry.stress.HarryStress;
 import org.apache.cassandra.harry.stress.LevelledSStableGenerator;
 import org.apache.cassandra.harry.stress.RotationStrategy;
-import org.apache.cassandra.harry.stress.config.StressSchemaConfig;
 import org.apache.cassandra.harry.stress.TokenIndex;
 import org.apache.cassandra.harry.stress.TokenIndexGenerator;
 import org.apache.cassandra.harry.stress.VisitGenerator;
+import org.apache.cassandra.harry.stress.config.StressSchemaConfig;
 import org.apache.cassandra.harry.stress.distribution.Distribution;
 import org.apache.cassandra.harry.stress.distribution.Distributions;
 import org.apache.cassandra.io.util.File;
@@ -76,7 +77,11 @@ public class RangeAwareSSTableLoadAndStressTest extends TestBaseImpl
 
         Distribution visitSize = Distributions.fixed(1);
         VisitGenerator.OpKindGenFactory opKindGen = new VisitGenerator.RandomOpKindGenFactory();
-        Generator<VisitGenerator.VisitType> visitTypeGen = Generators.constant(VisitGenerator.VisitType.MUTATE);
+        Map<VisitGenerator.VisitType, Integer> weights = new HashMap<>();
+        weights.put(VisitGenerator.VisitType.MUTATE, 10);
+        weights.put(VisitGenerator.VisitType.VALIDATE, 10);
+        Generator<VisitGenerator.VisitType> visitTypeGen = Generators.weighted(weights);
+
 
         try (Cluster cluster = init(Cluster.build(NUM_NODES)
                                            .withConfig(c -> c.set("num_tokens", 1))
@@ -126,7 +131,6 @@ public class RangeAwareSSTableLoadAndStressTest extends TestBaseImpl
                                      .asserts().success();
             }
             logger.info("Generated and imported SSTables for all ranges");
-            tokenIndex.close();
 
             // Continue HarryStress live from where SSTableGenerator has finished
             HarryStress stress = new HarryStress(schema,
@@ -142,7 +146,6 @@ public class RangeAwareSSTableLoadAndStressTest extends TestBaseImpl
                                                      Object[][] rs = cluster.coordinator(1).execute(statement.cql(),
                                                                                                     ConsistencyLevel.QUORUM,
                                                                                                     statement.bindings());
-                                                     System.out.println("rs = " + Arrays.toString(rs));
                                                      if (run != null)
                                                          run.run();
                                                      return rs;
@@ -151,9 +154,11 @@ public class RangeAwareSSTableLoadAndStressTest extends TestBaseImpl
                                                  RATE_PER_SECOND,
                                                  /*minPartitionIdx=*/ 0,
                                                  /*maxPartitionIdx=*/ Long.MAX_VALUE,
-                                                 /*initialLts=*/ END_LTS);
+                                                 /*initialLts=*/ INITIAL_LTS);
 
             stress.replay(INITIAL_LTS, END_LTS);
+            tokenIndex.close();
+
             stress.start(END_LTS + STRESS_VISITS, Long.MAX_VALUE);
             logger.info("HarryStress completed an additional {} visits past the loaded SSTable history", STRESS_VISITS);
         }

@@ -186,6 +186,11 @@ public class SSTableGenerator
 
     public static HarrySSTableWriter newWriter(SchemaSpec schema, boolean disableCompression, int sstableSizeMiB, File directory, int level, long repairedAtMillis)
     {
+        return newWriter(schema, disableCompression, sstableSizeMiB, directory, level, repairedAtMillis, false);
+    }
+
+    public static HarrySSTableWriter newWriter(SchemaSpec schema, boolean disableCompression, int sstableSizeMiB, File directory, int level, long repairedAtMillis, boolean sorted)
+    {
         try
         {
             String tableCql = schema.compile();
@@ -197,13 +202,15 @@ public class SSTableGenerator
                 else
                     tableCql = noSemicolon + " WITH compression = {'enabled': 'false'};";
             }
-            return HarrySSTableWriter.builder()
-                                     .forTable(tableCql)
-                                     .inDirectory(directory)
-                                     .withMaxSSTableSizeInMiB(sstableSizeMiB)
-                                     .withSSTableLevel(level)
-                                     .withRepairedAtMillis(repairedAtMillis)
-                                     .build();
+            HarrySSTableWriter.Builder builder = HarrySSTableWriter.builder()
+                                                                    .forTable(tableCql)
+                                                                    .inDirectory(directory)
+                                                                    .withMaxSSTableSizeInMiB(sstableSizeMiB)
+                                                                    .withSSTableLevel(level)
+                                                                    .withRepairedAtMillis(repairedAtMillis);
+            if (sorted)
+                builder.sorted();
+            return builder.build();
         }
         catch (Exception e)
         {
