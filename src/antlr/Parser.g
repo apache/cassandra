@@ -807,7 +807,7 @@ rowDataReference returns [RowDataReference.Raw rawRef]
     : t=sident ('.' s=referenceSelection)? { tuple = t; selectable = s; }
     ;
 
-dottedRowDataReference returns [RowDataReference.Raw rawRef]
+indexedRowDataReference returns [RowDataReference.Raw rawRef]
     @init { Selectable.RawIdentifier tuple = null; Selectable.Raw selectable = null; }
     @after { $rawRef = newRowDataReference(tuple, selectable); }
     : t=sident '.' s=referenceSelection { tuple = t; selectable = s; }
@@ -2111,7 +2111,7 @@ normalColumnOperation[UpdateStatement.OperationCollector operations, ColumnIdent
               addRecognitionError("Only expressions of the form X = X " + ($i.text.charAt(0) == '-' ? '-' : '+') + " <value> are supported.");
           addRawUpdate(operations, key, new Operation.Addition(Constants.Literal.integer($i.text)));
       }
-     | {isParsingTxn}? r=dottedRowDataReference (sig=('+'|'-') t=term)? // Todo: This parses row1.v + 2, but we still need to handle the case for 2 + row1.v and also key + row1.v
+     | {isParsingTxn}? r=indexedRowDataReference (sig=('+'|'-') t=term)? 
        {
            if (t == null)
            {
