@@ -214,14 +214,13 @@ public class LiteralIndexSegmentTermsReader implements Closeable
     public class PrefixQuery
     {
         private final ByteComparable start;
-        private final ByteComparable end;
         private final QueryEventListener.TrieIndexEventListener listener;
         private final QueryContext context;
 
         PrefixQuery(ByteComparable start, ByteComparable end, QueryEventListener.TrieIndexEventListener listener, QueryContext context)
         {
             this.start = start;
-            this.end = end;
+            // end is unused: the trie DFS from the prefix node naturally covers the full subtree.
             this.listener = listener;
             this.context = context;
         }
@@ -231,22 +230,16 @@ public class LiteralIndexSegmentTermsReader implements Closeable
             List<PostingList> readers = new ArrayList<>();
             try
             {
-                // Fast path: if the prefix lands exactly on a node that carries an aggregated prefix section, read
-                // that single section (plus the node's own exact rows) directly instead of scanning every term.
-                PostingList aggregated = readAggregatedPrefixSection();
-                if (aggregated != null)
+                // BBTree-style single-pass DFS: navigate to the prefix node, then recursively
+                // collect posting lists. At each node, if it has a combined (exact+prefix) section
+                // the entire subtree is covered — add it and stop recursing (analogous to
+                // BlockBalancedTreeReader.collectPostingLists returning when postingsIndex.exists()).
+                try (TrieTermsDictionaryReader trieReader = new TrieTermsDictionaryReader(
+                        termDictionaryFile.instantiateRebufferer(null), termDictionaryRoot))
                 {
-                    context.checkpoint();
-                    return aggregated;
-                }
-
-                // Fallback: scan every term in [start, end] and merge their posting lists.
-                try (TrieTermsDictionaryReader.PrefixIterator iterator =
-                         new TrieTermsDictionaryReader.PrefixIterator(termDictionaryFile.instantiateRebufferer(null), termDictionaryRoot, start, end))
-                {
-                    long offset;
-                    while ((offset = iterator.nextPayload()) != TrieTermsDictionaryReader.NOT_FOUND)
-                        addReaderForTerm(offset, readers);
+                    long prefixNode = trieReader.followToPrefix(start);
+                    if (prefixNode != TrieTermsDictionaryReader.NOT_FOUND)
+                        collectFromNode(trieReader, prefixNode, readers);
                 }
 
                 context.checkpoint();
@@ -267,77 +260,68 @@ public class LiteralIndexSegmentTermsReader implements Closeable
         }
 
         /**
-         * If the prefix term resolves to a node carrying an aggregated prefix section (written when the node is at an
-         * eligible depth with at least {@code minimum_postings_leaves} descendants), returns a posting list covering
-         * all of that node's exact and prefix postings — i.e. every row under the prefix — without scanning each term.
-         * Returns null when there is no such section, so the caller falls back to the range scan.
+         * Recursively collects posting lists from the subtree rooted at {@code nodePos}.
+         * <p>
+         * Mirrors {@link org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeReader}'s
+         * {@code collectPostingLists()}:
+         * <ul>
+         *   <li>Combined (exact+prefix) section found → add it and <em>return</em> (subtree covered).</li>
+         *   <li>Exact-only section found → add it, then recurse into children.</li>
+         *   <li>No payload → recurse into children only.</li>
+         * </ul>
          */
-        private PostingList readAggregatedPrefixSection() throws IOException
+        private void collectFromNode(TrieTermsDictionaryReader trieReader, long nodePos, List<PostingList> readers) throws IOException
         {
-            long offset;
-            try (TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(termDictionaryFile.instantiateRebufferer(null), termDictionaryRoot))
-            {
-                offset = reader.exactMatch(start);
-            }
-            if (offset == TrieTermsDictionaryReader.NOT_FOUND)
-                return null;
+            long offset = trieReader.payloadAt(nodePos);
 
-            int prefixIndex;
-            int suffixIndex;
-            try (IndexInput peek = IndexFileUtils.instance.openInput(postingsFile))
+            if (offset != TrieTermsDictionaryReader.NOT_FOUND)
             {
-                PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(peek, offset, true);
-                prefixIndex = summary.prefixIndex;
-                suffixIndex = summary.suffixIndex;
-            }
-
-            // No prefix section: this is just a leaf term, whose descendants still need the range scan.
-            if (suffixIndex <= prefixIndex)
-                return null;
-
-            List<PostingList> readers = new ArrayList<>(2);
-            try
-            {
-                if (prefixIndex > 0)
+                // Peek at the BlocksSummary to determine which sections are present.
+                // The peek input is closed immediately; readExactAndPrefixForOffset /
+                // addReaderForTerm each open their own inputs for the actual readers.
+                int prefixIndex, suffixIndex;
+                try (IndexInput peek = IndexFileUtils.instance.openInput(postingsFile))
                 {
-                    PostingList exact = openSection(offset, false);
-                    if (exact != null)
-                        readers.add(exact);
+                    PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(peek, offset, true);
+                    prefixIndex = summary.prefixIndex;
+                    suffixIndex = summary.suffixIndex;
                 }
-                PostingList prefix = openSection(offset, true);
-                if (prefix != null)
-                    readers.add(prefix);
-            }
-            catch (Throwable t)
-            {
-                readers.forEach(FileUtils::closeQuietly);
-                throw t;
+
+                if (suffixIndex > prefixIndex)
+                {
+                    // Combined section covers the entire subtree — add it and stop.
+                    readers.add(readExactAndPrefixForOffset(offset));
+                    return;
+                }
+
+                if (prefixIndex > 0)
+                    addReaderForTerm(offset, readers);
             }
 
-            if (readers.isEmpty())
-                return null;
-            if (readers.size() == 1)
-                return readers.get(0);
-            return MergePostingList.merge(readers);
+            // Collect children before recursing so Walker position is not clobbered mid-loop.
+            for (long child : trieReader.childrenOf(nodePos))
+                collectFromNode(trieReader, child, readers);
         }
 
-        /** Opens a reader over the exact ({@code prefix == false}) or prefix ({@code prefix == true}) section. */
-        private PostingList openSection(long offset, boolean prefix) throws IOException
+        /**
+         * Reads exact and prefix sections together for a given postings offset.
+         */
+        private PostingList readExactAndPrefixForOffset(long offset) throws IOException
         {
             IndexInput postings = IndexFileUtils.instance.openInput(postingsFile);
             IndexInput summaryInput = IndexFileUtils.instance.openInput(postingsFile);
-            PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(summaryInput, offset, true);
-            PostingList reader = prefix ? PostingsReader.prefixSection(postings, summary, listener.postingListEventListener())
-                                        : PostingsReader.exactSection(postings, summary, listener.postingListEventListener());
-            if (reader == null)
+            PostingsReader.BlocksSummary readSummary = new PostingsReader.BlocksSummary(summaryInput, offset, true);
+            
+            PostingList combined = PostingsReader.combinedExactAndPrefixSections(postings, readSummary, listener.postingListEventListener());
+            if (combined == null)
             {
                 FileUtils.closeQuietly(postings);
-                summary.close();
+                readSummary.close();
             }
-            return reader;
+            return combined;
         }
 
-        /** Adds the exact-match posting list for a single term's payload offset (its rows under the prefix). */
+        /** Adds the exact-match posting list for a single term's payload offset. */
         private void addReaderForTerm(long offset, List<PostingList> readers)
         {
             try

@@ -126,6 +126,21 @@ public class PostingsReader implements OrdinalPostingList
         return new PostingsReader(input, summary, listener, exactBlocks, summary.numBlocks(), prefixCount);
     }
 
+    /**
+     * Opens a reader over both exact and prefix sections ({@code [0, suffixIndex)}) of a V2 posting list.
+     * This reads exact and prefix postings in a single contiguous read, which is more efficient than
+     * two separate I/O operations. Returns null if there are no postings in either section.
+     */
+    public static PostingsReader combinedExactAndPrefixSections(IndexInput input, BlocksSummary summary,
+                                                                QueryEventListener.PostingListEventListener listener) throws IOException
+    {
+        int combinedCount = summary.suffixIndex; // Exact + prefix postings
+        if (combinedCount <= 0)
+            return null;
+        int combinedBlocks = blocksFor(summary.suffixIndex, summary.blockSize);
+        return new PostingsReader(input, summary, listener, 0, combinedBlocks, combinedCount);
+    }
+
     private static int blocksFor(int postings, int blockSize)
     {
         return (postings + blockSize - 1) / blockSize;
