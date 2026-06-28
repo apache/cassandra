@@ -25,6 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import javax.annotation.Nullable;
+
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,6 +129,36 @@ public class LiteralIndexSegmentTermsReader implements Closeable
         return new PrefixQuery(start, end, perQueryEventListener, context).execute();
     }
 
+    /**
+     * Counts nodes visited by {@link PrefixQuery#collectFromNode} during a prefix traversal.
+     * Populated only when passed to {@link #prefixMatchWithStats}; the production
+     * {@link #prefixMatch} path passes {@code null} and pays zero overhead.
+     */
+    @VisibleForTesting
+    public static class TraversalStats
+    {
+        /** Nodes where {@code suffixIndex > prefixIndex}: combined section used, subtree skipped. */
+        public int combinedSectionHits;
+        /** Nodes where {@code prefixIndex > 0} but no combined section: exact section read, recursion continued. */
+        public int exactSectionHits;
+        /** Nodes with no payload: recursion only. */
+        public int emptyNodes;
+    }
+
+    /**
+     * Like {@link #prefixMatch} but also populates {@code stats} with counts of each traversal
+     * branch taken. For use in tests only.
+     */
+    @VisibleForTesting
+    public PostingList prefixMatchWithStats(ByteComparable start, ByteComparable end,
+                                            QueryEventListener.TrieIndexEventListener listener,
+                                            QueryContext context,
+                                            TraversalStats stats)
+    {
+        listener.onSegmentHit();
+        return new PrefixQuery(start, end, listener, context, stats).execute();
+    }
+
     @VisibleForTesting
     public class TermQuery
     {
@@ -216,13 +248,21 @@ public class LiteralIndexSegmentTermsReader implements Closeable
         private final ByteComparable start;
         private final QueryEventListener.TrieIndexEventListener listener;
         private final QueryContext context;
+        @Nullable private final TraversalStats stats;
 
         PrefixQuery(ByteComparable start, ByteComparable end, QueryEventListener.TrieIndexEventListener listener, QueryContext context)
+        {
+            this(start, end, listener, context, null);
+        }
+
+        PrefixQuery(ByteComparable start, ByteComparable end, QueryEventListener.TrieIndexEventListener listener, QueryContext context,
+                    @Nullable TraversalStats stats)
         {
             this.start = start;
             // end is unused: the trie DFS from the prefix node naturally covers the full subtree.
             this.listener = listener;
             this.context = context;
+            this.stats = stats;
         }
 
         public PostingList execute()
@@ -290,12 +330,20 @@ public class LiteralIndexSegmentTermsReader implements Closeable
                 if (suffixIndex > prefixIndex)
                 {
                     // Combined section covers the entire subtree — add it and stop.
+                    if (stats != null) stats.combinedSectionHits++;
                     readers.add(readExactAndPrefixForOffset(offset));
                     return;
                 }
 
                 if (prefixIndex > 0)
+                {
+                    if (stats != null) stats.exactSectionHits++;
                     addReaderForTerm(offset, readers);
+                }
+            }
+            else
+            {
+                if (stats != null) stats.emptyNodes++;
             }
 
             // Collect children before recursing so Walker position is not clobbered mid-loop.
