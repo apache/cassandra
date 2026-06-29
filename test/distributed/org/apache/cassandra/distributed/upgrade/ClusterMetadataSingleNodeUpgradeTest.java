@@ -26,6 +26,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * @see org.apache.cassandra.tools.nodetool.CMSAdmin.InitializeCMS
@@ -46,8 +47,17 @@ public class ClusterMetadataSingleNodeUpgradeTest extends UpgradeTestBase
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         })
         .runAfterClusterUpgrade((cluster) -> {
-            assertTrue(((IInvokableInstance)cluster.get(1)).callOnInstance(() -> StorageService.instance.getRangeToAddressMap("system_cluster_metadata").isEmpty()));
+            try
+            {
+                ((IInvokableInstance) cluster.get(1)).callOnInstance(() -> StorageService.instance.getRangeToAddressMap("system_cluster_metadata").isEmpty());
+                fail();
+            }
+            catch (Exception e)
+            {
+                assertTrue(e.getMessage().contains("Unknown keyspace system_cluster_metadata"));
+            }
             cluster.get(1).nodetoolResult("cms", "initialize").asserts().success();
+            ((IInvokableInstance) cluster.get(1)).callOnInstance(() -> StorageService.instance.getRangeToAddressMap("system_cluster_metadata").isEmpty());
             // make sure we can execute transformations:
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl with comment = 'hello123'"));
         }).run();

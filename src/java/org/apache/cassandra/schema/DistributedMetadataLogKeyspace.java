@@ -46,6 +46,7 @@ import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.tcm.Epoch.FIRST;
 
 public final class DistributedMetadataLogKeyspace
@@ -65,7 +66,7 @@ public final class DistributedMetadataLogKeyspace
      */
     public static final long GENERATION = 0;
 
-    public static final TableId LOG_TABLE_ID = TableId.unsafeDeterministic(SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
+    public static final TableId LOG_TABLE_ID = TableId.unsafeDeterministic(METADATA_KEYSPACE_NAME, TABLE_NAME);
     public static final String LOG_TABLE_CQL = "CREATE TABLE %s.%s ("
                                                + "epoch bigint,"
                                                + "entry_id bigint,"
@@ -80,16 +81,16 @@ public final class DistributedMetadataLogKeyspace
                                                           "compaction_window_size","1")))
         .build();
 
-    public static boolean initialize() throws IOException
+    public static boolean insertPreInitialize(PreInitialize preInit) throws IOException
     {
         try
         {
             String init = String.format("INSERT INTO %s.%s (epoch, transformation, kind, entry_id) " +
                                         "VALUES(?, ?, ?, ?) " +
-                                        "IF NOT EXISTS", SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
+                                        "IF NOT EXISTS", METADATA_KEYSPACE_NAME, TABLE_NAME);
             UntypedResultSet result = QueryProcessor.execute(init, ConsistencyLevel.QUORUM,
                                                              FIRST.getEpoch(),
-                                                             Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(PreInitialize.blank()),
+                                                             Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(preInit),
                                                              Transformation.Kind.PRE_INITIALIZE_CMS.id,
                                                              Entry.Id.NONE.entryId);
 
@@ -124,21 +125,25 @@ public final class DistributedMetadataLogKeyspace
     {
         try
         {
-            if (previousEpoch.is(FIRST) && !initialize())
+            // log is not initialized yet this is unexpected
+            if (previousEpoch.isBefore(FIRST))
+            {
+                logger.warn("Previous epoch {} indicates that the {} has not been initialized yet, " +
+                            "not committing entry {}/{} at epoch {}",
+                            previousEpoch, METADATA_KEYSPACE_NAME, entryId, transform, nextEpoch);
                 return false;
+            }
 
-            // TODO get lowest supported metadata version from ClusterMetadata
-            ByteBuffer serializedEvent = transform.kind().toVersionedBytes(transform);
-
+            ByteBuffer serializedTransform = transform.kind().toVersionedBytes(transform);
             String query = String.format("INSERT INTO %s.%s (epoch, entry_id, transformation, kind) " +
                                          "VALUES (?, ?, ?, ?) " +
                                          "IF NOT EXISTS;",
-                                         SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
+                                         METADATA_KEYSPACE_NAME, TABLE_NAME);
             UntypedResultSet result = QueryProcessor.execute(query,
                                                              ConsistencyLevel.QUORUM,
                                                              nextEpoch.getEpoch(),
                                                              entryId.entryId,
-                                                             serializedEvent,
+                                                             serializedTransform,
                                                              transform.kind().id);
 
             return result.one().getBoolean("[applied]");
@@ -186,7 +191,7 @@ public final class DistributedMetadataLogKeyspace
             // note that we want all entries with epoch >= since - but since we use a reverse partitioner, we actually
             // want all entries where the token is less than token(since)
             UntypedResultSet resultSet = execute(String.format("SELECT epoch, kind, transformation, entry_id FROM %s.%s WHERE token(epoch) <= token(?)",
-                                                               SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
+                                                               METADATA_KEYSPACE_NAME, TABLE_NAME),
                                                  consistencyLevel, since.getEpoch());
             EntryHolder entryHolder = new EntryHolder(since);
             for (UntypedResultSet.Row row : resultSet)
@@ -237,7 +242,7 @@ public final class DistributedMetadataLogKeyspace
 
     private static TableMetadata.Builder parse(String cql, String table, String description)
     {
-        return CreateTableStatement.parse(String.format(cql, SchemaConstants.METADATA_KEYSPACE_NAME, table), SchemaConstants.METADATA_KEYSPACE_NAME)
+        return CreateTableStatement.parse(String.format(cql, METADATA_KEYSPACE_NAME, table), METADATA_KEYSPACE_NAME)
                                    .id(LOG_TABLE_ID)
                                    .epoch(FIRST)
                                    .comment(description);
@@ -245,7 +250,7 @@ public final class DistributedMetadataLogKeyspace
 
     public static KeyspaceMetadata initialMetadata(Set<String> knownDatacenters)
     {
-        return KeyspaceMetadata.create(SchemaConstants.METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters), FastPathStrategy.simple()), Tables.of(Log));
+        return KeyspaceMetadata.create(METADATA_KEYSPACE_NAME, new KeyspaceParams(true, ReplicationParams.simpleMeta(1, knownDatacenters), FastPathStrategy.simple()), Tables.of(Log));
     }
 
     public static KeyspaceMetadata initialMetadata(String datacenter)

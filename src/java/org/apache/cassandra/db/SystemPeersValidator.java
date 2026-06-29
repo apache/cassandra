@@ -34,6 +34,7 @@ import org.apache.cassandra.db.virtual.PeersTable;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -68,6 +69,8 @@ public final class SystemPeersValidator
 
     public static void validateAndRepair(ClusterMetadata metadata)
     {
+        if (metadata.epoch.isBefore(Epoch.FIRST))
+            return;
         Map<InetAddressAndPort, UntypedResultSet.Row> peersV2Rows = getPeersV2Rows();
         Map<InetAddress, UntypedResultSet.Row> peersRows = getPeersRows();
 

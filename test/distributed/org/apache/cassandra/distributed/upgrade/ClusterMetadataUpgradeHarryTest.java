@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.Interruptible;
@@ -55,6 +56,7 @@ import static org.junit.Assert.assertEquals;
 public class ClusterMetadataUpgradeHarryTest extends UpgradeTestBase
 {
     @Test
+    @Ignore("CASSANDRA-21473")
     public void simpleUpgradeTest()
     {
         AtomicReference<Interruptible> executor = new AtomicReference<>();

@@ -4,6 +4,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Defer creation of the system_cluster_metadata keyspace until CMS initialization (CASSANDRA-21477)
  * Support direct I/O for background SSTable writes (CASSANDRA-21134)
  * Relax assertion on partitioner instances in SinglePartitionReadCommand (CASSANDRA-21251)
  * Report cancelled read command execution to coordinator as a RequestFailure.TIMEOUT (CASSANDRA-21468)

@@ -42,6 +42,7 @@ import accord.utils.Invariants;
 import accord.utils.btree.BTreeSet;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -50,6 +51,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.SortedBiMultiValMap;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.btree.BTreeBiMap;
 import org.apache.cassandra.utils.btree.BTreeMap;
@@ -522,6 +524,30 @@ public class Directory implements MetadataValue<Directory>
                     .map(this::getNode)
                     .map(Node::toString)
                     .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * nodeId(address): {state, tokens, ser ver, cass ver, dc:rack}
+     */
+    public String conciseToString(SortedBiMultiValMap<Token, NodeId> tokenMap)
+    {
+        return peers.entrySet().stream().map((peerEntry) -> {
+            StringBuilder sb = new StringBuilder();
+            NodeId nodeId = peerEntry.getKey();
+            sb.append(nodeId.id()).append('(').append(peerEntry.getValue()).append("): ");
+            sb.append('{');
+            sb.append(states.get(nodeId).ordinal());
+            if (tokenMap != null)
+                sb.append(',').append(tokenMap.inverse().get(nodeId));
+            NodeVersion version = versions.get(nodeId);
+            if (version != null)
+                sb.append(',').append(version.serializationVersion).append(',').append(version.cassandraVersion);
+            Location loc = locations.get(nodeId);
+            if (loc != null)
+                sb.append(',').append(loc.datacenter).append(':').append(loc.rack);
+            sb.append('}');
+            return sb.toString();
+        }).collect(Collectors.joining(","));
     }
 
     private static class Node

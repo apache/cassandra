@@ -33,6 +33,8 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
@@ -41,8 +43,11 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
+import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -87,6 +92,8 @@ public class Election
 
     public void nominateSelf(Set<InetAddressAndPort> candidates, Set<InetAddressAndPort> ignoredEndpoints, ClusterMetadata metadata, boolean verifyAllPeersMetadata)
     {
+        // Note: this is probably identical to the supplied metadata, but not guaranteed to be
+        ClusterMetadata priorState = ClusterMetadata.current();
         Set<InetAddressAndPort> sendTo = new HashSet<>(candidates);
         sendTo.removeAll(ignoredEndpoints);
         sendTo.remove(FBUtilities.getBroadcastAddressAndPort());
@@ -102,6 +109,19 @@ public class Election
         {
             logger.error("Got error nominating self", e);
             abort(initializationRequest.initiator, sendTo);
+            ClusterMetadata currentState = ClusterMetadata.current();
+
+            // Clean up the system_cluster_metadata keyspace which may have been created by PRE_INITIALIZE_CMS
+            Keyspace metaKeyspace = currentState.schema.getKeyspace(SchemaConstants.METADATA_KEYSPACE_NAME);
+            if (metaKeyspace != null)
+                metaKeyspace.unload(true);
+
+            // Remove entries from system_schema tables
+            Keyspaces.KeyspacesDiff diff = Keyspaces.diff(currentState.schema.getKeyspaces(), priorState.schema.getKeyspaces());
+            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(diff, FBUtilities.timestampMicros());
+            SchemaKeyspace.applyChanges(mutations);
+
+            ClusterMetadataService.instance().log().unsafeSetCommittedFromGossip(priorState);
             throw e;
         }
     }

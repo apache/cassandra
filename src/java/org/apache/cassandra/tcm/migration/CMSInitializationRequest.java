@@ -68,6 +68,16 @@ public class CMSInitializationRequest
         this.schemaVersion = schemaVersion;
     }
 
+    @Override
+    public String toString()
+    {
+        return "CMSInitializationRequest{" +
+               "initiator=" + initiator +
+               ", directory=" + directory.conciseToString(tokenMap.asMap()) +
+               ", schemaVersion=" + schemaVersion +
+               '}';
+    }
+
     public static class Serializer implements IVersionedSerializer<CMSInitializationRequest>
     {
         private final Version serializationVersion;
