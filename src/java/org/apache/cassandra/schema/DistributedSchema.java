@@ -21,14 +21,13 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -63,25 +62,6 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
     public static DistributedSchema empty()
     {
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);
-    }
-
-    public static DistributedSchema first(Set<String> knownDatacenters)
-    {
-        // During upgrades from pre-6.0 versions, the replication params of the system_cluster_metadata
-        // keyspace using one of the existing DCs. This is so that this keyspace does not cause issues
-        // for tooling, clients or control plane systems which may inspect schema and have specific
-        // expectations about DC layout. This keyspace is unused until the CMS is initialized.
-        // For new clusters which start out on 6.0 or later, this is not necessary to the initial
-        // replication params use a empty string for the placeholder DC name.
-
-        // During CMS initialization, the replication of this keyspace will be set for real using
-        // the DC of the first node to become a CMS member. This happens in the PreInitialize
-        // transformation when executed on the first CMS member.
-
-        if (knownDatacenters.isEmpty())
-                knownDatacenters = Collections.singleton("");
-
-        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters)), Epoch.FIRST);
     }
 
     private static ImmutableMap<TableId, TableMetadata> keyspacesToTableMap(Keyspaces keyspaces)
@@ -159,28 +139,23 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
      * @deprecated since TCM, used on upgrade from gossip to populate system schema tables with the correct generation
      */
     @Deprecated(since = "TCM")
-    public static List<Pair<KeyspaceMetadata, Long>> distributedKeyspacesWithGeneration(Set<String> knownDatacenters)
+    public static List<Pair<KeyspaceMetadata, Long>> distributedKeyspacesWithGeneration()
     {
-        return ImmutableList.of(Pair.create(DistributedMetadataLogKeyspace.initialMetadata(knownDatacenters), DistributedMetadataLogKeyspace.GENERATION),
-                                Pair.create(TraceKeyspace.metadata(), TraceKeyspace.GENERATION),
+        return ImmutableList.of(Pair.create(TraceKeyspace.metadata(), TraceKeyspace.GENERATION),
                                 Pair.create(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION),
                                 Pair.create(AuthKeyspace.metadata(),AuthKeyspace.GENERATION));
     }
 
-    public static DistributedSchema fromSystemTables(Keyspaces keyspaces, Set<String> knownDatacenters)
+    public static DistributedSchema fromSystemTables(Keyspaces keyspaces)
     {
-        if (!keyspaces.containsKeyspace(SchemaConstants.METADATA_KEYSPACE_NAME))
-        {
-            Keyspaces kss = Keyspaces.none();
-            for (Pair<KeyspaceMetadata, Long> ksmGen : distributedKeyspacesWithGeneration(knownDatacenters))
-                kss = kss.with(ksmGen.left);
-            for (KeyspaceMetadata ksm : keyspaces) // on disk keyspaces
-                kss = kss.withAddedOrUpdated(kss.get(ksm.name)
-                                                .map(k -> merged(ksm, k))
-                                                .orElse(ksm));
-            keyspaces = kss;
-        }
-        return new DistributedSchema(keyspaces, Epoch.UPGRADE_GOSSIP);
+        Keyspaces kss = Keyspaces.none();
+        for (Pair<KeyspaceMetadata, Long> ksmGen : distributedKeyspacesWithGeneration())
+            kss = kss.with(ksmGen.left);
+        for (KeyspaceMetadata ksm : keyspaces) // on disk keyspaces
+            kss = kss.withAddedOrUpdated(kss.get(ksm.name)
+                                            .map(k -> merged(ksm, k))
+                                            .orElse(ksm));
+        return new DistributedSchema(kss, Epoch.UPGRADE_GOSSIP);
     }
 
     /**
@@ -268,7 +243,8 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
             }
         });
 
-        // Avoid system table side effects during initialization
+        // Avoid system table side effects before initialization, otherwise mismatching schema can block CMS
+        // progress as nodes report disagreement. Also, tooling should not mutate system tables.
         if (epoch.isEqualOrAfter(Epoch.FIRST) && !DatabaseDescriptor.isClientOrToolInitialized())
         {
             Collection<Mutation> mutations = SchemaKeyspace.convertSchemaDiffToMutations(ksDiff, FBUtilities.timestampMicros());
@@ -479,6 +455,17 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
             ksm.types.forEach(ut -> Preconditions.checkArgument(ut.keyspace.equals(ksm.name), "Type %s points to keyspace %s while defined in keyspace %s", ut.name, ut.keyspace, ksm.name));
             ksm.userFunctions.forEach(f -> Preconditions.checkArgument(f.name().keyspace.equals(ksm.name), "Function %s points to keyspace %s while defined in keyspace %s", f.name().name, f.name().keyspace, ksm.name));
         });
+    }
+
+    public String conciseToString()
+    {
+        return keyspaces.stream()
+                        .map(ksm -> ksm.name + ": {" +
+                                    ksm.tables.stream()
+                                              .map(t -> t.name)
+                                              .collect(Collectors.joining(","))
+                                    + '}')
+                 .collect(Collectors.joining(","));
     }
 
     public static class Serializer implements MetadataSerializer<DistributedSchema>

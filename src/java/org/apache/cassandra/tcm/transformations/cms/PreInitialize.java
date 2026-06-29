@@ -52,11 +52,6 @@ public class PreInitialize implements Transformation
         this.datacenter = datacenter;
     }
 
-    public static PreInitialize forTesting()
-    {
-        return new PreInitialize(null, null);
-    }
-
     public static PreInitialize blank()
     {
         return new PreInitialize(null, null);
@@ -78,23 +73,17 @@ public class PreInitialize implements Transformation
 
         ClusterMetadata.Transformer transformer = metadata.transformer();
 
+        // This null check is a leftover from previous implementations. In earlier versions the address and datacenter
+        // were not be included in the serialized form of this transform and so were not written to the local or
+        // distributed logs nor included in the log entries sent over the wire between peers.
+        // The null check remains to handle log entries written in that legacy format. The log entry which immediately
+        // follows PRE_INITIALIZE_CMS must contain an INITIALIZE_CMS transform, which will necessarily include the
+        // distributed metadata keyspace definition with the replication settings bootstrapped by PRE_INITIALIZE. This
+        // full ClusterMetadata becomes the starting point upon which further log entries are applied. The ultimate
+        // effect of this sequence is that once INITIALIZE_CMS has been committed to the log, the actual content of
+        // PRE_INITIALIZE_CMS becomes irrelevant.
         if (addr != null)
         {
-            // If addr != null, then this is being executed on the peer which is actually initializing the log
-            // for the very first time.
-
-            // addr and datacenter are only used to bootstrap the replication of the distributed metatada
-            // keyspace on the first CMS node. They are never serialized into the distributed metadata log or
-            // passed to any other peer.
-            //
-            // PRE_INITIALIZE_CMS @ Epoch.FIRST, must be followed in the log by INITIALIZE_CMS @ (Epoch.FIRST + 1).
-            // The serialization of INITIALIZE_CMS includes the full ClusterMetadata at that point, which is
-            // obviously minimal, but will necessarily include the distributed metadata keyspace definition with
-            // the replication settings bootstrapped by PRE_INITIALIZE. This full ClusterMetadata becomes the
-            // starting point upon which further log entries are applied. So this means that once INITIALIZE_CMS
-            // has been committed to the log, the actual content of PRE_INITIALIZE_CMS is irrelevant, even on
-            // the first CMS node if it happens to replay it from its local storage after a restart.
-
             DataPlacement.Builder dataPlacementBuilder = DataPlacement.builder();
             Replica replica = new Replica(addr,
                                           MetaStrategy.partitioner.getMinimumToken(),
@@ -107,11 +96,11 @@ public class PreInitialize implements Transformation
                                                                        dataPlacementBuilder.build()).build();
 
             transformer.with(initialPlacement);
-            // re-initialise the schema distributed metadata keyspace so it gets the
-            // correct replication settings based on the DC of the initial CMS node
+            // create the distributed metadata keyspace in schema with replication settings based on the DC of the
+            // initial CMS node
             Keyspaces updated = metadata.schema.getKeyspaces()
                                                .withAddedOrReplaced(DistributedMetadataLogKeyspace.initialMetadata(datacenter));
-            transformer.with(new DistributedSchema(updated));
+            transformer.with(new DistributedSchema(updated, Epoch.FIRST));
         }
 
         ClusterMetadata.Transformer.Transformed transformed = transformer.build();
@@ -121,9 +110,13 @@ public class PreInitialize implements Transformation
         return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, transformed.modifiedKeys);
     }
 
+    @Override
     public String toString()
     {
-        return "PreInitialize";
+        return "PreInitialize{" +
+               "addr=" + addr +
+               ", datacenter='" + datacenter + '\'' +
+               '}';
     }
 
     public static class Serializer implements AsymmetricMetadataSerializer<Transformation, PreInitialize>

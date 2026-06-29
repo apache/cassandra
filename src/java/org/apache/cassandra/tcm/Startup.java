@@ -65,6 +65,7 @@ import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.migration.CMSInitializationException;
 import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -134,11 +135,14 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     }
 
     /**
-     * Make this node a _first_ CMS node.
+     * Make this node the _first_ CMS node.
      * <p>
-     * (1) Append PreInitialize transformation to local in-memory log. When distributed metadata keyspace is initialized, a no-op transformation will
-     * be added to other nodes. This is required since as of now, no node actually owns distributed metadata keyspace.
-     * (2) Commit Initialize transformation, which holds a snapshot of metadata as of now.
+     * (1) Append PreInitialize transformation to local in-memory log.
+     * (1a) Once this enacted and the distributed metadata keyspace is initialized, the PreInitialize transformation
+     * will be inserted into the log table. This is required since as before this point, the keyspace was not availble
+     * or configured with any replication or placements.
+     * (2) Commit Initialize transformation, which holds a complete snapshot of metadata as of now.
+     * Other nodes in the cluster, if there are any, will receive both of these log entries and enact them locally.
      * <p>
      * This process is applicable for gossip upgrades as well as regular vote-and-startup process.
      */
@@ -146,11 +150,17 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
     {
         InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
         String datacenter = DatabaseDescriptor.getLocator().local().datacenter;
-        ClusterMetadataService.instance().log().bootstrap(addr, datacenter);
+        ClusterMetadataService cms = ClusterMetadataService.instance();
+        cms.log().bootstrap(addr, datacenter, cms.logBootstrapCallback());
         ClusterMetadata metadata =  ClusterMetadata.current();
         assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
         Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addr.hashCode()));
-        ClusterMetadataService.instance().commit(initialize);
+        ClusterMetadataService.instance().commit(initialize,
+                                                 m -> { logger.info("INITIALIZE_CMS committed successfully"); return m;},
+                                                 (code, message) -> {
+                                                     logger.info("INITIALIZE_CMS commit failure: ({}) {}", code, message);
+                                                     throw new CMSInitializationException();
+                                                 });
     }
 
     public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor) throws StartupException
@@ -262,9 +272,9 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
         Election.instance.migrated();
     }
 
-    private static void updateSystemSchemaTables(Set<String> knownDatacenters)
+    private static void updateSystemSchemaTables()
     {
-        List<Pair<KeyspaceMetadata, Long>> kss = DistributedSchema.distributedKeyspacesWithGeneration(knownDatacenters);
+        List<Pair<KeyspaceMetadata, Long>> kss = DistributedSchema.distributedKeyspacesWithGeneration();
         List<Mutation> mutations = new ArrayList<>();
         for (Pair<KeyspaceMetadata, Long> ksm : kss)
         {
@@ -279,9 +289,8 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
      */
     public static void initializeFromGossip(Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws StartupException
     {
-        Set<String> knownDcs = SystemKeyspace.allKnownDatacenters();
-        updateSystemSchemaTables(knownDcs);
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(knownDcs);
+        updateSystemSchemaTables();
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withInitialState(emptyFromSystemTables)
                                            .afterReplay(Startup::scrubDataDirectories,
@@ -332,7 +341,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         logger.debug("Got epStates {}", epStates);
         ClusterMetadata initial = fromEndpointStates(emptyFromSystemTables.schema, epStates);
-        logger.debug("Created initial ClusterMetadata {}", initial);
+        logger.info("Created initial ClusterMetadata {}", initial.conciseToString());
         ClusterMetadataService.instance().setFromGossip(initial);
         Gossiper.instance.clearUnsafe();
 

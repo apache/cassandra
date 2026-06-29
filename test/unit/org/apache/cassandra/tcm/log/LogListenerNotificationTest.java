@@ -101,7 +101,7 @@ public class LogListenerNotificationTest
                                .withLogListener(listener)
                                .createLog();
         log.readyUnchecked();
-        log.append(new Entry(Entry.Id.NONE, Epoch.FIRST, PreInitialize.forTesting()));
+        log.append(new Entry(Entry.Id.NONE, Epoch.FIRST, PreInitialize.blank()));
         log.append(input);
     }
 

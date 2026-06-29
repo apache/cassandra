@@ -19,14 +19,12 @@
 package org.apache.cassandra.schema;
 
 import java.util.HashMap;
-import java.util.Set;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -64,8 +62,7 @@ public class DistributedSchemaTest
                                                       KeyspaceParams.simple(3),
                                                       Tables.of(modifiedTable, nonstandard));
 
-        DistributedSchema schema = DistributedSchema.fromSystemTables(Keyspaces.of(km),
-                                                                      Set.of(DatabaseDescriptor.getLocalDataCenter()));
+        DistributedSchema schema = DistributedSchema.fromSystemTables(Keyspaces.of(km));
         KeyspaceMetadata merged = schema.getKeyspaceMetadata(SchemaConstants.AUTH_KEYSPACE_NAME);
         assertThat(merged.getTableOrViewNullable(AuthKeyspace.ROLES)).isEqualTo(modifiedTable);
         assertThat(merged.getTableOrViewNullable("nonstandard")).isEqualTo(nonstandard);

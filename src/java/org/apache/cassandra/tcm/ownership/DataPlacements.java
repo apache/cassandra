@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -217,6 +218,11 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     public Builder unbuild()
     {
         return new Builder(new HashMap<>(this.asMap()));
+    }
+
+    public String conciseToString()
+    {
+        return keys().stream().map(ReplicationParams::toString).collect(Collectors.joining(","));
     }
 
     public static class Builder

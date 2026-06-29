@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -277,22 +278,24 @@ public abstract class LocalLog implements Closeable
     @VisibleForTesting
     public void unsafeBootstrapForTesting(InetAddressAndPort addr)
     {
-        bootstrap(addr, "");
+        bootstrap(addr, "", (p) -> {});
     }
 
     /**
-     *
-     * @param addr
-     * @param datacenter
+     * Set up the initial state of the local ClusterMetadata, enacting the PreInitialize transform which sets up the
+     * distributed metadata log keyspace, its replication, and data placements.
+     * @param addr Address of the first CMS member, this should be the local node address
+     * @param datacenter DC of the first CMS member
      */
-    public void bootstrap(InetAddressAndPort addr, String datacenter)
+    public void bootstrap(InetAddressAndPort addr, String datacenter, Consumer<PreInitialize> postBootstrap)
     {
         ClusterMetadata metadata = metadata();
         assert metadata.epoch.isBefore(FIRST) : String.format("Metadata epoch %s should be before first", metadata.epoch);
-        Transformation transform = PreInitialize.withFirstCMS(addr, datacenter);
+        PreInitialize transform = PreInitialize.withFirstCMS(addr, datacenter);
         append(new Entry(Entry.Id.NONE, FIRST, transform));
         metadata = waitForHighestConsecutive();
         assert metadata.epoch.is(Epoch.FIRST) : String.format("Epoch: %s. CMS: %s", metadata.epoch, metadata.fullCMSMembers());
+        postBootstrap.accept(transform);
     }
 
     public LogStorage storage()
@@ -475,8 +478,15 @@ public abstract class LocalLog implements Closeable
 
             ClusterMetadata prev = committed.get();
             // ForceSnapshot + Bootstrap entries can "jump" epoch
-            boolean isPreInit = pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS;
-            boolean isSnapshot = pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT;
+            Transformation.Kind kind = pendingEntry.transform.kind();
+            boolean isPreInit = kind == Transformation.Kind.PRE_INITIALIZE_CMS;
+            boolean isInit = kind == Transformation.Kind.INITIALIZE_CMS;
+            boolean isSnapshot = kind == Transformation.Kind.FORCE_SNAPSHOT ;
+            // only a PRE_INITIALIZE_CMS or a snapshot is allowed to skip over gaps.
+            // Note: INITIALIZE_CMS is not allowed to do this as during upgrades it can allow us to jump over the
+            // PRE_INITIALIZE_CMS entry if the INITIALIZE_CMS is received first. This then creates a gap at Epoch.FIRST
+            // which can never be resolved. In turn, that makes it impossible to build a LogState for replay purposes
+            // with a correct and consecutive set of entries if the node is bounced before applying a later snapshot.
             if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
                 || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
             {
@@ -512,7 +522,7 @@ public abstract class LocalLog implements Closeable
                     if (replayComplete.get() && pendingEntry.transform.kind() != Transformation.Kind.FORCE_SNAPSHOT)
                         storage.append(pendingEntry.maybeUnwrapExecuted());
 
-                    notifyPreCommit(prev, next, isSnapshot);
+                    notifyPreCommit(prev, next, isSnapshot || isInit);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -528,7 +538,7 @@ public abstract class LocalLog implements Closeable
                                                                       next.epoch, prev.epoch, metadata().epoch));
                     }
 
-                    notifyPostCommit(prev, next, isSnapshot);
+                    notifyPostCommit(prev, next, isSnapshot || isInit);
                 }
                 catch (StopProcessingException t)
                 {
@@ -917,7 +927,7 @@ public abstract class LocalLog implements Closeable
     private LogListener snapshotListener()
     {
         return (entry, metadata) -> {
-            if (ClusterMetadataService.state() != ClusterMetadataService.State.LOCAL)
+            if (entry.epoch.isEqualOrBefore(Epoch.FIRST) || ClusterMetadataService.state() != ClusterMetadataService.State.LOCAL)
                 return;
 
             if ((entry.epoch.getEpoch() % DatabaseDescriptor.getMetadataSnapshotFrequency()) == 0)

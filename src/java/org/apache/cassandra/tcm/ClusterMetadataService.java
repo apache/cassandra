@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -52,6 +53,7 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -79,6 +81,7 @@ import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.TriggerSnapshot;
+import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.tcm.transformations.cms.PrepareCMSReconfiguration;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -138,6 +141,14 @@ public class ClusterMetadataService
     private final LocalLog log;
     private final MetadataSnapshots snapshots;
 
+    /*
+     * Special callback for execution when the PreInitialize transformation is used to bootstrap the cluster metadata
+     * log. In practice, this is only relevant when using PaxosBackedProcessor which needs to insert the PreInitialize
+     * entry into the distributed log table, but is unable to do so until it has been enacted, the keyspace created and
+     * the replication configured.
+     */
+    private final Consumer<PreInitialize> logBootstrapCallback;
+
     private final IVerbHandler<LogState> replicationHandler;
     private final IVerbHandler<LogState> logNotifyHandler;
     private final IVerbHandler<FetchCMSLog> fetchLogHandler;
@@ -181,13 +192,17 @@ public class ClusterMetadataService
         if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
             log = logSpec.sync().withStorage(new AtomicLongBackedProcessor.InMemoryStorage()).createLog();
-            localProcessor = wrapProcessor.apply(new AtomicLongBackedProcessor(log, logSpec.isReset()));
+            AtomicLongBackedProcessor processor =  new AtomicLongBackedProcessor(log, logSpec.isReset());
+            logBootstrapCallback = logBootstrapCallback(processor);
+            localProcessor = wrapProcessor.apply(processor);
             fetchLogHandler = new FetchCMSLog.Handler((e, ignored) -> logSpec.storage().getLogState(e));
         }
         else
         {
             log = logSpec.async().createLog();
-            localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
+            PaxosBackedProcessor processor = new PaxosBackedProcessor(log);
+            logBootstrapCallback = logBootstrapCallback(processor);
+            localProcessor = wrapProcessor.apply(processor);
             fetchLogHandler = new FetchCMSLog.Handler();
         }
 
@@ -234,8 +249,12 @@ public class ClusterMetadataService
         commitRequestHandler = isMemberOfOwnershipGroup ? new Commit.Handler(processor, replicator, () -> LOCAL) : null;
 
         peerLogFetcher = new PeerLogFetcher(log);
+        logBootstrapCallback = logBootstrapCallback(processor);
     }
 
+    /**
+     * Only called from initializeForTools
+     */
     private ClusterMetadataService(PlacementProvider placementProvider,
                                    MetadataSnapshots snapshots,
                                    LocalLog log,
@@ -257,6 +276,7 @@ public class ClusterMetadataService
         this.fetchLogHandler = fetchLogHandler;
         this.commitRequestHandler = commitRequestHandler;
         this.peerLogFetcher = peerLogFetcher;
+        this.logBootstrapCallback = logBootstrapCallback(processor);
     }
 
     @SuppressWarnings("resource")
@@ -265,8 +285,7 @@ public class ClusterMetadataService
         if (instance != null)
             return;
         String localDC = DatabaseDescriptor.getLocalDataCenter();
-        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables(Collections.singleton(localDC))
-                                                .forceEpoch(Epoch.EMPTY);
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables().forceEpoch(Epoch.EMPTY);
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
                                            .withInitialState(emptyFromSystemTables)
@@ -294,7 +313,7 @@ public class ClusterMetadataService
                                                                 new PeerLogFetcher(log));
 
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC, (p) -> {});
         ClusterMetadataService.setInstance(cms);
     }
 
@@ -336,10 +355,43 @@ public class ClusterMetadataService
                                                                 null);
 
         log.readyUnchecked();
-        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC, (p) -> {});
         ClusterMetadataService.setInstance(cms);
     }
 
+    /*
+     * Hook to be executed when the LocalLog is bootstrapped with the PreInitialize transformation. This is done on
+     * the first CMS member to set up the initial replication and data placements for the metadata keyspace.
+     */
+    public Consumer<PreInitialize> logBootstrapCallback()
+    {
+        return logBootstrapCallback;
+    }
+
+    private static Consumer<PreInitialize> logBootstrapCallback(Processor processor)
+    {
+        if (processor instanceof PaxosBackedProcessor)
+        {
+            // Insert an entry containing the PRE_INITIALIZE_CMS transform at Epoch.FIRST in the distributed
+            // log table. This can only be done after the log is bootstrapped as it depends on the effects of
+            // that transform on ClusterMetadata.
+            return preInit -> {
+                try
+                {
+                    if (DistributedMetadataLogKeyspace.insertPreInitialize(preInit))
+                        logger.info("Successfully inserted pre-initialize entry into distributed metadata log");
+                    else
+                        throw new IllegalStateException("Failed to insert pre-initialize entry into distributed metadata log. Check server for details");
+                }
+                catch (IOException e)
+                {
+                    throw new IllegalStateException("Unable to pre-initialize distributed metadata log table", e);
+                }
+            };
+        }
+        // otherwise, this is a noop.
+        return preInit -> {};
+    }
 
     @SuppressWarnings("resource")
     public static void initializeForClients()

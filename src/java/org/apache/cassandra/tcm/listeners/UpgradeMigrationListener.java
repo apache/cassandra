@@ -21,9 +21,11 @@ package org.apache.cassandra.tcm.listeners;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CassandraVersion;
 
 /**
@@ -42,11 +44,20 @@ public class UpgradeMigrationListener implements ChangeListener
     {
         if (prev.epoch.equals(Epoch.UPGRADE_GOSSIP))
         {
-            logger.info("Detected upgrade from gossip mode, updating my host id in gossip to {}", next.myNodeId());
-            Gossiper.instance.mergeNodeToGossip(next.myNodeId(), next);
+            logger.info("Detected upgrade from gossip mode");
+            return;
+        }
+        else if (prev.epoch.equals(Epoch.FIRST) && !next.directory.isEmpty()) // directory is non-empty after initialization during gossip upgrade
+        {
+            NodeId localId = next.myNodeId();
+            if (localId != null)
+            {
+                logger.info("Initialized CMS, updating local host id to {}", next.myNodeId());
+                SystemKeyspace.setLocalHostId(next.myNodeId().toUUID());
+                Gossiper.instance.mergeNodeToGossip(next.myNodeId(), next);
+            }
             if (Gossiper.instance.getQuarantineDisabled())
                 Gossiper.instance.clearQuarantinedEndpoints();
-            return;
         }
 
         CassandraVersion prevMinVersion = prev.directory.clusterMinVersion.cassandraVersion;
