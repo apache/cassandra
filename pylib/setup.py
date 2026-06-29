@@ -20,11 +20,15 @@ from distutils.core import setup
 
 
 def get_extensions():
-    if "--no-compile" in sys.argv:
+    # Cython < 3.0 is incompatible with Python 3.12+ C-API changes
+    if "--no-compile" in sys.argv or sys.version_info >= (3, 12):
         return []
 
-    from Cython.Build import cythonize
-    return cythonize("cqlshlib/copyutil.py")
+    try:
+        from Cython.Build import cythonize
+        return cythonize("cqlshlib/copyutil.py")
+    except ImportError:
+        return []
 
 setup(
     name="cassandra-pylib",
