@@ -146,7 +146,7 @@
             <attribute name="classifier" default=""/>
             <attribute name="packaging" default="jar"/>
             <sequential>
-                <exec dir="." executable="sh">
+                <exec dir="." executable="sh" failonerror="true" failifexecutionfails="true">
                     <arg line="-c 'mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
                 </exec>
             </sequential>
@@ -158,7 +158,7 @@
             <attribute name="classifier" default=""/>
             <attribute name="packaging" default="jar"/>
             <sequential>
-                <exec dir="." executable="sh">
+                <exec dir="." executable="sh" failonerror="true" failifexecutionfails="true">
                     <arg line="-c 'mvn org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
                 </exec>
             </sequential>
@@ -168,7 +168,7 @@
             <attribute name="file"/>
             <sequential>
                 <echo message="gpg signing @{file}" />
-                <exec dir="." executable="sh">
+                <exec dir="." executable="sh" failonerror="true" failifexecutionfails="true">
                     <!-- dummy out the deploy parameters, only the signing is required here -->
                     <arg line="-c 'mvn -q org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -Dfile=@{file} -DgroupId=org.apache.cassandra -DartifactId=cassandra-parent -Dversion=${version} -Durl=file:///tmp/ -DrepositoryId=tmp'" />
                 </exec>
