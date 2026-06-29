@@ -183,6 +183,10 @@ public class MutationJournalReplayTest
                                       }
                                   }
 
+                                  // Persisting needsReplay=false is deferred until LogStatePersister drains the
+                                  // queue. There's no persister in this test, so drain manually before replay.
+                                  journal.drainCleanup(journal.snapshotPendingClearReplay());
+
                                   List<Mutation> replayed = new ArrayList<>();
                                   journal.replay(new DeserializedRecordConsumer<ShortMutationId, Mutation>(MutationJournal.MutationSerializer.INSTANCE)
                                   {
