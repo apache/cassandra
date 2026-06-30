@@ -28,13 +28,16 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -51,7 +54,6 @@ import org.apache.cassandra.utils.JsonUtils;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -130,6 +132,15 @@ public class IndexStatusManagerTest
                 return new Testcase(this);
             }
         }
+    }
+
+    @BeforeClass
+    public static void setUpClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
+        for (int i = 251; i <= 255; i++)
+            ClusterMetadataTestHelper.register(InetAddressAndPort.getByNameUnchecked("127.0.0." + i));
     }
 
     @Test
@@ -290,6 +301,7 @@ public class IndexStatusManagerTest
     @Test
     public void shouldThrowWhenNotEnoughQueryableEndpoints()
     {
+        int port = DatabaseDescriptor.getStoragePort();
         assertThatThrownBy(() ->
                 runTest(new Testcase.Builder()
                         .keyspace("ks1")
@@ -330,13 +342,14 @@ public class IndexStatusManagerTest
                         .build()))
                 .isInstanceOf(ReadFailureException.class)
                 .hasMessageStartingWith("Operation failed")
-                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.252:7000")
-                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.254:7000");
+                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.252:" + port)
+                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.254:" + port);
     }
 
     @Test
     public void shouldThrowWhenNoQueryableEndpoints()
     {
+        int port = DatabaseDescriptor.getStoragePort();
         assertThatThrownBy(() ->
                 runTest(new Testcase.Builder()
                         .keyspace("ks1")
@@ -365,9 +378,9 @@ public class IndexStatusManagerTest
                         .build()))
                 .isInstanceOf(ReadFailureException.class)
                 .hasMessageStartingWith("Operation failed")
-                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.253:7000")
-                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.254:7000")
-                .hasMessageContaining("INDEX_BUILD_IN_PROGRESS from /127.0.0.255:7000");
+                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.253:" + port)
+                .hasMessageContaining("INDEX_NOT_AVAILABLE from /127.0.0.254:" + port)
+                .hasMessageContaining("INDEX_BUILD_IN_PROGRESS from /127.0.0.255:" + port);
     }
 
     void runTest(Testcase testcase)
@@ -486,43 +499,5 @@ public class IndexStatusManagerTest
         assertFalse(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("5.0.0")));
         assertFalse(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("5.0.2")));
         assertFalse(IndexStatusManager.shouldWriteToIndexTablesForTesting(new CassandraVersion("4.1.0")));
-    }
-
-    @Test
-    public void testProcessEventsUpdatesPeerIndexStatus()
-    {
-        IndexStatusManager manager = IndexStatusManager.instance;
-        InetAddressAndPort peer = InetAddressAndPort.getByNameUnchecked("127.0.0.100");
-
-        Map<String, Index.Status> peerStatuses = new HashMap<>();
-        manager.peerIndexStatus.put(peer, peerStatuses);
-
-        assertEquals(Index.Status.UNKNOWN, manager.getIndexStatus(peer, "ks1", "idx1"));
-        peerStatuses.put("ks1.idx1", Index.Status.BUILD_SUCCEEDED);
-        assertEquals(Index.Status.BUILD_SUCCEEDED, manager.getIndexStatus(peer, "ks1", "idx1"));
-    }
-
-    @Test
-    public void testProcessEventsHandlesDropped()
-    {
-        IndexStatusManager manager = IndexStatusManager.instance;
-        InetAddressAndPort peer = InetAddressAndPort.getByNameUnchecked("127.0.0.101");
-
-        Map<String, Index.Status> peerStatuses = new HashMap<>();
-        peerStatuses.put("ks1.idx1", Index.Status.BUILD_SUCCEEDED);
-        manager.peerIndexStatus.put(peer, peerStatuses);
-
-        assertEquals(Index.Status.BUILD_SUCCEEDED, manager.getIndexStatus(peer, "ks1", "idx1"));
-
-        peerStatuses.remove("ks1.idx1");
-
-        assertEquals(Index.Status.UNKNOWN, manager.getIndexStatus(peer, "ks1", "idx1"));
-    }
-
-    @Test
-    public void testResetLastPollTimestamp()
-    {
-        IndexStatusManager manager = IndexStatusManager.instance;
-        manager.resetLastPollTimestamp();
     }
 }

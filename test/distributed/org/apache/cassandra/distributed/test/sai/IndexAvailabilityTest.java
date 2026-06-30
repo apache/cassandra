@@ -48,6 +48,8 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -75,7 +77,8 @@ public class IndexAvailabilityTest extends TestBaseImpl
     public void verifyIndexStatusPropagation() throws Exception
     {
         try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                                           .withConfig(config -> config.with(GOSSIP).with(NETWORK)
+                                                                       .set("index_status_poll_interval_in_seconds", "1"))
                                            .start()))
         {
             verifyIndexStatusPropagation(cluster);
@@ -202,7 +205,8 @@ public class IndexAvailabilityTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(3)
                 .withConfig(config -> config.with(GOSSIP)
-                                                          .with(NETWORK))
+                                            .with(NETWORK)
+                                            .set("index_status_poll_interval_in_seconds", "1"))
                 .start()))
         {
             String ks2 = "ks2";
@@ -447,7 +451,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 Map<String, Index.Status> localStatusMap =
                         IndexStatusManager.instance.peerIndexStatus
-                                .computeIfAbsent(FBUtilities.getBroadcastAddressAndPort(), k -> new HashMap<>());
+                                .computeIfAbsent(ClusterMetadata.current().myNodeId(), k -> new HashMap<>());
 
                 for (int ks = 0; ks < 100; ks++)
                     for (int idx = 0; idx < 200; idx++)
@@ -481,8 +485,7 @@ public class IndexAvailabilityTest extends TestBaseImpl
             waitForIndexingStatus(cluster.get(2), ks, index1, cluster.get(1), Index.Status.BUILD_SUCCEEDED);
 
             cluster.get(1).runOnInstance(() -> {
-                java.util.Map<java.util.UUID, java.util.Map<String, Index.Status>> allStatuses =
-                        SystemDistributedKeyspace.allIndexStatuses();
+                Map<NodeId, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
                 assertTrue("index_build_status table should be empty in mixed-version cluster, but has " + allStatuses.size() + " entries",
                            allStatuses.isEmpty());
             });
@@ -491,8 +494,8 @@ public class IndexAvailabilityTest extends TestBaseImpl
             waitForIndexingStatus(cluster.get(2), ks, index1, cluster.get(1), Index.Status.BUILD_FAILED);
 
             cluster.get(1).runOnInstance(() -> {
-                java.util.Map<java.util.UUID, java.util.Map<String, Index.Status>> allStatuses =
-                        SystemDistributedKeyspace.allIndexStatuses();
+                Map<NodeId, Map<String, Index.Status>> allStatuses =
+                SystemDistributedKeyspace.allIndexStatuses();
                 assertTrue("index_build_status table should still be empty in mixed-version cluster",
                            allStatuses.isEmpty());
             });
