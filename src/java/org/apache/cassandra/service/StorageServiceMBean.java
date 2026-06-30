@@ -1170,18 +1170,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     List<String> getAccordManagedKeyspaces();
     List<String> getAccordManagedTables();
 
-    /** Get the CMS commit member preference policy
-     *
-     * @return how to choose the cms member preference order for commits
-     */
-    public String getCmsCommitMemberPreferencePolicy();
-
-    /** Update the CMS commit member preference policy
-     *
-     * @param policy see Config.CMSCommitMemberPreferencePolicy
-     */
-    public void setCmsCommitMemberPreferencePolicy(String policy);
-
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable
     {
