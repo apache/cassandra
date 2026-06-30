@@ -61,6 +61,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -220,11 +221,11 @@ public final class SystemDistributedKeyspace
         parse(COMPRESSION_DICTIONARIES, "Compression dictionaries for applicable tables", COMPRESSION_DICTIONARIES_CQL).build();
 
     public static final String INDEX_BUILD_STATUS_CQL = "CREATE TABLE IF NOT EXISTS %s (" +
-                                                        "host_id uuid," +
+                                                        "node_id int," +
                                                         "keyspace_name text," +
                                                         "index_name text," +
                                                         "status text," +
-                                                        "PRIMARY KEY (host_id, keyspace_name, index_name))";
+                                                        "PRIMARY KEY (node_id, keyspace_name, index_name))";
     private static final TableMetadata IndexBuildStatus =
             parse(INDEX_BUILD_STATUS, "Index build status", INDEX_BUILD_STATUS_CQL).build();
 
@@ -232,10 +233,10 @@ public final class SystemDistributedKeyspace
                                                    "date text," +
                                                    "event_time timestamp," +
                                                    "index_name text," +
-                                                   "host_id UUID," +
+                                                   "node_id int," +
                                                    "event text," +
-                                                   "PRIMARY KEY (date, event_time, index_name, host_id)) " +
-                                                   "WITH CLUSTERING ORDER BY (event_time DESC)";
+                                                   "PRIMARY KEY (date, event_time, index_name, node_id)) " +
+                                                   "WITH CLUSTERING ORDER BY (event_time ASC)";
 
     private static final TableMetadata IndexEventsTable =
         parse(INDEX_EVENTS, "Index events for applicable tables", INDEX_EVENTS_CQL)
@@ -443,34 +444,55 @@ public final class SystemDistributedKeyspace
         forceBlockingFlush(VIEW_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
-    public static void updateIndexStatus(UUID hostId, String keyspace, String index, Index.Status status)
+    public static void updateIndexStatus(NodeId nodeId, String keyspace, String index, Index.Status status)
     {
-        String query = "INSERT INTO %s.%s (host_id, keyspace_name, index_name, status) VALUES (?, ?, ?, ?)";
-        QueryProcessor.process(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
-                               ConsistencyLevel.ONE,
-                               Lists.newArrayList(bytes(hostId),
-                                                  bytes(keyspace),
-                                                  bytes(index),
-                                                  bytes(status.toString())));
+        String query = "INSERT INTO %s.%s (node_id, keyspace_name, index_name, status) VALUES (?, ?, ?, ?)";
+        try
+        {
+            QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
+                                   ConsistencyLevel.QUORUM, nodeId.id(), keyspace, index, status.toString());
+        }
+        catch (Exception e)
+        {
+            logger.warn("Failed to update index status with QUORUM for {}.{}, retrying with ONE", keyspace, index);
+            QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
+                                   ConsistencyLevel.ONE, nodeId.id(), keyspace, index, status.toString());
+        }
     }
 
-    public static void setIndexRemoved(UUID hostId, String keyspaceName, String indexName)
+    public static void setIndexRemoved(NodeId nodeId, String keyspaceName, String indexName)
     {
-        String buildReq = "DELETE FROM %s.%s WHERE host_id = ? AND keyspace_name = ? AND index_name = ?";
-        QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
-                                       hostId, keyspaceName, indexName);
+        String buildReq = format("DELETE FROM %s.%s WHERE node_id = ? AND keyspace_name = ? AND index_name = ?",
+                                 SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS);
+        try
+        {
+            QueryProcessor.execute(buildReq, ConsistencyLevel.QUORUM, nodeId.id(), keyspaceName, indexName);
+        }
+        catch (Exception e)
+        {
+            logger.warn("Failed to remove index status with QUORUM for {}.{}, retrying with ONE", keyspaceName, indexName);
+            QueryProcessor.execute(buildReq, ConsistencyLevel.ONE, nodeId.id(), keyspaceName, indexName);
+        }
         forceBlockingFlush(INDEX_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
-    public static Map<UUID, Map<String, Index.Status>> allIndexStatuses()
+    public static Map<NodeId, Map<String, Index.Status>> allIndexStatuses()
     {
-        String query = "SELECT host_id, keyspace_name, index_name, status FROM %s.%s";
+        String query = format("SELECT node_id, keyspace_name, index_name, status FROM %s.%s",
+                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS);
         UntypedResultSet results;
 
         try
         {
-            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
-                                             ConsistencyLevel.ONE);
+            try
+            {
+                results = QueryProcessor.execute(query, ConsistencyLevel.QUORUM);
+            }
+            catch (Exception e)
+            {
+                logger.warn("Failed to load index statuses with QUORUM, retrying with ONE");
+                results = QueryProcessor.execute(query, ConsistencyLevel.ONE);
+            }
         }
         catch (Exception e)
         {
@@ -478,32 +500,39 @@ public final class SystemDistributedKeyspace
             return Collections.emptyMap();
         }
 
-        Map<UUID, Map<String, Index.Status>> allStatuses = new HashMap<>();
+        Map<NodeId, Map<String, Index.Status>> allStatuses = new HashMap<>();
         for (UntypedResultSet.Row row : results)
         {
-            UUID hostId = row.getUUID("host_id");
+            NodeId nodeId = new NodeId(row.getInt("node_id"));
             String identifier = row.getString("keyspace_name") + '.' + row.getString("index_name");
             Index.Status status = Index.Status.valueOf(row.getString("status"));
-            allStatuses.computeIfAbsent(hostId, k -> new HashMap<>()).put(identifier, status);
+            allStatuses.computeIfAbsent(nodeId, k -> new HashMap<>()).put(identifier, status);
         }
 
         return allStatuses;
     }
 
-    public static Map<String, Index.Status> allIndexStatusesForHost(UUID hostId)
+    public static Map<String, Index.Status> allIndexStatusesForHost(NodeId nodeId)
     {
-        String query = "SELECT keyspace_name, index_name, status FROM %s.%s WHERE host_id = ?";
+        String query = format("SELECT keyspace_name, index_name, status FROM %s.%s WHERE node_id = ?",
+                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS);
         UntypedResultSet results;
 
         try
         {
-            results = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_BUILD_STATUS),
-                                             ConsistencyLevel.ONE,
-                                             hostId);
+            try
+            {
+                results = QueryProcessor.execute(query, ConsistencyLevel.QUORUM, nodeId.id());
+            }
+            catch (Exception e)
+            {
+                logger.warn("Failed to load index statuses with QUORUM for host {}, retrying with ONE", nodeId);
+                results = QueryProcessor.execute(query, ConsistencyLevel.ONE, nodeId.id());
+            }
         }
         catch (Exception e)
         {
-            logger.warn("Unable to load index statuses from system table for host {}: {}", hostId, e.getMessage());
+            logger.warn("Unable to load index statuses from system table for host {}: {}", nodeId, e.getMessage());
             return Collections.emptyMap();
         }
 
@@ -517,34 +546,33 @@ public final class SystemDistributedKeyspace
         return statuses;
     }
 
-    public static void recordIndexEvent(UUID hostId, String keyspace, String index, Index.Status status)
+    public static void recordIndexEvent(NodeId nodeId, String keyspace, String index, Index.Status status)
     {
-        String query = "INSERT INTO %s.%s (date, event_time, index_name, host_id, event) VALUES (?, to_timestamp(now()), ?, ?, ?)";
-        QueryProcessor.process(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS),
-                               ConsistencyLevel.ONE,
-                               Lists.newArrayList(bytes(LocalDate.now(ZoneOffset.UTC).toString()),
-                                                  bytes(keyspace + '.' + index),
-                                                  bytes(hostId),
-                                                  bytes(status.toString())));
+        String query = format("INSERT INTO %s.%s (date, event_time, index_name, node_id, event) VALUES (?, to_timestamp(now()), ?, ?, ?)",
+                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS);
+        QueryProcessor.execute(query, ConsistencyLevel.QUORUM,
+                               LocalDate.now(ZoneOffset.UTC).toString(), keyspace + '.' + index, nodeId.id(), status.toString());
     }
 
     public static UntypedResultSet queryIndexEvents(String date, long sinceTimestampMillis)
     {
-        String query = "SELECT index_name, host_id, event FROM %s.%s WHERE date = ? AND event_time > ? ";
-        UntypedResultSet status;
+        String query = format("SELECT index_name, node_id, event, event_time FROM %s.%s WHERE date = ? AND event_time > ?",
+                              SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS);
         try
         {
-            status = QueryProcessor.execute(format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, INDEX_EVENTS),
-                                             ConsistencyLevel.ONE,
-                                             date,
-                                             new java.util.Date(sinceTimestampMillis));
+            return QueryProcessor.execute(query, ConsistencyLevel.QUORUM, date, new java.util.Date(sinceTimestampMillis));
         }
         catch (Exception e)
         {
-            return null;
+            try
+            {
+                return QueryProcessor.execute(query, ConsistencyLevel.ONE, date, new java.util.Date(sinceTimestampMillis));
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
         }
-
-        return status;
     }
 
     /**

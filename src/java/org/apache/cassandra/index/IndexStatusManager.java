@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -59,6 +58,7 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -83,8 +83,6 @@ public class IndexStatusManager
 
     private static final int MAX_GOSSIP_VALUE_SIZE = 65535;
 
-    public static final String TABLE_FALLBACK_MARKER = "TABLE_FALLBACK";
-
     private volatile long lastPollTimestampMillis = 0;
 
     private ScheduledFuture<?> pollFuture;
@@ -96,7 +94,7 @@ public class IndexStatusManager
     /**
      * A map of per-endpoint index statuses: the key of inner map is the identifier "keyspace.index"
      */
-    public final Map<InetAddressAndPort, Map<String, Index.Status>> peerIndexStatus = new HashMap<>();
+    public final Map<NodeId, Map<String, Index.Status>> peerIndexStatus = new HashMap<>();
 
     private IndexStatusManager() {}
 
@@ -182,18 +180,18 @@ public class IndexStatusManager
             if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                 return;
 
+            NodeId nodeId = ClusterMetadata.current().directory.peerId(endpoint);
+
+            if (nodeId == null)
+            {
+                logger.warn("Ignoring index status from unknown endpoint {}",  endpoint);
+                return;
+            }
+
             Map<String, Index.Status> indexStatusMap;
 
-            if (versionedValue.value.equals(TABLE_FALLBACK_MARKER))
-            {
-                indexStatusMap = SystemDistributedKeyspace.allIndexStatusesForHost(StorageService.instance.getHostIdForEndpoint(endpoint));
-            }
-            else
-            {
-                indexStatusMap = statusMapFromString(versionedValue);
-            }
-
-            Map<String, Index.Status> oldStatus = peerIndexStatus.put(endpoint, indexStatusMap);
+            indexStatusMap = statusMapFromString(versionedValue);
+            Map<String, Index.Status> oldStatus = peerIndexStatus.put(nodeId, indexStatusMap);
             Map<String, Index.Status> updated = updatedIndexStatuses(oldStatus, indexStatusMap);
             Set<String> removed = removedIndexStatuses(oldStatus, indexStatusMap);
             if (!updated.isEmpty() || !removed.isEmpty())
@@ -254,40 +252,36 @@ public class IndexStatusManager
     {
         try
         {
-            Map<String, Index.Status> statusMap = peerIndexStatus.computeIfAbsent(FBUtilities.getBroadcastAddressAndPort(),
-                                                                               k -> new HashMap<>());
+            NodeId localNodeId = ClusterMetadata.current().myNodeId();
+            if (localNodeId == null)
+                return;
+            Map<String, Index.Status> statusMap = peerIndexStatus.computeIfAbsent(localNodeId, k -> new HashMap<>());
             String keyspaceIndex = identifier(keyspace, index);
-            UUID localHostId = StorageService.instance.getLocalHostUUID();
             CassandraVersion minVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion;
+            boolean shouldWriteToIndexTables = shouldWriteToIndexTables(minVersion);
 
             if (status == Index.Status.DROPPED)
             {
                 statusMap.remove(keyspaceIndex);
-                if (localHostId != null)
-                    statusPropagationExecutor.submit(() -> {
-                        if (shouldWriteToIndexTables(minVersion))
-                        {
-                            SystemDistributedKeyspace.setIndexRemoved(localHostId, keyspace, index);
-                            SystemDistributedKeyspace.recordIndexEvent(localHostId, keyspace, index, status);
-                        }
-                    });
+                if (shouldWriteToIndexTables)
+                {
+                    SystemDistributedKeyspace.setIndexRemoved(localNodeId, keyspace, index);
+                    SystemDistributedKeyspace.recordIndexEvent(localNodeId, keyspace, index, status);
+                }
             }
             else
             {
                 statusMap.put(keyspaceIndex, status);
-                if (localHostId != null)
-                    statusPropagationExecutor.submit(() -> {
-                        if (shouldWriteToIndexTables(minVersion))
-                        {
-                            SystemDistributedKeyspace.updateIndexStatus(localHostId, keyspace, index, status);
-                            SystemDistributedKeyspace.recordIndexEvent(localHostId, keyspace, index, status);
-                        }
-                    });
+                if (shouldWriteToIndexTables)
+                {
+                    SystemDistributedKeyspace.updateIndexStatus(localNodeId, keyspace, index, status);
+                    SystemDistributedKeyspace.recordIndexEvent(localNodeId, keyspace, index, status);
+                }
             }
 
             // Only propagate via gossip when the gossiper is enabled and the cluster is not fully on 6.0+.
             // Once all nodes are on 6.0+, index status is propagated via table polling instead.
-            if (Gossiper.instance.isEnabled() && !shouldWriteToIndexTables(minVersion))
+            if (Gossiper.instance.isEnabled() && !shouldWriteToIndexTables)
             {
                 // Versions 5.0.0 through 5.0.2 use a much more bloated format that duplicates keyspace names
                 // and writes full status names instead of their numeric codes. If the minimum cluster version is
@@ -296,26 +290,21 @@ public class IndexStatusManager
                                                                                           : toSerializedFormat(statusMap);
 
                 byte[] utf8Bytes = newSerializedStatusMap.getBytes(StandardCharsets.UTF_8);
-                String gossipPayload;
-
                 if (utf8Bytes.length > MAX_GOSSIP_VALUE_SIZE)
                 {
                     logger.error("Index status gossip payload size ({} bytes) exceeds limit ({} bytes), please consider removing unwanted indexes.",
                                  utf8Bytes.length, MAX_GOSSIP_VALUE_SIZE);
-                    gossipPayload = TABLE_FALLBACK_MARKER;
+                    return;
                 }
-                else
-                {
-                    if (utf8Bytes.length > MAX_GOSSIP_VALUE_SIZE * 0.8)
-                        logger.warn("Index status gossip payload size ({} bytes) approaching the limit ({} bytes), please consider removing unwanted indexes.",
-                                    utf8Bytes.length, MAX_GOSSIP_VALUE_SIZE);
-                    gossipPayload = newSerializedStatusMap;
-                }
+
+                if (utf8Bytes.length > MAX_GOSSIP_VALUE_SIZE * 0.8)
+                    logger.warn("Index status gossip payload size ({} bytes) approaching the limit ({} bytes), please consider removing unwanted indexes.",
+                                utf8Bytes.length, MAX_GOSSIP_VALUE_SIZE);
 
                 statusPropagationExecutor.submit(() -> {
                     // schedule gossiper update asynchronously to avoid potential deadlock when another thread is holding
                     // gossiper taskLock.
-                    VersionedValue value = StorageService.instance.valueFactory.indexStatus(gossipPayload);
+                    VersionedValue value = StorageService.instance.valueFactory.indexStatus(newSerializedStatusMap);
                     Gossiper.instance.addLocalApplicationState(ApplicationState.INDEX_STATUS, value);
                 });
             }
@@ -340,18 +329,6 @@ public class IndexStatusManager
     static boolean shouldWriteToIndexTablesForTesting(CassandraVersion minVersion)
     {
         return shouldWriteToIndexTables(minVersion);
-    }
-
-    @VisibleForTesting
-    void processEventsForTesting(UntypedResultSet results)
-    {
-        processEvents(results);
-    }
-
-    @VisibleForTesting
-    void resetLastPollTimestamp()
-    {
-        lastPollTimestampMillis = 0;
     }
 
     /**
@@ -390,7 +367,10 @@ public class IndexStatusManager
     @VisibleForTesting
     public synchronized Index.Status getIndexStatus(InetAddressAndPort peer, String keyspace, String index)
     {
-        return peerIndexStatus.getOrDefault(peer, Collections.emptyMap())
+        NodeId nodeId = ClusterMetadata.current().directory.peerId(peer);
+        if (nodeId == null)
+            return Index.Status.UNKNOWN;
+        return peerIndexStatus.getOrDefault(nodeId, Collections.emptyMap())
                               .getOrDefault(identifier(keyspace, index), Index.Status.UNKNOWN);
     }
 
@@ -435,14 +415,10 @@ public class IndexStatusManager
     {
         try
         {
-            Map<UUID, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
-            for (Map.Entry<UUID, Map<String, Index.Status>> entry : allStatuses.entrySet())
+            Map<NodeId, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
+            for (Map.Entry<NodeId, Map<String, Index.Status>> entry : allStatuses.entrySet())
             {
-                InetAddressAndPort endpoint = StorageService.instance.getEndpointForHostId(entry.getKey());
-                if (endpoint == null)
-                    continue;
-
-                peerIndexStatus.putIfAbsent(endpoint, entry.getValue());
+                peerIndexStatus.putIfAbsent(entry.getKey(), entry.getValue());
             }
             logger.info("Loaded index statuses from system table for {} peers", allStatuses.size());
         }
@@ -459,14 +435,10 @@ public class IndexStatusManager
     {
         try
         {
-            Map<UUID, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
-            for (Map.Entry<UUID, Map<String, Index.Status>> entry : allStatuses.entrySet())
+            Map<NodeId, Map<String, Index.Status>> allStatuses = SystemDistributedKeyspace.allIndexStatuses();
+            for (Map.Entry<NodeId, Map<String, Index.Status>> entry : allStatuses.entrySet())
             {
-                InetAddressAndPort endpoint = StorageService.instance.getEndpointForHostId(entry.getKey());
-                if (endpoint == null)
-                    continue;
-
-                peerIndexStatus.put(endpoint, entry.getValue());
+                peerIndexStatus.put(entry.getKey(), entry.getValue());
             }
             logger.info("Refreshed index statuses from system table for {} peers", allStatuses.size());
         }
@@ -499,15 +471,19 @@ public class IndexStatusManager
 
     private synchronized void pollIndexEvents()
     {
-        if (lastPollTimestampMillis == 0)
+        try
         {
-            refreshFromFullTable();
-            lastPollTimestampMillis = Clock.Global.currentTimeMillis();
-        }
-        else
-        {
-            try
+            if (lastPollTimestampMillis == 0)
             {
+                refreshFromFullTable();
+                String today = LocalDate.now(ZoneOffset.UTC).toString();
+                UntypedResultSet todayResults = SystemDistributedKeyspace.queryIndexEvents(today, 0);
+                long newestEventTime = todayResults != null ? processEvents(todayResults) : 0;
+                lastPollTimestampMillis = newestEventTime != 0 ? newestEventTime : Clock.Global.currentTimeMillis();
+            }
+            else
+            {
+                long newestPollTimestampMillis = 0;
                 String today = LocalDate.now(ZoneOffset.UTC).toString();
                 String lastPollDate = Instant.ofEpochMilli(lastPollTimestampMillis).atZone(ZoneOffset.UTC).toLocalDate().toString();
 
@@ -516,32 +492,32 @@ public class IndexStatusManager
                     // midnight crossed so get remaining events from last day.
                     UntypedResultSet yesterdayResults = SystemDistributedKeyspace.queryIndexEvents(lastPollDate, lastPollTimestampMillis);
                     if (yesterdayResults != null)
-                        processEvents(yesterdayResults);
+                        newestPollTimestampMillis = processEvents(yesterdayResults);
                 }
 
                 UntypedResultSet todayResults = SystemDistributedKeyspace.queryIndexEvents(today, lastPollTimestampMillis);
                 if (todayResults != null)
-                    processEvents(todayResults);
+                    newestPollTimestampMillis = processEvents(todayResults);
 
-                lastPollTimestampMillis = Clock.Global.currentTimeMillis();
+                if (newestPollTimestampMillis != 0)
+                    lastPollTimestampMillis = newestPollTimestampMillis;
             }
-            catch (Exception e)
-            {
-                logger.warn("Unable to load index events from system table: {}", e.getMessage());
-            }
+        }
+        catch (Exception e)
+        {
+            logger.warn("Unable to load index events from system table: {}", e.getMessage());
         }
     }
 
-    private void processEvents(UntypedResultSet results)
+    private long processEvents(UntypedResultSet results)
     {
+        NodeId localNodeId = ClusterMetadata.current().myNodeId();
+        long newestEventTime = 0;
         for (UntypedResultSet.Row row : results)
         {
-            UUID hostId = row.getUUID("host_id");
-            if ((hostId == null) || hostId.equals(StorageService.instance.getLocalHostUUID()))
-                continue;
-
-            InetAddressAndPort endpoint = StorageService.instance.getEndpointForHostId(hostId);
-            if (endpoint == null)
+            newestEventTime = row.getTimestamp("event_time").getTime();
+            NodeId nodeId = new NodeId(row.getInt("node_id"));
+            if (nodeId.equals(localNodeId))
                 continue;
 
             String indexName = row.getString("index_name");
@@ -549,14 +525,15 @@ public class IndexStatusManager
 
             if (status == Index.Status.DROPPED)
             {
-                Map<String, Index.Status> statusMap = peerIndexStatus.get(endpoint);
+                Map<String, Index.Status> statusMap = peerIndexStatus.get(nodeId);
                 if (statusMap != null)
                     statusMap.remove(indexName);
             }
             else
             {
-                peerIndexStatus.computeIfAbsent(endpoint, k -> new HashMap<>()).put(indexName, status);
+                peerIndexStatus.computeIfAbsent(nodeId, k -> new HashMap<>()).put(indexName, status);
             }
         }
+        return newestEventTime;
     }
 }
