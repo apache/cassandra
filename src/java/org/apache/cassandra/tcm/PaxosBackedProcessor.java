@@ -214,6 +214,15 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             condition = new AsyncPromise<>();
             messagingService.sendWithCallback(Message.out(Verb.TCM_FETCH_CMS_LOG_REQ, request), to.endpoint(), this);
         }
+
+        @Override
+        public String toString()
+        {
+            return "FetchLogRequest{" +
+                   "to=" + to.endpoint() +
+                   ", request=" + request +
+                   '}';
+        }
     }
 
 

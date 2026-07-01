@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.utils.Invariants;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -40,6 +42,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.RetryStrategy;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -47,6 +50,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
@@ -371,7 +375,28 @@ public class Commit
         {
             checkCMSState();
             logger.info("Received commit request {} from {}", message.payload, message.from());
-            Retry retryPolicy = Retry.until(message.expiresAtNanos(), TCMMetrics.instance.commitRetries);
+            // Reduce our local retry deadline by write_rpc_timeout so we exhaust retries and return an
+            // explicit failure response to the sender before their per-message callback fires to avoid
+            // all the non-CMS nodes being synchronized on their CMS await timeouts expiring at the same time.
+            //
+            // A single tryCommitOne (Paxos CAS) can overshoot its deadline by up to
+            // (cas_contention_timeout + write_rpc_timeout) because reachedMax() is only checked at the top
+            // of the AbstractLocalProcessor retry loop, not mid-CAS so subtracting write_rpc_timeout covers the
+            // overshoot and leaves a window for the failure response to propagate back over the network.
+            //
+            // Explicit failures allow non-CMS senders to immediately reschedule retries, replacing the
+            // thundering herd pattern (all senders TIMEOUT and retry simultaneously every ~cms_await_timeout)
+            // with fast individual retries paced by CMS response speed.
+            //
+            // The floor of casWriteRpcTimeoutNanos ensures at least one attempt window when cms_await_timeout is
+            // misconfigured close to write_rpc_timeout.
+            long casWriteRpcTimeoutNanos = DatabaseDescriptor.getCasContentionTimeout(TimeUnit.NANOSECONDS) +
+                                           DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.NANOSECONDS);
+            long now = MonotonicClock.Global.preciseTime.now();
+            long localDeadlineNanos = Math.max(now + casWriteRpcTimeoutNanos,
+                                               message.expiresAtNanos() - casWriteRpcTimeoutNanos);
+            RetryStrategy backoffWithJitter = DatabaseDescriptor.getCmsCommitRetryStrategy();
+            Retry retryPolicy = Retry.until(localDeadlineNanos, TCMMetrics.instance.commitRetries, backoffWithJitter);
             Result result = processor.commit(message.payload.entryId, message.payload.transform, message.payload.lastKnown, retryPolicy);
             if (result.isSuccess())
             {

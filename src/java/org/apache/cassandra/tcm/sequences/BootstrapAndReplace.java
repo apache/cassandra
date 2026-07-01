@@ -204,8 +204,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable e)
                 {
+                    logger.warn("Exception committing startReplace, will retry", e);
                     JVMStabilityInspector.inspectThrowable(e);
-                    logger.warn("Got exception committing startReplace", e);
                     return continuable();
                 }
                 break;
@@ -284,8 +284,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable e)
                 {
+                    logger.warn("Exception committing finishReplace, sequence will halt", e);
                     JVMStabilityInspector.inspectThrowable(e);
-                    logger.warn("Got exception committing finishReplace", e);
                     return halted();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);

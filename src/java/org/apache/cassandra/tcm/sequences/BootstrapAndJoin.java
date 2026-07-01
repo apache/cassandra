@@ -210,8 +210,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable e)
                 {
+                    logger.warn("Exception committing startJoin, will retry", e);
                     JVMStabilityInspector.inspectThrowable(e);
-                    logger.warn("Exception committing startJoin", e);
                     return continuable();
                 }
 
@@ -295,8 +295,8 @@ public class BootstrapAndJoin extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable e)
                 {
+                    logger.warn("Exception committing finishJoin, will retry", e);
                     JVMStabilityInspector.inspectThrowable(e);
-                    logger.warn("Exception committing finishJoin", e);
                     return continuable();
                 }
                 ClusterMetadataService.instance().ensureCMSPlacement(metadata);

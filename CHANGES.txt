@@ -4,6 +4,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Move long running TCM operations to a longer timout (CASSANDRA-21453)
  * Offline nodetool commands should not print network options in help (CASSANDRA-20876)
  * Defer creation of the system_cluster_metadata keyspace until CMS initialization (CASSANDRA-21477)
  * Support direct I/O for background SSTable writes (CASSANDRA-21134)

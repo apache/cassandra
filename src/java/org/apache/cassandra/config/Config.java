@@ -184,6 +184,18 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
+    /**
+     * Timeout for the per-message window when a non-CMS node sends a TCM_COMMIT_REQ to a CMS node.
+     * The CMS will attempt Paxos retries for (cms_await_timeout - write_request_timeout) before
+     * returning an explicit failure, giving the sender time to reschedule before its message callback fires.
+     *
+     * WARNING: cms_await_timeout should be substantially larger than write_request_timeout.
+     * A single Paxos CAS attempt can take up to (cas_contention_timeout + write_request_timeout) to
+     * complete. If cms_await_timeout is set close to write_request_timeout the deadline reduction has
+     * no effect and many concurrent CMS operations timing out at the same time may create a thundering herd,
+     * all retrying against the CMS.
+     * Default 2 minutes to match "nodetool cms initialize".
+     */
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     @Deprecated(since="6.0")
@@ -193,6 +205,39 @@ public class Config
     public String cms_retry_delay = "50ms*attempts <= 500ms ... 100ms*attempts <= 1s,retries=10";
 
     public volatile CMSCommitMemberPreferencePolicy cms_commit_member_preference_policy = CMSCommitMemberPreferencePolicy.random;
+    /**
+     * Controls the sender-side retry behavior for CMS commits (topology changes,
+     * CMS reconfiguration, node registration — everything except STARTUP and schema DDL
+     * with an explicit client deadline).
+     *
+     * cms_commit_timeout: Overall deadline for the commit to succeed. The sender retries
+     *   with exponential backoff until this deadline expires. Each retry sends a fresh
+     *   TCM_COMMIT_REQ to a (possibly different) CMS node. Set this longer than the
+     *   expected total time for all concurrent operations to drain through the Paxos log.
+     *
+     * cms_commit_retry_initial_delay: Base delay for Full Jitter exponential backoff.
+     *   Actual delay per retry = uniform_random(0, min(max_delay, initial_delay * 2^attempt)).
+     *   Higher values reduce Paxos contention at the cost of slower progress when the log
+     *   is lightly loaded. 5s is a good default — it spaces retries enough to avoid
+     *   thundering herd while still making progress within minutes.
+     *
+     * cms_commit_retry_max_delay: Cap on the exponential backoff. Once 2^attempt growth
+     *   exceeds this, all subsequent retries draw from uniform_random(0, max_delay).
+     *   60s keeps retries frequent enough that a freed Paxos slot is filled within
+     *   ~30s on average, while avoiding retry storms.
+     *
+     * When to change:
+     *   - If bulk topology ops complete but take too long: reduce max_delay (e.g. 30s)
+     *     to retry more aggressively. Monitor CommitRetries rate for contention impact.
+     *   - If bulk topology ops fail (timeout): increase cms_commit_timeout.
+     *   - If Paxos contention is extremely high (>100 concurrent commits): increase
+     *     initial_delay to 10-15s to spread the retry wavefront.
+     *   - All three are hot-settable via JMX without restart.
+     */
+    public volatile DurationSpec.LongMillisecondsBound cms_commit_timeout = new DurationSpec.LongMillisecondsBound("1h");
+    public volatile DurationSpec.LongMillisecondsBound cms_commit_retry_initial_delay = new DurationSpec.LongMillisecondsBound("5s");
+    public volatile DurationSpec.LongMillisecondsBound cms_commit_retry_max_delay = new DurationSpec.LongMillisecondsBound("60s");
+
     public volatile int epoch_aware_debounce_inflight_tracker_max_size = 100;
 
     /**

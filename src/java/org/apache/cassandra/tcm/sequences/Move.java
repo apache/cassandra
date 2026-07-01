@@ -303,6 +303,7 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing startMove, will retry on next TCM epoch advance", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -384,6 +385,7 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing midMove, will retry on next TCM epoch advance", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
@@ -397,6 +399,7 @@ public class Move extends MultiStepOperation<Epoch>
                 }
                 catch (Throwable t)
                 {
+                    logger.warn("Exception committing finishMove, will retry on next TCM epoch advance", t);
                     JVMStabilityInspector.inspectThrowable(t);
                     return continuable();
                 }
