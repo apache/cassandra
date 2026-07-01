@@ -304,6 +304,25 @@
         <groupId>com.github.luben</groupId>
         <artifactId>zstd-jni</artifactId>
         <version>1.5.7-2</version>
+        <classifier>linux_aarch64</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.7-2</version>
+        <classifier>linux_amd64</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.7-2</version>
+        <classifier>darwin_aarch64</classifier>
+      </dependency>
+      <dependency>
+        <groupId>com.github.luben</groupId>
+        <artifactId>zstd-jni</artifactId>
+        <version>1.5.7-2</version>
+        <classifier>darwin_x86_64</classifier>
       </dependency>
       <dependency>
         <groupId>com.google.guava</groupId>
