@@ -45,6 +45,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.setAutoRepairEnabled;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_DISTRIBUTED_DEFAULT_RF;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -57,6 +58,7 @@ public class AutoRepairTest extends CQLTester
     @BeforeClass
     public static void setupClass() throws Exception
     {
+        SYSTEM_DISTRIBUTED_DEFAULT_RF.setInt(1);
         setAutoRepairEnabled(true);
         requireNetwork();
         AutoRepairUtils.setup();
