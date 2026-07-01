@@ -111,9 +111,11 @@
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
+
     <property name="accord.dir" value="modules/accord" />
-    <!-- The reason not to use ant.project.name is we publish as "cassandra-accord" so the file names won't be named apache-cassandra-accord -->
-    <property name="accord.final.name" value="cassandra-accord-${version}"/>
+    <property name="accord-core.build.libs" value="${accord.dir}/accord-core/build" />
+    <property name="accord-core.build.name" value="accord-core-${version}" />
+    <property name="accord-core.build.pom" value="${accord-core.build.libs}/publications/mavenJava/pom-default.xml" />
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
     <property name="accord.local.repository" value="${local.repository}/org/apache/cassandra/cassandra-accord/${version}" />
@@ -2320,17 +2322,18 @@
   <target name="publish"
           depends="mvn-install,sstableloader-mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
-    <!-- Accord -->
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}.pom"
+
+    <!-- Accord (from the submodule's gradle build) -->
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.pom}"
             packaging="pom"/>
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}.jar" />
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}-sources.jar"
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.libs}/libs/${accord-core.build.name}.jar" />
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.libs}/libs/${accord-core.build.name}-sources.jar"
             classifier="sources"/>
-    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
-            file="${accord.local.repository}/${accord.final.name}-javadoc.jar"
+    <deploy pomFile="${accord-core.build.pom}"
+            file="${accord-core.build.libs}/libs/${accord-core.build.name}-javadoc.jar"
             classifier="javadoc"/>
 
     <!-- the parent -->
