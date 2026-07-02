@@ -1,4 +1,5 @@
 4.1.6
+ * Fix initial auto-repairs skipped by too soon check (CASSANDRA-21115)
  * Improved observability in AutoRepair to report both expected vs. actual repair bytes and expected vs. actual keyspaces (CASSANDRA-20581)
  * Stop repair scheduler if two major versions are detected (CASSANDRA-20048)
  * AutoRepair: Safeguard Full repair against disk protection(CASSANDRA-20045)

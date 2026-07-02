@@ -64,7 +64,9 @@ public abstract class AutoRepairState
     @VisibleForTesting
     protected int totalTablesConsideredForRepair = 0;
     @VisibleForTesting
-    protected long lastRepairTimeInMs;
+    protected long lastRepairFinishTimeInMs;
+    @VisibleForTesting
+    protected long lastRepairStartTimeInMs;
     @VisibleForTesting
     protected int nodeRepairTimeInSec = 0;
     @VisibleForTesting
@@ -120,9 +122,9 @@ public abstract class AutoRepairState
         setTotalKeyspaceRepairPlansToRepair(repairPlans.stream().mapToInt(repairPlan -> repairPlan.getKeyspaceRepairPlans().size()).sum());
     }
 
-    public long getLastRepairTime()
+    public long getLastRepairFinishTime()
     {
-        return lastRepairTimeInMs;
+        return lastRepairFinishTimeInMs;
     }
 
     public void setTotalTablesConsideredForRepair(int count)
@@ -135,9 +137,19 @@ public abstract class AutoRepairState
         return totalTablesConsideredForRepair;
     }
 
-    public void setLastRepairTime(long lastRepairTime)
+    public void setLastRepairFinishTime(long lastRepairFinishTime)
     {
-        lastRepairTimeInMs = lastRepairTime;
+        lastRepairFinishTimeInMs = lastRepairFinishTime;
+    }
+
+    public long getLastRepairStartTime()
+    {
+        return lastRepairStartTimeInMs;
+    }
+
+    public void setLastRepairStartTime(long lastRepairStartTime)
+    {
+        lastRepairStartTimeInMs = lastRepairStartTime;
     }
 
     public int getClusterRepairTimeInSec()
