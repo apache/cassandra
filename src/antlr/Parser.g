@@ -783,19 +783,34 @@ batchTxnStatement returns [TransactionStatement.Parsed expr]
         List<SelectStatement.RawStatement> assignments = new ArrayList<>();
         SelectStatement.RawStatement select = null;
         List<RowDataReference.Raw> returning = null;
-        List<ModificationStatement.Parsed> updates = new ArrayList<>();
+        List<List<ConditionStatement.Raw>> conditions = new ArrayList<>();
+        List<List<ModificationStatement.Parsed>> updates = new ArrayList<>();
+        List<ConditionStatement.Raw> e = new ArrayList<>();
+        e.add(new ConditionStatement.Raw(null, ConditionStatement.Kind.ELSE, null));
     }
     : K_BEGIN K_TRANSACTION
       ( let=letStatement ';' { assignments.add(let); })*
       ( ( (selectStatement) => s=selectStatement ';' { select = s; }) | ( K_SELECT drs=rowDataReferences ';' { returning = drs; }) )?
-      ( K_IF conditions=txnConditions K_THEN { isTxnConditional = true; } )?
-      ( upd=batchStatementObjective ';' { updates.add(upd); } )*
-      ( {!isTxnConditional}? (K_COMMIT K_TRANSACTION) | {isTxnConditional}? (K_END K_IF K_COMMIT K_TRANSACTION))
+      (
+          K_IF c=txnConditions K_THEN { isTxnConditional = true; } u=updateStatements { conditions.add(c); updates.add(u); }
+          ( K_ELSE K_IF c=txnConditions K_THEN u=updateStatements { conditions.add(c); updates.add(u); } )*
+          ( K_ELSE u=updateStatements { conditions.add(e); updates.add(u); } )?
+          K_END K_IF
+      )?
+      ( (batchStatementObjective) => u=updateStatements { updates.add(u); } )?
+      (K_COMMIT K_TRANSACTION)
     {
         $expr = new TransactionStatement.Parsed(assignments, select, returning, updates, conditions, references);
     }
     ;
     finally { isParsingTxn = false; }
+
+updateStatements returns [List<ModificationStatement.Parsed> updates]
+    @init {
+        updates = new ArrayList<ModificationStatement.Parsed>();
+    }
+    : (upd=batchStatementObjective ';' { updates.add(upd); })*
+    ;
 
 rowDataReferences returns [List<RowDataReference.Raw> refs]
     : r1=rowDataReference { refs = new ArrayList<RowDataReference.Raw>(); refs.add(r1); } (',' rN=rowDataReference { refs.add(rN); })*

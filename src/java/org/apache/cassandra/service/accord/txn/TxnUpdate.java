@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -293,6 +294,11 @@ public final class TxnUpdate extends AccordUpdate
         final BlockFragment[] fragments;
         final ConditionalBlock[] conditionalBlocks;
 
+        // Must ensure the following invariants when constructing a Block
+        // (1) Every fragment in fragments is sorted by key order
+        // (2) conditionalBlocks occurs in the same order as the IF/ELSE IF/ELSE statements as the order of the array
+        // determines the order in which the conditions get evaluated
+        // (3) Within each ConditionalBlock, fragmentIds is in sorted order
         Block(BlockFragment[] fragments, ConditionalBlock[] conditionalBlocks)
         {
             this.fragments = fragments;
@@ -574,6 +580,105 @@ public final class TxnUpdate extends AccordUpdate
         this.blocks = Collections.singletonList(new Block(blockFragments, new ConditionalBlock[] { new ConditionalBlock(0, serializedCondition, fragmentIds) }));
         this.cassandraCommitCL = cassandraCommitCL;
         this.preserveTimestamps = preserveTimestamps;
+    }
+
+
+    public TxnUpdate(TableMetadatas tables, TxnCondition[] conditions, List<Pair<Fragment, Integer>> conditionFragments, List<Fragment> noneConditionFragment, @Nullable ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
+    {
+        requireArgument(cassandraCommitCL == null || IAccordService.SUPPORTED_COMMIT_CONSISTENCY_LEVELS.contains(cassandraCommitCL));
+        this.tables = tables;
+
+        List<Pair<Fragment, Integer>> sortedConditionFragments = conditionFragments.stream().sorted((l, r) -> Fragment.compareKeys(l.left(), r.left())).collect(Collectors.toList());
+        List<Fragment> sortedNoneConditionFragment = noneConditionFragment.stream().sorted(Fragment::compareKeys).collect(Collectors.toList());
+        List<Fragment> sortedAllFragments = mergeSortedFragments(sortedConditionFragments.stream().map(Pair::left).collect(Collectors.toList()), sortedNoneConditionFragment);
+
+        this.keys = Keys.of(sortedAllFragments, fragment -> fragment.key);
+
+        List<Block> blocks = new ArrayList<>();
+        int nextConditionIndex = 0;
+        if (conditions.length != 0)
+        {
+            Pair<Integer, Block> pair = generateConditionBlock(conditions, sortedConditionFragments);
+            nextConditionIndex = pair.left();
+            blocks.add(pair.right());
+        }
+
+        if (!noneConditionFragment.isEmpty())
+            blocks.add(generateNoneConditionBlock(sortedNoneConditionFragment, nextConditionIndex));
+
+        this.blocks = blocks;
+        this.cassandraCommitCL = cassandraCommitCL;
+        this.preserveTimestamps = preserveTimestamps;
+    }
+
+    private List<Fragment> mergeSortedFragments(List<Fragment> left, List<Fragment> right)
+    {
+        List<Fragment> fragments = new ArrayList<>(left.size() + right.size());
+        int l = 0;
+        int r = 0;
+
+        while (l < left.size() && r < right.size())
+        {
+            if ((Fragment.compareKeys(left.get(l), right.get(r))) <= 0)
+                fragments.add(left.get(l++));
+            else
+                fragments.add(right.get(r++));
+        }
+
+        while (l < left.size())
+            fragments.add(left.get(l++));
+
+        while (r < right.size())
+            fragments.add(right.get(r++));
+
+        return fragments;
+    }
+
+    private Pair<Integer, Block> generateConditionBlock(TxnCondition[] conditions, List<Pair<Fragment, Integer>> sortedFragmentConditionIndexPair)
+    {
+        // Maps the index of each TxnCondition to it's list of fragmentIds
+        List<List<Integer>> conditionsIndexToFragmentId = new ArrayList<>(conditions.length);
+        for (int i = 0; i < conditions.length; i++)
+            conditionsIndexToFragmentId.add(new ArrayList<>());
+
+        BlockFragment[] blockFragments = new BlockFragment[sortedFragmentConditionIndexPair.size()];
+        ConditionalBlock[] conditionalBlocks = new ConditionalBlock[conditions.length];
+
+        int blockFragmentIdx = 0;
+        for (Pair<Fragment, Integer> pair : sortedFragmentConditionIndexPair)
+        {
+            Fragment fragment = pair.left;
+            int conditionsIndex = pair.right;
+            blockFragments[blockFragmentIdx] = new BlockFragment(blockFragmentIdx, fragment.key, Fragment.FragmentSerializer.serialize(fragment, tables, Version.LATEST));
+            conditionsIndexToFragmentId.get(conditionsIndex).add(blockFragmentIdx);
+            blockFragmentIdx++;
+        }
+
+        int conditionalBlocksIdx = 0;
+
+        for (int i = 0; i < conditions.length; i++)
+        {
+            int[] fragmentIds = conditionsIndexToFragmentId.get(i).stream().mapToInt(x -> x).toArray();
+            SerializedTxnCondition serializedCondition = new SerializedTxnCondition(conditions[i], tables);
+            conditionalBlocks[conditionalBlocksIdx] = new ConditionalBlock(conditionalBlocksIdx, serializedCondition, fragmentIds);
+            conditionalBlocksIdx++;
+        }
+
+        return Pair.create(conditionalBlocksIdx, new Block(blockFragments, conditionalBlocks));
+    }
+
+    private Block generateNoneConditionBlock(List<Fragment> fragments, int conditionalBlockIndex)
+    {
+        BlockFragment[] blockFragments = new BlockFragment[fragments.size()];
+        int[] fragmentIds = new int[fragments.size()];
+        for (int i = 0 ; i < fragments.size() ; ++i)
+        {
+            blockFragments[i] = new BlockFragment(i, fragments.get(i).key, Fragment.FragmentSerializer.serialize(fragments.get(i), tables, Version.LATEST));
+            fragmentIds[i] = i;
+        }
+
+        SerializedTxnCondition serializedCondition = new SerializedTxnCondition(TxnCondition.none(), tables);
+        return new Block(blockFragments, new ConditionalBlock[] { new ConditionalBlock(conditionalBlockIndex, serializedCondition, fragmentIds) });
     }
 
     private TxnUpdate(TableMetadatas tables, Keys keys, List<Block> blocks, ConsistencyLevel cassandraCommitCL, PreserveTimestamp preserveTimestamps)
