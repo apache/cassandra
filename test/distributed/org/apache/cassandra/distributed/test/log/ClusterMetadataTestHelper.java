@@ -180,6 +180,11 @@ public class ClusterMetadataTestHelper
         return minimalForTesting(Epoch.EMPTY, partitioner);
     }
 
+    public static ClusterMetadata minimalForTesting(Epoch e, Keyspaces keyspaces, CMSMembership cms)
+    {
+        return minimalForTesting(e, Murmur3Partitioner.instance, new DistributedSchema(keyspaces), cms);
+    }
+
     public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
     {
         return minimalForTesting(Murmur3Partitioner.instance).transformer()
@@ -189,6 +194,11 @@ public class ClusterMetadataTestHelper
     }
 
     public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner, DistributedSchema schema)
+    {
+        return minimalForTesting(epoch, partitioner, schema, CMSMembership.EMPTY);
+    }
+
+    public static ClusterMetadata minimalForTesting(Epoch epoch, IPartitioner partitioner, DistributedSchema schema, CMSMembership cms)
     {
         return new ClusterMetadata(epoch,
                                    Murmur3Partitioner.instance,
@@ -202,7 +212,7 @@ public class ClusterMetadataTestHelper
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
                                    AccordStaleReplicas.EMPTY,
-                                   CMSMembership.EMPTY);
+                                   cms);
     }
 
     public static ClusterMetadataService syncInstanceForTest()
