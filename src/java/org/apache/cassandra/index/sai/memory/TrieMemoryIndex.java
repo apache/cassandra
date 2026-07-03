@@ -28,16 +28,19 @@ import java.util.SortedSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
+
+import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.tries.InMemoryTrie;
-import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -66,8 +69,11 @@ public class TrieMemoryIndex extends MemoryIndex
     private static final int MAX_RECURSIVE_KEY_LENGTH = 128;
     private static final int MINIMUM_PRIORITY_QUEUE_SIZE = 128;
 
-    private final InMemoryTrie<PrimaryKeys> data;
-    private final PrimaryKeysReducer primaryKeysReducer;
+    private final InMemoryTrie<SectionedPrimaryKeys> data;
+    private final SectionedPrimaryKeysReducer sectionedReducer;
+    /** Non-null when prefix SAI is enabled; null for plain (V1) indexes. */
+    @Nullable
+    private final IntPredicate prefixAtDepth;
 
     private ByteBuffer minTerm;
     private ByteBuffer maxTerm;
@@ -81,7 +87,19 @@ public class TrieMemoryIndex extends MemoryIndex
     {
         super(index);
         this.data = new InMemoryTrie<>(TrieMemtable.BUFFER_TYPE);
-        this.primaryKeysReducer = new PrimaryKeysReducer();
+
+        boolean prefixEnabled = index.termType().isLiteral()
+                                && index.indexWriterConfig().isLiteralPrefixEnabled();
+        if (prefixEnabled)
+        {
+            int skip = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
+            this.prefixAtDepth = depth -> depth % skip == 0;
+        }
+        else
+        {
+            this.prefixAtDepth = null;
+        }
+        this.sectionedReducer = new SectionedPrimaryKeysReducer();
     }
 
     /**
@@ -100,7 +118,7 @@ public class TrieMemoryIndex extends MemoryIndex
                                                             : index.keyFactory().create(key);
         final long initialSizeOnHeap = data.sizeOnHeap();
         final long initialSizeOffHeap = data.sizeOffHeap();
-        final long reducerHeapSize = primaryKeysReducer.heapAllocations();
+        final long reducerHeapSize = sectionedReducer.heapAllocations();
 
         if (index.hasAnalyzer())
         {
@@ -124,7 +142,7 @@ public class TrieMemoryIndex extends MemoryIndex
         }
         long onHeap = data.sizeOnHeap();
         long offHeap = data.sizeOffHeap();
-        long heapAllocations = primaryKeysReducer.heapAllocations();
+        long heapAllocations = sectionedReducer.heapAllocations();
         return (onHeap - initialSizeOnHeap) + (offHeap - initialSizeOffHeap) + (heapAllocations - reducerHeapSize);
     }
 
@@ -178,7 +196,7 @@ public class TrieMemoryIndex extends MemoryIndex
     @Override
     public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
     {
-        Iterator<Map.Entry<ByteComparable, PrimaryKeys>> iterator = data.entrySet().iterator();
+        Iterator<Map.Entry<ByteComparable, SectionedPrimaryKeys>> iterator = data.entrySet().iterator();
         return new Iterator<>()
         {
             @Override
@@ -190,7 +208,34 @@ public class TrieMemoryIndex extends MemoryIndex
             @Override
             public Pair<ByteComparable, PrimaryKeys> next()
             {
-                Map.Entry<ByteComparable, PrimaryKeys> entry = iterator.next();
+                Map.Entry<ByteComparable, SectionedPrimaryKeys> entry = iterator.next();
+                return Pair.create(entry.getKey(), entry.getValue().exact());
+            }
+        };
+    }
+
+    /**
+     * Returns an iterator over every trie node that has any payload — both exact-only leaf
+     * nodes and intermediate nodes that accumulated prefix postings. Used exclusively by
+     * {@link org.apache.cassandra.index.sai.disk.RowMapping#mergeV2} during memtable flush
+     * when the SAI prefix feature is enabled.
+     */
+    @Override
+    public Iterator<Pair<ByteComparable, SectionedPrimaryKeys>> iteratorSectioned()
+    {
+        Iterator<Map.Entry<ByteComparable, SectionedPrimaryKeys>> iterator = data.entrySet().iterator();
+        return new Iterator<>()
+        {
+            @Override
+            public boolean hasNext()
+            {
+                return iterator.hasNext();
+            }
+
+            @Override
+            public Pair<ByteComparable, SectionedPrimaryKeys> next()
+            {
+                Map.Entry<ByteComparable, SectionedPrimaryKeys> entry = iterator.next();
                 return Pair.create(entry.getKey(), entry.getValue());
             }
         };
@@ -232,14 +277,8 @@ public class TrieMemoryIndex extends MemoryIndex
 
             try
             {
-                if (term.limit() <= MAX_RECURSIVE_KEY_LENGTH)
-                {
-                    data.putRecursive(comparableBytes, primaryKey, primaryKeysReducer);
-                }
-                else
-                {
-                    data.apply(Trie.singleton(comparableBytes, primaryKey), primaryKeysReducer);
-                }
+                boolean useRecursive = term.limit() <= MAX_RECURSIVE_KEY_LENGTH;
+                data.putSingleton(comparableBytes, primaryKey, sectionedReducer, useRecursive, prefixAtDepth);
             }
             catch (InMemoryTrie.SpaceExhaustedException e)
             {
@@ -265,9 +304,10 @@ public class TrieMemoryIndex extends MemoryIndex
     {
         ByteComparable comparableMatch = expression.lower() == null ? ByteComparable.EMPTY
                                                                     : asComparableBytes(expression.lower().value.encoded);
-        PrimaryKeys primaryKeys = data.get(comparableMatch);
-        return primaryKeys == null ? KeyRangeIterator.empty()
-                                   : new FilteringInMemoryKeyRangeIterator(primaryKeys.keys(), keyRange);
+        SectionedPrimaryKeys sectioned = data.get(comparableMatch);
+        PrimaryKeys primaryKeys = sectioned == null ? null : sectioned.exact();
+        return primaryKeys == null || primaryKeys.isEmpty() ? KeyRangeIterator.empty()
+                                                            : new FilteringInMemoryKeyRangeIterator(primaryKeys.keys(), keyRange);
     }
 
     @Override
@@ -357,10 +397,10 @@ public class TrieMemoryIndex extends MemoryIndex
         }
 
         Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
-        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
+        Iterator<SectionedPrimaryKeys> values = data.subtrie(lowerBound, lowerInclusive, upperBound, upperInclusive).valueIterator();
 
         while (values.hasNext())
-            cd.processContent(values.next());
+            cd.processContent(values.next().exact());
 
         if (cd.mergedKeys.isEmpty())
             return KeyRangeIterator.empty();
@@ -380,10 +420,10 @@ public class TrieMemoryIndex extends MemoryIndex
         ByteComparable upperBound = successor == null ? null : asComparableBytes(successor);
 
         Collector cd = new Collector(keyRange, lastPriorityQueueSize.get());
-        Iterator<PrimaryKeys> values = data.subtrie(lowerBound, true, upperBound, false).valueIterator();
+        Iterator<SectionedPrimaryKeys> values = data.subtrie(lowerBound, true, upperBound, false).valueIterator();
 
         while (values.hasNext())
-            cd.processContent(values.next());
+            cd.processContent(values.next().exact());
 
         if (cd.mergedKeys.isEmpty())
             return KeyRangeIterator.empty();
@@ -412,19 +452,31 @@ public class TrieMemoryIndex extends MemoryIndex
         return ByteBuffer.wrap(successor);
     }
 
-    private static class PrimaryKeysReducer implements InMemoryTrie.UpsertTransformer<PrimaryKeys, PrimaryKey>
+    private static class SectionedPrimaryKeysReducer implements InMemoryTrie.UpsertTransformer<SectionedPrimaryKeys, PrimaryKey>
     {
         private final LongAdder heapAllocations = new LongAdder();
 
         @Override
-        public PrimaryKeys apply(PrimaryKeys existing, PrimaryKey neww)
+        public SectionedPrimaryKeys apply(SectionedPrimaryKeys existing, PrimaryKey key)
         {
             if (existing == null)
             {
-                existing = new PrimaryKeys();
+                existing = new SectionedPrimaryKeys();
                 heapAllocations.add(existing.unsharedHeapSize());
             }
-            heapAllocations.add(existing.add(neww));
+            heapAllocations.add(existing.addExact(key));
+            return existing;
+        }
+
+        @Override
+        public SectionedPrimaryKeys applyIntermediate(SectionedPrimaryKeys existing, PrimaryKey key)
+        {
+            if (existing == null)
+            {
+                existing = new SectionedPrimaryKeys();
+                heapAllocations.add(existing.unsharedHeapSize());
+            }
+            heapAllocations.add(existing.addPrefix(key));
             return existing;
         }
 

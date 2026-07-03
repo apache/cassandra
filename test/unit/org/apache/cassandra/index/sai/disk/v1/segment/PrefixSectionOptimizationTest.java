@@ -26,6 +26,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 
 import static org.apache.cassandra.index.sai.SAITester.getRandom;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Tests for prefix search optimization when query prefix lands at different depths
@@ -350,5 +351,42 @@ public class PrefixSectionOptimizationTest extends SAITester
         flush();
 
         assertRowCount(execute("SELECT * FROM %s WHERE value LIKE ? ALLOW FILTERING", "zzz%"), 80);
+    }
+
+    /**
+     * Verifies that the memtable prefix flush fast path (which resolves prefix postings directly from
+     * the {@link org.apache.cassandra.index.sai.memory.TrieMemoryIndex} via
+     * {@code RowMapping.mergeV2}, eliminating the intermediate {@code SegmentTrieBuffer} rebuild)
+     * produces query results identical to the pre-flush in-memory path for the same data.
+     */
+    @Test
+    public void testMemtablePrefixFlushMatchesMemtablePath() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, value text)");
+        createIndex(String.format("CREATE INDEX ON %%s(value) USING 'sai' WITH OPTIONS = {'%s': 'true'}",
+                                   IndexWriterConfig.ENABLE_LITERAL_PREFIX_SAI));
+
+        // Ten groups "prod00".."prod09", 30 rows each: "prod0X" reaches depth 6 (eligible for a prefix
+        // section) while each group individually is below the 64-row minimum, exercising both the
+        // exact and (pruned) prefix sections of the V2 flush path.
+        for (int i = 0; i < 300; i++)
+            execute("INSERT INTO %s (pk, value) VALUES (?, ?)", i, String.format("prod%02d_item_%04d", i % 10, i));
+
+        // Query while the data still lives only in the memtable (in-memory search path).
+        long memtableGroupCount = execute("SELECT pk FROM %s WHERE value LIKE ?", "prod05%").size();
+        long memtableAllCount = execute("SELECT pk FROM %s WHERE value LIKE ?", "prod%").size();
+        assertEquals(30, memtableGroupCount);
+        assertEquals(300, memtableAllCount);
+
+        // Flush through the optimized prefix path, then re-run the same queries against the SSTable.
+        flush();
+        waitForTableIndexesQueryable();
+
+        assertRowCount(execute("SELECT pk FROM %s WHERE value LIKE ?", "prod05%"), (int) memtableGroupCount);
+        assertRowCount(execute("SELECT pk FROM %s WHERE value LIKE ?", "prod%"), (int) memtableAllCount);
+
+        // A single group is below the prefix-section minimum, so its section is pruned but exact
+        // postings must still return every row.
+        assertRowCount(execute("SELECT pk FROM %s WHERE value = ?", String.format("prod00_item_%04d", 0)), 1);
     }
 }

@@ -28,7 +28,6 @@ import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
 import org.apache.cassandra.index.sai.disk.RowMapping;
@@ -36,14 +35,11 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.v1.segment.SegmentTrieBuffer;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
-import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.utils.IndexEntry;
 import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -59,7 +55,6 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(MemtableIndexWriter.class);
     private static final int NO_ROWS = -1;
-    private static final int MAX_RECURSIVE_TERM_LENGTH = 128;
 
     private final IndexDescriptor indexDescriptor;
     private final IndexTermType indexTermType;
@@ -186,26 +181,36 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
     {
         SegmentMetadata.ComponentMetadataMap indexMetas;
         long numRows;
+        // getMin/MaxSSTableRowId() are declared on MemtableTermsIterator, not the TermsIterator interface,
+        // so this must be typed as the concrete class.
+        MemtableTermsIterator boundsSource = terms;  // V1 path uses the incoming iterator for row-id bounds
 
         if (indexTermType.isLiteral() && literalPrefixEnabled)
         {
-            int skip = CassandraRelevantProperties.SAI_POSTINGS_SKIP.getInt();
-            SegmentTrieBuffer buffer = new SegmentTrieBuffer(depth -> depth % skip == 0);
+            // Fast path: TrieMemoryIndex already accumulated prefix postings at intermediate nodes during
+            // insert (via putSingleton with the prefixAtDepth policy). Resolve PrimaryKey -> sstableRowId for
+            // both the exact and prefix sections directly, with no SegmentTrieBuffer rebuild.
+            final Iterator<Pair<ByteComparable, LongArrayList>> v2Iterator = rowMapping.mergeV2(memtable);
 
-            while (terms.hasNext())
+            if (v2Iterator.hasNext())
             {
-                IndexEntry entry = terms.next();
-                try (PostingList postings = entry.postingList)
+                try (MemtableTermsIterator v2Terms = new MemtableTermsIterator(memtable.getMinTerm(),
+                                                                               memtable.getMaxTerm(),
+                                                                               v2Iterator,
+                                                                               true))
                 {
-                    long rowId;
-                    while ((rowId = postings.nextPosting()) != PostingList.END_OF_STREAM)
-                        buffer.add(entry.term, MAX_RECURSIVE_TERM_LENGTH, (int) rowId);
+                    LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier);
+                    indexMetas = writer.writeCompleteSegment(v2Terms, true);
+                    numRows = writer.getNumberOfRows();
+                    boundsSource = v2Terms;
                 }
             }
-
-            LiteralIndexWriter writer = new LiteralIndexWriter(indexDescriptor, indexIdentifier);
-            indexMetas = writer.writeCompleteSegment(buffer.iterator(), true);
-            numRows = writer.getNumberOfRows();
+            else
+            {
+                // Every primary key was deleted before flush; emit empty metadata so numRows == 0 is handled below.
+                indexMetas = new SegmentMetadata.ComponentMetadataMap();
+                numRows = 0;
+            }
         }
         else
         {
@@ -218,8 +223,6 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
             numRows = writer.getNumberOfRows();
         }
 
-        // If no rows were written we need to delete any created column index components
-        // so that the index is correctly identified as being empty (only having a completion marker)
         if (numRows == 0)
         {
             indexDescriptor.deleteColumnIndex(indexTermType, indexIdentifier);
@@ -229,9 +232,9 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         // During index memtable flush, the data is sorted based on terms.
         SegmentMetadata metadata = new SegmentMetadata(0,
                                                        numRows,
-                                                       terms.getMinSSTableRowId(), terms.getMaxSSTableRowId(),
-                                                       minKey, maxKey, 
-                                                       terms.getMinTerm(), terms.getMaxTerm(),
+                                                       boundsSource.getMinSSTableRowId(), boundsSource.getMaxSSTableRowId(),
+                                                       minKey, maxKey,
+                                                       boundsSource.getMinTerm(), boundsSource.getMaxTerm(),
                                                        indexMetas);
 
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexIdentifier)))
