@@ -58,6 +58,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public class Rebuild
@@ -236,6 +237,9 @@ public class Rebuild
         if (keyspace == null)
         {
             placements.forEach((params, placement) -> movementMapBuilder.put(params, addMovementsForParams(placement, null)));
+            // Special case to include the system metadata keyspace
+            ReplicationParams metaParams = Keyspace.open(METADATA_KEYSPACE_NAME).getMetadata().params.replication;
+            movementMapBuilder.put(metaParams, addMovementsForParams(metadata.placement(metaParams), null));
         }
         else if (tokens == null)
         {
