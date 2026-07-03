@@ -224,7 +224,7 @@ public class AdvanceCMSReconfiguration implements Transformation
         // Check that the candidate is actually a CMS member
         Set<NodeId> cms = prev.fullCMSMemberIds();
         InetAddressAndPort endpoint = prev.directory.endpoint(removal);
-        if (!prev.fullCMSMemberIds().contains(removal))
+        if (!cms.contains(removal))
             return new Transformation.Rejected(INVALID, String.format("%s is not currently a CMS member, cannot remove it", endpoint));
 
         // Check that the candidate is not the only CMS member

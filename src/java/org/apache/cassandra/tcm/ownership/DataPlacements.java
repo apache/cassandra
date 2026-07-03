@@ -63,21 +63,6 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         this.lastModified = lastModified;
     }
 
-    public DataPlacements replaceParams(Epoch lastModified, ReplicationParams oldParams, ReplicationParams newParams)
-    {
-        Map<ReplicationParams, DataPlacement> newMap = Maps.newHashMapWithExpectedSize(map.size());
-        assert map.containsKey(oldParams) : String.format("Can't replace key %s, since map doesn't contain it: %s", oldParams, map);
-        for (Map.Entry<ReplicationParams, DataPlacement> e : map.entrySet())
-        {
-            if (e.getKey().equals(oldParams))
-                newMap.put(newParams, e.getValue());
-            else
-                newMap.put(e.getKey(), e.getValue());
-        }
-
-        return new DataPlacements(lastModified, newMap);
-    }
-
     protected DataPlacement defaultValue()
     {
         return DataPlacement.empty();
