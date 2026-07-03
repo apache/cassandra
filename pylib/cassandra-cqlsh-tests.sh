@@ -23,6 +23,8 @@
 #
 ################################
 
+[ $DEBUG ] && set -x
+
 WORKSPACE=$1
 
 [ "x${WORKSPACE}" != "x" ] || WORKSPACE="$(readlink -f $(dirname "$0")/..)"
@@ -62,6 +64,10 @@ rm -fr ${DIST_DIR}/venv ${DIST_DIR}/test/{html,output,logs}
 # re-use when possible the pre-installed virtualenv found in the cassandra12004_test docker image
 virtualenv-clone ${BUILD_HOME}/env${python_version} ${BUILD_DIR}/venv || virtualenv --python=python3 ${BUILD_DIR}/venv
 source ${BUILD_DIR}/venv/bin/activate
+
+# Force pip's legacy pkg_resources metadata backend (instead of the importlib.metadata
+# backend that pip defaults to on Python 3.11+). see ubuntu-test.docker
+export _PIP_USE_IMPORTLIB_METADATA=0
 
 pip install --exists-action w -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
