@@ -109,7 +109,7 @@ public class ClusterMetadata
     public final DistributedSchema schema;
     public final Directory directory;
     public final TokenMap tokenMap;
-    public final DataPlacements placements;
+    private final DataPlacements placements;
     public final AccordFastPath accordFastPath;
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;

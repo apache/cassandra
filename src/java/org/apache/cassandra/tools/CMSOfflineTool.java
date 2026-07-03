@@ -772,7 +772,7 @@ public class CMSOfflineTool implements Runnable
                 throw new IllegalArgumentException("Keyspace " + keyspace + " not found in cluster metadata.");
             }
 
-            DataPlacement placement = metadata.placements.get(keyspaceMetadata.params.replication);
+            DataPlacement placement = metadata.placement(keyspaceMetadata.params.replication);
             List<Object[]> rows = new ArrayList<>();
             rows.addAll(replicaGroupsToRows(placement.reads, "read"));
             rows.addAll(replicaGroupsToRows(placement.writes, "write"));

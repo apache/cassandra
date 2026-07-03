@@ -52,7 +52,7 @@ public class MetadataKeys
                   .put(SCHEMA, cm -> cm.schema)
                   .put(NODE_DIRECTORY, cm -> cm.directory)
                   .put(TOKEN_MAP, cm -> cm.tokenMap)
-                  .put(DATA_PLACEMENTS, cm -> cm.placements)
+                  .put(DATA_PLACEMENTS, ClusterMetadata::placements)
                   .put(LOCKED_RANGES, cm -> cm.lockedRanges)
                   .put(IN_PROGRESS_SEQUENCES, cm -> cm.inProgressSequences)
                   .put(ACCORD_FAST_PATH, cm -> cm.accordFastPath)
