@@ -305,8 +305,12 @@ public final class RemoteProcessor implements Processor
         }
 
         InetAddressAndPort candidate = candidates.next();
-        long msgExpiresAfterNanos;
-        if (verb == Verb.TCM_COMMIT_REQ)
+        long msgExpiresAfterNanos = verb.expiresAfterNanos();
+        // When committing a STARTUP the deadline on the Retry will be Long.MAX_VALUE i.e. never stop, retry
+        // indefinitely. However, we do want to actually expire those specific messages reasonably quickly (i.e.
+        // in the order of rpc_timeout) so that sending one to a dead or unreachable address doesn't clog things up
+        // for cms_await_timeout (120s by default) and we can move on to the next candidate from the iterator
+        if (verb == Verb.TCM_COMMIT_REQ && retry.deadlineNanos != Long.MAX_VALUE)
         {
             long cmsAwaitNanos = DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS);
             long remainingNanos = retry.remainingNanos();
@@ -317,10 +321,7 @@ public final class RemoteProcessor implements Processor
                          TimeUnit.NANOSECONDS.toMillis(cmsAwaitNanos),
                          TimeUnit.NANOSECONDS.toMillis(remainingNanos));
         }
-        else
-        {
-            msgExpiresAfterNanos = verb.expiresAfterNanos();
-        }
+
         long msgExpiresAtNanos = MonotonicClock.Global.preciseTime.now() + msgExpiresAfterNanos;
         Message<REQ> msg = Message.outWithFlag(verb, request, MessageFlag.CALL_BACK_ON_FAILURE, msgExpiresAtNanos);
         MessagingService.instance().sendWithCallback(msg, candidate, new RequestCallbackWithFailure<RSP>()
