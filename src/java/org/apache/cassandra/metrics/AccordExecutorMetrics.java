@@ -23,10 +23,10 @@ import java.util.concurrent.TimeUnit;
 import com.codahale.metrics.Gauge;
 
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.ShardedDecayingHistogram;
-import org.apache.cassandra.service.accord.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-import static org.apache.cassandra.service.accord.AccordExecutor.HISTOGRAMS;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.HISTOGRAMS;
 
 public class AccordExecutorMetrics
 {

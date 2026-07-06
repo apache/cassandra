@@ -25,9 +25,10 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.concurrent.locks.Lock;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -41,7 +42,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
-import accord.api.AsyncExecutor;
 import accord.api.DataStore;
 import accord.api.Journal;
 import accord.api.LocalListeners;
@@ -57,14 +57,13 @@ import accord.impl.progresslog.TxnState;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
-import accord.local.CommandSummaries;
+import accord.local.ExecutionContext;
+import accord.local.ExecutionContext.Empty;
 import accord.local.MaxConflicts;
 import accord.local.MaxDecidedRX;
 import accord.local.MinimalCommand;
 import accord.local.MinimalCommand.MinimalWithDeps;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
-import accord.local.PreLoadContext.Empty;
 import accord.local.RedundantBefore;
 import accord.local.RedundantBefore.Bounds;
 import accord.local.RedundantStatus.Property;
@@ -73,8 +72,8 @@ import accord.local.SafeCommandStore;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
+import accord.primitives.RangeRoute;
 import accord.primitives.Ranges;
-import accord.primitives.RoutableKey;
 import accord.primitives.Route;
 import accord.primitives.SaveStatus;
 import accord.primitives.Status;
@@ -87,6 +86,7 @@ import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults.CountingResult;
+import accord.utils.async.Cancellable;
 
 import org.apache.cassandra.config.AccordConfig;
 import org.apache.cassandra.config.AccordConfig.JournalConfig.ReplayMode;
@@ -100,12 +100,22 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.accord.AccordDurableOnFlush.ReportDurable;
-import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.IAccordService.AccordCompactionInfo;
-import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCache;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
+import org.apache.cassandra.service.accord.execution.ExclusiveExecutor;
+import org.apache.cassandra.service.accord.execution.InconsistentEntryException;
+import org.apache.cassandra.service.accord.execution.SafeTask;
+import org.apache.cassandra.service.accord.execution.SaferCommand;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandsForKey;
+import org.apache.cassandra.service.accord.execution.TaskRunner;
+import org.apache.cassandra.service.accord.execution.Unterminatable;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.JournalRangeIndex;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static accord.api.Journal.CommandUpdate;
@@ -134,15 +144,17 @@ import static org.apache.cassandra.service.accord.serializers.CommandStoreSerial
 public class AccordCommandStore extends CommandStore
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
+    /** a stalled durability report repeats on every attempt, so it must be loud but not unbounded */
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
     // TODO (required): track this via a PhantomReference, so that if we remove a CommandStore without clearing the caches we can be sure to release them
     public static class Caches
     {
         private final AccordCache global;
-        private final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
-        private final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys;
+        private final AccordCache.Type<TxnId, Command, SaferCommand>.Instance commands;
+        private final AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeys;
 
-        Caches(AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commandCache, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeyCache)
+        Caches(AccordCache global, AccordCache.Type<TxnId, Command, SaferCommand>.Instance commandCache, AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeyCache)
         {
             this.global = global;
             this.commands = commandCache;
@@ -154,44 +166,47 @@ public class AccordCommandStore extends CommandStore
             return global;
         }
 
-        public final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands()
+        public final AccordCache.Type<TxnId, Command, SaferCommand>.Instance commands()
         {
             return commands;
         }
 
-        public final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys()
+        public final AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeys()
         {
             return commandsForKeys;
         }
     }
 
-    public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<AccordSafeCommand, AccordSafeCommandsForKey>
+    public static final class ExclusiveCaches extends Caches implements CommandStoreCaches<SaferCommand, SaferCommandsForKey>
     {
-        private final Lock lock;
+        private final AccordExecutor owner;
 
-        public ExclusiveCaches(Lock lock, AccordCache global, AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands, AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKeys)
+        public ExclusiveCaches(AccordExecutor owner, AccordCache global, AccordCache.Type<TxnId, Command, SaferCommand>.Instance commands, AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKeys)
         {
             super(global, commands, commandsForKeys);
-            this.lock = lock;
+            this.owner = owner;
         }
 
         @Override
-        public AccordSafeCommand acquireIfLoaded(TxnId txnId)
+        public SaferCommand acquireIfLoaded(TxnId txnId)
         {
-            return commands().acquireIfLoaded(txnId);
+            // note: we must return false if the entry is locked to enforce ordering.
+            // note importantly that this is also coupled to the safety of synchronously releasing ExclusiveExecutor.owner,
+            // rather than waiting until the (potentially asynchronous) cleanup of the task completes
+            return commands().acquireIfLoadedAndPermitted(txnId);
         }
 
         @Override
-        public AccordSafeCommandsForKey acquireIfLoaded(RoutingKey key)
+        public SaferCommandsForKey acquireIfLoaded(RoutingKey key)
         {
-            return commandsForKeys().acquireIfLoaded(key);
+            return commandsForKeys().acquireIfLoadedAndPermitted(key);
         }
 
         @Override
         public void close()
         {
-            global().tryShrinkOrEvict(lock);
-            lock.unlock();
+            try { global().tryShrinkOrEvict(owner.unsafeLock()); }
+            finally { owner.unlock(TaskRunner.get()); }
         }
     }
 
@@ -211,12 +226,10 @@ public class AccordCommandStore extends CommandStore
         = AtomicReferenceFieldUpdater.newUpdater(AccordCommandStore.class, Termination.class, "terminated");
     static final AtomicLong nextSafeRedundantBeforeTicket = new AtomicLong();
 
-    private static final AtomicLong lastSystemTimestampMicros = new AtomicLong();
-
     public final String loggingId;
     public final Journal journal;
     private final AccordExecutor sharedExecutor;
-    final AccordExecutor.SequentialExecutor exclusiveExecutor;
+    private final ExclusiveExecutor exclusiveExecutor;
     private final ExclusiveCaches caches;
     private final RangeIndex rangeIndex;
     private final TableId tableId;
@@ -225,8 +238,8 @@ public class AccordCommandStore extends CommandStore
     volatile SafeRedundantBefore safeRedundantBefore;
     volatile Termination terminated;
 
-    private AccordSafeCommandStore current;
-    LogLinearDecayingHistograms.Buffer metricsBuffer;
+    private SaferCommandStore current;
+    public LogLinearDecayingHistograms.Buffer metricsBuffer;
 
     public AccordCommandStore(int id,
                               NodeCommandStoreService node,
@@ -255,23 +268,32 @@ public class AccordCommandStore extends CommandStore
             return a;
         }).orElseThrow(() -> Invariants.illegalState("CommandStore %d created with no ranges", id));
 
-        final AccordCache.Type<TxnId, Command, AccordSafeCommand>.Instance commands;
-        final AccordCache.Type<RoutingKey, CommandsForKey, AccordSafeCommandsForKey>.Instance commandsForKey;
+        final AccordCache.Type<TxnId, Command, SaferCommand>.Instance commands;
+        final AccordCache.Type<RoutingKey, CommandsForKey, SaferCommandsForKey>.Instance commandsForKey;
         try (AccordExecutor.ExclusiveGlobalCaches exclusive = sharedExecutor.lockCaches())
         {
             commands = exclusive.commands.newInstance(this);
             commandsForKey = exclusive.commandsForKey.newInstance(this);
-            this.caches = new ExclusiveCaches(sharedExecutor.unsafeLock(), exclusive.global, commands, commandsForKey);
+            this.caches = new ExclusiveCaches(sharedExecutor, exclusive.global, commands, commandsForKey);
         }
-        this.exclusiveExecutor = sharedExecutor.executor(id);
+        this.exclusiveExecutor = sharedExecutor.newExclusiveExecutor(id);
 
         {
-            AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
-            switch (mode)
+            // a test may supply its own index, so that a range scan can be driven without one populated behind it
+            Function<AccordCommandStore, RangeIndex> factory = unsafeOverrideRangeIndexFactory;
+            if (factory != null)
             {
-                default: throw new UnhandledEnum(mode);
-                case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
-                case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
+                rangeIndex = factory.apply(this);
+            }
+            else
+            {
+                AccordConfig.RangeIndexMode mode = getAccord().range_index_mode;
+                switch (mode)
+                {
+                    default: throw new UnhandledEnum(mode);
+                    case journal_sai: rangeIndex = new JournalRangeIndex(this); break;
+                    case in_memory: rangeIndex = new InMemoryRangeIndex(this); break;
+                }
             }
         }
 
@@ -285,6 +307,9 @@ public class AccordCommandStore extends CommandStore
                new AccordCommandStore(id, node, agent, dataStore, progressLogFactory, listenerFactory, rangesForEpoch, journal, executorFactory.apply(id));
     }
 
+    @VisibleForTesting
+    public static volatile Function<AccordCommandStore, RangeIndex> unsafeOverrideRangeIndexFactory = null;
+
     public RangeIndex rangeIndex()
     {
         return rangeIndex;
@@ -294,12 +319,6 @@ public class AccordCommandStore extends CommandStore
     public boolean inStore()
     {
         return exclusiveExecutor.inExecutor();
-    }
-
-    void tryPreSetup(AccordTask<?> task)
-    {
-        if (inStore() && current != null)
-            task.presetup(current.task);
     }
 
     public final TableId tableId()
@@ -315,7 +334,7 @@ public class AccordCommandStore extends CommandStore
     // TODO (desired): we use this for executing callbacks with mutual exclusivity,
     //  but we don't need to block the actual CommandStore - could quite easily
     //  inflate a separate queue dynamically in AccordExecutor
-    public AsyncExecutor taskExecutor()
+    public ExclusiveExecutor exclusiveExecutor()
     {
         return exclusiveExecutor;
     }
@@ -323,13 +342,13 @@ public class AccordCommandStore extends CommandStore
     public ExclusiveCaches lockCaches()
     {
         //noinspection LockAcquiredButNotSafelyReleased
-        caches.lock.lock();
+        caches.owner.lock(TaskRunner.get());
         return caches;
     }
 
     public ExclusiveCaches tryLockCaches()
     {
-        if (caches.lock.tryLock())
+        if (caches.owner.tryLock(TaskRunner.get()))
             return caches;
         return null;
     }
@@ -357,98 +376,119 @@ public class AccordCommandStore extends CommandStore
         journal.saveCommand(id, new CommandUpdate(before, after), onFlush);
     }
 
-    boolean validateCommand(TxnId txnId, Command evicting)
-    {
-        if (!Invariants.isParanoid())
-            return true;
-
-        Command reloaded = loadCommand(txnId);
-        return Objects.equals(evicting, reloaded);
-    }
-
     @VisibleForTesting
     public void sanityCheckCommand(RedundantBefore redundantBefore, Command command)
     {
         ((AccordJournal) journal).sanityCheck(id, redundantBefore, command);
     }
 
-    CommandsForKey loadCommandsForKey(RoutableKey key)
-    {
-        CommandsForKey cfk = CommandsForKeyAccessor.load(id, (TokenKey) key);
-        if (cfk == null)
-            return null;
-        RedundantBefore.QuickBounds bounds = safeGetRedundantBefore().get(key);
-        if (!Invariants.expect(bounds != null, "No RedundantBefore information found when loading key %s", key))
-            return cfk;
-        return cfk.withCleanCfkBeforeAtLeast(bounds.cleanCfkBefore(), false);
-    }
-
-    boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
-    {
-        if (!Invariants.isParanoid())
-            return true;
-
-        CommandsForKey reloaded = CommandsForKeyAccessor.load(id, (TokenKey) key);
-        return Objects.equals(evicting, reloaded);
-    }
-
-    @Nullable
-    Runnable saveCommandsForKey(RoutingKey key, CommandsForKey after, Object serialized)
-    {
-        return CommandsForKeyAccessor.systemTableUpdater(id, (TokenKey) key, after, serialized, nextSystemTimestampMicros());
-    }
-
-    public long nextSystemTimestampMicros()
-    {
-        return lastSystemTimestampMicros.accumulateAndGet(node.now(), (a, b) -> Math.max(a + 1, b));
-    }
     @Override
-    public <T> AsyncChain<T> chain(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncChain<T> chain(ExecutionContext context, Function<? super SafeCommandStore, T> function)
     {
-        return AccordTask.create(this, loadCtx, function).chain();
+        return SafeTask.create(this, context, function).chain();
     }
 
     @Override
-    public AsyncChain<Void> chain(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    public AsyncChain<Void> chain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
     {
-        return AccordTask.create(this, preLoadContext, consumer).chain();
+        return SafeTask.create(this, context, consumer).chain();
     }
 
     @Override
-    public AsyncChain<Void> priorityChain(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    public <T> AsyncChain<T> continuationChain(ExecutionContext context, Function<? super SafeCommandStore, T> function)
     {
-        return AccordTask.create(this, preLoadContext, consumer).priorityChain();
+        return SafeTask.createContinuation(this, context, function).chain();
     }
 
     @Override
-    public <T> AsyncChain<T> priorityChain(PreLoadContext preLoadContext, Function<? super SafeCommandStore, T> function)
+    public <T> Cancellable executeContinuation(ExecutionContext context, Function<? super SafeCommandStore, T> function, BiConsumer<? super T, Throwable> callback)
     {
-        return AccordTask.create(this, preLoadContext, function).priorityChain();
+        return SafeTask.createContinuation(this, context, function).submit(callback);
+    }
+
+    @Override
+    public AsyncChain<Void> continuationChain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer)
+    {
+        return SafeTask.createContinuation(this, context, consumer).chain();
+    }
+
+    @Override
+    public Cancellable executeContinuation(ExecutionContext context, Consumer<? super SafeCommandStore> consumer, BiConsumer<? super Void, Throwable> callback)
+    {
+        return SafeTask.createContinuation(this, context, consumer).submit(callback);
     }
 
     @Override
     public <T> AsyncChain<T> chain(Callable<T> call)
     {
-        return taskExecutor().chain(call);
+        return exclusiveExecutor().chain(call);
+    }
+
+    @Override
+    public AsyncChain<Void> continuationChain(Runnable run)
+    {
+        return exclusiveExecutor().continuationChain(run);
     }
 
     @Override
     public void execute(Runnable run)
     {
-        taskExecutor().execute(run);
+        exclusiveExecutor().execute(run);
+    }
+
+    @Override
+    public Cancellable execute(Runnable run, BiConsumer<? super Void, Throwable> callback)
+    {
+        return exclusiveExecutor().execute(run, callback);
+    }
+
+    @Override
+    public <V> Cancellable execute(Callable<V> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().execute(call, callback);
+    }
+
+    @Override
+    public <V> Cancellable flatExecute(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().flatExecute(call, callback);
+    }
+
+    @Override
+    public Cancellable executeContinuation(Runnable run, BiConsumer<? super Void, Throwable> callback)
+    {
+        return exclusiveExecutor().executeContinuation(run, callback);
+    }
+
+    @Override
+    public <V> Cancellable executeContinuation(Callable<V> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().executeContinuation(call, callback);
+    }
+
+    @Override
+    public <V> Cancellable flatExecuteContinuation(Callable<? extends AsyncChain<V>> call, BiConsumer<? super V, Throwable> callback)
+    {
+        return exclusiveExecutor().flatExecuteContinuation(call, callback);
     }
 
     @Override
     public boolean tryExecuteImmediately(Runnable run)
     {
-        return taskExecutor().tryExecuteImmediately(run);
+        return exclusiveExecutor().tryExecuteImmediately(run);
     }
 
-    public AccordSafeCommandStore begin(AccordTask<?> operation, @Nullable CommandSummaries commandsForRanges)
+    public SaferCommandStore begin(SaferCommandStore safeStore)
     {
         require(current == null);
-        current = AccordSafeCommandStore.create(operation, commandsForRanges, this);
+        current = safeStore;
         return current;
+    }
+
+    public void complete(SaferCommandStore store)
+    {
+        require(current == store);
+        current = null;
     }
 
     public boolean hasSafeStore()
@@ -456,27 +496,14 @@ public class AccordCommandStore extends CommandStore
         return current != null;
     }
 
-    DataStore dataStore()
+    public DataStore dataStore()
     {
         return dataStore;
     }
 
-    ProgressLog progressLog()
+    public ProgressLog progressLog()
     {
         return progressLog;
-    }
-
-    public void complete(AccordSafeCommandStore store)
-    {
-        require(current == store);
-        current.postExecute();
-        current = null;
-    }
-
-    public void abort(AccordSafeCommandStore store)
-    {
-        Invariants.require(store == current);
-        current = null;
     }
 
     @Override
@@ -508,10 +535,10 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    protected void markExclusiveSyncPointLocallyApplied(SafeCommandStore safeStore, TxnId syncId, Ranges ranges, SaveStatus prevStatus)
+    protected void markExclusiveSyncPointLocallyApplied(SafeCommandStore safeStore, TxnId txnId, TxnId txnIdWithFlags, RangeRoute route, Ranges ranges, SaveStatus prevStatus)
     {
-        super.markExclusiveSyncPointLocallyApplied(safeStore, syncId, ranges, prevStatus);
-        rangeIndex.prune(syncId, ranges, safeStore.redundantBefore());
+        super.markExclusiveSyncPointLocallyApplied(safeStore, txnId, txnIdWithFlags, route, ranges, prevStatus);
+        rangeIndex.prune(txnIdWithFlags, ranges, safeStore.redundantBefore());
     }
 
     void maybeTerminated(boolean setCommandStoreDurable, boolean setDataStoreDurable)
@@ -530,7 +557,7 @@ public class AccordCommandStore extends CommandStore
                 if (!syncPointsDurable)
                     logger.error("{} has flushed command and data stores, but sync points recorded in RedundantBefore are not durable: {}", this, DurablyAppliedTo.summarise(unsafeGetRedundantBefore()));
 
-                exclusiveExecutor.terminate();
+                exclusiveExecutor.fullStop();
                 terminated.signalAll();
             }
         }
@@ -657,13 +684,26 @@ public class AccordCommandStore extends CommandStore
         logger.debug("{} durability: ensuring for {} ({})", this, onCommandStoreDurable, reportId);
         executor().afterSubmittedAndConsequences(() -> {
             logger.debug("{} durability: saving intersecting keys ({})", this, reportId);
-            class Ready extends CountingResult implements Runnable
+            class Ready extends CountingResult implements BiConsumer<Void, Throwable>
             {
                 public Ready() { super(1); }
-                @Override public void run() { decrement(); }
 
-                void maybeFlush(ExclusiveCaches caches, AccordCacheEntry<RoutingKey, CommandsForKey> e)
+                @Override
+                public void accept(Void success, Throwable failure)
                 {
+                    if (failure == null) decrement();
+                    else tryFailure(failure);
+                }
+
+                void maybeFlush(ExclusiveCaches caches, AccordCacheEntry<RoutingKey, CommandsForKey, ?> e)
+                {
+                    if (e.isInconsistent())
+                    {
+                        noSpamLogger.warn("{} durability: refusing to report {} ({}): a failed update blocks progress for {}",
+                                          AccordCommandStore.this, onCommandStoreDurable, reportId, e.key());
+                        throw new InconsistentEntryException(e.key());
+                    }
+
                     if (e.isModified())
                     {
                         increment();
@@ -675,17 +715,55 @@ public class AccordCommandStore extends CommandStore
             Ready ready = new Ready();
             try (ExclusiveCaches caches = lockCaches())
             {
+                int count = 0;
                 if (ranges == null)
                 {
-                    for (AccordCacheEntry<RoutingKey, CommandsForKey> e : caches.commandsForKeys())
-                        ready.maybeFlush(caches, e);
+                    try
+                    {
+                        for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : caches.commandsForKeys())
+                        {
+                            ++count;
+                            ready.maybeFlush(caches, e);
+                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        for (AccordCacheEntry<RoutingKey, CommandsForKey, ?> e : caches.commandsForKeys())
+                        {
+                            if (--count < 0)
+                                break;
+                            try { caches.global().unregisterSaveCallback(e, ready); }
+                            catch (Throwable t2) { t.addSuppressed(t2); }
+                        }
+                        throw t;
+                    }
                 }
                 else
                 {
-                    for (Range range : ranges)
+                    try
                     {
-                        for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
-                            ready.maybeFlush(caches, caches.commandsForKeys().getUnsafe(k));
+                        for (Range range : ranges)
+                        {
+                            for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
+                            {
+                                ++count;
+                                ready.maybeFlush(caches, caches.commandsForKeys().getUnsafe(k));
+                            }
+                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        outer: for (Range range : ranges)
+                        {
+                            for (RoutingKey k : caches.commandsForKeys().keysBetween(range.start(), range.startInclusive(), range.end(), range.endInclusive()))
+                            {
+                                if (--count < 0)
+                                    break outer;
+                                try { caches.global().unregisterSaveCallback(caches.commandsForKeys().getUnsafe(k), ready); }
+                                catch (Throwable t2) { t.addSuppressed(t2); }
+                            }
+                        }
+                        throw t;
                     }
                 }
             }
@@ -729,7 +807,7 @@ public class AccordCommandStore extends CommandStore
             if (!maybeShouldReplay(txnId))
                 return AsyncChains.success(null);
 
-            return commandStore.chain(PreLoadContext.contextFor(txnId, "Replay"), safeStore -> {
+            return commandStore.chain(ExecutionContext.unsequenced(txnId, "Replay"), safeStore -> {
                 Replay replay = shouldReplay(txnId, safeStore.unsafeGet(txnId).current().participants());
                 if (replay == Replay.NONE)
                     return null;
@@ -776,7 +854,7 @@ public class AccordCommandStore extends CommandStore
 
     AsyncChain<Boolean> saveState(Descriptor descriptor)
     {
-        return chain((AccordExecutor.Unterminatable)() -> "Save State", safeStore -> {
+        return chain((Unterminatable)() -> "Save State", safeStore -> {
             File storeDir = storeSaveDir();
             {
                 File[] tmpDirs = listTmpSaveDirs(storeDir);
@@ -914,7 +992,7 @@ public class AccordCommandStore extends CommandStore
     // TODO (expected): handle journal failures, and consider how we handle partial failures.
     //  Very likely we will not be able to safely or cleanly handle partial failures of this logic, but decide and document.
     // TODO (desired): consider merging with PersistentField? This version is cheaper to manage which may be preferable at the CommandStore level.
-    static class SafeRedundantBefore
+    public static class SafeRedundantBefore
     {
         final long ticket;
         final RedundantBefore redundantBefore;
@@ -928,6 +1006,15 @@ public class AccordCommandStore extends CommandStore
         static SafeRedundantBefore max(SafeRedundantBefore a, SafeRedundantBefore b)
         {
             return a.ticket >= b.ticket ? a : b;
+        }
+
+        public static Runnable updater(AccordCommandStore commandStore, RedundantBefore newRedundantBefore)
+        {
+            long ticket = nextSafeRedundantBeforeTicket.incrementAndGet();
+            SafeRedundantBefore update = new SafeRedundantBefore(ticket, newRedundantBefore);
+            return () -> {
+                safeRedundantBeforeUpdater.accumulateAndGet(commandStore, update, SafeRedundantBefore::max);
+            };
         }
     }
 

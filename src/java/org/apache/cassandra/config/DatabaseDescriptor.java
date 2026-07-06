@@ -664,6 +664,9 @@ public class DatabaseDescriptor
             }
         }
 
+        if (conf.accord.durability_flush_interval == null)
+            conf.accord.durability_flush_interval = conf.accord.shard_durability_cycle;
+
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == DiskAccessMode.auto || conf.disk_access_mode == DiskAccessMode.mmap_index_only)
         {
@@ -1390,6 +1393,7 @@ public class DatabaseDescriptor
         }
     }
 
+    // TODO (expected): move all of the Accord config setup and accessors into AccordConfig
     private static void applyAccord()
     {
         try
@@ -2937,6 +2941,11 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
+    public static int getAccordConcurrentMigrationOps()
+    {
+        return conf.accord.migration_concurrency.or(2 * FBUtilities.getAvailableProcessors());
+    }
+
     public static int getAccordConcurrentOps()
     {
         return conf.accord.queue_thread_count.or(2 * FBUtilities.getAvailableProcessors());
@@ -2949,6 +2958,15 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
         }
         conf.accord.queue_thread_count = new OptionaldPositiveInt(concurrent_operations);
+    }
+
+    public static void setConcurrentAccordMigrationOps(int concurrent_operations)
+    {
+        if (concurrent_operations < 0)
+        {
+            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
+        }
+        conf.accord.migration_concurrency = new OptionaldPositiveInt(concurrent_operations);
     }
 
     public static int getFlushWriters()
@@ -5841,6 +5859,11 @@ public class DatabaseDescriptor
     public static long getAccordShardDurabilityCycle(TimeUnit unit)
     {
         return conf.accord.shard_durability_cycle.to(unit);
+    }
+
+    public static long getAccordDurabilityFlushInterval(TimeUnit unit)
+    {
+        return conf.accord.durability_flush_interval.to(unit);
     }
 
     public static boolean getAccordStateCacheListenerJFREnabled()

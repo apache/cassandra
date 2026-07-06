@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.Assert;
@@ -32,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.api.Result.PersistableResult;
 import accord.local.Command;
-import accord.local.PreLoadContext;
+import accord.local.ExecutionContext;
 import accord.local.StoreParticipants;
 import accord.local.cfk.CommandsForKey;
 import accord.primitives.Ballot;
@@ -64,6 +62,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.SaferCommand;
+import org.apache.cassandra.service.accord.execution.SaferCommandsForKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializerTest.TestSafeCommandStore;
 import org.apache.cassandra.service.accord.txn.TxnDataResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
@@ -78,9 +78,10 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preac
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
-import static org.apache.cassandra.service.accord.AccordTestUtils.loaded;
 import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.loaded;
+import static org.apache.cassandra.service.accord.execution.AccordExecutionTestUtils.preExecute;
 
 public class AccordCommandStoreTest
 {
@@ -139,7 +140,8 @@ public class AccordCommandStoreTest
         Command expected = Command.Executed.executed(txnId, SaveStatus.Applied, AllQuorums, StoreParticipants.all(route),
                                                      promised, executeAt, txn, dependencies, accepted,
                                                      waitingOn, result.left, TxnDataResult.PERSISTABLE);
-        AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
+        SaferCommand safeCommand = new SaferCommand(loaded(txnId, null));
+        preExecute(safeCommand);
         safeCommand.set(expected);
         // In practice we should never need to save it with the condition boolean set
         // Not sure why this test does that
@@ -167,24 +169,17 @@ public class AccordCommandStoreTest
         Command command1 = preaccepted(txnId1, txn, timestamp(1, clock.incrementAndGet(), 1));
         Command command2 = preaccepted(txnId2, txn, timestamp(1, clock.incrementAndGet(), 1));
 
-        AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
-        cfk.initialize();
+        SaferCommandsForKey cfk = new SaferCommandsForKey(loaded(key, null));
+        preExecute(cfk);
 
-        cfk.set(cfk.current().update(new TestSafeCommandStore(PreLoadContext.contextFor(command1.txnId(), "Test")), command1).cfk());
-        cfk.set(cfk.current().update(new TestSafeCommandStore(PreLoadContext.contextFor(command1.txnId(), "Test")), command2).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.unsequenced(command1.txnId(), "Test")), command1).cfk());
+        cfk.set(cfk.current().update(new TestSafeCommandStore(ExecutionContext.unsequenced(command1.txnId(), "Test")), command2).cfk());
 
-        CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null, commandStore.nextSystemTimestampMicros()).run();
+        CommandsForKeyAccessor.systemTableUpdater(commandStore.id(), (TokenKey)cfk.key(), cfk.current(), null).run();
         logger.info("E: {}", cfk);
         CommandsForKey actual = CommandsForKeyAccessor.load(commandStore.id(), key);
         logger.info("A: {}", actual);
 
         Assert.assertEquals(cfk.current(), actual);
-    }
-
-    private static <K, V extends AccordSafeState<K, ?>> NavigableMap<K, V> toNavigableMap(V safeState)
-    {
-        TreeMap<K, V> map = new TreeMap<>();
-        map.put(safeState.key(), safeState);
-        return map;
     }
 }

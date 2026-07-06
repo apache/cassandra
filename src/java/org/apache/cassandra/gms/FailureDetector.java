@@ -382,6 +382,10 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
             logger.debug("Still not marking nodes down due to local pause");
             return;
         }
+
+        if (!isAlive(ep))
+            return; // don't convict nodes that are already down - this helps Accord on startup which doesn't report itself alive in Gossip until ready to serve traffic
+
         double phi = hbWnd.phi(now);
         logger.trace("PHI for {} : {}", ep, phi);
 
@@ -410,7 +414,8 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         logger.debug("Forcing conviction of {}", ep);
         for (IFailureDetectionEventListener listener : fdEvntListeners)
         {
-            listener.convict(ep, getPhiConvictThreshold());
+            // some listeners ignore regular convict threshold, but they should not ignore force convict so supply MAX_VALUE
+            listener.convict(ep, Double.MAX_VALUE);
         }
     }
 

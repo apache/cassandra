@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.journal.TestParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.execution.SaferCommand;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.utils.AccordGenerators;
@@ -70,7 +71,7 @@ import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.p
  *
  * <p>Mechanism under test: when the FULL-input cleanup path decides EXPUNGE,
  * {@link accord.impl.CommandChange.Builder#construct} returns {@code null}.
- * Downstream, {@link AccordSafeCommand#preExecute} maps {@code null} to a
+ * Downstream, {@link SaferCommand#preExecute} maps {@code null} to a
  * {@code Command.NotDefined.uninitialised(...)} — which is exactly the bogus
  * NotDefined the user observed. The journal load API itself should never collapse
  * "this txnId has been erased" into the same answer as "we have never heard of this

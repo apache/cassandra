@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 import accord.local.Command;
 import accord.local.CommandSummaries;
@@ -38,9 +39,13 @@ import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.utils.Invariants;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyAccessor;
+import org.apache.cassandra.service.accord.api.TokenKey;
+import org.apache.cassandra.service.accord.execution.AccordCacheEntry;
 import org.apache.cassandra.service.accord.journal.CommandChanges;
 import org.apache.cassandra.service.accord.serializers.Version;
 
@@ -59,10 +64,17 @@ public interface RangeIndex
 
         protected abstract AccordCommandStore commandStore();
 
-        protected abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
-        protected abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
-        protected abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
-        protected abstract void cleanupExclusive(AccordCommandStore.Caches caches);
+        public abstract void loadExclusive(Map<Timestamp, CommandSummaries.Summary> into, AccordCommandStore.Caches caches);
+        public abstract void load(Map<Timestamp, CommandSummaries.Summary> into, BooleanSupplier abort);
+        public abstract void finish(Map<Timestamp, CommandSummaries.Summary> into);
+        public abstract void cleanupExclusive(AccordCommandStore.Caches caches);
+
+        public void findKeysBetween(TokenKey start, boolean startInclusive, TokenKey end, boolean endInclusive, Consumer<TokenKey> consumer)
+        {
+            AccordCommandStore commandStore = commandStore();
+            CommandsForKeyAccessor.findAllKeysBetween(commandStore.id(), commandStore.tableId(), DatabaseDescriptor.getPartitioner(),
+                                                     start, startInclusive, end, endInclusive, consumer);
+        }
 
         protected CommandSummaries.Summary loadFromDisk(TxnId txnId)
         {
@@ -82,7 +94,7 @@ public interface RangeIndex
             return null;
         }
 
-        public CommandSummaries.Summary ifRelevant(AccordCacheEntry<TxnId, Command> state)
+        public CommandSummaries.Summary ifRelevant(AccordCacheEntry<TxnId, Command, ?> state)
         {
             if (state.key().domain() != Routable.Domain.Range)
                 return null;
