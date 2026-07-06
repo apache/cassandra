@@ -426,7 +426,9 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource, CellSo
 
     // returns null if already flushed
     <T extends BiConsumer<Long, TableMetadata>> T ensureFlushListener(Object key, Supplier<T> factory);
+    boolean hasFlushListener();
     void notifyFlushed();
+    long createdAtNanos();
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.

@@ -25,6 +25,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
@@ -48,6 +49,7 @@ import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -377,5 +379,10 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     public boolean equals(Object o)
     {
         return o instanceof PerSSTableIndexWriter && descriptor.equals(((PerSSTableIndexWriter) o).descriptor);
+    }
+
+    public static void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownAndWait(timeout, unit, INDEX_FLUSHER_MEMTABLE, INDEX_FLUSHER_GENERAL);
     }
 }

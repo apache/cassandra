@@ -126,6 +126,7 @@ import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.AccordViolationHandler;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.api.TokenKey.KeyspaceSplitter;
+import org.apache.cassandra.service.accord.execution.AccordExecutor;
 import org.apache.cassandra.service.accord.interop.AccordInteropAdapter.AccordInteropFactory;
 import org.apache.cassandra.service.accord.journal.AccordJournal;
 import org.apache.cassandra.service.accord.journal.ReplayMarkers;
@@ -165,7 +166,7 @@ import static accord.api.Journal.TopologyUpdate;
 import static accord.api.ProtocolModifiers.FastExecution.MAY_BYPASS_SAFESTORE;
 import static accord.coordinate.Coordination.CoordinationKind.Client;
 import static accord.impl.progresslog.DefaultProgressLog.ModeFlag.CATCH_UP;
-import static accord.local.durability.DurabilityService.SyncLocal.Self;
+import static accord.local.durability.DurabilityService.SyncLocal.NoLocal;
 import static accord.local.durability.DurabilityService.SyncRemote.All;
 import static accord.messages.SimpleReply.Ok;
 import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
@@ -384,6 +385,11 @@ public class AccordService implements IAccordService, Shutdownable
             AccordService as = new AccordService(tcmIdToAccord(tcmId));
             unsafeInstance = replyInstance = as;
             as.localStartup();
+
+            AccordReplicaMetrics.touch();
+            AccordSystemMetrics.touch();
+            AccordExecutorMetrics.touch();
+            AccordViolationHandler.setup();
         }
     }
 
@@ -397,11 +403,6 @@ public class AccordService implements IAccordService, Shutdownable
             return as;
 
         as.distributedStartupInternal();
-
-        AccordReplicaMetrics.touch();
-        AccordSystemMetrics.touch();
-        AccordExecutorMetrics.touch();
-        AccordViolationHandler.setup();
         return as;
     }
 
@@ -464,6 +465,7 @@ public class AccordService implements IAccordService, Shutdownable
         agent.setup(localId);
         AccordTimeService time = new AccordTimeService();
         this.scheduler = new AccordScheduler();
+        // TODO (expected): can we pass ImmediateExecutor rather than Scheduler?
         final RequestCallbacks callbacks = new RequestCallbacks(time, scheduler);
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal(DatabaseDescriptor.getAccord().journal);
@@ -502,6 +504,8 @@ public class AccordService implements IAccordService, Shutdownable
             ProtocolModifiers.Configure.setPermitCoordinatorLocalExecution(config.permit_coordinator_local_execution);
         if (config.permit_local_delivery != null)
             ProtocolModifiers.Configure.setPermitLocalDelivery(config.permit_local_delivery);
+        if (config.permit_atomic_incremental_tasks != null)
+            ProtocolModifiers.Configure.setPermitAtomicIncrementalTasks(config.permit_atomic_incremental_tasks);
         if (config.permit_fast_path != null)
             ProtocolModifiers.Configure.setPermittedFastPaths(new FastPaths(Stream.of(FastPath.values()).filter(fp -> fp.compareTo(config.permit_fast_path) <= 0).toArray(FastPath[]::new)));
         if (config.permit_track_stable_medium_path != null)
@@ -563,6 +567,9 @@ public class AccordService implements IAccordService, Shutdownable
             CompactionManager.instance.submitBackground(AccordColumnFamilyStores.commandsForKey);
             CompactionManager.instance.submitBackground(AccordColumnFamilyStores.journal);
         }, 1L, MINUTES);
+
+        long durabilityFlushIntervalNanos = DatabaseDescriptor.getAccordDurabilityFlushInterval(NANOSECONDS);
+        scheduler.recurring(() -> AccordDurableOnFlush.flushWaitingCfs(durabilityFlushIntervalNanos), durabilityFlushIntervalNanos/2, NANOSECONDS);
 
         state = State.STARTING;
         node.unsafeSetReplaying(true);
@@ -964,7 +971,7 @@ public class AccordService implements IAccordService, Shutdownable
             return syncInternal(minBound, keys, syncLocal, syncRemote);
 
         return KeyBarriers.find(node, minBound, keys.get(0).toUnseekable(), syncLocal, syncRemote).chain()
-                          .flatMap(found -> KeyBarriers.await(node, node.someSequentialExecutor(), found, syncLocal, syncRemote))
+                          .flatMap(found -> KeyBarriers.await(node, node.someExclusiveExecutor(), found, syncLocal, syncRemote))
                           .flatMap(success -> {
                               if (success)
                                   return null;
@@ -1187,10 +1194,14 @@ public class AccordService implements IAccordService, Shutdownable
         return scheduler.isTerminated();
     }
 
-    static class FlushingCacheEntries extends AsyncResults.CountingResult implements Runnable
+    static class FlushingCacheEntries extends AsyncResults.CountingResult implements BiConsumer<Void, Throwable>
     {
         public FlushingCacheEntries() { super(1); }
-        @Override public void run() { decrement(); }
+        @Override public void accept(Void success, Throwable failure)
+        {
+            if (failure == null) decrement();
+            else tryFailure(failure);
+        }
     }
 
     public synchronized Future<Void> flushCaches()
@@ -1429,7 +1440,7 @@ public class AccordService implements IAccordService, Shutdownable
         long startedAt = nanoTime();
         long deadline = startedAt + timeout;
         // TODO (required): relax this requirement - too expensive
-        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', ExclusiveSyncPoint, TxnId.minForEpoch(epoch), ranges, Self, All, DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), NANOSECONDS), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
+        getBlocking(node.durability().sync("Drop Keyspace/Table (Epoch " + epoch + ')', ExclusiveSyncPoint, TxnId.minForEpoch(epoch), ranges, NoLocal, All, DatabaseDescriptor.getAccordRangeSyncPointTimeoutNanos(), NANOSECONDS), ranges, new LatencyRequestBookkeeping(null), startedAt, deadline, false);
     }
 
     public Params journalConfiguration()

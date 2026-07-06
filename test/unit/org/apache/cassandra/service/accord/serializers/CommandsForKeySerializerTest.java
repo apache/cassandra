@@ -49,6 +49,7 @@ import org.junit.Test;
 import accord.api.Agent;
 import accord.api.AsyncExecutor;
 import accord.api.DataStore;
+import accord.api.ExclusiveAsyncExecutor;
 import accord.api.Journal;
 import accord.api.Key;
 import accord.api.OwnershipEventListener;
@@ -66,13 +67,12 @@ import accord.local.CommandBuilder;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.DurableBefore;
+import accord.local.ExecutionContext;
 import accord.local.Node;
 import accord.local.NodeCommandStoreService;
-import accord.local.PreLoadContext;
 import accord.local.RedundantBefore;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
-import accord.local.SequentialAsyncExecutor;
 import accord.local.StoreParticipants;
 import accord.local.TimeService;
 import accord.local.cfk.CommandsForKey;
@@ -505,8 +505,8 @@ public class CommandsForKeySerializerTest
             {
                 int next = source.nextInt(commands.size());
                 Command command = commands.get(next);
-                if (command.txnId.isSyncPoint()) cfk = cfk.registerUnmanaged(new TestSafeCommandStore(PreLoadContext.contextFor(command.txnId(), "Test")), new TestSafeCommand(command), REGISTER).cfk();
-                else cfk = cfk.update(new TestSafeCommandStore(PreLoadContext.contextFor(command.txnId(), "Test")), command).cfk();
+                if (command.txnId.isSyncPoint()) cfk = cfk.registerUnmanaged(new TestSafeCommandStore(ExecutionContext.unsequenced(command.txnId(), "Test")), new TestSafeCommand(command), REGISTER).cfk();
+                else cfk = cfk.update(new TestSafeCommandStore(ExecutionContext.unsequenced(command.txnId(), "Test")), command).cfk();
                 commands.set(next, commands.get(commands.size() - 1));
                 commands.remove(commands.size() - 1);
             }
@@ -547,33 +547,12 @@ public class CommandsForKeySerializerTest
 
     static class TestSafeCommand extends SafeCommand
     {
-        final Command command;
         TestSafeCommand(Command command)
         {
             super(command.txnId);
-            this.command = command;
-        }
-
-        @Override
-        public Command current()
-        {
-            return command;
-        }
-
-        @Override
-        public void markUnsafe()
-        {
-        }
-
-        @Override
-        public boolean isUnsafe()
-        {
-            return false;
-        }
-
-        @Override
-        protected void set(Command command)
-        {
+            current = command;
+            // a state is only readable once locked by the task that owns it; there is no task here, so say so directly
+            setSafe();
         }
     }
 
@@ -581,14 +560,15 @@ public class CommandsForKeySerializerTest
     public void test()
     {
         var tableGen = AccordGenerators.fromQT(CassandraGenerators.TABLE_ID_GEN);
+        var redudantBeforeGen = AccordGens.txnIds((Gen.LongGen) rs -> rs.nextLong(0, 99), rs -> rs.nextLong(100), rs -> rs.nextInt(10));
         var txnIdGen = AccordGens.txnIds((Gen.LongGen) rs -> rs.nextLong(0, 100), rs -> rs.nextLong(100), rs -> rs.nextInt(10));
         qt().check(rs -> {
             TableId table = tableGen.next(rs);
             TokenKey pk = new TokenKey(table, new Murmur3Partitioner.LongToken(rs.nextLong()));
-            var redudentBefore = txnIdGen.next(rs);
+            var redudantBefore = redudantBeforeGen.next(rs);
             TxnId[] ids = Gens.arrays(TxnId.class, rs0 -> {
                 TxnId next = txnIdGen.next(rs0);
-                while (next.compareTo(redudentBefore) <= 0)
+                while (next.compareTo(redudantBefore) <= 0)
                     next = txnIdGen.next(rs0);
                 return next;
             }).unique().ofSizeBetween(0, 10).next(rs);
@@ -598,7 +578,9 @@ public class CommandsForKeySerializerTest
             for (int i = 0; i < info.length; i++)
             {
                 InternalStatus status = rs.pick(statuses);
-                info[i] = TxnInfo.create(ids[i], status, true, ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
+                // mayExecute is not free to choose: CommandsForKey derives its indexes from it and then asserts them
+                // against mayExecute(bounds, txnId) (see checkIntegrity), so it must agree with the bounds we build with
+                info[i] = TxnInfo.create(ids[i], status, CommandsForKey.mayExecute(NO_BOUNDS_INFO, ids[i]), ids[i], TxnId.NO_TXNIDS, Ballot.ZERO);
             }
 
             Gen<Unmanaged.Pending> pendingGen = Gens.enums().allMixedDistribution(Unmanaged.Pending.class).next(rs);
@@ -617,7 +599,7 @@ public class CommandsForKeySerializerTest
                 {
                     int idx = Arrays.binarySearch(ids, u.txnId);
                     if (idx < 0)
-                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, true, u.txnId, Ballot.ZERO));
+                        missing.add(TxnInfo.create(u.txnId, InternalStatus.TRANSITIVE, CommandsForKey.mayExecute(NO_BOUNDS_INFO, u.txnId), u.txnId, Ballot.ZERO));
                 }
                 if (!missing.isEmpty())
                 {
@@ -628,7 +610,9 @@ public class CommandsForKeySerializerTest
             else unmanaged = CommandsForKey.NO_PENDING_UNMANAGED;
 
             long maxUniqueHlc = rs.nextLong(0, Long.MAX_VALUE);
-            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO, true);
+            // expectUpToDate=false, as Serialize.fromBytes does: the generated unmanaged entries are arbitrary, so we
+            // cannot promise that every satisfied wait has already been notified (see CommandsForKey.checkIntegrity)
+            CommandsForKey expected = CommandsForKey.SerializerSupport.create(pk, info, maxUniqueHlc, unmanaged, TxnId.NONE, NO_BOUNDS_INFO, false);
 
             ByteBuffer buffer = Serialize.toBytesWithoutKey(expected);
             CommandsForKey roundTrip = Serialize.fromBytes(pk, buffer);
@@ -667,8 +651,10 @@ public class CommandsForKeySerializerTest
         }
 
         @Override public boolean inStore() { return true; }
-        @Override public AsyncChain<Void> chain(PreLoadContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
-        @Override public <T> AsyncChain<T> chain(PreLoadContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+        @Override public AsyncChain<Void> chain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
+        @Override public <T> AsyncChain<T> chain(ExecutionContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
+        @Override public AsyncChain<Void> continuationChain(ExecutionContext context, Consumer<? super SafeCommandStore> consumer) { throw new UnsupportedOperationException();}
+        @Override public <T> AsyncChain<T> continuationChain(ExecutionContext context, Function<? super SafeCommandStore, T> apply) { throw new UnsupportedOperationException(); }
 
         @Override public Journal.Replayer replayer(AbstractReplayer.Mode mode) { throw new UnsupportedOperationException(); }
 
@@ -702,9 +688,9 @@ public class CommandsForKeySerializerTest
 
     public static class TestSafeCommandStore extends AbstractSafeCommandStore
     {
-        public TestSafeCommandStore(PreLoadContext context)
+        public TestSafeCommandStore(ExecutionContext context)
         {
-            super(context, TestCommandStore.INSTANCE);
+            super(context);
         }
 
         @Override protected CommandStoreCaches tryGetCaches() { return null; }
@@ -712,13 +698,14 @@ public class CommandsForKeySerializerTest
         @Override protected SafeCommandsForKey add(SafeCommandsForKey safeCfk, CommandStoreCaches caches) { return null; }
         @Override protected SafeCommand getInternal(TxnId txnId) { return null; }
         @Override protected SafeCommandsForKey getInternal(RoutingKey key) { return null; }
+        @Override public CommandStore commandStore() { return TestCommandStore.INSTANCE; }
         @Override public DataStore dataStore() { return null; }
         @Override public Agent agent() { return null; }
         @Override public ProgressLog progressLog() { return null; }
         @Override public NodeCommandStoreService node() { return new NodeCommandStoreService()
         {
             @Override public AsyncExecutor someExecutor() { throw new UnsupportedOperationException(); }
-            @Override public SequentialAsyncExecutor someSequentialExecutor() { throw new UnsupportedOperationException(); }
+            @Override public ExclusiveAsyncExecutor someExclusiveExecutor() { throw new UnsupportedOperationException(); }
             @Override public long epoch() { return 0;}
             @Override public Node.Id id() { return Node.Id.NONE; }
             @Override public Timeouts timeouts() { return null; }

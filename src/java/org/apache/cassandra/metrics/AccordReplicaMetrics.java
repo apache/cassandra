@@ -33,11 +33,11 @@ import org.apache.cassandra.metrics.LogLinearDecayingHistograms.LogLinearDecayin
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.DecayingHistogramsShard;
 import org.apache.cassandra.metrics.ShardedDecayingHistograms.ShardedDecayingHistogram;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.execution.SaferCommandStore;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-import static org.apache.cassandra.service.accord.AccordExecutor.HISTOGRAMS;
+import static org.apache.cassandra.service.accord.execution.AccordExecutor.HISTOGRAMS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class AccordReplicaMetrics
@@ -168,7 +168,7 @@ public class AccordReplicaMetrics
 
         private static LogLinearDecayingHistograms.Buffer buffer(SafeCommandStore safeStore)
         {
-            return ((AccordSafeCommandStore) safeStore).histogramBuffer();
+            return ((SaferCommandStore) safeStore).histogramBuffer();
         }
 
         @Override

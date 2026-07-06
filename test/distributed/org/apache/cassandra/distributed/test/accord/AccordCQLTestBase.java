@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,8 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -51,6 +50,7 @@ import accord.primitives.Unseekables;
 import accord.topology.SelectShards;
 import accord.topology.Topologies;
 import accord.topology.TopologyException;
+import accord.utils.UnhandledEnum;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -81,9 +81,11 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.distributed.shared.FutureUtils;
 import org.apache.cassandra.distributed.test.sai.SAIUtil;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -93,6 +95,7 @@ import org.apache.cassandra.service.consensus.TransactionalMode;
 import org.apache.cassandra.service.consensus.migration.TransactionalMigrationFromMode;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Pair;
 
@@ -116,9 +119,25 @@ import static org.junit.Assert.fail;
 public abstract class AccordCQLTestBase extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCQLTestBase.class);
+    private final int maxConcurrency;
+    private static final int INTEROP_MAX_CONCURRENCY = 16;
 
-    protected AccordCQLTestBase(TransactionalMode transactionalMode) {
+    protected AccordCQLTestBase(TransactionalMode transactionalMode)
+    {
         super(transactionalMode);
+        switch (transactionalMode)
+        {
+            default: throw new UnhandledEnum(transactionalMode);
+            case mixed_reads:
+            case test_interop_read:
+                maxConcurrency = INTEROP_MAX_CONCURRENCY;
+                break;
+            case full:
+            case off:
+            case test_unsafe:
+            case test_unsafe_writes:
+                maxConcurrency = 32;
+        }
     }
 
     @Override
@@ -131,7 +150,9 @@ public abstract class AccordCQLTestBase extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL)
-                                                                                    .set("paxos_variant", PaxosVariant.v2.name())), 2);
+                                                                                    .set("paxos_variant", PaxosVariant.v2.name())
+                                                                                    .set("accord.migration_concurrency", "" + (1 + INTEROP_MAX_CONCURRENCY))
+        ), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
@@ -3332,15 +3353,18 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
-                 ExecutorService es = Executors.newCachedThreadPool();
-                 List<Future<Object[][]>> futures = new ArrayList<>();
-                 for (int ii = 0; ii < 10; ii++)
+                 Future<Object[][]>[] futures = new Future[maxConcurrency];
+                 long[] starts = new long[maxConcurrency];
+                 for (int id = 0; id < maxConcurrency; id++)
                  {
-                     int id = ii;
-                     futures.add(es.submit(() -> coordinator.execute("UPDATE " + qualifiedAccordTableName + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1)));
+                     starts[id] = Clock.Global.nanoTime();
+                     futures[id] = FutureUtils.map(coordinator.asyncExecuteWithResult("UPDATE " + qualifiedAccordTableName + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1), SimpleQueryResult::toObjectArrays);
                  }
-                 for (Future f : futures)
-                     f.get();
+                 for (int id = 0; id < maxConcurrency; id++)
+                 {
+                     futures[id].get();
+                     System.out.println(String.format("Completed in %.3fs", (Clock.Global.nanoTime() - starts[id]) * 0.000000001));
+                 }
 
                  Object[][] result = coordinator.execute("SELECT pk, count, seq1, seq2 FROM  " + qualifiedAccordTableName + " WHERE pk = 1", ConsistencyLevel.SERIAL);
 
@@ -3365,7 +3389,6 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
 
                  ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
-                 ExecutorService es = Executors.newCachedThreadPool();
                  List<Future<SimpleQueryResult>> futures = new ArrayList<>();
                  for (int ii = 0; ii < 10; ii++)
                  {
@@ -3374,7 +3397,7 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                                      "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1);\n" +
                                      "  UPDATE " + qualifiedAccordTableName + " SET count += 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk=1;\n" +
                                      "COMMIT TRANSACTION";
-                     futures.add(es.submit(() -> coordinator.executeWithResult(update, ConsistencyLevel.ANY, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))))));
+                     futures.add(coordinator.asyncExecuteWithResult(update, ConsistencyLevel.ANY, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id)))));
                  }
                  for (Future f : futures)
                      f.get();
@@ -3392,6 +3415,67 @@ public abstract class AccordCQLTestBase extends AccordTestBase
                  logger.info("String append of ids executed {}", Arrays.toString(seq1));
                  logger.info("List append of ids executed {}", Arrays.toString(seq2));
                  assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
+             }
+        );
+    }
+
+    @Test
+    public void testFastIncrement() throws Exception
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (pk int, count int, PRIMARY KEY (pk)) WITH transactional_mode='" + transactionalMode + "'",
+             cluster ->
+             {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 coordinator.execute("INSERT INTO " + qualifiedAccordTableName + " (pk, count) VALUES (1, 0) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+
+                 ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
+                 ArrayDeque<Future<SimpleQueryResult>> futures = new ArrayDeque<>();
+                 int success = 0, unknown = 0;
+                 for (int ii = 0; ii < 10000; ii++)
+                 {
+                     int id = ii;
+                     String update = "BEGIN TRANSACTION\n" +
+                                     "  LET row1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1);\n" +
+                                     "  UPDATE " + qualifiedAccordTableName + " SET count += 1 WHERE pk=1;\n" +
+                                     "COMMIT TRANSACTION";
+                     futures.add(coordinator.asyncExecuteWithResult(update, ConsistencyLevel.ANY, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id)))));
+                     while (futures.size() > maxConcurrency)
+                     {
+                         try { futures.pollFirst().get() ; success++;}
+                         catch (Throwable t)
+                         {
+                             if (t instanceof OverloadedException)
+                             {
+                                 // do nothing
+                                 continue;
+                             }
+                             ++unknown;
+                         }
+                     }
+                 }
+
+                 while (futures.size() > 0)
+                 {
+                     try { futures.pollFirst().get() ; success++;}
+                     catch (Throwable t)
+                     {
+                         if (t instanceof OverloadedException)
+                         {
+                             // do nothing
+                             continue;
+                         }
+                         ++unknown;
+                     }
+                 }
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT * FROM " + qualifiedAccordTableName + " WHERE pk = 1;\n" +
+                                "COMMIT TRANSACTION";
+
+                 Object[][] result = coordinator.execute(check, ConsistencyLevel.ALL);
+                 int actual = (int) result[0][1];
+                 assertTrue(actual >= success);
+                 assertTrue(actual <= success + unknown);
              }
         );
     }

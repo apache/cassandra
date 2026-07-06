@@ -27,9 +27,8 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.LoadKeys;
+import accord.local.ExecutionContext;
 import accord.local.Node;
-import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
 import accord.local.StoreParticipants;
@@ -58,7 +57,6 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static accord.api.ProtocolModifiers.filterDuplicateDependenciesFromAcceptReply;
-import static accord.local.LoadKeysFor.READ_WRITE;
 import static accord.messages.Accept.Kind.SLOW;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordService.getBlocking;
@@ -98,7 +96,7 @@ public class AccordCommandTest
     public void basicCycleTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        getBlocking(commandStore.execute((PreLoadContext.Empty)() -> "Test", unused -> commandStore.executor().cacheUnsafe().setCapacity(0)));
+        getBlocking(commandStore.execute((ExecutionContext.Empty)() -> "Test", unused -> commandStore.executor().setCapacity(0)));
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createWriteTxn(1);
@@ -174,7 +172,7 @@ public class AccordCommandTest
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, 1, Commit.Kind.StableWithTxnAndDeps, Ballot.ZERO, executeAt, partialTxn, deps, fullRoute);
         getBlocking(commandStore.execute(commit, commit::apply));
 
-        getBlocking(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key).toParticipants(), LoadKeys.SYNC, READ_WRITE, "Test"), safeStore -> {
+        getBlocking(commandStore.execute(ExecutionContext.unsequencedReadWrite(txnId, Keys.of(key).toParticipants(), "Test"), safeStore -> {
             Command before = safeStore.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, before.executeAt());
             Assert.assertTrue(before.hasBeen(Status.Committed));
@@ -191,7 +189,7 @@ public class AccordCommandTest
     public void computeDeps() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        getBlocking(commandStore.execute((PreLoadContext.Empty)()->"Test", unused -> commandStore.executor().cacheUnsafe().setCapacity(0)));
+        getBlocking(commandStore.execute((ExecutionContext.Empty)()->"Test", unused -> commandStore.executor().setCapacity(0)));
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createWriteTxn(2);
