@@ -806,7 +806,7 @@ public class CreateTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", defaultCompressor())));
+                   row(map("chunk_length_in_kb", "16", "class", defaultCompressorClassName())));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");

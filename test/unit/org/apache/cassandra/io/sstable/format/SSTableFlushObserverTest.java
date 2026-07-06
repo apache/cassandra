@@ -275,7 +275,7 @@ public class SSTableFlushObserverTest
                                               .addPartitionKeyColumn("id", UTF8Type.instance)
                                               .addClusteringColumn("name", UTF8Type.instance)
                                               .addRegularColumn("age", Int32Type.instance)
-                                              .compression(compression ? CompressionParams.DEFAULT : CompressionParams.noCompression())
+                                              .compression(compression ? CompressionParams.forNewTables(KS_NAME) : CompressionParams.noCompression())
                                               .build();
 
         DeletionTime dt = new DeletionTime(now, nowInSec);

@@ -1006,7 +1006,7 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
-        return TableParams.builder()
+        return TableParams.builder(SchemaConstants.SCHEMA_KEYSPACE_NAME)
                           .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
                           .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
                           .comment(row.getString("comment"))

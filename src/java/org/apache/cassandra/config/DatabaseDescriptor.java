@@ -2135,19 +2135,12 @@ public class DatabaseDescriptor
 
     public static Config.FlushCompression getFlushCompression()
     {
-        return Objects.requireNonNullElseGet(conf.flush_compression, () -> shouldUseAdaptiveCompressionByDefault()
-                                                                           ? Config.FlushCompression.adaptive
-                                                                           : Config.FlushCompression.fast);
+        return Objects.requireNonNullElse(conf.flush_compression, Config.FlushCompression.fast);
     }
 
     public static void setFlushCompression(Config.FlushCompression compression)
     {
         conf.flush_compression = compression;
-    }
-
-    public static boolean shouldUseAdaptiveCompressionByDefault()
-    {
-        return CassandraRelevantProperties.DEFAULT_SSTABLE_COMPRESSION.getString().equals("adaptive");
     }
 
     /**

@@ -107,9 +107,15 @@ public final class TableParams
         readRepair = builder.readRepair;
     }
 
-    public static Builder builder()
+
+    /**
+     * Creates a builder pre-seeded with keyspace-specific defaults. Use this when creating new tables via DDL
+     * so that any per-keyspace policy (e.g. a tenant-aware compression selector) takes effect when the
+     * corresponding option is not explicitly specified in the statement.
+     */
+    public static Builder builder(String keyspace)
     {
-        return new Builder();
+        return new Builder().compression(CompressionParams.forNewTables(keyspace));
     }
 
     public static Builder builder(TableParams params)
@@ -326,15 +332,11 @@ public final class TableParams
         private SpeculativeRetryPolicy additionalWritePolicy = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
-        private CompressionParams compression = CompressionParams.DEFAULT;
+        private CompressionParams compression = CompressionParams.noCompression();
         private MemtableParams memtable = MemtableParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
-
-        public Builder()
-        {
-        }
 
         public TableParams build()
         {

@@ -20,11 +20,9 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,7 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -46,6 +44,7 @@ import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.PageAware;
 
 import static java.lang.String.format;
@@ -89,7 +88,104 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
 
-    public static final CompressionParams DEFAULT = DatabaseDescriptor.shouldUseAdaptiveCompressionByDefault() ? ADAPTIVE : FAST;
+    // This is volatile rather than final so that tests may use reflection to change it and safely publish across threads,
+    // but it should not be changed outside of tests.
+    @SuppressWarnings("FieldMayBeFinal")
+    private static volatile Selector SELECTOR = Selector.fromProperty();
+
+    /**
+     * Returns the default {@link CompressionParams} for tables and views in the given keyspace,
+     * as determined by the active {@link Selector}.
+     *
+     * @param keyspace the keyspace name, used by the selector to determine the appropriate default compression.
+     *                 May be {@code null} when no keyspace context is available (e.g. schema loading or
+     *                 {@link TableParams.Builder} default construction); selectors should treat {@code null}
+     *                 as a request for the global default.
+     * @return the default compression params for the given keyspace.
+     */
+    public static CompressionParams forNewTables(String keyspace)
+    {
+        return SELECTOR.newTableCompression(keyspace);
+    }
+
+    /**
+     * Returns the {@link CompressionParams} to use when flushing a memtable for the given keyspace, as determined
+     * by the active {@link Selector}.
+     *
+     * @param keyspace the keyspace whose memtable is being flushed.
+     * @return the compression params that should be used for the flush SSTable.
+     */
+    public CompressionParams forFlush(String keyspace)
+    {
+        return SELECTOR.flushCompression(keyspace, this);
+    }
+
+    /**
+     * Returns the {@link CompressionParams} to use when compacting SSTables for the given keyspace, as determined
+     * by the active {@link Selector}.
+     *
+     * @param keyspace the keyspace being compacted.
+     * @return the compression params that should be used for the compaction output SSTable.
+     */
+    public CompressionParams forCompaction(String keyspace)
+    {
+        return SELECTOR.compactionCompression(keyspace, this);
+    }
+
+    /**
+     * Interface for selecting the SSTable compression for newly created tables, for flushing, and for compacting
+     * tables in the given keyspace.
+     * <p>
+     * Implementations are loaded via the system property
+     * {@link CassandraRelevantProperties#SSTABLE_COMPRESSION_SELECTOR_CLASS}.
+     * If not set {@link DefaultCompressionSelector} is used.
+     */
+    public interface Selector
+    {
+        /**
+         * @param keyspace the keyspace for which to select the default compression.
+         * @return the default {@link CompressionParams} to use for new tables and views in the given keyspace.
+         */
+        CompressionParams newTableCompression(String keyspace);
+
+        /**
+         * Selects the {@link CompressionParams} to use when flushing a memtable to an SSTable.
+         * <p>
+         * During a flush, throughput of the compressor is critical: large flushes can queue up and block
+         * writes. Implementations may therefore return a faster or lighter compression scheme than the
+         * table's configured params (e.g. switching to an LZ4 or adaptive compressor).
+         *
+         * @param keyspace    the keyspace whose memtable is being flushed.
+         * @param tableParams the compression params configured on the table being flushed.
+         * @return the compression params that should be written into the flush SSTable.
+         */
+        CompressionParams flushCompression(String keyspace, CompressionParams tableParams);
+
+        /**
+         * Selects the {@link CompressionParams} to use when writing a compaction output SSTable.
+         * <p>
+         * The default implementation returns {@code tableParams} unchanged. Override this method to apply a
+         * per-keyspace compaction compression policy (e.g. in CNDB).
+         *
+         * @param keyspace    the keyspace being compacted.
+         * @param tableParams the compression params configured on the table being compacted.
+         * @return the compression params that should be written into the compaction output SSTable.
+         */
+        CompressionParams compactionCompression(String keyspace, CompressionParams tableParams);
+
+        static Selector fromProperty()
+        {
+            String selectorClass = CassandraRelevantProperties.SSTABLE_COMPRESSION_SELECTOR_CLASS.getString();
+            if (selectorClass.isEmpty())
+            {
+                logger.info("Using default compression selector");
+                return new DefaultCompressionSelector();
+            }
+
+            logger.info("Using compression selector: {}", selectorClass);
+            return FBUtilities.construct(selectorClass, "compression selector");
+        }
+    }
 
     public static final CompressionParams NOOP = new CompressionParams(NoopCompressor.create(Collections.emptyMap()),
                                                                        // 4 KiB is often the underlying disk block size

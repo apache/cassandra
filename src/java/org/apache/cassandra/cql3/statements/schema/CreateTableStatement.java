@@ -211,8 +211,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public TableMetadata.Builder builder(Types types)
     {
-        attrs.validate();
-        TableParams params = attrs.asNewTableParams();
+        attrs.validate(keyspaceName);
+        TableParams params = attrs.asNewTableParams(keyspaceName);
 
         // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492) - important for stable unit tests
         Map<ColumnIdentifier, CQL3Type> columns = new TreeMap<>(comparing(o -> o.bytes));

@@ -3138,7 +3138,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         try
         {
-            TableParams.builder().crcCheckChance(crcCheckChance).build().validate();
+            TableParams.builder(getKeyspaceName()).crcCheckChance(crcCheckChance).build().validate();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 cfs.crcCheckChance.set(crcCheckChance);

@@ -154,7 +154,7 @@ public final class CassandraGenerators
                                                      .partitioner(PARTITIONER_GEN.generate(rnd))
                                                      .kind(TABLE_KIND_GEN.generate(rnd))
                                                      .isCounter(BOOLEAN_GEN.generate(rnd))
-                                                     .params(TableParams.builder().build());
+                                                     .params(TableParams.builder(ks).build());
 
         // generate columns
         // must have a non-zero amount of partition columns, but may have 0 for the rest; SMALL_POSSITIVE_SIZE_GEN won't return 0

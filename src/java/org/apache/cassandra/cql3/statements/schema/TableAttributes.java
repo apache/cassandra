@@ -74,10 +74,10 @@ public final class TableAttributes extends PropertyDefinitions
 
     private final Map<ColumnIdentifier, DroppedColumn.Raw> droppedColumnRecords = new HashMap<>();
 
-    public void validate()
+    public void validate(String keyspace)
     {
         validate(validKeywords, obsoleteKeywords);
-        build(TableParams.builder()).validate();
+        build(TableParams.builder(keyspace)).validate();
     }
 
     public void addDroppedColumnRecord(ColumnIdentifier name, CQL3Type.Raw type, boolean isStatic, long timestamp)
@@ -92,9 +92,9 @@ public final class TableAttributes extends PropertyDefinitions
         return droppedColumnRecords.values();
     }
 
-    TableParams asNewTableParams()
+    TableParams asNewTableParams(String keyspaceName)
     {
-        return build(TableParams.builder());
+        return build(TableParams.builder(keyspaceName));
     }
 
     TableParams asAlteredTableParams(TableParams previous)

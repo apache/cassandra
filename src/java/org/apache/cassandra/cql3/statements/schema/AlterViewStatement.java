@@ -66,7 +66,7 @@ public final class AlterViewStatement extends AlterSchemaStatement
         if (null == view)
             throw ire("Materialized view '%s.%s' doesn't exist", keyspaceName, viewName);
 
-        attrs.validate();
+        attrs.validate(keyspaceName);
 
         Guardrails.disallowedTableProperties.ensureAllowed(attrs.updatedProperties(), state);
         Guardrails.ignoredTableProperties.maybeIgnoreAndWarn(attrs.updatedProperties(), attrs::removeProperty, state);

@@ -164,7 +164,8 @@ public class SSTableReaderTest
                                                 .maxIndexInterval(8),  // ensure close key count estimation
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_MOVE_AND_OPEN),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED).compression(CompressionParams.DEFAULT),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED)
+                                                .compression(CompressionParams.forNewTables(KEYSPACE1)),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED, true),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD_LOW_INDEX_INTERVAL)
                                                 .minIndexInterval(8)

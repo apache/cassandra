@@ -156,8 +156,8 @@ public class TableMetadataTest
     {
         String keyspaceName = "ks1";
         String tableName = "tbl1";
-        TableParams noCdcParams = TableParams.builder().cdc(false).build();
-        TableParams cdcParams = TableParams.builder().cdc(true).build();
+        TableParams noCdcParams = TableParams.builder(keyspaceName).cdc(false).build();
+        TableParams cdcParams = TableParams.builder(keyspaceName).cdc(true).build();
 
         TableMetadata metadata = TableMetadata.builder(keyspaceName, tableName)
                                               .addPartitionKeyColumn("key", UTF8Type.instance)

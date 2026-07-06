@@ -1021,7 +1021,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
                "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': '" + defaultCompressor() + "'}\n" +
+               "    AND compression = {'chunk_length_in_kb': '16', 'class': '" + defaultCompressorClassName() + "'}\n" +
                "    AND memtable = {}\n" +
                "    AND crc_check_chance = 1.0\n" +
                "    AND default_time_to_live = 0\n" +
@@ -1047,7 +1047,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
                "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
-               "    AND compression = {'chunk_length_in_kb': '16', 'class': '" + defaultCompressor() + "'}\n" +
+               "    AND compression = {'chunk_length_in_kb': '16', 'class': '" + defaultCompressorClassName() + "'}\n" +
                "    AND memtable = {}\n" +
                "    AND crc_check_chance = 1.0\n" +
                "    AND extensions = {}\n" +

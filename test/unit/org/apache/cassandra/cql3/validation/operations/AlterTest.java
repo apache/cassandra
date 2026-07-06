@@ -598,7 +598,7 @@ public class AlterTest extends CQLTester
                                   SchemaKeyspaceTables.TABLES),
                            KEYSPACE,
                            currentTable()),
-                   row(map("chunk_length_in_kb", "16", "class", defaultCompressor())));
+                   row(map("chunk_length_in_kb", "16", "class", defaultCompressorClassName())));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
 

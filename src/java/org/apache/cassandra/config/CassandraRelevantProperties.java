@@ -23,10 +23,9 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.AdaptiveCompressor;
-import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.DefaultCompressionSelector;
 import org.apache.cassandra.sensors.SensorsFactory;
 import org.apache.cassandra.service.context.OperationContext;
 import org.apache.cassandra.service.reads.range.EndpointGroupingRangeCommandIterator;
@@ -772,10 +771,14 @@ public enum CassandraRelevantProperties
     DS_CURRENT_MESSAGING_VERSION("ds.current_messaging_version", Integer.toString(MessagingService.VERSION_DS_11)),
 
     /**
-     * Which compression algorithm to use for SSTable compression when not specified explicitly in the sstable options.
-     * Can be "fast", which selects {@link LZ4Compressor}, or "adaptive" which selects {@link AdaptiveCompressor}.
+     * Fully-qualified class name of a {@link org.apache.cassandra.schema.CompressionParams.Selector} implementation
+     * to use for selecting the default SSTable compression per keyspace.
+     * If not set, {@link org.apache.cassandra.schema.DefaultCompressionSelector} is used.
+     * <p>
+     * This property is read once at startup and cannot be changed dynamically, but the selector implementation
+     * can select the compressor dynamically.
      */
-    DEFAULT_SSTABLE_COMPRESSION("cassandra.default_sstable_compression", "fast"),
+    SSTABLE_COMPRESSION_SELECTOR_CLASS("cassandra.sstable.compression.selector.class", DefaultCompressionSelector.class.getName()),
 
     /**
      * Do not try to calculate optimal streaming candidates. This can take a lot of time in some configs specially
