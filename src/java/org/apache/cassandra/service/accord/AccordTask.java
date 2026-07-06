@@ -672,7 +672,7 @@ public abstract class AccordTask<R> extends Task implements Function<SafeCommand
     }
 
     @Override
-    public void runInternal()
+    public void run()
     {
         onRunning();
         logger.trace("Running {} with state {}", this, state);

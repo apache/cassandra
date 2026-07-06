@@ -1176,7 +1176,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         /**
          * Run the command; the state cache lock may or may not be held depending on the executor implementation
          */
-        protected abstract void runInternal();
+        protected abstract void run();
 
         /**
          * Fail the command; the state cache lock may or may not be held depending on the executor implementation
@@ -1235,7 +1235,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void runInternal()
+        protected void run()
         {
             queue.runTask();
         }
@@ -1322,7 +1322,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
             if (stopped && reject(task))
                 task.fail(new RejectedExecutionException(commandStoreId + " is terminated. Cannot execute " + ((AccordTask<?>) task).preLoadContext()));
             else
-                task.runInternal();
+                task.run();
             // NOTE: cannot safely release owner here, in case an immediate-execution runs before we can release our references and store their changes to the cache
         }
 
@@ -1631,7 +1631,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         private CancelTask(Task cancel) { this.cancel = cancel; }
         @Override void submitExclusive(AccordExecutor owner) { cancel.cancelExclusive(owner); }
         @Override protected void preRunExclusive() { throw new UnsupportedOperationException(); }
-        @Override protected void runInternal() { throw new UnsupportedOperationException(); }
+        @Override protected void run() { throw new UnsupportedOperationException(); }
         @Override protected void fail(Throwable fail) { throw new UnsupportedOperationException(); }
         @Override protected void addToQueue(TaskQueue queue) { throw new UnsupportedOperationException(); }
     }
@@ -1706,7 +1706,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void runInternal()
+        protected void run()
         {
             onRunning();
             try (Closeable close = resources.get())
@@ -1809,7 +1809,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        public void runInternal()
+        public void run()
         {
             onRunning();
             try (Closeable close = resources.get())
@@ -1856,7 +1856,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void runInternal()
+        protected void run()
         {
             onRunning();
             try (Closeable close = resources.get())
@@ -1907,7 +1907,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        public void runInternal()
+        public void run()
         {
             onRunning();
             try (Closeable close = resources.get())
@@ -1955,7 +1955,7 @@ public abstract class AccordExecutor implements CacheSize, LoadExecutor<AccordTa
         }
 
         @Override
-        protected void runInternal()
+        protected void run()
         {
             onRunning();
             try (Closeable close = resources.get())

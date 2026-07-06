@@ -61,7 +61,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
     public AccordExecutorSignalLoop(SignalLock lock, int executorId, Mode mode, int threads, IntFunction<String> name, Agent agent)
     {
         super(lock, executorId, agent);
-        Invariants.require(threads < SignalLock.MAX_THREADS);
+        Invariants.require(threads <= SignalLock.MAX_THREADS);
         this.lock = lock;
         this.loops = new AccordExecutorLoops(mode, threads, name, this::task);
         this.readyToRunLimit = Math.min(threads * 4, SignalLock.MAX_SIGNAL_COUNT);
@@ -397,7 +397,7 @@ public class AccordExecutorSignalLoop extends AccordExecutorAbstractLoop
                     try
                     {
                         setRunning(task);
-                        task.runInternal();
+                        task.run();
                     }
                     catch (Throwable t)
                     {
