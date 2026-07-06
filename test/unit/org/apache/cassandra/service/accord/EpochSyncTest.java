@@ -344,7 +344,7 @@ public class EpochSyncTest
         private static boolean joined(ClusterMetadata metadata, Node.Id id)
         {
             NodeAddresses address = metadata.directory.getNodeAddresses(new NodeId(id.id));
-            return metadata.placements.get(replication_params).reads.byEndpoint().keySet().contains(address.broadcastAddress);
+            return metadata.placement(replication_params).reads.byEndpoint().keySet().contains(address.broadcastAddress);
         }
 
         public enum EpochTracker { topologyManager, accordSyncPropagator }
@@ -615,7 +615,7 @@ public class EpochSyncTest
         {
             Topology t = AccordTopology.createAccordTopology(current);
             Ranges ranges = t.ranges().mergeTouching();
-            if (!current.placements.get(replication_params).reads.isEmpty())
+            if (!current.placement(replication_params).reads.isEmpty())
                 Assertions.assertThat(ranges).hasSize(1);
             cms.setMetadata(current);
             for (Node.Id id : status(s -> s != Status.Removed))
@@ -721,7 +721,7 @@ public class EpochSyncTest
                     case Registered:
                         Invariants.require(!t.nodes().contains(id), "Node was in Init state but present in the Topology!");
                         Invariants.require(current.directory.peerId(address(id)) != null, "Node exists but not in TCM");
-                        if (current.placements.get(replication_params).writes.byEndpoint().keySet().contains(address(id)))
+                        if (current.placement(replication_params).writes.byEndpoint().keySet().contains(address(id)))
                             status = Status.Joining;
                         break;
                     case Joining:

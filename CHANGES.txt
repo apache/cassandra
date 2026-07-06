@@ -4,6 +4,7 @@
  * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
+ * Add CMS membership as a field in ClusterMetadata (CASSANDRA-20736)
  * Fix maven remote publishing of Accord artifacts (CASSANDRA-21261)
  * Move long running TCM operations to a longer timout (CASSANDRA-21453)
  * Offline nodetool commands should not print network options in help (CASSANDRA-20876)

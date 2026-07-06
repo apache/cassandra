@@ -312,7 +312,7 @@ public class AccordTopology
 
     public static Topology createAccordTopology(ClusterMetadata metadata, ShardLookup lookup)
     {
-        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, metadata.accordFastPath, lookup, metadata.accordStaleReplicas);
+        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements(), metadata.directory, metadata.accordFastPath, lookup, metadata.accordStaleReplicas);
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata, Topology current)

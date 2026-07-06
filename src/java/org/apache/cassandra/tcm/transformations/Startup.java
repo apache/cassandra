@@ -24,10 +24,6 @@ import java.util.Objects;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
@@ -35,14 +31,12 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
-import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 public class Startup implements Transformation
 {
@@ -96,32 +90,13 @@ public class Startup implements Transformation
                 if (!nodeId.equals(existingNodeId) && addresses.conflictsWith(existingAddresses))
                     return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
             }
-
             next = next.withNewAddresses(nodeId, addresses);
-            Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(prev.schema.getKeyspaces());
-
             DataPlacements newPlacement = ClusterMetadataService.instance()
                                                                 .placementProvider()
                                                                 .calculatePlacements(prev.nextEpoch(),
                                                                                      prev.tokenMap.toRanges(),
                                                                                      next.build().metadata,
-                                                                                     allKeyspaces);
-
-            if (prev.isCMSMember(prev.directory.endpoint(nodeId)))
-            {
-                ReplicationParams metaParams = ReplicationParams.meta(prev);
-                InetAddressAndPort endpoint = prev.directory.endpoint(nodeId);
-                Replica leavingReplica = new Replica(endpoint, entireRange, true);
-                Replica joiningReplica = new Replica(addresses.broadcastAddress, entireRange, true);
-
-                DataPlacement.Builder builder = prev.placements.get(metaParams).unbuild();
-                builder.reads.withoutReplica(prev.nextEpoch(), leavingReplica);
-                builder.writes.withoutReplica(prev.nextEpoch(), leavingReplica);
-                builder.reads.withReplica(prev.nextEpoch(), joiningReplica);
-                builder.writes.withReplica(prev.nextEpoch(), joiningReplica);
-                newPlacement = newPlacement.unbuild().with(metaParams, builder.build()).build();
-            }
-
+                                                                                     prev.schema.getKeyspaces());
             next = next.with(newPlacement);
         }
 

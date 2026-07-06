@@ -66,7 +66,8 @@ public class ClusterMetadataDumpTest extends TestBaseImpl
                     epochsSeen++;
             }
             assertEquals(3, unsafeJoinSeen);
-            assertEquals(3, registerSeen);
+            // Only 2 REGISTER transforms are expected as the first CMS node is registered implicitly by INITIALIZE_CMS
+            assertEquals(2, registerSeen);
             assertTrue(epochsSeen > 15);
 
             res = cluster.get(1).nodetoolResult("cms", "dumplog", "--start", "10", "--end", "15");

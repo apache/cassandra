@@ -82,13 +82,13 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public EndpointsForRange calculateNaturalReplicas(Token token, ClusterMetadata metadata)
     {
-        return metadata.placements.get(ReplicationParams.meta(metadata)).reads.forRange(entireRange).get();
+        return metadata.placement(ReplicationParams.meta(metadata)).reads.forRange(entireRange).get();
     }
 
     @Override
     public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
     {
-        return metadata.placements.get(ReplicationParams.meta(metadata));
+        return metadata.placement(ReplicationParams.meta(metadata));
     }
 
     @Override

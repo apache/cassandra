@@ -234,7 +234,7 @@ public class ReplicaPlans
         NodeProximity proximity = DatabaseDescriptor.getNodeProximity();
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
 
-        EndpointsForToken replicas = metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
+        EndpointsForToken replicas = metadata.placement(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));

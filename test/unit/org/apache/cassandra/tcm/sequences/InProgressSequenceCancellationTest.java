@@ -105,11 +105,13 @@ public class InProgressSequenceCancellationTest
         LockedRanges locked = lockedRanges(placements, random);
 
         // state of metadata before starting the sequence
+        // note: don't allow epoch to be Epoch.FIRST as this is a
+        // special case for calculating meta strategy placements.
         ClusterMetadata before = metadata(directory).transformer()
                                                     .with(placements)
                                                     .withNodeState(nodeId, NodeState.REGISTERED)
                                                     .with(locked)
-                                                    .build().metadata;
+                                                    .build().metadata.forceEpoch(epoch(random));
 
         // Placements after PREPARE_JOIN
         DataPlacements afterPrepare = placements(ranges(random), replication, random);
@@ -179,11 +181,13 @@ public class InProgressSequenceCancellationTest
         // Ranges locked by other operations
         LockedRanges locked = lockedRanges(placements, random);
         // state of metadata before starting the sequence
+        // note: don't allow epoch to be Epoch.FIRST as this is a
+        // special case for calculating meta strategy placements.
         ClusterMetadata before = metadata(directory).transformer()
                                                     .with(placements)
                                                     .withNodeState(nodeId, NodeState.JOINED)
                                                     .with(locked)
-                                                    .build().metadata;
+                                                    .build().metadata.forceEpoch(epoch(random));
 
 
         // PREPARE_LEAVE does not modify placements, so first transformation is START_LEAVE
@@ -301,7 +305,7 @@ public class InProgressSequenceCancellationTest
 
     private void assertRelevantMetadata(ClusterMetadata first, ClusterMetadata second)
     {
-        assertTrue(first.placements.equivalentTo(second.placements));
+        assertTrue(first.placements().equivalentTo(second.placements()));
         assertTrue(first.directory.equivalentTo(second.directory));
         assertTrue(first.tokenMap.equivalentTo(second.tokenMap));
         assertEquals(first.lockedRanges.locked.keySet(), second.lockedRanges.locked.keySet());

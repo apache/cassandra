@@ -106,6 +106,11 @@ public class DataPlacement
         return EMPTY;
     }
 
+    public boolean isEmpty()
+    {
+        return reads.isEmpty() && writes.isEmpty();
+    }
+
     public static Builder builder()
     {
         return new Builder(ReplicaGroups.builder(),

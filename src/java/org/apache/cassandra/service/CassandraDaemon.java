@@ -360,7 +360,7 @@ public class CassandraDaemon
         {
             CommitLog.instance.recoverSegmentsOnDisk();
             NodeId self = ClusterMetadata.current().myNodeId();
-            if (self != null)
+            if (self != NodeId.UNREGISTERED)
                 AccordService.localStartup(self);
         }
         catch (IOException e)

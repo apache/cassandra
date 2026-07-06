@@ -787,7 +787,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         // we only consider write placements during cleanup as range movements always ensure
         // overlap between new replicas accepting reads and old replicas accepting writes
         ClusterMetadata cm = ClusterMetadata.current();
-        DataPlacement placement = cm.placements.get(keyspace.getMetadata().params.replication);
+        DataPlacement placement = cm.placement(keyspace.getMetadata().params.replication);
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         RangesAtEndpoint localWrites = placement.writes.byEndpoint().get(local);
         // TODO review: Hack to get local partitioner not to fail out because it's handled very poorly with data placements

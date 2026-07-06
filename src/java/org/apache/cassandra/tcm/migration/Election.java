@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -54,7 +53,6 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.TokenMap;
-import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -157,9 +155,6 @@ public class Election
             initiator.compareAndSet(currentInitiator, MIGRATING))
         {
             Startup.initializeAsFirstCMSNode();
-            Register.maybeRegister();
-            SystemKeyspace.setLocalHostId(ClusterMetadata.current().myNodeId().toUUID());
-
             updateInitiator(MIGRATING, MIGRATED);
             MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_NOTIFY_REQ, DistributedMetadataLogKeyspace.getLogState(Epoch.EMPTY, false));
         }

@@ -27,7 +27,6 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -46,8 +45,8 @@ public class AssassinateCMSNodeTest extends TestBaseImpl
             InetSocketAddress toAssassinate = cluster.get(2).broadcastAddress();
             cluster.get(2).shutdown().get();
             cluster.get(1).nodetoolResult("assassinate", toAssassinate.getHostString()).asserts().success();
-            cluster.get(1).runOnInstance(() -> assertTrue(ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort())));
-            cluster.get(3).runOnInstance(() -> assertTrue(ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort())));
+            cluster.get(1).runOnInstance(() -> assertTrue(ClusterMetadata.current().isCMSMember()));
+            cluster.get(3).runOnInstance(() -> assertTrue(ClusterMetadata.current().isCMSMember()));
             cluster.get(1).nodetoolResult("cms").asserts().success();
         }
     }

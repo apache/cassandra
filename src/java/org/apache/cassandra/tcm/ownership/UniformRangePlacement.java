@@ -329,9 +329,13 @@ public class UniformRangePlacement implements PlacementProvider
             logger.trace("Calculating data placements for {}", ksMetadata.name);
             AbstractReplicationStrategy replication = ksMetadata.replicationStrategy;
             ReplicationParams params = ksMetadata.params.replication;
-            if (params.isMeta() || params.isLocal())
+            if (params.isMeta())
             {
-                placements.put(params, metadata.placements.get(params));
+                // don't calculate meta strategy placements, these are derived from ClusterMetadata.cmsMembership
+            }
+            else if (params.isLocal())
+            {
+                placements.put(params, metadata.placement(params));
             }
             else
             {

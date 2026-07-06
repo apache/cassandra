@@ -117,7 +117,7 @@ public class ClusterMetadataService
                                             trace);
         instance = newInstance;
         RegistrationStatus.instance.onInitialized();
-        if (newInstance.metadata().myNodeId() != null)
+        if (newInstance.metadata().myNodeId() != NodeId.UNREGISTERED)
             RegistrationStatus.instance.onRegistration();
         trace = new RuntimeException("Previously initialized trace");
         DatabaseDescriptor.applyLocator();
@@ -176,8 +176,9 @@ public class ClusterMetadataService
         // The node is a full member of the CMS if it has started participating in reads for distributed metadata table (which
         // implies it is a write replica as well). In other words, it's a fully joined member of the replica set responsible for
         // the distributed metadata table.
-        if (ClusterMetadata.current().isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+        if (metadata.epoch.isEqualOrBefore(Epoch.FIRST) || metadata.isCMSMember())
             return LOCAL;
+
         return REMOTE;
     }
 
@@ -327,14 +328,15 @@ public class ClusterMetadataService
                                                     DatabaseDescriptor.getPartitioner(),
                                                     new DistributedSchema(keyspaces),
                                                     Directory.EMPTY,
-                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
-                                   DataPlacements.empty(),
-                                   AccordFastPath.EMPTY,
-                                   LockedRanges.EMPTY,
-                                   InProgressSequences.EMPTY,
-                                   ConsensusMigrationState.EMPTY,
-                                   Collections.emptyMap(),
-                                   AccordStaleReplicas.EMPTY);
+                                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                                    DataPlacements.empty(),
+                                                    AccordFastPath.EMPTY,
+                                                    LockedRanges.EMPTY,
+                                                    InProgressSequences.EMPTY,
+                                                    ConsensusMigrationState.EMPTY,
+                                                    Collections.emptyMap(),
+                                                    AccordStaleReplicas.EMPTY,
+                                                    CMSMembership.EMPTY);
 
 
         LocalLog.LogSpec logSpec = LocalLog.logSpec()
@@ -358,6 +360,24 @@ public class ClusterMetadataService
         log.readyUnchecked();
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort(), localDC, (p) -> {});
         ClusterMetadataService.setInstance(cms);
+    }
+
+    @SuppressWarnings("resource")
+    public static void initializeForClients()
+    {
+        if (instance != null)
+            return;
+
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools());
+    }
+
+    public static void initializeForClients(DistributedSchema initialSchema)
+    {
+        if (instance != null)
+            return;
+
+
+        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
     }
 
     /*
@@ -391,25 +411,8 @@ public class ClusterMetadataService
             };
         }
         // otherwise, this is a noop.
-        return preInit -> {};
-    }
-
-    @SuppressWarnings("resource")
-    public static void initializeForClients()
-    {
-        if (instance != null)
-            return;
-
-        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools());
-    }
-
-    public static void initializeForClients(DistributedSchema initialSchema)
-    {
-        if (instance != null)
-            return;
-
-
-        ClusterMetadataService.setInstance(StubClusterMetadataService.forClientTools(initialSchema));
+        return preInit -> {
+        };
     }
 
     public boolean isCurrentMember(InetAddressAndPort peer)
@@ -1100,6 +1103,6 @@ public class ClusterMetadataService
 
     public enum State
     {
-        LOCAL, REMOTE, GOSSIP, RESET
+        LOCAL, REMOTE, GOSSIP, RESET, OFFLINE_TOOL
     }
 }

@@ -2058,16 +2058,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // creation and initialization of cluster metadata service. Metadata collector does accept
         // null localhost ID values, it's just that TokenMetadata was created earlier.
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
-        if (metadata == null || metadata.directory.peerId(getBroadcastAddressAndPort()) == null)
-            return null;
-        return metadata.directory.peerId(getBroadcastAddressAndPort()).toUUID();
+        if (metadata == null || metadata.myNodeId() == NodeId.UNREGISTERED)
+        {
+            // this condition is to prevent accessing the tables when the node is not started yet, and in particular,
+            // when it is not going to be started at all (e.g. when running some unit tests or client tools).
+            if ((DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized()) && CommitLog.instance.isStarted())
+                return SystemKeyspace.getLocalHostId();
+            else
+                return null;
+        }
+        return metadata.myNodeId().toUUID();
     }
 
     public Map<String, String> getHostIdMap()
     {
         return getEndpointToHostId();
     }
-
 
     public Map<String, String> getEndpointToHostId()
     {
@@ -2120,7 +2126,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (keyspaceMetadata.params.replication.isMeta())
             {
-                DataPlacement placement = metadata.placements.get(keyspaceMetadata.params.replication);
+                DataPlacement placement = metadata.placement(keyspaceMetadata.params.replication);
                 // May be empty if mid-upgrade and CMS is not yet initialized
                 if (!placement.reads.isEmpty())
                     rangeToEndpointMap.put(MetaStrategy.entireRange, placement.reads.forRange(MetaStrategy.entireRange).get());
@@ -2130,8 +2136,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 TokenMap tokenMap = metadata.tokenMap;
                 for (Range<Token> range : ranges)
                 {
-                    Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-                    rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication)
+                    Token token = TokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
+                    rangeToEndpointMap.put(range, metadata.placement(keyspaceMetadata.params.replication)
                                                   .reads.forRange(token).get());
                 }
             }
@@ -3465,14 +3471,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             token = MetaStrategy.partitioner.getToken(key);
         else
             token = metadata.partitioner.getToken(key);
-        return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).get();
+        return metadata.placement(keyspaceMetadata.params.replication).reads.forToken(token).get();
     }
 
     public boolean isEndpointValidForWrite(String keyspace, Token token)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        return keyspaceMetadata != null && metadata.placements.get(keyspaceMetadata.params.replication).writes.forToken(token).get().containsSelf();
+        return keyspaceMetadata != null && metadata.placement(keyspaceMetadata.params.replication).writes.forToken(token).get().containsSelf();
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception
@@ -4280,7 +4286,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (replicationParams.isMeta())
         {
             LinkedHashMap<InetAddressAndPort, Float> ownership = Maps.newLinkedHashMap();
-            metadata.placements.get(replicationParams).writes.byEndpoint().flattenValues().forEach((r) -> {
+            metadata.placement(replicationParams).writes.byEndpoint().flattenValues().forEach((r) -> {
                 ownership.put(r.endpoint(), 1.0f);
             });
             return ownership;

@@ -184,7 +184,8 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                               InProgressSequences.EMPTY,
                                               ConsensusMigrationState.EMPTY,
                                               ImmutableMap.of(),
-                                              AccordStaleReplicas.EMPTY);
+                                              AccordStaleReplicas.EMPTY,
+                                              CMSMembership.EMPTY);
             }
             return new StubClusterMetadataService(new UniformRangePlacement(),
                                                   snapshots != null ? snapshots : MetadataSnapshots.NO_OP,

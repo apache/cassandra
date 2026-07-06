@@ -306,7 +306,7 @@ public class LogState
                 if (metadata != null)
                 {
                     NodeId mynodeId = metadata.myNodeId();
-                    if (mynodeId != null)
+                    if (mynodeId != NodeId.UNREGISTERED)
                         SystemKeyspace.setLocalHostId(mynodeId.toUUID());
                 }
             }

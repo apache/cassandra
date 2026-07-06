@@ -25,24 +25,19 @@ import java.util.Map;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.topology.FastPathStrategy;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Directory;
-import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-
-import static org.apache.cassandra.locator.MetaStrategy.entireRange;
 
 public class CancelCMSReconfiguration implements Transformation
 {
@@ -66,53 +61,46 @@ public class CancelCMSReconfiguration implements Transformation
         if (reconfigureCMS == null)
             return new Rejected(ExceptionCode.INVALID, "Can not cancel reconfiguration since there does not seem to be any in-flight");
 
-        ReplicationParams metaParams = ReplicationParams.meta(prev);
         ClusterMetadata.Transformer transformer = prev.transformer();
-        DataPlacement placement = prev.placements.get(metaParams);
         // Reset any partially completed transition by removing the pending replica from the write group
         if (reconfigureCMS.next.activeTransition != null)
         {
-            InetAddressAndPort pendingEndpoint = prev.directory.endpoint(reconfigureCMS.next.activeTransition.nodeId);
-            Replica pendingReplica = new Replica(pendingEndpoint, entireRange, true);
-            placement = placement.unbuild()
-                                 .withoutWriteReplica(prev.nextEpoch(), pendingReplica)
-                                 .build();
+            // see what the placements for the meta keyspace will be after cancelling the active join
+            CMSMembership cms = prev.cmsMembership.cancelJoining(reconfigureCMS.next.activeTransition.nodeId);
+            if (!cms.joiningMembers().isEmpty())
+                return new Rejected(ExceptionCode.INVALID,
+                                    String.format("Placements will be inconsistent if this transformation is applied:" +
+                                                  "\nFull members %s\nJoining members: %s",
+                                                  cms.fullMembers(),
+                                                  cms.joiningMembers()));
+
+            // if all is good, actually cancel the joining member
+            transformer = transformer.cancelJoiningCMS(reconfigureCMS.next.activeTransition.nodeId);
+            // Recalculate the replication params for the meta keyspace based on the actual placement as it will be
+            ReplicationParams recalculated = getAccurateReplication(prev.directory, cms);
+
+            // If they no longer match the replication params in schema, i.e. the transitions completed so far did not
+            // bring the membership/placements into line with configuration, update schema to match what we actually have
+            if (!recalculated.equals(ReplicationParams.meta(prev)))
+            {
+                KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
+                KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites,
+                                                                                       recalculated,
+                                                                                       FastPathStrategy.simple()));
+                transformer = transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace)));
+            }
         }
-        if (!placement.reads.equivalentTo(placement.writes))
-            return new Rejected(ExceptionCode.INVALID, String.format("Placements will be inconsistent if this transformation is applied:\nReads %s\nWrites: %s",
-                                                                     placement.reads,
-                                                                     placement.writes));
-
-        // Reset the replication params for the meta keyspace based on the actual placement in case they no longer match
-        ReplicationParams fromPlacement = getAccurateReplication(prev.directory, placement);
-
-        // If they no longer match, i.e. the transitions completed so far did not bring the placements into line with
-        // the configuration, remove the entry keyed by the existing configured params.
-        DataPlacements.Builder builder = prev.placements.unbuild();
-        if (!metaParams.equals(fromPlacement))
-        {
-            builder = builder.without(metaParams);
-
-            // Also update schema with the corrected params
-            KeyspaceMetadata keyspace = prev.schema.getKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
-            KeyspaceMetadata newKeyspace = keyspace.withSwapped(new KeyspaceParams(keyspace.params.durableWrites, fromPlacement, FastPathStrategy.simple()));
-            transformer = transformer.with(new DistributedSchema(prev.schema.getKeyspaces().withAddedOrUpdated(newKeyspace)));
-        }
-
-        // finally, add the possibly corrected placement keyed by the possibly corrected params
-        builder = builder.with(fromPlacement, placement);
-        transformer = transformer.with(builder.build());
 
         return Transformation.success(transformer.with(prev.inProgressSequences.without(ReconfigureCMS.SequenceKey.instance))
                                                  .with(prev.lockedRanges.unlock(reconfigureCMS.next.lockKey)),
                                       MetaStrategy.affectedRanges(prev));
     }
 
-    private ReplicationParams getAccurateReplication(Directory directory, DataPlacement placement)
+    private ReplicationParams getAccurateReplication(Directory directory, CMSMembership membership)
     {
         Map<String, Integer> replicasPerDc = new HashMap<>();
-        placement.writes.byEndpoint().keySet().forEach(i -> {
-            String dc = directory.location(directory.peerId(i)).datacenter;
+        membership.fullMembers().forEach(id -> {
+            String dc = directory.location(id).datacenter;
             int count = replicasPerDc.getOrDefault(dc, 0);
             replicasPerDc.put(dc, ++count);
         });

@@ -277,7 +277,7 @@ public class Paxos
             final Token token = table.partitioner == MetaStrategy.partitioner ? MetaStrategy.entireRange.right : key.getToken();
             ClusterMetadata metadata = ClusterMetadata.current();
             Keyspace keyspace = Keyspace.open(table.keyspace);
-            DataPlacement placement = metadata.placements.get(keyspace.getMetadata().params.replication);
+            DataPlacement placement = metadata.placement(keyspace.getMetadata().params.replication);
             Epoch epoch = placement.writes.forToken(token).lastModified();
             ForTokenWrite electorate = forTokenWriteLiveAndDown(metadata, keyspace, token);
             if (consistency == LOCAL_SERIAL)

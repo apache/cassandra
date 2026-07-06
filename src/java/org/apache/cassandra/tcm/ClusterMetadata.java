@@ -28,7 +28,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -77,6 +79,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.ReplicaGroups;
@@ -89,7 +92,6 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.serialization.Version.MIN_ACCORD_VERSION;
@@ -107,13 +109,14 @@ public class ClusterMetadata
     public final DistributedSchema schema;
     public final Directory directory;
     public final TokenMap tokenMap;
-    public final DataPlacements placements;
+    private final DataPlacements placements;
     public final AccordFastPath accordFastPath;
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;
     public final ConsensusMigrationState consensusMigrationState;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
     public final AccordStaleReplicas accordStaleReplicas;
+    public final CMSMembership cmsMembership;
 
     // This isn't serialized as part of ClusterMetadata it's really just a view over the Directory.
     public final Locator locator;
@@ -121,9 +124,10 @@ public class ClusterMetadata
     // These fields are lazy but only for the test purposes, since their computation requires initialization of the log ks
     private EndpointsForRange fullCMSReplicas;
     private Set<InetAddressAndPort> fullCMSEndpoints;
-    private Set<NodeId> fullCMSIds;
     private volatile Map<ReplicationParams, RangesAtEndpoint> localRangesAllSettled = null;
     private static final RangesAtEndpoint EMPTY_LOCAL_RANGES = RangesAtEndpoint.empty(FBUtilities.getBroadcastAddressAndPort());
+    private DataPlacement cmsDataPlacement;
+    private final NodeId localNodeId;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -151,7 +155,8 @@ public class ClusterMetadata
              InProgressSequences.EMPTY,
              ConsensusMigrationState.EMPTY,
              ImmutableMap.of(),
-             AccordStaleReplicas.EMPTY);
+             AccordStaleReplicas.EMPTY,
+             CMSMembership.EMPTY);
     }
 
     public ClusterMetadata(Epoch epoch,
@@ -165,7 +170,8 @@ public class ClusterMetadata
                            InProgressSequences inProgressSequences,
                            ConsensusMigrationState consensusMigrationState,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
-                           AccordStaleReplicas accordStaleReplicas)
+                           AccordStaleReplicas accordStaleReplicas,
+                           CMSMembership cmsMembership)
     {
         this(EMPTY_METADATA_IDENTIFIER,
              epoch,
@@ -179,22 +185,25 @@ public class ClusterMetadata
              inProgressSequences,
              consensusMigrationState,
              extensions,
-             accordStaleReplicas);
+             accordStaleReplicas,
+             cmsMembership);
     }
 
+
     private ClusterMetadata(int metadataIdentifier,
-                           Epoch epoch,
-                           IPartitioner partitioner,
-                           DistributedSchema schema,
-                           Directory directory,
-                           TokenMap tokenMap,
-                           DataPlacements placements,
-                           AccordFastPath accordFastPath,
-                           LockedRanges lockedRanges,
-                           InProgressSequences inProgressSequences,
-                           ConsensusMigrationState consensusMigrationState,
-                           Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
-                           AccordStaleReplicas accordStaleReplicas)
+                            Epoch epoch,
+                            IPartitioner partitioner,
+                            DistributedSchema schema,
+                            Directory directory,
+                            TokenMap tokenMap,
+                            DataPlacements placements,
+                            AccordFastPath accordFastPath,
+                            LockedRanges lockedRanges,
+                            InProgressSequences inProgressSequences,
+                            ConsensusMigrationState consensusMigrationState,
+                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions,
+                            AccordStaleReplicas accordStaleReplicas,
+                            CMSMembership cmsMembership)
     {
         // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
         //  ClusterMetadata in the long term. We need to consider how the actual components of metadata can be evolved
@@ -206,14 +215,42 @@ public class ClusterMetadata
         this.schema = schema;
         this.directory = directory;
         this.tokenMap = tokenMap;
-        this.placements = placements;
         this.accordFastPath = accordFastPath;
+        this.placements = placements;
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
         this.consensusMigrationState = consensusMigrationState;
         this.extensions = ImmutableMap.copyOf(extensions);
         this.locator = Locator.usingDirectory(directory);
         this.accordStaleReplicas = accordStaleReplicas;
+        this.cmsMembership = cmsMembership;
+        this.cmsDataPlacement = calculateCMSPlacement(placements, cmsMembership);
+
+        InetAddressAndPort broadcastAddress = FBUtilities.getBroadcastAddressAndPort();
+        this.localNodeId = directory.allAddresses().contains(broadcastAddress)
+                           ? directory.peerId(broadcastAddress)
+                           : NodeId.UNREGISTERED;
+    }
+
+    public Set<NodeId> fullCMSMemberIds()
+    {
+        return cmsMembership.fullMembers();
+    }
+
+    public boolean isCMSMember()
+    {
+        if (epoch.isEqualOrBefore(Epoch.FIRST))
+            return isCMSMember(FBUtilities.getBroadcastAddressAndPort());
+
+        return fullCMSMemberIds().contains(localNodeId);
+    }
+
+    public boolean isCMSMember(InetAddressAndPort endpoint)
+    {
+        if (epoch.isEqualOrBefore(Epoch.FIRST))
+            return cmsDataPlacement.reads.byEndpoint().keySet().contains(endpoint);
+
+        return fullCMSMembers().contains(endpoint);
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -223,25 +260,12 @@ public class ClusterMetadata
 
         if (fullCMSEndpoints == null)
         {
-            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-                return Collections.emptySet();
-            this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet());
+            fullCMSEndpoints = ImmutableSet.copyOf(cmsMembership.fullMembers()
+                                                                .stream()
+                                                                .map(directory::endpoint)
+                                                                .collect(Collectors.toSet()));
         }
         return fullCMSEndpoints;
-    }
-
-    public Set<NodeId> fullCMSMemberIds()
-    {
-        if (epoch.isBefore(Epoch.FIRST))
-            return Collections.emptySet();
-
-        if (fullCMSIds == null)
-        {
-            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-                return Collections.emptySet();
-            this.fullCMSIds = placements.get(ReplicationParams.meta(this)).reads.byEndpoint().keySet().stream().map(directory::peerId).collect(toImmutableSet());
-        }
-        return fullCMSIds;
     }
 
     public EndpointsForRange fullCMSMembersAsReplicas()
@@ -251,16 +275,70 @@ public class ClusterMetadata
 
         if (fullCMSReplicas == null)
         {
-            if (schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
-                return EndpointsForRange.empty(MetaStrategy.entireRange);
-            fullCMSReplicas = placements.get(ReplicationParams.meta(this)).reads.forRange(MetaStrategy.entireRange).get();
+            EndpointsForRange.Builder builder = EndpointsForRange.builder(MetaStrategy.entireRange);
+            for (NodeId nodeId : fullCMSMemberIds())
+                builder.add(MetaStrategy.replica(directory.endpoint(nodeId)));
+            fullCMSReplicas = builder.build();
         }
         return fullCMSReplicas;
     }
 
-    public boolean isCMSMember(InetAddressAndPort endpoint)
+    private DataPlacement calculateCMSPlacement(DataPlacements placements, CMSMembership cms)
     {
-        return fullCMSMembers().contains(endpoint);
+        if (epoch.isBefore(Epoch.FIRST) || schema.getKeyspaces().get(SchemaConstants.METADATA_KEYSPACE_NAME).isEmpty())
+            return DataPlacement.empty();
+
+        if (directory.isEmpty())
+        {
+            if (epoch.is(Epoch.FIRST))
+            {
+                // PRE_INITIALIZE_CMS: placements need to be hardcoded to the local address so that the subsequent
+                // INITIALIZE_CMS can be committed
+                Replica localReplica = MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort());
+                return DataPlacement.builder()
+                                    .withReadReplica(Epoch.FIRST, localReplica)
+                                    .withWriteReplica(Epoch.FIRST, localReplica)
+                                    .build();
+            }
+            else
+            {
+                // This cluster did not previously upgrade from a gossip based version (i.e. pre-6.0) but did at some point
+                // run a version prior to MetadataVersion.V9 where we started to encode CMS membership directly. This
+                // condition implies that we are reconstructing a serialized cluster metadata during replay or else the
+                // directory should not be empty after Epoch.FIRST as the base state in INITIALIZE_CMS now includes the
+                // first CMS node. Similarly, if the cluster had previously been running a gossip-based version, the
+                // directory would contain entries for each of the live nodes at the time of upgrade.
+                // Given this state, the very next transformation that is/was applied will be to register the node that
+                // committed the PRE_INITIALIZE_CMS and INTIALIZE_CMS transformations. So we just extract the placements
+                // associated with the MetaStrategy params as they will already contain that node as an endpoint.
+                for (ReplicationParams params : placements.keys())
+                    if (params.isMeta())
+                        return placements.get(params);
+
+                // This point can only be reached in tests.
+                // TODO enforce that invariant somehow
+                Replica localReplica = MetaStrategy.replica(FBUtilities.getBroadcastAddressAndPort());
+                return DataPlacement.builder()
+                                    .withReadReplica(epoch, localReplica)
+                                    .withWriteReplica(epoch, localReplica)
+                                    .build();
+            }
+        }
+        else
+        {
+            // Build a placement based on the CMS membership
+            return cms.toPlacement(directory);
+        }
+    }
+
+    public DataPlacement placement(ReplicationParams params)
+    {
+        return params.isMeta() ? cmsDataPlacement : placements.get(params);
+    }
+
+    public DataPlacements placements()
+    {
+        return placements;
     }
 
     public Transformer transformer()
@@ -291,10 +369,42 @@ public class ClusterMetadata
                                    capLastModified(inProgressSequences, epoch),
                                    capLastModified(consensusMigrationState, epoch),
                                    capLastModified(extensions, epoch),
-                                   capLastModified(accordStaleReplicas, epoch));
+                                   capLastModified(accordStaleReplicas, epoch),
+                                   capLastModified(cmsMembership, epoch));
     }
 
-    public ClusterMetadata initializeClusterIdentifier(int clusterIdentifier)
+    /**
+     * To be used only during the execute of PRE_INITIALIZE_CMS, this sets the DataPlacement for the metadata keyspace
+     * so that the global log can be initialized and the subsequent entry containing the INITIALIZE_CMS transformation
+     * can be committed.
+     * @param initialCMSPlacement Expected to be a singleton placement identifying the local node as the sole replica
+     *                            for the metadata keyspace
+     * @return ClusterMetadata instance in the correct state to constitute the result of the PRE_INITIALIZE_CMS
+     *         transformation
+     */
+    public ClusterMetadata forcePreInitializedState(DataPlacement initialCMSPlacement)
+    {
+        assert epoch.isEqualOrBefore(Epoch.FIRST);
+        // double check that all metadata elements have had the last modified epoch set correctly
+        ClusterMetadata initial = forceEpoch(Epoch.FIRST);
+        initial.cmsDataPlacement = initialCMSPlacement;
+        return initial;
+    }
+
+    /**
+     * Produce a ClusterMetadata suitable for use as the base state in the INITIALIZE_CMS transformation. This should
+     * only be used on the first CMS node when bootstrapping the CMS after upgrade or in a brand new cluster.
+     * @param clusterIdentifier Unique identifier for split brain detection & protection
+     * @param addresses The NodeAddresses of the first CMS node.
+     * @param version Version info for the first CMS node.
+     * @param location The rack & DC of the first CMS node.
+     * @return ClusterMetadata instance in the correct state to constitute the base state of the INITIALIZE_CMS
+     *         transformation
+     */
+    public ClusterMetadata forceInitializedState(int clusterIdentifier,
+                                                 NodeAddresses addresses,
+                                                 NodeVersion version,
+                                                 Location location)
     {
         if (this.metadataIdentifier != EMPTY_METADATA_IDENTIFIER)
             throw new IllegalStateException(String.format("Can only initialize cluster identifier once, but it was already set to %d", this.metadataIdentifier));
@@ -302,11 +412,21 @@ public class ClusterMetadata
         if (clusterIdentifier == EMPTY_METADATA_IDENTIFIER)
             throw new IllegalArgumentException("Can not initialize cluster with empty cluster identifier");
 
+        if (this.epoch.isAfter(Epoch.FIRST))
+            throw new IllegalStateException(String.format("Can only initialize cluster identifier during epoch %d, but current epoch is %d", Epoch.FIRST.getEpoch(), epoch.getEpoch()));
+
+        // Maybe register the first CMS node. If upgrading from gossip, this should be a no-op
+        Directory withRegistered = directory.with(addresses, location, version);
+        NodeId firstNode = withRegistered.peerId(addresses.broadcastAddress);
+        if (firstNode == null)
+            throw new IllegalStateException("Failed to find first CMS node in directory");
+
+        CMSMembership initialCMS = cmsMembership.startJoining(firstNode).finishJoining(firstNode);
         return new ClusterMetadata(clusterIdentifier,
                                    epoch,
                                    partitioner,
                                    schema,
-                                   directory,
+                                   withRegistered,
                                    tokenMap,
                                    placements,
                                    accordFastPath,
@@ -314,7 +434,8 @@ public class ClusterMetadata
                                    inProgressSequences,
                                    consensusMigrationState,
                                    extensions,
-                                   accordStaleReplicas);
+                                   accordStaleReplicas,
+                                   initialCMS);
     }
 
     private static Map<ExtensionKey<?,?>, ExtensionValue<?>> capLastModified(Map<ExtensionKey<?,?>, ExtensionValue<?>> original, Epoch maxEpoch)
@@ -413,8 +534,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
     {
-        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
-        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placement(ksm.params.replication).writes;
+        ReplicaGroups reads = placement(ksm.params.replication).reads;
         if (ksm.params.replication.isMeta())
             return !reads.equals(writes);
         return !reads.forToken(token).equals(writes.forToken(token));
@@ -423,8 +544,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
     {
-        ReplicaGroups writes = placements.get(ksm.params.replication).writes;
-        ReplicaGroups reads = placements.get(ksm.params.replication).reads;
+        ReplicaGroups writes = placement(ksm.params.replication).writes;
+        ReplicaGroups reads = placement(ksm.params.replication).reads;
         return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
     }
 
@@ -435,22 +556,22 @@ public class ClusterMetadata
 
     public RangesAtEndpoint writeRanges(KeyspaceMetadata metadata, InetAddressAndPort peer)
     {
-        return placements.get(metadata.params.replication).writes.byEndpoint().get(peer);
+        return placement(metadata.params.replication).writes.byEndpoint().get(peer);
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public Map<Range<Token>, VersionedEndpoints.ForRange> pendingRanges(KeyspaceMetadata metadata)
     {
         Map<Range<Token>, VersionedEndpoints.ForRange> map = new HashMap<>();
-        ReplicaGroups writes = placements.get(metadata.params.replication).writes;
-        ReplicaGroups reads = placements.get(metadata.params.replication).reads;
+        ReplicaGroups writes = placement(metadata.params.replication).writes;
+        ReplicaGroups reads = placement(metadata.params.replication).reads;
 
         // first, pending ranges as the result of range splitting or merging
         // i.e. new ranges being created through join/leave
         List<Range<Token>> pending = new ArrayList<>(writes.ranges());
         pending.removeAll(reads.ranges());
         for (Range<Token> p : pending)
-            map.put(p, placements.get(metadata.params.replication).writes.forRange(p));
+            map.put(p, placement(metadata.params.replication).writes.forRange(p));
 
         // next, ranges where the ranges themselves are not changing, but the replicas are
         // i.e. replacement or RF increase
@@ -467,8 +588,8 @@ public class ClusterMetadata
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending endpoints
     public VersionedEndpoints.ForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
     {
-        VersionedEndpoints.ForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
-        VersionedEndpoints.ForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
+        VersionedEndpoints.ForToken writeEndpoints = placement(metadata.params.replication).writes.forToken(t);
+        VersionedEndpoints.ForToken readEndpoints = placement(metadata.params.replication).reads.forToken(t);
         EndpointsForToken.Builder endpointsForToken = writeEndpoints.get().newBuilder(writeEndpoints.size() - readEndpoints.size());
 
         for (Replica writeReplica : writeEndpoints.get())
@@ -495,6 +616,7 @@ public class ClusterMetadata
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
         private AccordStaleReplicas accordStaleReplicas;
+        private CMSMembership cmsMembership;
 
         private Transformer(ClusterMetadata metadata, Epoch epoch)
         {
@@ -512,6 +634,7 @@ public class ClusterMetadata
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
             accordStaleReplicas = metadata.accordStaleReplicas;
+            cmsMembership = metadata.cmsMembership;
         }
 
         public Epoch epoch()
@@ -634,6 +757,30 @@ public class ClusterMetadata
             tokenMap = tokenMap.unassignTokens(id);
             directory = directory.withNodeState(id, NodeState.LEFT)
                                  .withoutRackAndDC(id);
+            return this;
+        }
+
+        public Transformer startJoiningCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.startJoining(id);
+            return this;
+        }
+
+        public Transformer finishJoiningCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.finishJoining(id);
+            return this;
+        }
+
+        public Transformer cancelJoiningCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.cancelJoining(id);
+            return this;
+        }
+
+        public Transformer leaveCMS(NodeId id)
+        {
+            cmsMembership = cmsMembership.leave(id);
             return this;
         }
 
@@ -822,6 +969,12 @@ public class ClusterMetadata
                 consensusMigrationState.validateAgainstSchema(schema);
             }
 
+            if (cmsMembership != base.cmsMembership)
+            {
+                modifiedKeys.add(MetadataKeys.CMS_MEMBERSHIP);
+                cmsMembership = cmsMembership.withLastModified(epoch);
+            }
+
             return new Transformed(new ClusterMetadata(base.metadataIdentifier,
                                                        epoch,
                                                        partitioner,
@@ -834,7 +987,8 @@ public class ClusterMetadata
                                                        inProgressSequences,
                                                        consensusMigrationState,
                                                        extensions,
-                                                       accordStaleReplicas),
+                                                       accordStaleReplicas,
+                                                       cmsMembership),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
 
@@ -852,7 +1006,8 @@ public class ClusterMetadata
                                        inProgressSequences,
                                        consensusMigrationState,
                                        extensions,
-                    accordStaleReplicas);
+                                       accordStaleReplicas,
+                                       cmsMembership);
         }
 
         @Override
@@ -871,6 +1026,7 @@ public class ClusterMetadata
                    ", inProgressSequences=" + inProgressSequences +
                    ", consensusMigrationState=" + consensusMigrationState +
                    ", extensions=" + extensions +
+                   ", cmsMembership=" + cmsMembership +
                    ", modifiedKeys=" + modifiedKeys +
                    '}';
         }
@@ -966,6 +1122,9 @@ public class ClusterMetadata
                ", placements=" + placements +
                ", lockedRanges=" + lockedRanges +
                ", consensusMigrationState=" + lockedRanges +
+               ", inProgressSequences=" + inProgressSequences +
+               ", extensions=" + extensions +
+               ", cmsMembership=" + cmsMembership +
                '}';
     }
 
@@ -994,7 +1153,8 @@ public class ClusterMetadata
                inProgressSequences.equals(that.inProgressSequences) &&
                consensusMigrationState.equals(that.consensusMigrationState) &&
                accordStaleReplicas.equals(that.accordStaleReplicas) &&
-               extensions.equals(that.extensions);
+               extensions.equals(that.extensions) &&
+               cmsMembership.equals(that.cmsMembership);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterMetadata.class);
@@ -1037,12 +1197,16 @@ public class ClusterMetadata
         {
             logger.warn("Extensions differ: {} != {}", extensions, other.extensions);
         }
+        if (!cmsMembership.equals(other.cmsMembership))
+        {
+            logger.warn("CMS Membership differ: {} != {}", cmsMembership, other.cmsMembership);
+        }
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, accordStaleReplicas, extensions);
+        return Objects.hash(epoch, schema, directory, tokenMap, placements, accordFastPath, lockedRanges, inProgressSequences, consensusMigrationState, accordStaleReplicas, extensions, cmsMembership);
     }
 
     public static ClusterMetadata current()
@@ -1083,13 +1247,13 @@ public class ClusterMetadata
 
     public NodeId myNodeId()
     {
-        return directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+        return localNodeId;
     }
 
     public NodeState myNodeState()
     {
         NodeId nodeId = myNodeId();
-        if (myNodeId() != null)
+        if (nodeId != NodeId.UNREGISTERED)
             return directory.peerState(nodeId);
         return null;
     }
@@ -1113,7 +1277,10 @@ public class ClusterMetadata
             DistributedSchema.serializer.serialize(metadata.schema, out, version);
             Directory.serializer.serialize(metadata.directory, out, version);
             TokenMap.serializer.serialize(metadata.tokenMap, out, version);
-            DataPlacements.serializer.serialize(metadata.placements, out, version);
+            // Prior to V9, placements for the MetaStrategy keyspace were included in the main DataPlacements
+            // so when targetting such a version, emulate that.
+            DataPlacements placements = version.isBefore(Version.V9) ? preV9Placements(metadata) : metadata.placements;
+            DataPlacements.serializer.serialize(placements, out, version);
             if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
                 AccordFastPath.serializer.serialize(metadata.accordFastPath, out, version);
@@ -1132,6 +1299,9 @@ public class ClusterMetadata
                 assert key.valueType.isInstance(value);
                 value.serialize(out, version);
             }
+            // From V9 CMS membership is directly encoded in ClusterMetadata
+            if (version.isAtLeast(Version.V9))
+                CMSMembership.serializer.serialize(metadata.cmsMembership, out, version);
         }
 
         @Override
@@ -1188,6 +1358,42 @@ public class ClusterMetadata
                 value.deserialize(in, version);
                 extensions.put(key, value);
             }
+
+            CMSMembership cmsMembership = CMSMembership.EMPTY;
+            if (version.isAtLeast(Version.V9))
+                cmsMembership = CMSMembership.serializer.deserialize(in, version);
+            else
+            {
+                Optional<KeyspaceMetadata> metadataKs = schema.maybeGetKeyspaceMetadata(SchemaConstants.METADATA_KEYSPACE_NAME);
+                if (metadataKs.isPresent())
+                {
+                    // Pre-V9 the membership of the CMS was always inferred from the placement of the distributed
+                    // metadata keyspace.
+                    // If the directory is not empty the endpoints in the placement must belong to registered nodes,
+                    // so we can derive the CMSMembership using the data placement and directory.
+
+                    // If the directory is empty, then the cluster metadata must be the payload of an INITIALIZE_CMS
+                    // transformation of a cluster that began on a post-6.0, pre-MetadataVersion.V9 version.
+                    // In this case, we can and must assume that the initial CMS membership will consist of a single
+                    // node, with the node_id 1.
+                    // Note: the only route to arrive at this scenario is if a cluster is initialized on a post-6.0,
+                    // pre-V9 version and then upgraded to a post-V9 version without any metadata snapshots being taken.
+                    // If there is a snapshot available locally, when the upgraded node starts up it will replay its
+                    // local log from that point. The INITIALIZE_CMS transform will not be replayed.
+                    if (!dir.isEmpty())
+                    {
+                        DataPlacement placement = placements.get(metadataKs.get().params.replication);
+                        cmsMembership = CMSMembership.reconstruct(placement, dir);
+                    }
+                    else
+                    {
+                        NodeId id = new NodeId(1);
+                        cmsMembership = CMSMembership.EMPTY.startJoining(id).finishJoining(id);
+                    }
+                    placements = placements.unbuild().without(metadataKs.get().params.replication).build();
+                }
+            }
+
             return new ClusterMetadata(clusterIdentifier,
                                        epoch,
                                        partitioner,
@@ -1200,7 +1406,8 @@ public class ClusterMetadata
                                        ips,
                                        consensusMigrationState,
                                        extensions,
-                                       staleReplicas);
+                                       staleReplicas,
+                                       cmsMembership);
         }
 
         private DistributedSchema deduplicateReplicationParams(DistributedSchema schema, DataPlacements placements)
@@ -1235,8 +1442,7 @@ public class ClusterMetadata
                     sizeof(metadata.partitioner.getClass().getCanonicalName()) +
                     DistributedSchema.serializer.serializedSize(metadata.schema, version) +
                     Directory.serializer.serializedSize(metadata.directory, version) +
-                    TokenMap.serializer.serializedSize(metadata.tokenMap, version) +
-                    DataPlacements.serializer.serializedSize(metadata.placements, version);
+                    TokenMap.serializer.serializedSize(metadata.tokenMap, version);
 
             if (version.isAtLeast(MIN_ACCORD_VERSION))
             {
@@ -1248,7 +1454,25 @@ public class ClusterMetadata
             size += LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
                     InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
 
+            // Prior to V9, placements for the MetaStrategy keyspace were included in the main DataPlacements
+            // so when targetting such a version, emulate that.
+            DataPlacements placements = version.isBefore(Version.V9) ? preV9Placements(metadata) : metadata.placements;
+            size += DataPlacements.serializer.serializedSize(placements, version);
+            // From V9 CMS membership is directly encoded in ClusterMetadata
+            if (version.isAtLeast(Version.V9))
+                size += CMSMembership.serializer.serializedSize(metadata.cmsMembership, version);
+
             return size;
+        }
+
+        private DataPlacements preV9Placements(ClusterMetadata metadata)
+        {
+            if (metadata.cmsDataPlacement.isEmpty())
+                return metadata.placements;
+
+            return metadata.placements.unbuild()
+                                      .with(ReplicationParams.meta(metadata), metadata.cmsDataPlacement)
+                                      .build();
         }
 
         public static IPartitioner getPartitioner(DataInputPlus in, Version version) throws IOException

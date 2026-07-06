@@ -89,7 +89,7 @@ import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
  */
 public class PrepareJoin implements Transformation
 {
-    public static final Serializer<PrepareJoin> serializer = new Serializer<PrepareJoin>()
+    public static final Serializer<PrepareJoin> serializer = new Serializer<>()
     {
         public PrepareJoin construct(NodeId nodeId, Set<Token> tokens, PlacementProvider placementProvider, boolean joinTokenRing, boolean streamData)
         {
@@ -168,10 +168,10 @@ public class PrepareJoin implements Transformation
                                                              startJoin, midJoin, finishJoin,
                                                              joinTokenRing, streamData);
         if (!prev.tokenMap.isEmpty())
-            assertPreExistingWriteReplica(prev.placements, transitionPlan);
+            assertPreExistingWriteReplica(prev.placements(), transitionPlan);
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
-        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements);
+        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements());
         ClusterMetadata.Transformer proposed = prev.transformer()
                                                    .with(newLockedRanges)
                                                    .with(startingPlacements)
