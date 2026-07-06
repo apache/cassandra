@@ -67,7 +67,7 @@ Compaction executes to remove any ranges that a node no longer owns.
 This type of compaction is typically triggered on neighbouring nodes after a node has been bootstrapped, since the bootstrapping node will take ownership of some ranges from those nodes.
 Secondary index rebuild::
 A compaction is triggered if the secondary indexes are rebuilt on a node.
-[#anticompaction]
+[[anticompaction]]
 Anticompaction::
 After repair, the ranges that were actually repaired are split out of the SSTables that existed when repair started. This type of compaction rewrites SSTables to accomplish this task.
 Sub range compaction::
