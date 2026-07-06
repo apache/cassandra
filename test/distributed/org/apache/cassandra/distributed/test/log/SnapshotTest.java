@@ -69,7 +69,7 @@ public class SnapshotTest extends TestBaseImpl
                 ClusterMetadata before = ClusterMetadata.current();
                 ClusterMetadata after = ClusterMetadataService.instance().triggerSnapshot();
                 ClusterMetadata serialized = ClusterMetadataService.instance().snapshotManager().getSnapshot(after.epoch);
-                assertEquals(before.placements, serialized.placements);
+                assertEquals(before.placements(), serialized.placements());
                 assertEquals(before.tokenMap, serialized.tokenMap);
                 assertEquals(before.directory, serialized.directory);
                 assertEquals(before.schema, serialized.schema);

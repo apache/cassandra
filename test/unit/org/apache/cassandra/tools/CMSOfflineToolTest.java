@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +54,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -110,7 +110,8 @@ public class CMSOfflineToolTest extends OfflineToolUtils
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY);
+                                   AccordStaleReplicas.EMPTY,
+                                   CMSMembership.EMPTY);
     }
 
     @Before
@@ -669,7 +670,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         "Cluster Metadata Service:\n" +
         "Members: /127.0.0.1:" + storagePort + ",/127.0.0.2:" + storagePort + ",/127.0.0.3:" + storagePort + '\n' +
         "Needs reconfiguration: false\n" +
-        "Service State: LOCAL\n" +
+        "Service State: " + ClusterMetadataService.State.OFFLINE_TOOL + '\n' +
         "Epoch: 2\n" +
         "Replication factor: ReplicationParams{class=org.apache.cassandra.locator.MetaStrategy, datacenter1=3}\n";
         assertThat(result.getStdout()).isEqualTo(expectedOutput);
@@ -1668,10 +1669,7 @@ public class CMSOfflineToolTest extends OfflineToolUtils
         KeyspaceMetadata normalKeyspace = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));
         Keyspaces keyspaces = Keyspaces.none().with(metaKeyspace).with(normalKeyspace);
 
-        ClusterMetadata clusterMetadata = getClusterMetadata(keyspaces, partitioner, directory);
-
-
-        ClusterMetadata metadata = clusterMetadata
+        ClusterMetadata metadata = getClusterMetadata(keyspaces, partitioner, directory)
                                    .transformer()
                                    .with(directory)
                                    .join(nodeId1)
@@ -1680,12 +1678,12 @@ public class CMSOfflineToolTest extends OfflineToolUtils
                                    .proposeToken(nodeId2, getRandomTokens(partitioner, tokenSize))
                                    .join(nodeId3)
                                    .proposeToken(nodeId3, getRandomTokens(partitioner, tokenSize))
+                                   .startJoiningCMS(nodeId1).finishJoiningCMS(nodeId1)
+                                   .startJoiningCMS(nodeId2).finishJoiningCMS(nodeId2)
+                                   .startJoiningCMS(nodeId3).finishJoiningCMS(nodeId3)
                                    .build().metadata;
 
-        // Create replicas for the metadata keyspace on all three nodes
-        ReplicationParams metaParams = ReplicationParams.ntsMeta(Collections.singletonMap(DC, 3));
         DataPlacements placements = DataPlacements.empty().unbuild()
-                                                  .with(metaParams, getCMSMemberPlacement(metadata, List.of(addr1, addr2, addr3)))
                                                   .with(ReplicationParams.simple(3), getKeyspacePlacement(metadata, normalKeyspace))
                                                   .build();
 
@@ -1799,6 +1797,11 @@ public class CMSOfflineToolTest extends OfflineToolUtils
 
     ClusterMetadata startReplacing(NodeId oldNodeId, NodeId newNodeId, ClusterMetadata clusterMetadata)
     {
+        // In a real cluster, a node being replaced is removed from the CMS prior to the replacement starting
+        // i.e. before the PrepareReplace is committed
+        if (clusterMetadata.fullCMSMemberIds().contains(oldNodeId))
+            clusterMetadata = clusterMetadata.transformer().leaveCMS(oldNodeId).build().metadata;
+
         Register register = new Register(getNodeAddresses(newNodeId.id()),
                                          new Location(DC, "rack" + newNodeId.id()),
                                          NodeVersion.CURRENT);

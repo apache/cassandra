@@ -116,8 +116,7 @@ public class OperationalEquivalenceTest extends CMSTestBase
             withMove = ClusterMetadata.current();
         }
 
-        assertPlacements(simulateAndCompare(rf, equivalentNodes).placements,
-                         withMove.placements);
+        assertPlacements(simulateAndCompare(rf, equivalentNodes).placements(), withMove.placements());
     }
 
     private static ClusterMetadata simulateAndCompare(ReplicationFactor rf, List<Node> nodes) throws Exception

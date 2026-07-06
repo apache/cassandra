@@ -1213,7 +1213,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 // are based on the system partitioner
                 EndpointsForRange endpoints = replication.isMeta()
                                               ? ClusterMetadata.current().fullCMSMembersAsReplicas()
-                                              : ClusterMetadata.current().placements.get(replication).reads.forRange(range).get();
+                                              : ClusterMetadata.current().placement(replication).reads.forRange(range).get();
 
                 Set<InetAddressAndPort> liveEndpoints = endpoints.filter(FailureDetector.isReplicaAlive).endpoints();
                 if (!PaxosRepair.hasSufficientLiveNodesForTopologyChange(keyspace, range, liveEndpoints))

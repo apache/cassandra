@@ -121,7 +121,7 @@ public class RemoveNodeStreams implements LeaveStreams
             RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
             RangesByEndpoint startWriteRemovals = startDelta.get(params).writes.removals;
             // find current placements from the metadata, we need to stream from replicas that are not changed and are therefore not in the deltas
-            ReplicaGroups currentPlacements = metadata.placements.get(params).reads;
+            ReplicaGroups currentPlacements = metadata.placement(params).reads;
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(newReplica.range());

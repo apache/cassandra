@@ -62,8 +62,9 @@ public class DistributedLogStateTest extends LogStateTestBase
     {
         return new LogStateSUT()
         {
-
-            // start test entries at FIRST + 1 as the pre-init transform is automatically inserted with Epoch.FIRST
+            // we start test entries at FIRST, but in a real log the PRE_INITIALIZE_CMS transform is automatically
+            // inserted with Epoch.FIRST, followed by INITIALIZE_CMS so the next entry to be committed would be at
+            // epoch 3
             Epoch currentEpoch = Epoch.FIRST;
             Epoch nextEpoch;
             boolean applied;

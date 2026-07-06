@@ -444,8 +444,8 @@ public class ClusterUtils
         for (KeyspaceMetadata keyspace : metadata.schema.getKeyspaces())
         {
             List[] placements = new List[2];
-            placements[0] = metadata.placements.get(keyspace.params.replication).reads.toReplicaStringList();
-            placements[1] = metadata.placements.get(keyspace.params.replication).writes.toReplicaStringList();
+            placements[0] = metadata.placement(keyspace.params.replication).reads.toReplicaStringList();
+            placements[1] = metadata.placement(keyspace.params.replication).writes.toReplicaStringList();
             byKeyspace.put(keyspace.name, placements);
         }
         return byKeyspace;
@@ -465,10 +465,10 @@ public class ClusterUtils
             StringBuilder builder = new StringBuilder();
             builder.append("'keyspace' { 'name':").append(keyspace.name).append("', ");
             builder.append("'reads':['");
-            ReplicaGroups placement = metadata.placements.get(keyspace.params.replication).reads;
+            ReplicaGroups placement = metadata.placement(keyspace.params.replication).reads;
             builder.append(byEndpoint ? placement.toStringByEndpoint() : placement.toString());
             builder.append("'], 'writes':['");
-            placement = metadata.placements.get(keyspace.params.replication).writes;
+            placement = metadata.placement(keyspace.params.replication).writes;
             builder.append(byEndpoint ? placement.toStringByEndpoint() : placement.toString());
             builder.append("']}");
             keyspaces.add(builder.toString());

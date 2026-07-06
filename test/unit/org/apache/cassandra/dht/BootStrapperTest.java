@@ -204,7 +204,7 @@ public class BootStrapperTest
         ClusterMetadata metadata = ClusterMetadata.current();
         Pair<MovementMap, MovementMap> movements = Pair.create(MovementMap.empty(), MovementMap.empty());
 
-        if (metadata.myNodeId() == null)
+        if (metadata.myNodeId() == NodeId.UNREGISTERED)
         {
             Token myToken = metadata.partitioner.getRandomToken();
             InetAddressAndPort myEndpoint = InetAddressAndPort.getByName("127.0.0.1");
@@ -265,5 +265,4 @@ public class BootStrapperTest
             ClusterMetadataTestHelper.addEndpoint(addr, tokens);
         }
     }
-
 }

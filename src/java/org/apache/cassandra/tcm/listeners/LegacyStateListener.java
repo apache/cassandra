@@ -82,9 +82,9 @@ public class LegacyStateListener implements ChangeListener
             }
         }
 
-        // next.myNodeId() can be null during replay (before we have registered) but if it is present and
+        // next.myNodeId() can be UNREGISTERED during replay (before we have registered) but if not and
         // there is a relevant change to the state of the local node, process that synchronously.
-        if (next.myNodeId() != null && changed.contains(next.myNodeId()))
+        if (next.myNodeId() != NodeId.UNREGISTERED && changed.contains(next.myNodeId()))
         {
             // Default is to process updates for the local node synchronously, overridable via config/hotprop
             if (DatabaseDescriptor.getLegacyStateListenerSyncLocalUpdates())

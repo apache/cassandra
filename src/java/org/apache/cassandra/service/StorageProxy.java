@@ -175,6 +175,7 @@ import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tracing.Tracing;
@@ -2197,7 +2198,7 @@ public class StorageProxy implements StorageProxyMBean
         if (metadata == null)
             return false;
 
-        if (metadata.myNodeId() == null)
+        if (metadata.myNodeId() == NodeId.UNREGISTERED)
             return false;
 
         return metadata.myNodeState() == NodeState.JOINED;

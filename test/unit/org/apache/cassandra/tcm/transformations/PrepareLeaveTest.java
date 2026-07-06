@@ -84,10 +84,11 @@ public class PrepareLeaveTest
     public void testCheckRF_Simple() throws Throwable
     {
         Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM);
+        // should be accepted (2 nodes in dc1 where we remove the host):
         ClusterMetadata metadata = prepMetadata(kss, 2, 2);
         assertTrue(executeLeave(metadata));
-        // should be rejected:
-        metadata = prepMetadata(kss, 1, 2);
+        // should be rejected because only 1 node in dc2:
+        metadata = prepMetadata(kss, 2, 1);
         assertFalse(executeLeave(metadata));
     }
 
@@ -97,17 +98,17 @@ public class PrepareLeaveTest
         Keyspaces kss = Keyspaces.of(DistributedMetadataLogKeyspace.initialMetadata(Sets.newHashSet(hostDc.values())), KSM_NTS);
         ClusterMetadata metadata = prepMetadata(kss, 4, 4);
         assertTrue(executeLeave(metadata));
-        // should be accepted (4 nodes in dc1 where we remove the host):
-        metadata = prepMetadata(kss, 4, 2);
+        // should be accepted (4 nodes in dc2 where we remove the host):
+        metadata = prepMetadata(kss, 2, 4);
         assertTrue(executeLeave(metadata));
-        // should be rejected
-        metadata = prepMetadata(kss, 3, 4);
+        // should be rejected because there are already only 3 replicas in dc2
+        metadata = prepMetadata(kss, 4, 3);
         assertFalse(executeLeave(metadata));
     }
 
     private boolean executeLeave(ClusterMetadata metadata) throws Throwable
     {
-        PrepareLeave prepareLeave = new PrepareLeave(metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.1")),
+        PrepareLeave prepareLeave = new PrepareLeave(metadata.directory.peerId(InetAddressAndPort.getByName("127.0.0.11")),
                                                      false,
                                                      dummyPlacementProvider,
                                                      LeaveStreams.Kind.UNBOOTSTRAP);

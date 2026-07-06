@@ -63,8 +63,11 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.CMSInitializationException;
 import org.apache.cassandra.tcm.migration.CMSInitializationRequest;
 import org.apache.cassandra.tcm.migration.Election;
@@ -148,19 +151,24 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
      */
     public static void initializeAsFirstCMSNode()
     {
-        InetAddressAndPort addr = FBUtilities.getBroadcastAddressAndPort();
-        String datacenter = DatabaseDescriptor.getLocator().local().datacenter;
+        NodeAddresses addresses = NodeAddresses.current();
+        Location location = DatabaseDescriptor.getLocator().local();
         ClusterMetadataService cms = ClusterMetadataService.instance();
-        cms.log().bootstrap(addr, datacenter, cms.logBootstrapCallback());
-        ClusterMetadata metadata =  ClusterMetadata.current();
-        assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
-        Initialize initialize = new Initialize(metadata.initializeClusterIdentifier(addr.hashCode()));
-        ClusterMetadataService.instance().commit(initialize,
-                                                 m -> { logger.info("INITIALIZE_CMS committed successfully"); return m;},
-                                                 (code, message) -> {
-                                                     logger.info("INITIALIZE_CMS commit failure: ({}) {}", code, message);
-                                                     throw new CMSInitializationException();
-                                                 });
+        cms.log().bootstrap(addresses.broadcastAddress, location.datacenter, cms.logBootstrapCallback());
+        ClusterMetadata metadata =  ClusterMetadata.current().forceInitializedState(addresses.broadcastAddress.hashCode(),
+                                                                                    addresses,
+                                                                                    NodeVersion.CURRENT,
+                                                                                    location);
+        assert ClusterMetadataService.state(metadata) == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(),  metadata);
+        Initialize initialize = new Initialize(metadata);
+        ClusterMetadata initialized = ClusterMetadataService.instance().commit(initialize,
+                                                                               m -> { logger.info("INITIALIZE_CMS committed successfully"); return m;},
+                                                                               (code, message) -> {
+                                                                                   logger.info("INITIALIZE_CMS commit failure: ({}) {}", code, message);
+                                                                                   throw new CMSInitializationException();
+                                                                               });
+        NodeId id = initialized.myNodeId();
+        SystemKeyspace.setLocalHostId(id.toUUID());
     }
 
     public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor) throws StartupException
@@ -178,7 +186,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
         NodeId nodeId = ClusterMetadata.current().myNodeId();
         UUID currentHostId = SystemKeyspace.getLocalHostId();
-        if (nodeId != null && !Objects.equals(nodeId.toUUID(), currentHostId))
+        if (nodeId != NodeId.UNREGISTERED && !Objects.equals(nodeId.toUUID(), currentHostId))
         {
             if (currentHostId == null)
             {
@@ -394,7 +402,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
                                                           DatabaseDescriptor.getPartitioner().getClass().getCanonicalName(),
                                                           metadata.partitioner.getClass().getCanonicalName()));
 
-        if (!metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+        if (!metadata.isCMSMember())
             throw new IllegalStateException("When reinitializing with cluster metadata, we must be in the CMS");
 
         metadata = metadata.forceEpoch(metadata.epoch.nextEpoch());

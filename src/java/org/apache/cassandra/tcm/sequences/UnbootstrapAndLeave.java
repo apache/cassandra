@@ -253,7 +253,7 @@ public class UnbootstrapAndLeave extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
         switch (next)
         {
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement

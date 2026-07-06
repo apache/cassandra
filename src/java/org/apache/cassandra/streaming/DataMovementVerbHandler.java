@@ -50,7 +50,7 @@ public class DataMovementVerbHandler implements IVerbHandler<DataMovement>
         StreamPlan streamPlan = new StreamPlan(StreamOperation.fromString(message.payload.streamOperation));
         ClusterMetadata metadata = ClusterMetadata.current();
         Schema.instance.getNonLocalStrategyKeyspaces().stream().forEach((ksm) -> {
-            if (metadata.placements.get(ksm.params.replication).writes.byEndpoint().keySet().size() <= 1)
+            if (metadata.placement(ksm.params.replication).writes.byEndpoint().keySet().size() <= 1)
                 return;
 
             message.payload.movements.get(ksm.params.replication).asMap().forEach((local, endpoints) -> {

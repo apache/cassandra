@@ -36,6 +36,7 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.service.accord.topology.AccordFastPath;
 import org.apache.cassandra.service.accord.topology.AccordStaleReplicas;
 import org.apache.cassandra.service.consensus.migration.ConsensusMigrationState;
+import org.apache.cassandra.tcm.CMSMembership;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -96,7 +97,8 @@ public class MetaStrategyTest
                                    InProgressSequences.EMPTY,
                                    ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of(),
-                                   AccordStaleReplicas.EMPTY);
+                                   AccordStaleReplicas.EMPTY,
+                                   CMSMembership.EMPTY);
     }
 
     @Test

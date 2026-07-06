@@ -945,7 +945,7 @@ public abstract class TopologyMixupTestBase<S extends TopologyMixupTestBase.Sche
         {
             return inst.callOnInstance(() -> {
                 ClusterMetadata current = ClusterMetadata.current();
-                Set<InetAddressAndPort> members = current.placements.get(ReplicationParams.meta(current)).writes.byEndpoint().keySet();
+                Set<InetAddressAndPort> members = current.placement(ReplicationParams.meta(current)).writes.byEndpoint().keySet();
                 // Why not just use 'current.fullCMSMembers()'?  That uses the "read" replicas, so "could" have less endpoints
                 // It would be more consistent to use fullCMSMembers but thought process is knowing the full set is better
                 // than the coordination set.

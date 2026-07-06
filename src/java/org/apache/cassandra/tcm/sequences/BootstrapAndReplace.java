@@ -318,7 +318,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     @Override
     public ClusterMetadata.Transformer cancel(ClusterMetadata metadata)
     {
-        DataPlacements placements = metadata.placements;
+        DataPlacements placements = metadata.placements();
         switch (next)
         {
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
@@ -355,7 +355,7 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
     private static MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
     {
         MovementMap.Builder movementMapBuilder = MovementMap.builder();
-        DataPlacements placements = ClusterMetadata.current().placements;
+        DataPlacements placements = ClusterMetadata.current().placements();
         startDelta.forEach((params, delta) -> {
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
@@ -451,6 +451,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
     public static void gossipStateToHibernate(ClusterMetadata metadata, NodeId nodeId)
     {
+        if (nodeId == NodeId.UNREGISTERED)
+            return;
         // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
         List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
         VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
@@ -462,6 +464,8 @@ public class BootstrapAndReplace extends MultiStepOperation<Epoch>
 
     public static void gossipStateToNormal(ClusterMetadata metadata, NodeId nodeId)
     {
+        if (nodeId == NodeId.UNREGISTERED)
+            return;
         List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
         VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
         Collection<Token> tokens = metadata.tokenMap.tokens(nodeId);

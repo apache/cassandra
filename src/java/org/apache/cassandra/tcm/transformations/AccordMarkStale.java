@@ -78,7 +78,7 @@ public class AccordMarkStale implements Transformation
 
         for (KeyspaceMetadata keyspace : prev.schema.getKeyspaces().without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES))
         {
-            List<AccordTopology.KeyspaceShard> shards = AccordTopology.KeyspaceShard.forKeyspace(keyspace, prev.placements, prev.directory);
+            List<AccordTopology.KeyspaceShard> shards = AccordTopology.KeyspaceShard.forKeyspace(keyspace, prev.placements(), prev.directory);
             
             for (AccordTopology.KeyspaceShard shard : shards)
             {

@@ -97,7 +97,7 @@ public class LocalRangesAllSettledTest
         AllLocalRanges proposed = snapshotAllLocalRanges(LocalRangeStatus.SETTLED, INITIAL_NODES);
         assertEquals(initial, proposed);
         // Check against the actual write placements
-        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements, initial, INITIAL_NODES);
+        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements(), initial, INITIAL_NODES);
 
         // Initiate an operation which affects ownership. This will add the MultiStepOperation which encodes any
         // necessary range movements so subsequent calls to ClusterMetadata::localRangesAllSettled
@@ -123,7 +123,7 @@ public class LocalRangesAllSettledTest
         assertEquals(proposed, finalized);
 
         // Finally, check against the actual write placements
-        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements, finalized, INITIAL_NODES);
+        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements(), finalized, INITIAL_NODES);
     }
 
     @Test
@@ -134,7 +134,7 @@ public class LocalRangesAllSettledTest
         AllLocalRanges proposed = snapshotAllLocalRanges(LocalRangeStatus.SETTLED, INITIAL_NODES);
         assertEquals(initial, proposed);
         // Check against the actual write placements
-        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements, initial, INITIAL_NODES);
+        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements(), initial, INITIAL_NODES);
 
         // Initiate an operation which affects ownership. This will add the MultiStepOperation which encodes any
         // necessary range movements so subsequent calls to ClusterMetadata::localRangesAllSettled
@@ -161,7 +161,7 @@ public class LocalRangesAllSettledTest
         assertEquals(proposed, finalized);
 
         // Finally, check against the actual write placements
-        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements, finalized, expandedNodes);
+        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements(), finalized, expandedNodes);
     }
 
     @Test
@@ -172,7 +172,7 @@ public class LocalRangesAllSettledTest
         AllLocalRanges proposed = snapshotAllLocalRanges(LocalRangeStatus.SETTLED, INITIAL_NODES);
         assertEquals(initial, proposed);
         // Check against the actual write placements
-        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements, initial, INITIAL_NODES);
+        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements(), initial, INITIAL_NODES);
 
         // Initiate an operation which affects ownership. This will add the MultiStepOperation which encodes any
         // necessary range movements so subsequent calls to ClusterMetadata::localRangesAllSettled
@@ -201,7 +201,7 @@ public class LocalRangesAllSettledTest
         assertEquals(proposed, finalized);
 
         // Finally, check against the actual write placements
-        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements, finalized, INITIAL_NODES);
+        assertLocalRangesMatchPlacements(ClusterMetadata.current().placements(), finalized, INITIAL_NODES);
     }
 
     private void assertLocalRangesMatchPlacements(DataPlacements placements,

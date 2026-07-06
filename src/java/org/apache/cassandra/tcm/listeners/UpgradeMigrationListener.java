@@ -47,17 +47,23 @@ public class UpgradeMigrationListener implements ChangeListener
             logger.info("Detected upgrade from gossip mode");
             return;
         }
-        else if (prev.epoch.equals(Epoch.FIRST) && !next.directory.isEmpty()) // directory is non-empty after initialization during gossip upgrade
+        else if (prev.epoch.equals(Epoch.FIRST) && !next.directory.isEmpty())
         {
             NodeId localId = next.myNodeId();
-            if (localId != null)
+            if (localId != NodeId.UNREGISTERED)
             {
-                logger.info("Initialized CMS, updating local host id to {}", next.myNodeId());
-                SystemKeyspace.setLocalHostId(next.myNodeId().toUUID());
-                Gossiper.instance.mergeNodeToGossip(next.myNodeId(), next);
+                // assigning the local node id is done in Epoch.FIRST in one of two scenarios:
+                // * during an upgrade from gossip, as all pre-existing nodes will have an id assigned
+                // * during CMS initialization for a brand new cluster iff the local node is the first CMS member
+                logger.info("Initialized CMS, updating local host id to {}", localId);
+                SystemKeyspace.setLocalHostId(localId.toUUID());
+                if (Gossiper.instance.isEnabled())
+                {
+                    Gossiper.instance.mergeNodeToGossip(localId, next);
+                    if (Gossiper.instance.getQuarantineDisabled())
+                        Gossiper.instance.clearQuarantinedEndpoints();
+                }
             }
-            if (Gossiper.instance.getQuarantineDisabled())
-                Gossiper.instance.clearQuarantinedEndpoints();
         }
 
         CassandraVersion prevMinVersion = prev.directory.clusterMinVersion.cassandraVersion;

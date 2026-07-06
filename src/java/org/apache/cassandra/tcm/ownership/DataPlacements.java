@@ -46,6 +46,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class DataPlacements extends ReplicationMap<DataPlacement> implements MetadataValue<DataPlacements>
 {
@@ -60,21 +61,6 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
     {
         super(map);
         this.lastModified = lastModified;
-    }
-
-    public DataPlacements replaceParams(Epoch lastModified, ReplicationParams oldParams, ReplicationParams newParams)
-    {
-        Map<ReplicationParams, DataPlacement> newMap = Maps.newHashMapWithExpectedSize(map.size());
-        assert map.containsKey(oldParams) : String.format("Can't replace key %s, since map doesn't contain it: %s", oldParams, map);
-        for (Map.Entry<ReplicationParams, DataPlacement> e : map.entrySet())
-        {
-            if (e.getKey().equals(oldParams))
-                newMap.put(newParams, e.getValue());
-            else
-                newMap.put(e.getKey(), e.getValue());
-        }
-
-        return new DataPlacements(lastModified, newMap);
     }
 
     protected DataPlacement defaultValue()
@@ -256,7 +242,11 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         public void serialize(DataPlacements t, DataOutputPlus out, Version version) throws IOException
         {
             Map<ReplicationParams, DataPlacement> map = t.asMap();
-            out.writeInt(map.size());
+            if (version.isBefore(Version.V9))
+                out.writeInt(map.size());
+            else
+                out.writeUnsignedVInt32(map.size());
+
             for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
                 ReplicationParams.serializer.serialize(entry.getKey(), out, version);
@@ -267,7 +257,7 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public DataPlacements deserialize(DataInputPlus in, Version version) throws IOException
         {
-            int size = in.readInt();
+            int size = version.isBefore(Version.V9) ? in.readInt() : in.readUnsignedVInt32();
             Map<ReplicationParams, DataPlacement> map = Maps.newHashMapWithExpectedSize(size);
             for (int i = 0; i < size; i++)
             {
@@ -280,8 +270,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
 
         public long serializedSize(DataPlacements t, Version version)
         {
-            long size = sizeof(t.size());
-            for (Map.Entry<ReplicationParams, DataPlacement> entry : t.asMap().entrySet())
+            Map<ReplicationParams, DataPlacement> map = t.asMap();
+            long size = version.isBefore(Version.V9) ? sizeof(map.size()) :  sizeofUnsignedVInt(map.size());
+            for (Map.Entry<ReplicationParams, DataPlacement> entry : map.entrySet())
             {
                 size += ReplicationParams.serializer.serializedSize(entry.getKey(), version);
                 size += DataPlacement.serializerFor(entry.getKey()).serializedSize(entry.getValue(), version);

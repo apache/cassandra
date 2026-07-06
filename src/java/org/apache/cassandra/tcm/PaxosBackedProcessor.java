@@ -64,6 +64,12 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
+    protected boolean acceptCommit(ClusterMetadata metadata)
+    {
+        return metadata.isCMSMember();
+    }
+
+    @Override
     protected boolean tryCommitOne(Entry.Id entryId, Transformation transform, Epoch previousEpoch, Epoch nextEpoch)
     {
         return tryCommit(entryId, transform, previousEpoch, nextEpoch);

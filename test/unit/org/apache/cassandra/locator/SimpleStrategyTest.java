@@ -372,6 +372,6 @@ public class SimpleStrategyTest extends CassandraTestBase
                                                       ReplicationParams replicationParams,
                                                       Token token)
     {
-        return metadata.placements.get(replicationParams).writes.forToken(token).get();
+        return metadata.placement(replicationParams).writes.forToken(token).get();
     }
 }
