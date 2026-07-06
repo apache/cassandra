@@ -95,7 +95,7 @@ class AccordExecutorSimple extends AccordExecutor
                     return;
                 }
 
-                try { task.preRunExclusive(); task.runInternal(); }
+                try { task.preRunExclusive(); task.run(); }
                 catch (Throwable t) { task.fail(t); }
                 finally
                 {

@@ -148,7 +148,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                                 try
                                 {
                                     task.preRunExclusive();
-                                    task.runInternal();
+                                    task.run();
                                 }
                                 catch (Throwable t)
                                 {
@@ -282,7 +282,7 @@ abstract class AccordExecutorAbstractLockLoop extends AccordExecutorAbstractLoop
                     try
                     {
                         ++count;
-                        task.runInternal();
+                        task.run();
                     }
                     catch (Throwable t)
                     {
