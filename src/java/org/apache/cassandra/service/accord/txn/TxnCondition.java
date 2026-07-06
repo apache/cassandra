@@ -700,8 +700,10 @@ public abstract class TxnCondition
             AbstractType<?> typeLHS = getColumnType(referenceLHS);
             AbstractType<?> typeRHS = getColumnType(referenceRHS);
 
+            Invariants.require(typeLHS.equals(typeRHS));
+
             ByteBuffer lhs = referenceLHS.toByteBuffer(data, typeLHS);
-            ByteBuffer rhs = referenceRHS.toByteBuffer(data, typeRHS);
+            ByteBuffer rhs = referenceRHS.toByteBuffer(data, typeLHS);
 
             if (lhs == null || rhs == null)
                 return false;
