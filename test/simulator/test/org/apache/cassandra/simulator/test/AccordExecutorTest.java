@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.simulator.test;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -36,6 +38,7 @@ import accord.api.AsyncExecutor;
 import accord.local.SequentialAsyncExecutor;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableSupplier;
 import org.apache.cassandra.service.accord.AccordExecutor;
@@ -43,47 +46,71 @@ import org.apache.cassandra.service.accord.AccordExecutorAsyncSubmit;
 import org.apache.cassandra.service.accord.AccordExecutorSignalLoop;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.service.accord.AccordExecutor.Mode.RUN_WITHOUT_LOCK;
 import static org.apache.cassandra.service.accord.AccordService.toFuture;
 
 // TODO (required): have simulator intercept ReentantLock so we can test SyncSubmit and SemiSyncSubmit
 public class AccordExecutorTest extends SimulationTestBase
 {
-    static final int THREAD_COUNT = 8;
+    static final int EXECUTOR_THREAD_COUNT = 44;
 
     @Test
     public void signalLoopTest()
     {
-        executorTest(() -> new AccordExecutorSignalLoop(1, RUN_WITHOUT_LOCK, THREAD_COUNT, -1, -1, TimeUnit.MICROSECONDS, i ->"Loop" + i, new AccordAgent()));
+        executorTest(() -> new AccordExecutorSignalLoop(1, RUN_WITHOUT_LOCK, EXECUTOR_THREAD_COUNT, -1, -1, TimeUnit.MICROSECONDS, i ->"Loop" + i, new AccordAgent()),
+                     16);
     }
 
     @Test
     public void signalSpinLoopTest()
     {
-        executorTest(() -> new AccordExecutorSignalLoop(1, RUN_WITHOUT_LOCK, THREAD_COUNT, 10, 100, TimeUnit.MICROSECONDS, i ->"Loop" + i, new AccordAgent()));
+        executorTest(() -> new AccordExecutorSignalLoop(1, RUN_WITHOUT_LOCK, EXECUTOR_THREAD_COUNT, 10, 100, TimeUnit.MICROSECONDS, i ->"Loop" + i, new AccordAgent()),
+                     16);
     }
 
     @Test
     public void ayncSubmitTest()
     {
-        executorTest(() -> new AccordExecutorAsyncSubmit(1, RUN_WITHOUT_LOCK, THREAD_COUNT, i -> "Loop" + i, new AccordAgent()));
+        executorTest(() -> new AccordExecutorAsyncSubmit(1, RUN_WITHOUT_LOCK, EXECUTOR_THREAD_COUNT, i -> "Loop" + i, new AccordAgent()),
+                     16);
     }
 
-    public void executorTest(SerializableSupplier<AccordExecutor> supplier)
+    public void executorTest(SerializableSupplier<AccordExecutor> supplier, int submissionThreads)
     {
         simulate(arr(() -> {
                      try
                      {
                          DatabaseDescriptor.daemonInitialization();
+                         ExecutorPlus submit = executorFactory().pooled("submit-test", submissionThreads);
                          AccordExecutor executor = supplier.get();
                          Lock lock = executor.unsafeLock();
                          SequentialAsyncExecutor sequentialExecutor = executor.newSequentialExecutor();
-                         Executor lockExecutor = ExecutorFactory.Global.executorFactory().sequential("lock");
-                         ConcurrentLinkedQueue<Future<?>> await = new ConcurrentLinkedQueue<>();
+                         Executor lockExecutor = executorFactory().sequential("lock");
 
                          for (float sleepChance : new float[] { 0f, 0.01f, 0.1f })
+                         {
                              for (float lockChance : new float[] { 0f, 0.01f, 0.1f })
-                                submitLoop(lock, executor, sequentialExecutor, lockExecutor, 200, 10, await, sleepChance, lockChance);
+                             {
+                                 List<Future<?>> done = new ArrayList<>();
+                                 for (int i = 0 ; i < submissionThreads ; ++i)
+                                 {
+                                     int id = i;
+                                     done.add(submit.submit(() -> {
+                                         try
+                                         {
+                                             submitLoop(id, lock, executor, sequentialExecutor, lockExecutor, 20, 10, sleepChance, lockChance);
+                                         }
+                                         catch (ExecutionException | InterruptedException e)
+                                         {
+                                             throw new RuntimeException(e);
+                                         }
+                                     }));
+                                 }
+                                 for (Future<?> f : done)
+                                     f.get();
+                             }
+                         }
                      }
                      catch (Throwable t)
                      {
@@ -93,8 +120,9 @@ public class AccordExecutorTest extends SimulationTestBase
                  () -> {}, 1L);
     }
 
-    private static void submitLoop(Lock lock, AccordExecutor executor, SequentialAsyncExecutor sequentialExecutor, Executor lockExecutor, int outerLoop, int innerLoop, ConcurrentLinkedQueue<Future<?>> await, float sleepChance, float lockChance) throws ExecutionException, InterruptedException
+    private static void submitLoop(int id, Lock lock, AccordExecutor executor, SequentialAsyncExecutor sequentialExecutor, Executor lockExecutor, int outerLoop, int innerLoop, float sleepChance, float lockChance) throws ExecutionException, InterruptedException
     {
+        ConcurrentLinkedQueue<Future<?>> await = new ConcurrentLinkedQueue<>();
         while (outerLoop-- > 0)
         {
             for (int i = 0; i < innerLoop; ++i)
@@ -105,7 +133,7 @@ public class AccordExecutorTest extends SimulationTestBase
             while (!await.isEmpty())
                 await.poll().get();
             done.set(true);
-            System.out.println("Loop " + (1 + outerLoop));
+            System.out.println("Loop " + id + '.' + (1 + outerLoop));
         }
     }
 
