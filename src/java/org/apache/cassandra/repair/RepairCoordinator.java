@@ -78,6 +78,7 @@ import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.TraceKeyspace;
@@ -133,6 +134,29 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
     public static RepairCoordinator create(StorageService storageService, int cmd, RepairOption options, String keyspace, Epoch minEpoch)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
+
+        // Reject preview repair on a keyspace that is currently undergoing mutation tracking migration.
+        // Neither direction has a meaningful offset to validate against.
+        if (options.getPreviewKind() == PreviewKind.REPAIRED && metadata.mutationTrackingMigrationState.isMigrating(keyspace))
+            throw new IllegalArgumentException("Cannot run preview repair on keyspace '" + keyspace + "' during mutation tracking migration.");
+
+        // Reject preview repair over unrepaired data on tracked keyspaces, where it has no clear semantics.
+        if (options.getPreviewKind() == PreviewKind.UNREPAIRED || options.getPreviewKind() == PreviewKind.ALL)
+        {
+            KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+            if (ksm != null && ksm.useMutationTracking())
+                throw new IllegalArgumentException("Preview repair '" + options.getPreviewKind() + "' is not supported on tracked keyspace '" + keyspace + "'; use nodetool repair --validate for the equivalent validation.");
+        }
+
+        // Reject --full flag against tracked keyspaces, since it disables the incremental flag, which would otherwise 
+        // silently fall through to the classic preview path instead of being rejected or routed correctly.
+        if (options.getPreviewKind() == PreviewKind.REPAIRED && !options.isIncremental())
+        {
+            KeyspaceMetadata ksm = metadata.schema.maybeGetKeyspaceMetadata(keyspace).orElse(null);
+            if (ksm != null && ksm.useMutationTracking())
+                throw new IllegalArgumentException("Cannot run 'nodetool repair --full --validate' on tracked keyspace '" + keyspace + "'; use 'nodetool repair --validate' instead.");
+        }
+
         boolean useMT = options.isIncremental()
                          && MutationTrackingIncrementalRepairTask.shouldUseMutationTrackingRepair(metadata, keyspace);
         KeyspaceMigrationInfo migrationInfo = metadata.mutationTrackingMigrationState.getKeyspaceInfo(keyspace);
@@ -561,6 +585,13 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
 
         if (state.options.isPreview())
         {
+            // Fully migrated tracked keyspaces route REPAIRED preview to an MT-specific task. UNREPAIRED/ALL still fall
+            // through to the classic preview task for now.
+            if (useMutationTracking && !mutationTrackingMigrationInProgress && state.options.getPreviewKind() == PreviewKind.REPAIRED)
+            {
+                RepairTask task = new MutationTrackingPreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+                return submitRepairTask(task, executor);
+            }
             RepairTask task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
             return submitRepairTask(task, executor);
         }
