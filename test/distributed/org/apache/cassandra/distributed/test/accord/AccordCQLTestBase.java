@@ -87,7 +87,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.consensus.TransactionalMode;
