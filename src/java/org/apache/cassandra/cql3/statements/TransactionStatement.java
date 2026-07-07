@@ -390,7 +390,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     {
         List<List<TxnWrite.Fragment>> groupedWriteFragments = new ArrayList<>(groupedUpdates.size());
 
-        // This is an over approximation of all the possible seen columns
         HashMap<Object, Columns> totalSeenColumns = new HashMap<>();
 
         int idx = 0;
@@ -406,8 +405,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 List<TxnWrite.Fragment> writeFragments = modification.getTxnWriteFragment(idx, state, options, keyCollector);
                 fragments.addAll(writeFragments);
                 // TODO: When adding support for consecutive IF statements, we need to revisit CASSANDRA-21136, currently we perform this check per branch since only one branch can be executed
-                // In the case where we have a trailing update, we use an overapproximation of all the seen columns we
-                // have accumulated within each branch to perform the validation
+                // In the case we have a trailing update, we use an overapproximation of the total seen columns we
+                // have accumulated within each branch to perform the validation. This is because we do not know for certain
+                // at runtime which branch we will enter. This can produce false positives, but will never let us
+                // perform an unsafe query.
                 if (groupedUpdatesIdx == groupedUpdates.size() - 1 && groupedUpdates.size() > groupedConditions.size())
                     validateOnlyModifyPrimaryKeyColumnPairOnce(totalSeenColumns, modification, writeFragments);
                 else
