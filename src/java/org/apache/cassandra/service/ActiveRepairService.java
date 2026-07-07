@@ -80,6 +80,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.MutationTrackingValidationCoordinator;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -966,6 +967,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     {
         RepairMessage payload = message.payload;
         RepairJobDesc desc = payload.desc;
+
         RepairSession session = sessions.get(desc.sessionId);
 
         if (session == null)
@@ -976,6 +978,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 case SYNC_RSP:
                     ctx.messaging().send(message.emptyResponse(), message.from());
                     break;
+                case MT_VALIDATION_RSP:
+                    // Tracked preview validation uses its own coordinator registry. Ack and hand trees off
+                    // to the coordinator before falling into the orphan-release block below.
+                    ctx.messaging().send(message.emptyResponse(), message.from());
+                    MutationTrackingValidationCoordinator.deliverResponse(message.from(), (ValidationResponse) payload);
+                    return;
             }
             if (payload instanceof ValidationResponse)
             {

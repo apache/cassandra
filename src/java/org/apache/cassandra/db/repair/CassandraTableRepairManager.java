@@ -35,6 +35,7 @@ import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
+import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.SnapshotOptions;
@@ -58,9 +59,23 @@ public class CassandraTableRepairManager implements TableRepairManager
     }
 
     @Override
-    public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
+    public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, boolean dontPurgeTombstones, ValidationOffsets validationOffsets, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
-        return new CassandraValidationIterator(cfs, ctx, ranges, parentId, sessionID, isIncremental, nowInSec, dontPurgeTombstones, topPartitionCollector);
+        CassandraValidationIterator sstableIterator =
+            new CassandraValidationIterator(cfs, ctx, ranges, parentId, sessionID, isIncremental, nowInSec, dontPurgeTombstones, validationOffsets, topPartitionCollector);
+
+        if (validationOffsets == null)
+            return sstableIterator;
+
+        try
+        {
+            return new JournalMergingValidationIterator(cfs, sstableIterator, ranges, validationOffsets);
+        }
+        catch (Throwable t)
+        {
+            sstableIterator.close();
+            throw t;
+        }
     }
 
     @Override
