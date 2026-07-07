@@ -296,7 +296,7 @@ public final class TxnUpdate extends AccordUpdate
 
         // Must ensure the following invariants when constructing a Block
         // (1) Every fragment in fragments is sorted by key order
-        // (2) conditionalBlocks occurs in the same order as the IF/ELSE IF/ELSE statements as the order of the array
+        // (2) conditionalBlocks occurs in the same order as the IF/ELSE IF/ELSE statements because the order of the array
         // determines the order in which the conditions get evaluated
         // (3) Within each ConditionalBlock, fragmentIds is in sorted order
         Block(BlockFragment[] fragments, ConditionalBlock[] conditionalBlocks)
@@ -378,26 +378,16 @@ public final class TxnUpdate extends AccordUpdate
 
             ConditionalBlock[] outConditions;
             {
-                List<ConditionalBlock> collect = null;
+                List<ConditionalBlock> collect = new ArrayList<>(conditionalBlocks.length - 1);
                 for (int i = 0 ; i < conditionalBlocks.length ; ++i)
                 {
                     ConditionalBlock cb = conditionalBlocks[i];
                     int[] cbOutFragmentIds = SortedArrays.linearIntersection(cb.fragmentIds, 0, cb.fragmentIds.length, outFragmentIds, 0, count, cachedInts());
-                    //noinspection ArrayEquality
-                    if (cbOutFragmentIds != cb.fragmentIds) // when arrays are equal the cb.fragmentIds gets returned unchanged, so can do a pointer check to detect a change
-                    {
-                        if (collect == null)
-                        {
-                            collect = new ArrayList<>(conditionalBlocks.length - 1);
-                            for (int j = 0 ; j < i ; ++j) //TODO (review): why do we include the previous blocks that "should" have empty fragments, but we provide them without empty fragments?
-                                collect.add(conditionalBlocks[j]);
-                        }
-                        if (cbOutFragmentIds.length > 0)
-                            collect.add(new ConditionalBlock(cb.id, cb.condition, cbOutFragmentIds));
-                    }
+
+                    if (cbOutFragmentIds.length > 0)
+                        collect.add(new ConditionalBlock(cb.id, cb.condition, cbOutFragmentIds));
                 }
-                if (collect == null) outConditions = conditionalBlocks;
-                else if (collect.isEmpty()) outConditions = NO_CONDITIONAL_BLOCKS;
+                if (collect.isEmpty()) outConditions = NO_CONDITIONAL_BLOCKS;
                 else outConditions = collect.toArray(ConditionalBlock[]::new);
             }
 
