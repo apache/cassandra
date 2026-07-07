@@ -127,6 +127,12 @@ public final class InMemoryIndex<K> extends Index<K>
         return lookUp(id);
     }
 
+    @Override
+    boolean hasKeyInRange(K min, K max)
+    {
+        return !index.subMap(min, true, max, true).isEmpty();
+    }
+
     public Iterator<K> keyIterator(@Nullable K min, @Nullable K max)
     {
         NavigableMap<K, long[]> m;

@@ -934,6 +934,24 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         return shards;
     }
 
+    /**
+     * @return the range of the shard that owns {@code logId}, or null if the log is unknown
+     */
+    @Nullable
+    public Range<Token> rangeForLog(CoordinatorLogId logId)
+    {
+        shardLock.readLock().lock();
+        try
+        {
+            Shard shard = getShardNullable(logId);
+            return shard == null ? null : shard.range;
+        }
+        finally
+        {
+            shardLock.readLock().unlock();
+        }
+    }
+
     private long nextLogId()
     {
         NodeId nodeId = ClusterMetadata.current().myNodeId();

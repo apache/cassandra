@@ -200,6 +200,14 @@ final class OnDiskIndex<K> extends Index<K>
         return lastId;
     }
 
+    @Override
+    boolean hasKeyInRange(K min, K max)
+    {
+        int i = binarySearch(min);
+        if (i < 0) i = -1 - i;
+        return i < entryCount && keySupport.compare(keyAtIndex(i), max) <= 0;
+    }
+
     public int entryCount()
     {
         return entryCount;

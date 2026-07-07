@@ -53,6 +53,8 @@ abstract class Index<K> implements Closeable
 
     abstract long[] lookUpAll(K id);
 
+    abstract boolean hasKeyInRange(K min, K max);
+
     /**
      * @return the first (smallest) id in the index
      */

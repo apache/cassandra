@@ -29,6 +29,11 @@ public interface KeyStats<K>
 
     boolean mayContain(K k);
 
+    default boolean mayContainRange(K min, K max)
+    {
+        return true;
+    }
+
     interface Active<K> extends KeyStats<K>
     {
         Active<Object> NOOP = new Active<>()
