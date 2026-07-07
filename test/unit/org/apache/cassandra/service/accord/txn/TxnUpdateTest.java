@@ -22,7 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.junit.Test;
@@ -35,6 +40,7 @@ import accord.utils.Gens;
 import accord.utils.SortedArrays;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -187,6 +193,37 @@ public class TxnUpdateTest
         });
     }
 
+    @Test
+    public void select()
+    {
+        qt().check(rs -> {
+            Gen<Block> blockGen = block();
+            Block block = blockGen.next(rs);
+            List<PartitionKey> allKeys = new ArrayList<>();
+            for (TxnUpdate.BlockFragment fragment : block.fragments)
+                allKeys.add(fragment.key);
+
+            if (!allKeys.isEmpty())
+            {
+                // Get a random subset of the keys
+                Collections.shuffle(allKeys, rs.asJdkRandom());
+                NavigableSet<Key> subListKey = new TreeSet<>(allKeys.subList(0, rs.nextInt(0, allKeys.size())));
+
+                Block selectedBlock = block.select(new Keys(subListKey));
+                Set<Integer> seenFragmentIds = new HashSet<>();
+                for (ConditionalBlock conditionalBlock : selectedBlock.conditionalBlocks)
+                    Arrays.stream(conditionalBlock.fragmentIds).forEach(seenFragmentIds::add);
+
+                // Ensure that every fragment is referenced in a conditionalBlock's fragmentIds
+                for (TxnUpdate.BlockFragment fragment : selectedBlock.fragments)
+                    assertThat(seenFragmentIds.remove(fragment.id)).isTrue();
+
+                // Ensure that there is a corresponding fragment for every id in conditionalBlock's fragmentIds
+                assertThat(seenFragmentIds.isEmpty()).isTrue();
+            }
+        });
+    }
+
     private static Gen<Fragment> fragment(List<TableMetadata> tables)
     {
         return rs -> {
@@ -223,8 +260,8 @@ public class TxnUpdateTest
         // can't have a empty block
         Gen<ByteBuffer[]> bytesGen = Gens.arrays(ByteBuffer.class, TxnUpdateTest.bytesGen.filter(ByteBuffer::hasRemaining))
                                                           .ofSizeBetween(0, 10);
-        var conditionGen = Gens.arrays(ConditionalBlock.class, conditionalBlock()).ofSizeBetween(1, 10);
         Gen<Key> keyGen = (Gen<Key>) (Gen<?>) AccordGenerators.keys(Murmur3Partitioner.instance);
+        Gen<SerializedTxnCondition> serializedTxnConditionGen = serializedTxnCondition();
         return rs -> {
             ByteBuffer[] bbs = bytesGen.next(rs);
             Key[] keys = IntStream.range(0, bbs.length).mapToObj(i -> keyGen.next(rs)).toArray(Key[]::new);
@@ -234,7 +271,30 @@ public class TxnUpdateTest
             TxnUpdate.BlockFragment[] fragments = new TxnUpdate.BlockFragment[bbs.length];
             for (int i = 0 ; i < fragments.length ; ++i)
                 fragments[i] = new TxnUpdate.BlockFragment(ids[i], (PartitionKey) keys[i], bbs[i]);
-            return new Block(fragments, conditionGen.next(rs));
+
+            List<ConditionalBlock> conditionalBlocks = new ArrayList<>();
+            List<Integer> fragmentIds = Arrays.stream(ids).boxed().collect(Collectors.toList());
+            List<Integer> sublist = new ArrayList<>();
+
+            boolean createNewSublist = false;
+            while (!fragmentIds.isEmpty())
+            {
+                if (createNewSublist)
+                {
+                    conditionalBlocks.add(new ConditionalBlock(rs.nextInt(-1, Integer.MAX_VALUE) + 1, serializedTxnConditionGen.next(rs), sublist.stream().sorted().mapToInt(i->i).toArray()));
+                    sublist = new ArrayList<>();
+                }
+
+                int index = rs.nextInt(0, fragmentIds.size());
+                sublist.add(fragmentIds.get(index));
+                fragmentIds.remove(index);
+                createNewSublist = rs.nextBoolean();
+            }
+
+            if (!sublist.isEmpty())
+                conditionalBlocks.add(new ConditionalBlock(rs.nextInt(-1, Integer.MAX_VALUE) + 1, serializedTxnConditionGen.next(rs), sublist.stream().sorted().mapToInt(i->i).toArray()));
+
+            return new Block(fragments, conditionalBlocks.toArray(new ConditionalBlock[0]));
         };
     }
 }
