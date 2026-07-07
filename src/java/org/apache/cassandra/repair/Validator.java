@@ -39,9 +39,11 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -85,22 +87,38 @@ public class Validator implements Runnable
     public TopPartitionTracker.Collector topPartitionCollector;
     public final boolean dontPurgeTombstones;
 
+    /** Verb used to ship the merkle-tree response back to the initiator. Defaults to {@link Verb#VALIDATION_RSP}. */
+    private final Verb responseVerb;
+
+    /** Non-null only for the tracked keyspace validation path. */
+    private final ValidationOffsets validationOffsets;
+
     public Validator(ValidationState state, long nowInSec, PreviewKind previewKind)
     {
-        this(SharedContext.Global.instance, state, nowInSec, false, false, previewKind, false);
+        this(SharedContext.Global.instance, state, nowInSec, false, false, previewKind, false, VALIDATION_RSP);
     }
 
     public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones)
     {
-        this(ctx, state, nowInSec, false, isIncremental, previewKind, dontPurgeTombstones);
+        this(ctx, state, nowInSec, false, isIncremental, previewKind, dontPurgeTombstones, VALIDATION_RSP);
     }
 
     public Validator(ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones)
     {
-        this(SharedContext.Global.instance, state, nowInSec, false, isIncremental, previewKind, dontPurgeTombstones);
+        this(SharedContext.Global.instance, state, nowInSec, false, isIncremental, previewKind, dontPurgeTombstones, VALIDATION_RSP);
     }
 
     public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones)
+    {
+        this(ctx, state, nowInSec, evenTreeDistribution, isIncremental, previewKind, dontPurgeTombstones, VALIDATION_RSP);
+    }
+
+    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones, Verb responseVerb)
+    {
+        this(ctx, state, nowInSec, evenTreeDistribution, isIncremental, previewKind, dontPurgeTombstones, responseVerb, null);
+    }
+
+    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind, boolean dontPurgeTombstones, Verb responseVerb, ValidationOffsets validationOffsets)
     {
         this.ctx = ctx;
         this.state = state;
@@ -110,10 +128,17 @@ public class Validator implements Runnable
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         this.dontPurgeTombstones = dontPurgeTombstones;
+        this.responseVerb = responseVerb;
+        this.validationOffsets = validationOffsets;
         validated = 0;
         range = null;
         ranges = null;
         this.evenTreeDistribution = evenTreeDistribution;
+    }
+
+    public ValidationOffsets validationOffsets()
+    {
+        return validationOffsets;
     }
 
     public void prepare(ColumnFamilyStore cfs, MerkleTrees trees, TopPartitionTracker.Collector topPartitionCollector)
@@ -285,7 +310,7 @@ public class Validator implements Runnable
     {
         if (initiatorIsRemote())
         {
-            RepairMessage.sendMessageWithRetries(ctx, response, VALIDATION_RSP, initiator);
+            RepairMessage.sendMessageWithRetries(ctx, response, responseVerb, initiator);
             return;
         }
 
@@ -306,7 +331,7 @@ public class Validator implements Runnable
             {
                 logger.error("Failed to move local merkle tree for {} off heap", desc, e);
             }
-            ctx.repair().handleMessage(Message.out(VALIDATION_RSP, movedResponse));
+            ctx.repair().handleMessage(Message.out(responseVerb, movedResponse));
         });
     }
 }

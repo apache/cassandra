@@ -1021,7 +1021,7 @@ public class MutationJournal
      */
 
     @VisibleForTesting
-    void truncateForTesting()
+    public void truncateForTesting()
     {
         journal.truncateForTesting();
         segmentStateTrackers.clear();
