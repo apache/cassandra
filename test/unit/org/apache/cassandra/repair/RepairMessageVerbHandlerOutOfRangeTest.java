@@ -45,12 +45,14 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.messages.MutationTrackingValidationRequest;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.ParticipateState;
 import org.apache.cassandra.replication.MutationJournal;
+import org.apache.cassandra.replication.ValidationOffsets;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -184,6 +186,73 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         setLocalTokens(100);
         ValidationRequest request = validationMsg(generateRange(10, 120));
         tryValidationExpectingFailure(request);
+    }
+
+    @Test
+    public void testMutationTrackingValidationRequestWithRequestedRangeWithinOwned() throws Exception
+    {
+        setLocalTokens(100);
+        MutationTrackingValidationRequest request = mtValidationMsg(generateRange(10, 20));
+        tryTrackedValidation(request, false);
+    }
+
+    @Test
+    public void testMutationTrackingValidationRequestWithRequestedRangeOutsideOwned() throws Exception
+    {
+        setLocalTokens(100);
+        MutationTrackingValidationRequest request = mtValidationMsg(generateRange(110, 120));
+        tryTrackedValidation(request, true);
+    }
+
+    private static void tryTrackedValidation(MutationTrackingValidationRequest request, boolean expectFailure) throws Exception
+    {
+        long startMetricCount = StorageMetrics.totalOpsForInvalidToken.getCount();
+        MessagingService.instance().outboundSink.clear();
+        MessagingService.instance().inboundSink.clear();
+        ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink(Verb.REPAIR_RSP);
+        RepairMessageVerbHandler handler = new RepairMessageVerbHandler(SharedContext.Global.instance);
+        int messageId = randomInt();
+        PrepareMessage prepare = prepareMsg(request.desc.parentSessionId, request.desc.ranges);
+        ActiveRepairService.instance().register(new ParticipateState(SharedContext.Global.instance.clock(), node1, prepare));
+        Message<RepairMessage> message = Message.builder(Verb.MT_VALIDATION_REQ, (RepairMessage) request).from(node1).withId(messageId).build();
+        handler.doVerb(message);
+        ClusterMetadataTestHelper.MessageDelivery response = messageSink.get(500, TimeUnit.MILLISECONDS);
+
+        if (expectFailure)
+        {
+            assertEquals(Verb.FAILURE_RSP, response.message.verb());
+            assertEquals(broadcastAddress, response.message.from());
+            assertEquals(node1, response.to);
+            assertEquals(startMetricCount + 1, StorageMetrics.totalOpsForInvalidToken.getCount());
+        }
+        else
+        {
+            assertEquals(Verb.MT_VALIDATION_RSP, response.message.verb());
+            assertEquals(broadcastAddress, response.message.from());
+            assertEquals(node1, response.to);
+            assertTrue(response.message.payload instanceof ValidationResponse);
+            ValidationResponse completion = (ValidationResponse) response.message.payload;
+            assertTrue(completion.success());
+            assertEquals(startMetricCount, StorageMetrics.totalOpsForInvalidToken.getCount());
+        }
+    }
+
+    private static MutationTrackingValidationRequest mtValidationMsg(Range<Token> range)
+    {
+        TimeUUID parentId = uuid();
+        List<ColumnFamilyStore> stores = tableIds.stream()
+                                                 .map(Schema.instance::getColumnFamilyStoreInstance)
+                                                 .collect(Collectors.toList());
+        ActiveRepairService.instance().registerParentRepairSession(parentId,
+                                                                 node1,
+                                                                 stores,
+                                                                 Collections.singleton(range),
+                                                                 false,
+                                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                 true,
+                                                                 PreviewKind.NONE);
+        return new MutationTrackingValidationRequest(new RepairJobDesc(parentId, uuid(), KEYSPACE, TABLE, Collections.singleton(range)),
+                                                      randomInt(), false, ValidationOffsets.EMPTY);
     }
 
     private static void tryValidationExpectingFailure(ValidationRequest request) throws Exception
