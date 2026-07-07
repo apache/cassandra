@@ -64,6 +64,12 @@ public abstract class Segment<K, V> implements SelfRefCounted<Segment<K, V>>, Co
     }
 
     abstract Index<K> index();
+
+    public boolean hasKeyInRange(K min, K max)
+    {
+        return keyStats().mayContainRange(min, max) && index().hasKeyInRange(min, max);
+    }
+
     public abstract KeyStats<K> keyStats();
 
     abstract boolean isActive();

@@ -18,6 +18,7 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.FileStore;
@@ -190,10 +191,12 @@ public class Journal<K, V> implements Shutdownable
     public static class Snapshot<K, V> implements AutoCloseable
     {
         private final Segments.ReferencedSegments<K, V> segments;
+        private final OpOrder readOrder;
 
-        private Snapshot(@Nonnull ReferencedSegments<K, V> segments)
+        private Snapshot(@Nonnull ReferencedSegments<K, V> segments, OpOrder readOrder)
         {
             this.segments = segments;
+            this.readOrder = readOrder;
         }
 
         /**
@@ -207,6 +210,18 @@ public class Journal<K, V> implements Shutdownable
             for (Segment<K, V> segment : segments.allSorted(false))
             {
                 segment.readAll(consumer);
+            }
+        }
+
+        /**
+         * Look up a specific record by id, from this snapshot's own pinned segments. This is safe
+         * to call as long as this snapshot is still open.
+         */
+        public boolean readLast(K id, RecordConsumer<K> consumer)
+        {
+            try (OpOrder.Group group = readOrder.start())
+            {
+                return Journal.readLast(id, consumer, group, segments);
             }
         }
 
@@ -551,7 +566,7 @@ public class Journal<K, V> implements Shutdownable
 
     public Snapshot<K, V> snapshot(Predicate<Segment<K, V>> predicate)
     {
-        return new Snapshot<>(selectAndReference(predicate));
+        return new Snapshot<>(selectAndReference(predicate), readOrder);
     }
 
     /**
@@ -682,16 +697,34 @@ public class Journal<K, V> implements Shutdownable
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(id, record, dob, params.userVersion());
-            ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
-            alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
-            flusher.flushAndAwaitDurable(alloc);
-            return alloc.recordPointer();
+            return blockingWriteSerialized(id, dob);
         }
         catch (IOException e)
         {
-            // exception during record serialization into the scratch buffer
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
+    }
+
+    @VisibleForTesting
+    public RecordPointer blockingWrite(K id, Writer writer)
+    {
+        try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
+        {
+            writer.write(dob, params.userVersion());
+            return blockingWriteSerialized(id, dob);
+        }
+        catch (IOException e)
+        {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private RecordPointer blockingWriteSerialized(K id, DataOutputBuffer dob)
+    {
+        ActiveSegment<K, V>.Allocation alloc = allocate(dob.getLength());
+        alloc.writeInternal(id, dob.unsafeGetBufferAndFlip());
+        flusher.flushAndAwaitDurable(alloc);
+        return alloc.recordPointer();
     }
 
     /**

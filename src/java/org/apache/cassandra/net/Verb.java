@@ -376,6 +376,8 @@ public enum Verb
     MT_TRANSFER_FAILED_REQ   (915, P1, repairTimeout,            ANTI_ENTROPY,     () -> mtEmbedded(TransferFailed.serializer),               () -> TransferTrackingService.verbHandler, MT_TRANSFER_FAILED_RSP  ),
     MT_SYNC_RSP              (916, P1, repairWithBackoffTimeout, REQUEST_RESPONSE, () -> mtEmbedded(MutationTrackingSyncResponse.serializer), RESPONSE_HANDLER                                                   ),
     MT_SYNC_REQ              (917, P1, repairWithBackoffTimeout, ANTI_ENTROPY,     () -> mtEmbedded(MutationTrackingSyncRequest.serializer),  () -> RepairMessageVerbHandler.instance(), MT_SYNC_RSP             ),
+    MT_VALIDATION_RSP        (918, P1, repairValidationRspTimeout, ANTI_ENTROPY,     () -> ValidationResponse.serializer,                     () -> RepairMessageVerbHandler.instance(), REPAIR_RSP              ),
+    MT_VALIDATION_REQ        (919, P1, repairWithBackoffTimeout,   ANTI_ENTROPY,     () -> ValidationRequest.serializer,                      () -> RepairMessageVerbHandler.instance(), REPAIR_RSP              ),
 
     // accord
     ACCORD_SIMPLE_RSP               (119, P2, writeTimeout, IMMEDIATE,          () -> accordEmbedded(EnumSerializer.simpleReply),           AccordService::responseHandlerOrNoop                                           ),

@@ -5577,6 +5577,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("MutationTrackingSyncTimeout set to {}ms via JMX", timeoutInMillis);
     }
 
+    public long getMutationTrackingValidationTimeout()
+    {
+        return DatabaseDescriptor.getMutationTrackingValidationTimeout(MILLISECONDS);
+    }
+
+    public void setMutationTrackingValidationTimeout(long timeoutInMillis)
+    {
+        checkArgument(timeoutInMillis > 0);
+        DatabaseDescriptor.setMutationTrackingValidationTimeout(timeoutInMillis);
+        logger.info("MutationTrackingValidationTimeout set to {}ms via JMX", timeoutInMillis);
+    }
+
     public void evictHungRepairs()
     {
         logger.info("StorageService#clearPaxosRateLimiters called via jmx");

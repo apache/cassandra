@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -692,6 +693,36 @@ public class Mutation implements IMutation, Supplier<Mutation>, Commitable
             int size = in.readUnsignedVInt32();
             assert size > 0;
             return PartitionUpdate.serializer.deserializeMetadataAndKey(in, version, flag);
+        }
+
+        /**
+         * Returns the partition key if the serialized mutation has an update for the given table, otherwise null.
+         * Single table mutations are not fully deserialized.
+         */
+        @Nullable
+        public DecoratedKey deserializeKeyForTable(TableId tableId, ByteBuffer buffer, int version, DeserializationHelper.Flag flag) throws IOException
+        {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, true))
+            {
+                skipHeader(in, version);
+                int size = in.readUnsignedVInt32();
+                assert size > 0;
+
+                if (size == 1)
+                {
+                    Pair<DecoratedKey, TableMetadata> keyAndMetadata = PartitionUpdate.serializer.deserializeMetadataAndKey(in, version, flag);
+                    return keyAndMetadata.right.id.equals(tableId) ? keyAndMetadata.left : null;
+                }
+
+                // updates can't be skipped without deserializing them
+                for (int i = 0; i < size; i++)
+                {
+                    PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag);
+                    if (update.metadata().id.equals(tableId))
+                        return update.partitionKey();
+                }
+                return null;
+            }
         }
 
         /**

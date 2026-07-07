@@ -155,7 +155,7 @@ public class MutationJournalTest
         ranges.update(id(200L, 30));
         ranges.update(id(200L, 60));
 
-        assertFalse(ranges.overlaps(null));
+        assertFalse(ranges.overlaps((CoordinatorLogOffsets<?>) null));
         assertFalse(ranges.overlaps(ImmutableCoordinatorLogOffsets.NONE));
 
         ImmutableCoordinatorLogOffsets noMatchLog = new ImmutableCoordinatorLogOffsets.Builder()
