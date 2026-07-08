@@ -1742,11 +1742,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     /**
-     * addSStables variant that allows adding sstables for tracked tables without requiring tracked transfers during bootstrap
+     * addSStables variant that allows adding sstables for tracked tables
+     * without requiring tracked transfers during bootstrap.
      */
-    public void addSSTableForBootstrap(Collection<SSTableReader> sstables)
+    public void addSSTablesForTopologyChange(Collection<SSTableReader> sstables)
     {
-        data.addSSTablesForBootstrap(sstables);
+        data.addSSTablesForTopologyChange(sstables);
         logger.debug("Adding sstables {}", sstables);
         CompactionManager.instance.submitBackground(this);
     }

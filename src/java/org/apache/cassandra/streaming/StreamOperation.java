@@ -58,13 +58,16 @@ public enum StreamOperation
         return this == REPAIR || this == IMPORT;
     }
 
+    /*
+     * Match on both description and name to work around removenode/RESTORE_REPLICA_COUNT
+     * type inconsistency in RemoveNodeStreams / ReconfigureCMS / DataMovements
+     * See CASSANDRA-21496 for additional context.
+     */
     public static StreamOperation fromString(String text)
     {
         for (StreamOperation b : StreamOperation.values())
-        {
-            if (b.description.equalsIgnoreCase(text))
+            if (b.description.equalsIgnoreCase(text) || b.name().equalsIgnoreCase(text))
                 return b;
-        }
 
         return OTHER;
     }

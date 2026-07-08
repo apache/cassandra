@@ -51,6 +51,9 @@ import static org.junit.Assert.assertTrue;
  *   <li>{@link #bootstrapSealsObsoletedShards_largerRing()} — 5 nodes -> 6, RF=3 (acquired ranges span
  *       several pre-join replica sets: multiple seal groups)</li>
  * </ul>
+ * Uses evenly-distributed tokens across the full Murmur3 ring (single-token, no vnodes; node N -> the N-th token in
+ * increasing order); the joining node is assigned the top token slot, so its acquired range is interior (no MIN
+ * wraparound).
  */
 public class TrackedBootstrapTest extends TestBaseImpl
 {
@@ -74,18 +77,16 @@ public class TrackedBootstrapTest extends TestBaseImpl
     }
 
     /**
-     * Start {@code initialNodes} (single token each: node N gets token N*100), create an RF={@code rf}
-     * tracked keyspace, then bootstrap one more node that joins in the MIDDLE of the ring (token
-     * {@code (initialNodes/2)*100 + 50}), so the acquired/split ranges are all interior - no MIN wraparound.
+     * Start {@code initialNodes} (single token each, evenly-distributed across the Murmur3 ring), create an
+     * RF={@code rf} tracked keyspace, then bootstrap one more node. The joining node is assigned the top token slot
+     * of the expanded ring, so its acquired range is interior - no MIN wraparound to reason about.
      */
     private void bootstrapAndSeal(int initialNodes, int rf) throws Throwable
     {
         int expandedNodes = initialNodes + 1;
-        // Existing nodes 1..initialNodes get human-readable tokens 100,200,...; the joining node (node index
-        // expandedNodes) joins in the MIDDLE of the ring (e.g. 5 existing nodes -> join at token 250, between
-        // node 2@200 and node 3@300). Interior split/acquire only, so there is no MIN wraparound to reason about.
-        long joinToken = (initialNodes / 2) * 100L + 50;
-        TokenSupplier tokenSupplier = i -> java.util.Collections.singleton(String.valueOf(i <= initialNodes ? i * 100L : joinToken));
+        // Real Murmur3 tokens for the full expanded ring; the joining node (index expandedNodes) gets the top
+        // token slot, whose primary range is interior (does not wrap MIN).
+        TokenSupplier tokenSupplier = TokenSupplier.evenlyDistributedTokens(expandedNodes, 1);
         try (Cluster cluster = builder().withNodes(initialNodes)
                                         .withTokenSupplier(tokenSupplier)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodes, "dc0", "rack0"))

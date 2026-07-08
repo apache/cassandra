@@ -60,9 +60,9 @@ import static org.junit.Assert.assertTrue;
  * Only same-cluster, different-address replacement is supported (same-address replacement is rejected at startup
  * when mutation tracking is enabled).
  * <p>
- * Uses human-readable single tokens (node N -> token N*100: 100, 200, ...) so the ring and every shard range is
- * trivial to read in the logs. The replaced node (REPLACE_TARGET) is interior (the ring wrap is owned by node 1 at
- * token 100), so the obsoleted shards are all interior - no MIN wraparound to reason about.
+ * Uses evenly-distributed tokens across the full Murmur3 ring (single-token, no vnodes; node N -> the N-th token in
+ * increasing order) so each node owns a real, balanced fraction of the token space. The replaced node
+ * (REPLACE_TARGET) is interior, so the obsoleted shards stay away from the MIN wraparound.
  */
 public class TrackedReplaceTest extends TestBaseImpl
 {
@@ -76,9 +76,11 @@ public class TrackedReplaceTest extends TestBaseImpl
     @Test
     public void replacementSealsObsoletedShards() throws Throwable
     {
-        // Human-readable single tokens (node N -> token N*100). The replaced node is interior, so its obsoleted
-        // shards are interior ranges (no MIN wraparound).
-        TokenSupplier tokenSupplier = i -> java.util.Collections.singleton(String.valueOf(i * 100L));
+        // Evenly-distributed Murmur3 tokens across the ring. The replaced node is interior, so its obsoleted
+        // shards stay away from the MIN wraparound. The replacement is added as node NODES+1 and must reuse the
+        // replaced node's token.
+        TokenSupplier even = TokenSupplier.evenlyDistributedTokens(NODES, 1);
+        TokenSupplier tokenSupplier = node -> even.tokens(node == NODES + 1 ? REPLACE_TARGET : node);
 
         try (Cluster cluster = builder().withNodes(NODES)
                                         .withTokenSupplier(tokenSupplier)

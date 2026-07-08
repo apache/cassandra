@@ -484,6 +484,11 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
             return shard;
 
         ShardMetadata metadata = queryPeersForShardMetadata(logId, mutation.getKeyspaceName());
+
+        // with the right checks upstream this should never happen, but if it does, we need to throw
+        if (!metadata.participants.contains(ClusterMetadata.current().myNodeId().id()))
+            throw new RuntimeException("Mutation belongs to a shard that this node doesn't participate in");
+
         shardLock.readLock().lock();
         try
         {
@@ -846,7 +851,6 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
 
     /**
      * Find an existing shard matching the response's (epoch, range), or create a new one from the response metadata.
-     * TODO (expected): validate if I need to persist the newly created shard, if it was just created here
      * TODO (expected): validate if this should be called with a shard lock everywhere it's called
      * TODO (expected): log2Shard map updates even on failed CAS. Need to clean up there(?); Register callbacks?
      */
@@ -857,7 +861,7 @@ public class MutationTrackingService implements MutationTrackingServiceMBean
         int localNodeId = ClusterMetadata.current().myNodeId().id();
 
         if (!participants.contains(localNodeId))
-            throw new IllegalStateException("A shard looked up that this node doesn't participate in");
+            throw new IllegalArgumentException("Attempted to create a shard that this node doesn't participate in");
 
         // unlikely, but possible to race here, hence the CAS loop
         while (true)

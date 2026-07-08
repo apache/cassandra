@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +49,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableTxnSingleStreamWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.replication.ImmutableCoordinatorLogOffsets;
 import org.apache.cassandra.replication.MutationId;
 import org.apache.cassandra.replication.MutationTrackingService;
 import org.apache.cassandra.replication.PendingLocalTransfer;
@@ -56,7 +59,6 @@ import org.apache.cassandra.service.accord.IAccordService;
 import org.apache.cassandra.service.accord.TimeOnlyRequestBookkeeping.LatencyRequestBookkeeping;
 import org.apache.cassandra.service.replication.migration.KeyspaceMigrationInfo;
 import org.apache.cassandra.streaming.IncomingStream;
-import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -119,6 +121,22 @@ public class CassandraStreamReceiver implements StreamReceiver
         return KeyspaceMigrationInfo.shouldUseTrackedTransfers(ClusterMetadata.current(), cfs.getKeyspaceName(), cfs.metadata().id, ranges);
     }
 
+    /**
+     * Whether the stream is a topology-change stream for a tracked keyspace.
+     */
+    private boolean isTrackedTopologyChangeStream()
+    {
+        switch (session.streamOperation())
+        {
+            case BOOTSTRAP:             // bootstrap + replace
+            case DECOMMISSION:          // unbootstrap
+            case RESTORE_REPLICA_COUNT: // removenode
+                return cfs.metadata().replicationType().isTracked();
+            default:
+                return false;
+        }
+    }
+
     public static CassandraStreamReceiver fromReceiver(StreamReceiver receiver)
     {
         Preconditions.checkArgument(receiver instanceof CassandraStreamReceiver);
@@ -149,6 +167,30 @@ public class CassandraStreamReceiver implements StreamReceiver
         txn.update(finished);
         sstables.addAll(finished);
         receivedEntireSSTable = file.isEntireSSTable();
+
+        if (isTrackedTopologyChangeStream())
+        {
+            /*
+             * Strip all coordinator log offsets from the SSTables streamed as a result of tracked keyspace
+             * topology change. The receiving node is unaware of most of the referenced shards/logs and
+             * will error out downstream, during compaction.
+             *
+             * TODO (required): split partially-reconciled SSTables into reconciled / unreconciled halves
+             *      on the sender, as sketched in SealingCoordinator's MID_REPLACE / MID_LEAVE comments,
+             *      then remove this logic. For unhappy-path follow-up.
+             */
+            for (SSTableReader reader : finished)
+            {
+                try
+                {
+                    reader.mutateCoordinatorLogOffsetsAndReload(ImmutableCoordinatorLogOffsets.NONE);
+                }
+                catch (IOException e)
+                {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
 
         if (useTrackedTransferPath())
         {
@@ -284,14 +326,16 @@ public class CassandraStreamReceiver implements StreamReceiver
                 if (useTrackedTransferPath())
                     return;
 
-                // TODO (required): use the same path for other tracked straming caused by topology changes
-                if (session.streamOperation() == StreamOperation.BOOTSTRAP)
+                switch (session.streamOperation())
                 {
-                    cfs.addSSTableForBootstrap(readers);
-                }
-                else
-                {
-                    cfs.addSSTables(readers);
+                    case BOOTSTRAP:             // bootstrap + replace
+                    case DECOMMISSION:          // unbootstrap
+                    case RESTORE_REPLICA_COUNT: // removenode
+                        cfs.addSSTablesForTopologyChange(readers);
+                        break;
+                    default:
+                        cfs.addSSTables(readers);
+                        break;
                 }
 
                 Consumer<Integer> onRowCacheInvalidation = invalidatedKeys -> {
