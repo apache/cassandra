@@ -1,4 +1,5 @@
 7.0
+ * Fix same-timestamp tombstone/expiring-cell tie-break in cursor compaction (CASSANDRA-21356)
  * Don't increment client metrics on messaging service connection unpause (CASSANDRA-21491)
  * Add nodetool getreplicas (CASSANDRA-17665)
  * Implementation of CEP-49: Hardware-accelerated compression (CASSANDRA-20975)
