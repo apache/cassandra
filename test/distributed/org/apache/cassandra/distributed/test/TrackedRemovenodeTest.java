@@ -68,16 +68,16 @@ public class TrackedRemovenodeTest extends TestBaseImpl
     private static final String KEYSPACE = "tracked_removenode_ks";
     private static final String TABLE    = "tbl";
 
-    private static final int NODES         = 7;
+    private static final int NODES         = 5;
     private static final int RF            = 3;
-    private static final int REMOVE_TARGET = 4; // a node in the middle of the ring
+    private static final int REMOVE_TARGET = 3; // interior node; the background writer uses nodes 1 and 2 as coordinators
 
     @Test
     public void removeNodeSealsObsoletedShards() throws Throwable
     {
-        // Human-readable single tokens (node N -> token N*100). The removed node is interior (the ring wrap is
-        // owned by node 1 at token 100), so its ranges and the FINISH_LEAVE merge are all interior - no MIN wraparound.
-        TokenSupplier tokenSupplier = i -> java.util.Collections.singleton(String.valueOf(i * 100L));
+        // Evenly-distributed Murmur3 tokens across the ring; the removed node is interior so its ranges and the
+        // FINISH_LEAVE merge stay away from the MIN wraparound.
+        TokenSupplier tokenSupplier = TokenSupplier.evenlyDistributedTokens(NODES, 1);
 
         try (Cluster cluster = builder().withNodes(NODES)
                                         .withTokenSupplier(tokenSupplier)
@@ -173,8 +173,8 @@ public class TrackedRemovenodeTest extends TestBaseImpl
     @Test
     public void twoSequentialRemoveNodesLeaveNothingBehind() throws Throwable
     {
-        // Human-readable single tokens (node N -> token N*100); interior removed node, no MIN wraparound.
-        TokenSupplier tokenSupplier = i -> java.util.Collections.singleton(String.valueOf(i * 100L));
+        // Evenly-distributed Murmur3 tokens across the ring; interior removed node, no MIN wraparound.
+        TokenSupplier tokenSupplier = TokenSupplier.evenlyDistributedTokens(NODES, 1);
 
         try (Cluster cluster = builder().withNodes(NODES)
                                         .withTokenSupplier(tokenSupplier)

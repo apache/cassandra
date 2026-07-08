@@ -45,6 +45,7 @@ import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.accord.AccordService;
@@ -58,6 +59,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public class Rebuild
@@ -87,8 +89,8 @@ public class Rebuild
             Set<String> availableDCs = ClusterMetadata.current().directory.knownDatacenters();
             if (!availableDCs.contains(sourceDc))
             {
-                throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
-                                                                 sourceDc, String.join(",", availableDCs)));
+                throw new IllegalArgumentException(format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                          sourceDc, String.join(",", availableDCs)));
             }
         }
 
@@ -98,6 +100,18 @@ public class Rebuild
             if (keyspace == null && tokens != null)
             {
                 throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+            }
+
+            // TODO (expected): lift this restriction
+            if (keyspace == null)
+            {
+                for (KeyspaceMetadata ksm : Schema.instance.getNonLocalStrategyKeyspaces())
+                    if (ksm.useMutationTracking())
+                        throw new IllegalArgumentException(format("Cannot rebuild all keyspaces because '%s' uses mutation tracking.", ksm.name));
+            }
+            else if (Keyspace.open(keyspace).getMetadata().useMutationTracking())
+            {
+                throw new IllegalArgumentException(format("Cannot rebuild keyspace '%s' because it uses mutation tracking.", keyspace));
             }
 
             logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
@@ -223,7 +237,7 @@ public class Rebuild
             }
             if (!foundParentRange)
             {
-                throw new IllegalArgumentException(String.format("The specified range %s is not a range that is owned by this node. Please ensure that all token ranges specified to be rebuilt belong to this node.", specifiedRange.toString()));
+                throw new IllegalArgumentException(format("The specified range %s is not a range that is owned by this node. Please ensure that all token ranges specified to be rebuilt belong to this node.", specifiedRange.toString()));
             }
         }
         return streamRanges.build();

@@ -370,7 +370,7 @@ public enum Verb
     MT_PUSH_MUTATION_REQ     (902, P3, writeTimeout,             MUTATION,         () -> mtEmbedded(PushMutationRequest.serializer),          () -> PushMutationRequest.verbHandler,     MUTATION_RSP            ),
     MT_READ_RECONCILE_ACK    (903, P2, readTimeout,              REQUEST_RESPONSE, () -> mtEmbedded(ReadReconcileAck.serializer),             () -> ReadReconcileAck.verbHandler                                 ),
     MT_FORWARD_WRITE_REQ     (904, P3, writeTimeout,             MUTATION,         () -> mtEmbedded(ForwardedWrite.serializer),               () -> ForwardedWrite.verbHandler                                   ),
-    MT_BROADCAST_LOG_OFFSETS (905, P1, rpcTimeout,               ANTI_ENTROPY,     () -> mtEmbedded(BroadcastLogOffsets.serializer),          () -> BroadcastLogOffsets.verbHandler                              ),
+    MT_BROADCAST_LOG_OFFSETS (905, P1, rpcTimeout,               MISC,             () -> mtEmbedded(BroadcastLogOffsets.serializer),          () -> BroadcastLogOffsets.verbHandler                              ),
 
     MT_PARTITION_READ_RSP    (906, P2, readTimeout,              REQUEST_RESPONSE, () -> TrackedDataResponse.embedded,                        RESPONSE_HANDLER                                                   ),
     MT_PARTITION_READ_REQ    (907, P3, readTimeout,              READ,             () -> TrackedRead.DataRequest.embedded,                    () -> TrackedRead.verbHandler,             MT_PARTITION_READ_RSP   ),
