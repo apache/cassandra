@@ -239,16 +239,51 @@ public class ForwardedWrite
             for (Replica replica : endpoints)
                 replicas.put(cm.directory.peerId(replica.endpoint()), replica);
 
-            // For performance, Mutation caches serialized buffers that are computed lazily in serializedBuffer(). That
-            // computation is not synchronized however, and we will potentially call that method concurrently for each
-            // dispatched message (not that concurrent calls to serializedBuffer() are "unsafe" per se, just that they
-            // may result in multiple computations, making the caching optimization moot). So forcing the serialization
-            // here to make sure it's already cached/computed when it's concurrently used later.
-            // Side note: we have one cached buffers for each used EncodingVersion and this only pre-compute the one for
-            // the current version, but it's just an optimization, and we're ok not optimizing for mixed-version clusters.
             try
             {
+                // For performance, Mutation caches serialized buffers that are computed lazily in serializedBuffer(). That
+                // computation is not synchronized however, and we will potentially call that method concurrently for each
+                // dispatched message (not that concurrent calls to serializedBuffer() are "unsafe" per se, just that they
+                // may result in multiple computations, making the caching optimization moot). So forcing the serialization
+                // here to make sure it's already cached/computed when it's concurrently used later.
+                // Side note: we have one cached buffers for each used EncodingVersion and this only pre-compute the one for
+                // the current version, but it's just an optimization, and we're ok not optimizing for mixed-version clusters.
                 Mutation.serializer.prepareSerializedBuffer(mutation, MessagingService.current_version);
+
+                for (NodeId recipient : recipients)
+                {
+                    if (cm.myNodeId().equals(recipient))
+                    {
+                        applyLocally = true;
+                        continue;
+                    }
+
+                    if (message == null)
+                        message = Message.builder(MUTATION_REQ, mutation)
+                                         .withRequestTime(handler.getRequestTime())
+                                         .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
+                                         .withParam(ParamType.COORDINATOR_ACK_INFO, ackTo)
+                                         .build();
+
+                    Replica replica = replicas.get(recipient);
+                    String dc = cm.locator.location(replica.endpoint()).datacenter;
+
+                    if (localDataCenter.equals(dc))
+                    {
+                        if (localDCReplicas == null)
+                            localDCReplicas = new ArrayList<>();
+                        localDCReplicas.add(replica);
+                    }
+                    else
+                    {
+                        if (remoteDCReplicas == null)
+                            remoteDCReplicas = new HashMap<>();
+                        remoteDCReplicas.computeIfAbsent(dc, ignore -> new ArrayList<>(3)) // most DCs will have <= 3 replicas
+                                        .add(replica);
+                    }
+                }
+
+                Preconditions.checkState(applyLocally); // the leader is always a replica
             }
             catch (Throwable t)
             {
@@ -256,40 +291,6 @@ public class ForwardedWrite
                 throw t;
             }
 
-            for (NodeId recipient : recipients)
-            {
-                if (cm.myNodeId().equals(recipient))
-                {
-                    applyLocally = true;
-                    continue;
-                }
-
-                if (message == null)
-                    message = Message.builder(MUTATION_REQ, mutation)
-                                     .withRequestTime(handler.getRequestTime())
-                                     .withFlag(MessageFlag.CALL_BACK_ON_FAILURE)
-                                     .withParam(ParamType.COORDINATOR_ACK_INFO, ackTo)
-                                     .build();
-
-                Replica replica = replicas.get(recipient);
-                String dc = cm.locator.location(replica.endpoint()).datacenter;
-
-                if (localDataCenter.equals(dc))
-                {
-                    if (localDCReplicas == null)
-                        localDCReplicas = new ArrayList<>();
-                    localDCReplicas.add(replica);
-                }
-                else
-                {
-                    if (remoteDCReplicas == null)
-                        remoteDCReplicas = new HashMap<>();
-                    remoteDCReplicas.computeIfAbsent(dc, ignore -> new ArrayList<>(3)) // most DCs will have <= 3 replicas
-                                    .add(replica);
-                }
-            }
-
-            Preconditions.checkState(applyLocally); // the leader is always a replica
             TrackedWriteRequest.applyMutationLocally(mutation, handler);
 
             if (localDCReplicas != null)

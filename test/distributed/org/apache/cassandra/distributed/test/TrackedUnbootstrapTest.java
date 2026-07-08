@@ -72,9 +72,9 @@ public class TrackedUnbootstrapTest extends TestBaseImpl
     @Test
     public void decommissionSealsObsoletedShards() throws Throwable
     {
-        // Human-readable single tokens (node N -> token N*100). The leaving node is interior (the ring wrap is
-        // owned by node 1 at token 100), so its ranges and the FINISH_LEAVE merge are all interior - no MIN wraparound.
-        TokenSupplier tokenSupplier = i -> java.util.Collections.singleton(String.valueOf(i * 100L));
+        // Evenly-distributed Murmur3 tokens across the ring. The leaving node is interior, so its ranges and the
+        // FINISH_LEAVE merge stay away from the MIN wraparound.
+        TokenSupplier tokenSupplier = TokenSupplier.evenlyDistributedTokens(NODES, 1);
 
         try (Cluster cluster = builder().withNodes(NODES)
                                         .withTokenSupplier(tokenSupplier)

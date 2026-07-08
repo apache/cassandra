@@ -229,10 +229,13 @@ public final class SealingCoordinator
      *    + (30,40] | {$n40,n50,n60}    | e3 | ACTIVE
      *
      * [*] At this stage, after sealing the shards, we stream the sstables.
-     * All the offsets belonging to these sealed shards get stripped from
-     * stats component of streamed sstables. Otherwise, the new node
-     * won't be able to compact them or mark them as reconciled/repaired -
-     * it is rightfully unaware of the sealed shards.
+     * Non-repaired (not fully reconciled) SSTables must be split into
+     * fully reconciled part and non-reconciled part. When streaming the
+     * former, we will strip all the log offsets from their metadata.
+     * Otherwise, the new node won't be able to compact them or mark them
+     * as reconciled/repaired - it is rightfully unaware of the sealed shards.
+     * If we don't split them into two parts, then we risk being unable to
+     * rebuild and filter any of the streamed SSTables on the receiving node.
      */
 
     /**
@@ -372,10 +375,13 @@ public final class SealingCoordinator
      *    + (30,50] | {n50,n60,n70}     | e3 | ACTIVE
      *
      * [*] At this stage, after sealing the shards, we stream the sstables.
-     * All the offsets belonging to these sealed shards get stripped from
-     * stats component of streamed sstables. Otherwise, the new node
-     * won't be able to compact them or mark them as reconciled/repaired -
-     * it is rightfully unaware of the sealed shards.
+     * Non-repaired (not fully reconciled) SSTables must be split into
+     * fully reconciled part and non-reconciled part. When streaming the
+     * former, we will strip all the log offsets from their metadata.
+     * Otherwise, the new node won't be able to compact them or mark them
+     * as reconciled/repaired - it is rightfully unaware of the sealed shards.
+     * If we don't split them into two parts, then we risk being unable to
+     * rebuild and filter any of the streamed SSTables on the receiving node.
      */
 
     /**
