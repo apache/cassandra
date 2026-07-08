@@ -104,15 +104,15 @@ public class ConditionStatement
 
             if (lhs instanceof RowDataReference.Raw && rhs instanceof RowDataReference.Raw)
             {
-                RowDataReference.Raw rawDataReferenceLHS = ((RowDataReference.Raw) lhs);
-                RowDataReference.Raw rawDataReferenceRHS = ((RowDataReference.Raw) rhs);
+                RowDataReference.Raw rowDataReferenceLHS = ((RowDataReference.Raw) lhs);
+                RowDataReference.Raw rowDataReferenceRHS = ((RowDataReference.Raw) rhs);
 
-                if (rawDataReferenceLHS.column() == null)
+                if (rowDataReferenceLHS.column() == null)
                     throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", lhs.getText()));
-                if (rawDataReferenceRHS.column() == null)
+                if (rowDataReferenceRHS.column() == null)
                     throw new IllegalStateException(String.format("Row reference (%s) can only be used with IS NULL/IS NOT NULL conditions", rhs.getText()));
-                reference = rawDataReferenceLHS.prepareAsReceiver();
-                value = rawDataReferenceRHS.prepareAsReceiver();
+                reference = rowDataReferenceLHS.prepareAsReceiver();
+                value = rowDataReferenceRHS.prepareAsReceiver();
                 if (!reference.toResultMetadata().type.equals(((RowDataReference) value).toResultMetadata().type))
                     throw new InvalidRequestException(String.format("Row reference (%s) must have the same type as row reference (%s)", lhs.getText(), rhs.getText()));
             }
