@@ -3761,4 +3761,33 @@ public abstract class AccordCQLTestBase extends AccordTestBase
             assertThat(result).hasSize(1).contains(10);
         });
     }
+
+    @Test
+    public void testLetComparisonWithFrozenCollections() throws Throwable
+    {
+        test("CREATE TABLE " + qualifiedAccordTableName + " (k int PRIMARY KEY, v list<int>) WITH " + transactionalMode.asCqlParam(), cluster -> {
+
+            String insert = "BEGIN TRANSACTION\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (0, [9, 5]);\n" +
+                            "  INSERT INTO " + qualifiedAccordTableName + " (k, v) VALUES (1, [2, 8]);\n" +
+                            "COMMIT TRANSACTION";
+            cluster.coordinator(1).executeWithResult(insert, ConsistencyLevel.ANY);
+
+            String update = "BEGIN TRANSACTION\n" +
+                            "LET k1 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 0);\n" +
+                            "LET k2 = (SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1);\n" +
+                            "IF k1.v[0] > k2.v[1] THEN \n" +
+                            "    UPDATE " + qualifiedAccordTableName + " SET v = [7, 8] WHERE k = 1;\n" +
+                            "END IF\n" +
+                            "COMMIT TRANSACTION";
+
+            cluster.coordinator(1).executeWithResult(update, ConsistencyLevel.SERIAL);
+
+            String read = "BEGIN TRANSACTION\n" +
+                          "SELECT * FROM " + qualifiedAccordTableName + " WHERE k = 1;\n" +
+                          "COMMIT TRANSACTION";
+
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, ImmutableList.of(7, 8)}, read);
+        });
+    }
 }
