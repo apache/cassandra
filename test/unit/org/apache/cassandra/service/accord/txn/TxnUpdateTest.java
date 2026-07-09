@@ -40,7 +40,6 @@ import accord.utils.Gens;
 import accord.utils.SortedArrays;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.ast.Conditional;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -62,6 +61,7 @@ import org.apache.cassandra.service.accord.txn.TxnWrite.Fragment;
 import org.apache.cassandra.utils.AccordGenerators;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.Generators;
+import org.apache.cassandra.utils.Pair;
 
 import static accord.utils.Property.qt;
 import static accord.utils.SortedArrays.Search.FAST;
@@ -108,6 +108,71 @@ public class TxnUpdateTest
             for (TxnUpdate.BlockFragment fragment : expected.fragments)
                 collector.add(fragment.key);
             Serializers.testSerde(output, Block.serializer, expected, collector.buildTablesAndKeys());
+        });
+    }
+
+    @Test
+    public void blockInvariants()
+    {
+        qt().check(rs -> {
+            List<TableMetadata> tables = tablesGen.next(rs);
+            TableMetadatas metadatas = TableMetadatas.of(tables);
+            List<TxnUpdate.PreTransformedBlock> preTransformedBlocks = new ArrayList<>();
+
+            // We use TxnCondition.Else.instance because, the invariants that we are checking do not depend on the kind of TxnCondition
+            TxnCondition[] conditions = IntStream.range(0, rs.nextInt(1, 10)).mapToObj(i -> TxnCondition.Else.instance).toArray(TxnCondition[]::new);
+            List<Pair<Fragment, Integer>> fragmentConditionIndexPair = new ArrayList<>();
+            List<Fragment> fragments = Gens.lists(fragment(tables)).ofSizeBetween(conditions.length, conditions.length + 15).next(rs);
+
+            // Make sure that all conditions have a randomly assigned corresponding fragment to it
+            List<Integer> fragmentToConditionIndex = IntStream.range(0, conditions.length).boxed().collect(Collectors.toList());
+            Collections.shuffle(fragmentToConditionIndex);
+
+            for (int i = 0; i < fragments.size(); i++)
+            {
+                if (i < fragmentToConditionIndex.size())
+                    fragmentConditionIndexPair.add(Pair.create(fragments.get(i), fragmentToConditionIndex.get(i)));
+                else
+                    // After we have ensured that each condition is referenced by 1 fragment,
+                    // assign the rest of the fragments to random conditions
+                    fragmentConditionIndexPair.add(Pair.create(fragments.get(i), rs.nextInt(0, conditions.length)));
+            }
+
+            preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(conditions, fragmentConditionIndexPair, null));
+
+            TxnCondition[] trailingCondition = new TxnCondition[] { TxnCondition.none() };
+            List<Fragment> noneCondition = new ArrayList<>();
+            boolean shouldHaveTrailingUpdate = rs.nextBoolean();
+            if (shouldHaveTrailingUpdate)
+            {
+                noneCondition = Gens.lists(fragment(tables)).ofSizeBetween(conditions.length, conditions.length + 15).next(rs);
+                preTransformedBlocks.add(new TxnUpdate.PreTransformedBlock(trailingCondition, null, noneCondition));
+            }
+
+            int blockSize = 0;
+            if (!fragmentConditionIndexPair.isEmpty())
+                blockSize++;
+            if (!noneCondition.isEmpty())
+                blockSize++;
+
+            TxnUpdate update = new TxnUpdate(metadatas, preTransformedBlocks, null, PreserveTimestamp.no);
+
+            List<Block> blocks = update.blocks;
+            assertThat(blocks.size()).isEqualTo(blockSize);
+
+            for (int blockIdx = 0; blockIdx < blocks.size(); blockIdx++)
+            {
+                Block block = blocks.get(blockIdx);
+                assertThat(ensureFragmentIdsAreOrdered(block)).isTrue();
+                assertThat(ensureBlockFragmentsAreSortedByKey(block)).isTrue();
+                assertThat(ensureInjectivityOfFragmentIdsToFragments(block)).isTrue();
+
+                boolean inTrailingUpdateBlock = shouldHaveTrailingUpdate && (blockIdx == blocks.size() - 1);
+                if (!inTrailingUpdateBlock)
+                    assertThat(ensureConditionalBlockIdsPreserveOrder(block, conditions, metadatas)).isTrue();
+                else
+                    assertThat(ensureConditionalBlockIdsPreserveOrder(block, trailingCondition, metadatas)).isTrue();
+            }
         });
     }
 
@@ -210,18 +275,82 @@ public class TxnUpdateTest
                 NavigableSet<Key> subListKey = new TreeSet<>(allKeys.subList(0, rs.nextInt(0, allKeys.size())));
 
                 Block selectedBlock = block.select(new Keys(subListKey));
-                Set<Integer> seenFragmentIds = new HashSet<>();
-                for (ConditionalBlock conditionalBlock : selectedBlock.conditionalBlocks)
-                    Arrays.stream(conditionalBlock.fragmentIds).forEach(seenFragmentIds::add);
-
-                // Ensure that every fragment is referenced in a conditionalBlock's fragmentIds
-                for (TxnUpdate.BlockFragment fragment : selectedBlock.fragments)
-                    assertThat(seenFragmentIds.remove(fragment.id)).isTrue();
-
-                // Ensure that there is a corresponding fragment for every id in conditionalBlock's fragmentIds
-                assertThat(seenFragmentIds.isEmpty()).isTrue();
+                assertThat(ensureFragmentIdsAreOrdered(selectedBlock)).isTrue();
+                assertThat(ensureConditionalBlockIdsPreserveOrder(selectedBlock, block)).isTrue();
+                assertThat(ensureBlockFragmentsAreSortedByKey(selectedBlock)).isTrue();
+                assertThat(ensureInjectivityOfFragmentIdsToFragments(selectedBlock)).isTrue();
             }
         });
+    }
+
+    private boolean ensureFragmentIdsAreOrdered(Block block)
+    {
+        for (ConditionalBlock conditionalBlock : block.conditionalBlocks)
+        {
+            for (int i = 1; i < conditionalBlock.fragmentIds.length; i++)
+                if (conditionalBlock.fragmentIds[i-1] > conditionalBlock.fragmentIds[i])
+                    return false;
+        }
+
+        return true;
+    }
+
+    private boolean ensureConditionalBlockIdsPreserveOrder(Block selectedBlock, Block originalBlock)
+    {
+        List<Integer> originalBlockOrder = Arrays.stream(originalBlock.conditionalBlocks).map(i -> i.id).collect(Collectors.toList());
+        List<Integer> selectedBlockOrder = Arrays.stream(selectedBlock.conditionalBlocks).map(i -> i.id).collect(Collectors.toList());
+
+        int selectedIndex = 0;
+        int originalIndex = 0;
+        while (selectedIndex < selectedBlockOrder.size() && originalIndex < originalBlockOrder.size())
+        {
+            if (!originalBlockOrder.get(originalIndex).equals(selectedBlockOrder.get(selectedIndex)))
+                originalIndex++;
+            else
+                selectedIndex++;
+        }
+
+        return selectedIndex == selectedBlockOrder.size();
+    }
+
+    private boolean ensureConditionalBlockIdsPreserveOrder(Block block, TxnCondition[] conditions, TableMetadatas metadatas)
+    {
+        if (block.conditionalBlocks.length != conditions.length)
+            return false;
+
+        for (int i = 0; i < block.conditionalBlocks.length; i++)
+        {
+            TxnCondition txnCondition = block.conditionalBlocks[i].condition.deserialize(metadatas);
+            if (!txnCondition.equals(conditions[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private boolean ensureBlockFragmentsAreSortedByKey(Block block)
+    {
+        for (int i = 1; i < block.fragments.length; i++)
+            if (block.fragments[i-1].key.compareTo(block.fragments[i].key) > 0)
+                return false;
+        return true;
+    }
+
+    private boolean ensureInjectivityOfFragmentIdsToFragments(Block block)
+    {
+        Set<Integer> seenFragmentIds = new HashSet<>();
+        for (ConditionalBlock conditionalBlock : block.conditionalBlocks)
+        {
+            for (int fragmentId : conditionalBlock.fragmentIds)
+                if (!seenFragmentIds.add(fragmentId))
+                    return false;
+        }
+
+        for (TxnUpdate.BlockFragment fragment : block.fragments)
+            if (!seenFragmentIds.remove(fragment.id))
+                return false;
+
+        return seenFragmentIds.isEmpty();
     }
 
     private static Gen<Fragment> fragment(List<TableMetadata> tables)
@@ -277,11 +406,12 @@ public class TxnUpdateTest
             List<Integer> sublist = new ArrayList<>();
 
             boolean createNewSublist = false;
+            int conditionalBlockIdx = 0;
             while (!fragmentIds.isEmpty())
             {
                 if (createNewSublist)
                 {
-                    conditionalBlocks.add(new ConditionalBlock(rs.nextInt(-1, Integer.MAX_VALUE) + 1, serializedTxnConditionGen.next(rs), sublist.stream().sorted().mapToInt(i->i).toArray()));
+                    conditionalBlocks.add(new ConditionalBlock(conditionalBlockIdx++, serializedTxnConditionGen.next(rs), sublist.stream().sorted().mapToInt(i->i).toArray()));
                     sublist = new ArrayList<>();
                 }
 
@@ -292,7 +422,7 @@ public class TxnUpdateTest
             }
 
             if (!sublist.isEmpty())
-                conditionalBlocks.add(new ConditionalBlock(rs.nextInt(-1, Integer.MAX_VALUE) + 1, serializedTxnConditionGen.next(rs), sublist.stream().sorted().mapToInt(i->i).toArray()));
+                conditionalBlocks.add(new ConditionalBlock(conditionalBlockIdx, serializedTxnConditionGen.next(rs), sublist.stream().sorted().mapToInt(i->i).toArray()));
 
             return new Block(fragments, conditionalBlocks.toArray(new ConditionalBlock[0]));
         };
